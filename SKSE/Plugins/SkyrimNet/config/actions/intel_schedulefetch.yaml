@@ -1,0 +1,54 @@
+name: ScheduleFetch
+description: >
+  Schedule fetching a person at a FUTURE TIME. Delayed version of FetchPerson — you stay put now and go later.
+
+  Use when:
+  - You decide to go get someone later: "I'll go find Ysolda after sunset"
+  - Someone (player or NPC) asks you to fetch a person later, not right now
+  - You want to bring someone to a location at a future time
+  - You overhear that someone is needed and decide to go get them later
+  - Another NPC asks you to bring someone to them at a specific time
+
+  This schedules the task for later. You will NOT leave immediately.
+  When the time comes, you will automatically go fetch the person.
+
+  IMPORTANT: The target must be a person who actually exists.
+  The system uses fuzzy matching, so minor typos are okay.
+
+questEditorId: IntelEngine
+scriptName: IntelEngine_Schedule
+executionFunctionName: ScheduleFetch
+
+parameterMapping:
+  - type: speaker
+    name: akNPC
+    description: You (the NPC who will do the fetching later)
+  - type: dynamic
+    name: targetName
+    description: >
+      The name of the person to fetch. Examples:
+      - "Nazeem"
+      - "Jarl Balgruuf"
+      - "Adrianne Avenicci"
+      Do NOT make up names that don't exist in Skyrim.
+  - type: dynamic
+    name: timeCondition
+    description: >
+      When to go fetch them. Natural language time expression.
+      Examples: "at dawn", "after sunset", "in 2 hours",
+      "tonight", "tomorrow morning", "at midday"
+
+eligibilityRules:
+  - conditions:
+      - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+    logicalOperator: "AND"
+    required: true
+
+eventString: "{{ actor.name }} plans to fetch {{ targetName }} {{ timeCondition }}"
+isShortLived: false
+enabled: true
+defaultPriority: 5
+tags: []

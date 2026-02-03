@@ -1,0 +1,55 @@
+name: GoToLocation
+description: >
+  Travel to a LOCATION (a place, not a person). Supports named locations (Whiterun, Bannered Mare),
+  relative directions (upstairs, outside, downstairs, the bedroom, the back room),
+  and semantic terms (leave, get out of here).
+
+  Use when:
+  - Someone asks you to go somewhere (a place name, not a person's name)
+  - You decide to go somewhere on your own (errands, duties, returning home)
+  - You need to leave for personal reasons (emotions, danger, obligations)
+  - You want to move to a different part of the building (upstairs, outside, the back)
+  - You agree to meet someone at a specific place RIGHT NOW
+
+  DO NOT use just because a location was mentioned in conversation.
+  To change speed on an active task, use ChangeSpeed instead.
+
+questEditorId: IntelEngine
+scriptName: IntelEngine_Travel
+executionFunctionName: GoToLocation
+
+parameterMapping:
+  - type: speaker
+    name: akNPC
+    description: You (the NPC traveling)
+  - type: dynamic
+    name: destination
+    description: >
+      Where to travel. Can be:
+      - A named location: Whiterun, Solitude, Bannered Mare, Dragonsreach
+      - A relative term: upstairs, downstairs, outside, inside, the back room
+      - A fuzzy match: "the inn" might match "Bannered Mare"
+      The system will resolve the destination automatically.
+  - type: dynamic
+    name: speed
+    description: >
+      Travel speed as number: 0=walk, 1=jog, 2=run.
+      Choose based on urgency: casual stroll=0, normal=1, urgent=2
+  - type: static
+    value: false
+    name: isScheduled
+
+eligibilityRules:
+  - conditions:
+      - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+    logicalOperator: "AND"
+    required: true
+
+eventString: "{{ actor.name }} already departed for {{ destination }} (task in progress)"
+isShortLived: false
+enabled: true
+defaultPriority: 6
+tags: []

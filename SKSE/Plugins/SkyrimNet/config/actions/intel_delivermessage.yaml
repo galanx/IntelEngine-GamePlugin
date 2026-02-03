@@ -1,0 +1,65 @@
+name: DeliverMessage
+description: >
+  Travel to find someone and deliver a specific MESSAGE to them. You are a messenger.
+
+  Use when:
+  - Someone asks you to relay a message to another person: "tell X that...", "let X know...", "warn X about..."
+  - You decide on your own to warn, inform, or notify someone about something
+  - You have important news that someone else needs to hear
+  - You want to pass along what you were told to the right person
+
+  If the message includes a request to MEET somewhere at a specific time,
+  set meetLocation and meetTime so the recipient will travel there after hearing your message.
+
+  IMPORTANT:
+  - The target must be a person who actually exists
+  - You must have a clear message to deliver
+
+questEditorId: IntelEngine
+scriptName: IntelEngine_NPCTasks
+executionFunctionName: DeliverMessage
+
+parameterMapping:
+  - type: speaker
+    name: akAgent
+    description: You (the messenger)
+  - type: dynamic
+    name: targetName
+    description: >
+      Who to deliver the message to. Must be a real NPC name.
+      Examples: "Jarl Balgruuf", "Nazeem", "Adrianne"
+  - type: dynamic
+    name: msgContent
+    description: >
+      The message to deliver. This is what you will tell them.
+      Keep it clear and concise. The target will hear this message
+      and may react to it.
+  - type: dynamic
+    name: meetLocation
+    description: >
+      If the message asks the target to meet somewhere, provide the
+      location name (e.g., "Bannered Mare", "Dragonsreach").
+      The recipient will be scheduled to travel there.
+      If NOT a meeting request: you MUST set this to "none"
+  - type: dynamic
+    name: meetTime
+    description: >
+      If the message asks the target to meet at a specific time,
+      provide the time (e.g., "at noon", "after sunset", "tonight").
+      The recipient will be scheduled to arrive at that time.
+      If NOT a meeting request: you MUST set this to "none"
+
+eligibilityRules:
+  - conditions:
+      - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+    logicalOperator: "AND"
+    required: true
+
+eventString: "{{ actor.name }} already left to deliver a message to {{ targetName }} (task in progress)"
+isShortLived: false
+enabled: true
+defaultPriority: 6
+tags: []

@@ -1,0 +1,24 @@
+{% if render_mode == "full" or render_mode == "static" %}
+{% set first_person = (render_mode == "transform" or render_mode == "full" or render_mode == "thoughts") %}
+{% if actorUUID and isValidActor(actorUUID) %}
+{% set received_msg = papyrus_util("GetStringValue", actorUUID, "Intel_ReceivedMessage", "") %}
+{% set msg_from = papyrus_util("GetStringValue", actorUUID, "Intel_MessageSender", "") %}
+{% if received_msg != "" %}
+{% set msgTime = papyrus_util("GetFloatValue", actorUUID, "Intel_MessageTime", 0.0) %}
+## Message I Received
+
+{% if first_person %}
+{{ msg_from }} came to me recently and said:
+> "{{ received_msg }}"
+{% if msgTime > 0.0 %}
+{% set hoursPassed = (get_global_value("GameDaysPassed") - msgTime) * 24.0 %}
+This was {% if hoursPassed < 0.1 %}just now{% elif hoursPassed < 1.0 %}a few minutes ago{% elif hoursPassed < 3.0 %}a short while ago{% elif hoursPassed < 12.0 %}earlier today{% elif hoursPassed < 24.0 %}yesterday{% elif hoursPassed < 48.0 %}a day ago{% elif hoursPassed < 72.0 %}a couple of days ago{% elif hoursPassed < 120.0 %}a few days ago{% elif hoursPassed < 168.0 %}several days ago{% else %}some time ago{% endif %}.
+{% endif %}
+{% else %}
+{{ decnpc(actorUUID).name }} received a message from {{ msg_from }}:
+> "{{ received_msg }}"
+{% endif %}
+
+{% endif %}
+{% endif %}
+{% endif %}

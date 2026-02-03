@@ -1,0 +1,41 @@
+{% if render_mode == "full" or render_mode == "static" %}
+{% set first_person = (render_mode == "transform" or render_mode == "full" or render_mode == "thoughts") %}
+{% if actorUUID and isValidActor(actorUUID) %}
+{% set isLingering = papyrus_util("GetIntValue", actorUUID, "Intel_MeetingLingering", 0) %}
+{% set playerName = papyrus_util("GetStringValue", actorUUID, "Intel_MeetingPlayerName", player.name) %}
+{% set isMeetingActive = papyrus_util("GetIntValue", actorUUID, "Intel_IsScheduledMeeting", 0) %}
+{% if isMeetingActive == 1 and isLingering != 1 %}
+{% set meetTime = papyrus_util("GetFloatValue", actorUUID, "Intel_MeetingTime", 0.0) %}
+{% set meetDest = papyrus_util("GetStringValue", actorUUID, "Intel_MeetingDest", "") %}
+{% set hoursTill = (meetTime - get_global_value("GameDaysPassed")) * 24.0 %}
+## Active Meeting
+
+{% if first_person %}
+I am on my way to meet {{ playerName }} at {{ meetDest }}. {% if hoursTill > 8.0 %}The meeting is in several hours.{% elif hoursTill > 3.0 %}The meeting is in a few hours.{% elif hoursTill > 1.5 %}The meeting is in a couple of hours.{% elif hoursTill > 0.5 %}The meeting is about an hour away.{% elif hoursTill > 0.0 %}The meeting is very soon.{% else %}I should already be there — I'm running late!{% endif %}
+{% else %}
+{{ decnpc(actorUUID).name }} is heading to {{ meetDest }} to meet {{ playerName }}. {% if hoursTill > 8.0 %}Meeting is in several hours.{% elif hoursTill > 3.0 %}Meeting is in a few hours.{% elif hoursTill > 1.5 %}Meeting is in a couple of hours.{% elif hoursTill > 0.5 %}Meeting is about an hour away.{% elif hoursTill > 0.0 %}Meeting is very soon.{% else %}They are running late.{% endif %}
+{% endif %}
+
+{% else %}
+{% if isLingering != 1 %}
+{% set schedType = papyrus_util("GetStringValue", actorUUID, "Intel_ScheduledType", "") %}
+{% if schedType != "" %}
+{% set meetTime = papyrus_util("GetFloatValue", actorUUID, "Intel_ScheduledTime", 0.0) %}
+{% set hoursUntil = (meetTime - get_global_value("GameDaysPassed")) * 24.0 %}
+{% set schedDest = papyrus_util("GetStringValue", actorUUID, "Intel_ScheduledDest", "") %}
+{% set schedTargetName = papyrus_util("GetStringValue", actorUUID, "Intel_ScheduledTargetName", "") %}
+{% set schedHour = papyrus_util("GetFloatValue", actorUUID, "Intel_ScheduledHour", 12.0) %}
+{% set timeOfDay = "later" %}{% if schedHour >= 5.0 and schedHour < 8.0 %}{% set timeOfDay = "at dawn" %}{% elif schedHour >= 8.0 and schedHour < 12.0 %}{% set timeOfDay = "in the morning" %}{% elif schedHour >= 12.0 and schedHour < 14.0 %}{% set timeOfDay = "around midday" %}{% elif schedHour >= 14.0 and schedHour < 17.0 %}{% set timeOfDay = "in the afternoon" %}{% elif schedHour >= 17.0 and schedHour < 20.0 %}{% set timeOfDay = "in the evening" %}{% elif schedHour >= 20.0 and schedHour < 22.0 %}{% set timeOfDay = "tonight" %}{% elif schedHour >= 22.0 or schedHour < 5.0 %}{% set timeOfDay = "late at night" %}{% endif %}
+## Scheduled Commitment
+
+{% if first_person %}
+I have a commitment: I am {% if schedType == "travel" %}meeting {{ playerName }} at {{ schedDest }}{% elif schedType == "fetch_npc" %}going to fetch {{ schedTargetName }}{% elif schedType == "deliver_message" %}delivering a message to {{ schedTargetName }}{% else %}meeting {{ playerName }} at {{ schedDest }}{% endif %}. {% if hoursUntil <= 0.5 %}It's very soon.{% elif hoursUntil < 2.0 %}It's {{ timeOfDay }}, in about an hour.{% elif hoursUntil < 4.0 %}It's {{ timeOfDay }}, in a couple of hours.{% elif hoursUntil < 8.0 %}It's {{ timeOfDay }}, in several hours.{% elif hoursUntil < 12.0 %}It's {{ timeOfDay }}.{% elif hoursUntil < 36.0 %}It's tomorrow {{ timeOfDay }}.{% else %}It's in a few days.{% endif %}
+{% else %}
+{{ decnpc(actorUUID).name }} is {% if schedType == "travel" %}meeting {{ playerName }} at {{ schedDest }}{% elif schedType == "fetch_npc" %}going to fetch {{ schedTargetName }}{% elif schedType == "deliver_message" %}delivering a message to {{ schedTargetName }}{% else %}meeting {{ playerName }} at {{ schedDest }}{% endif %}. {% if hoursUntil <= 0.5 %}It's very soon.{% elif hoursUntil < 2.0 %}It's {{ timeOfDay }}, in about an hour.{% elif hoursUntil < 4.0 %}It's {{ timeOfDay }}, in a couple of hours.{% elif hoursUntil < 8.0 %}It's {{ timeOfDay }}, in several hours.{% elif hoursUntil < 12.0 %}It's {{ timeOfDay }}.{% elif hoursUntil < 36.0 %}It's tomorrow {{ timeOfDay }}.{% else %}It's in a few days.{% endif %}
+{% endif %}
+
+{% endif %}
+{% endif %}
+{% endif %}
+{% endif %}
+{% endif %}

@@ -1,0 +1,78 @@
+name: ScheduleMeeting
+description: >
+  Schedule to travel to a LOCATION at a FUTURE TIME. Delayed version of GoToLocation — you stay put now and go later.
+
+  BEFORE scheduling: Check your "Scheduled Commitment" section in your bio. If you already have a meeting
+  scheduled with this person, do NOT schedule another one unless the time or location needs to change.
+  Only reschedule if the conversation explicitly changes the meeting details.
+
+  Use when:
+  - You tell someone "meet me at the Bannered Mare at sundown"
+  - You agree to meet someone somewhere later (player or another NPC)
+  - You decide on your own to go somewhere at a future time (e.g., returning home at dusk)
+  - You propose meeting up with someone: "I'll be at Dragonsreach tonight"
+  - You and another NPC agree to meet somewhere later
+  - You want to keep an appointment or attend a gathering
+
+  This schedules future travel — you will NOT leave immediately.
+  You will go to the destination when the time comes.
+
+  IMPORTANT: Use natural time descriptions. The system understands:
+  - Times of day: dawn, sunrise, morning, noon, afternoon, evening, sunset, dusk, night, midnight
+  - Relative times: tonight, tomorrow, soon, shortly
+  - Relative hours: "in 2 hours", "in 1 hour", "a few hours", "in half an hour"
+  - Clock times: 3pm, 6am, etc.
+
+questEditorId: IntelEngine
+scriptName: IntelEngine_Schedule
+executionFunctionName: ScheduleMeeting
+
+parameterMapping:
+  - type: speaker
+    name: akNPC
+    description: You (the NPC scheduling the meeting)
+  - type: dynamic
+    name: destination
+    description: >
+      Where to go. Examples:
+      - "Bannered Mare"
+      - "Dragonsreach"
+      - "the marketplace"
+      - "my home" (if you have one)
+      - "the temple"
+  - type: dynamic
+    name: timeCondition
+    description: >
+      When to arrive. IMPORTANT: If a relative time is mentioned
+      (e.g., "in 2 hours", "in 3 hours"), pass those words EXACTLY as-is.
+      Do NOT convert relative times to absolute times like "dawn" or "morning".
+
+      Relative times (pass verbatim):
+      - "in 2 hours"
+      - "in 1 hour"
+      - "in 3 hours"
+      - "in half an hour"
+      - "soon"
+
+      Absolute times (when a specific time of day is named):
+      - "at dawn"
+      - "at noon"
+      - "in the evening"
+      - "after sunset"
+      - "tonight"
+      - "tomorrow morning"
+
+eligibilityRules:
+  - conditions:
+      - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+    logicalOperator: "AND"
+    required: true
+
+eventString: "{{ actor.name }} plans to be at {{ destination }} {{ timeCondition }}"
+isShortLived: false
+enabled: true
+defaultPriority: 6
+tags: []
