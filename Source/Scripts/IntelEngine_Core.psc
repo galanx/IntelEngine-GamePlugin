@@ -584,8 +584,10 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetStringValue(agent, "Intel_DeliveryMeetLocation")
             StorageUtil.UnsetStringValue(agent, "Intel_DeliveryMeetTime")
 
-            ; Reset C++ departure detector for this slot
+            ; Reset C++ departure detector and off-screen tracker for this slot
             IntelEngine.ResetDepartureSlot(slot, None)
+            IntelEngine.ResetOffScreenSlot(slot)
+            StorageUtil.UnsetFloatValue(agent, "Intel_OffscreenArrival")
 
             ; Clear scheduled meeting flag + schedule slot arrays
             ; Without clearing the arrays, OnUpdateGameTime can re-dispatch
@@ -863,6 +865,34 @@ Function InitializeDepartureTracking(Int slot, Actor npc)
     IntelEngine.ResetDepartureSlot(slot, npc)
 EndFunction
 
+Function InitOffScreenTracking(Int slot, Actor npc, ObjectReference dest)
+    {Calculate estimated arrival time from distance and initialize C++ tracker.
+    Shared by Travel, NPCTasks, and any future task that involves traveling.
+    Uses CalculateDeadlineFromDistance for consistent speed estimation.}
+    If npc == None || dest == None
+        Return
+    EndIf
+    Float estimatedArrival = IntelEngine.CalculateDeadlineFromDistance(npc, dest, false, 0.5, 18.0)
+    IntelEngine.InitOffScreenTravel(slot, estimatedArrival, npc)
+    StorageUtil.SetFloatValue(npc, "Intel_OffscreenArrival", estimatedArrival)
+    DebugMsg(npc.GetDisplayName() + " off-screen tracking: est. arrival in " + ((estimatedArrival - Utility.GetCurrentGameTime()) * 24.0) + "h")
+EndFunction
+
+Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
+    {Check if off-screen NPC should be teleported to destination.
+    Returns true if teleported (caller should handle arrival).
+    Returns false if still in transit (do nothing).}
+    Int status = IntelEngine.CheckOffScreenProgress(slot, npc, Utility.GetCurrentGameTime())
+    If status == 1
+        DebugMsg(npc.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
+        npc.MoveTo(dest)
+        Utility.Wait(0.3)
+        npc.EvaluatePackage()
+        Return true
+    EndIf
+    Return false
+EndFunction
+
 Function SoftStuckRecovery(Actor npc, Int slot, ObjectReference dest)
     {Soft stuck recovery: random displacement + re-apply travel + pathfinding nudge.
     Shared by Travel and NPCTasks stuck handlers.}
@@ -1008,6 +1038,12 @@ Function RecoverActiveTasks()
                         ; No saved deadline — set a fresh one so the task can't stall forever
                         SlotDeadlines[i] = Utility.GetCurrentGameTime() + (6.0 / 24.0)
                         DebugMsg("No saved deadline for slot " + i + " — set fallback 6h from now")
+                    EndIf
+
+                    ; Re-init off-screen tracker from persisted arrival estimate
+                    Float offscreenArrival = StorageUtil.GetFloatValue(agent, "Intel_OffscreenArrival", 0.0)
+                    If offscreenArrival > 0.0
+                        IntelEngine.InitOffScreenTravel(i, offscreenArrival, agent)
                     EndIf
 
                     DebugMsg("Recovered task in slot " + i + ": " + taskType + " → " + target)

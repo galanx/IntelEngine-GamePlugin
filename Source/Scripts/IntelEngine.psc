@@ -255,6 +255,22 @@ Float Function GetTeleportDistance(Int slot) Global Native
 Int Function GetStuckRecoveryAttempts(Int slot) Global Native
 
 ; =============================================================================
+; OFF-SCREEN TRAVEL DETECTION
+; Estimates arrival time from distance, detects when off-screen NPCs are
+; stationary (frozen in unloaded cells), and signals Papyrus to teleport.
+; =============================================================================
+
+; Initialize off-screen tracking for a slot with pre-computed estimated arrival
+Function InitOffScreenTravel(Int slot, Float estimatedArrivalGameTime, Actor npc) Global Native
+
+; Check off-screen progress. Returns 0=in transit, 1=should teleport.
+; Before estimated arrival: always 0. After: checks position for movement.
+Int Function CheckOffScreenProgress(Int slot, Actor npc, Float currentGameTime) Global Native
+
+; Reset/clear off-screen tracking for a slot
+Function ResetOffScreenSlot(Int slot) Global Native
+
+; =============================================================================
 ; DEBUG / TESTING FUNCTIONS
 ; =============================================================================
 
