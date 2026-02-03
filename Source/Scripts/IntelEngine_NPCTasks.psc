@@ -974,6 +974,12 @@ Function HandleFetchState(Int slot, Actor agent, Int taskState)
 EndFunction
 
 Function CheckArrivalAtTarget(Int slot, Actor agent, Actor target)
+    ; Check if agent reached an intermediate waypoint (Layer B redirect)
+    ObjectReference agentDest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
+    If agentDest != None && Core.CheckWaypointArrival(slot, agent, agentDest)
+        Return
+    EndIf
+
     If agent.Is3DLoaded() && target.Is3DLoaded()
         ; Both loaded — use precise distance check
         Float dist = agent.GetDistance(target)
@@ -1841,6 +1847,11 @@ Function CheckIfStuck(Int slot, Actor npc)
             Return
         EndIf
 
+        ; Layer B: Try location marker navigation (on-screen, outbound only)
+        If !isReturning && dest != None && Core.TryWaypointNavigation(slot, npc, dest)
+            Return
+        EndIf
+
         If isReturning
             ; Progressive distance from C++ StuckDetector
             Float distance = IntelEngine.GetTeleportDistance(slot)
@@ -1855,7 +1866,7 @@ Function CheckIfStuck(Int slot, Actor npc)
             npc.EvaluatePackage()
         ElseIf dest != None
             Core.DebugMsg("Task stuck recovery exhausted — teleporting " + npc.GetDisplayName())
-            npc.MoveTo(dest)
+            npc.MoveTo(dest, 0.0, 0.0, 50.0)
             npc.EvaluatePackage()
         EndIf
     EndIf

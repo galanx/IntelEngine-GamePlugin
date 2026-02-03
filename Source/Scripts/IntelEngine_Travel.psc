@@ -118,6 +118,10 @@ Function RecoverTravelPackage(Int slot)
 
     Int speed = Core.SlotSpeeds[slot]
     Package travelPkg = Core.GetTravelPackage(speed)
+    ; Clear any intermediate waypoint — linked refs don't survive save/load,
+    ; so the waypoint redirect is invalid. Fresh start with real destination.
+    StorageUtil.UnsetFormValue(npc, "Intel_CurrentWaypoint")
+
     PO3_SKSEFunctions.SetLinkedRef(npc, dest, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(npc, travelPkg, Core.PRIORITY_TRAVEL, 1)
     npc.EvaluatePackage()
@@ -380,6 +384,11 @@ Function CheckForArrival(Int slot, Actor npc)
     ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
     If dest == None
         Core.DebugMsg("Slot " + slot + ": No destination marker")
+        Return
+    EndIf
+
+    ; Check if NPC reached an intermediate waypoint (Layer B redirect)
+    If Core.CheckWaypointArrival(slot, npc, dest)
         Return
     EndIf
 
@@ -778,22 +787,32 @@ Function CheckIfStuck(Int slot, Actor npc)
             Return
         EndIf
 
-        ; Progressive leapfrog distance: start small so the player can follow,
-        ; escalate if consecutive hops aren't clearing the dead zone.
+        ; Layer B: Try location marker navigation (on-screen only).
+        ; Finds nearest BGSLocation worldLocMarker toward dest and redirects
+        ; travel package — NPC walks there naturally on navmesh.
+        If Core.TryWaypointNavigation(slot, npc, dest)
+            Return
+        EndIf
+
+        ; Layer C: Multi-angle leapfrog with progressive distance.
         ; C++ GetTeleportDistance returns descending (2000→1000→500→250) for
         ; NPCTasks return-to-player. We invert it for Travel: ascending
         ; (200→500→1000→2000) keeps the NPC visible to the player.
-        ; Resets to 200u every time the NPC moves between stuck events.
+        ; On consecutive attempts, rotate direction ±30° to find passable
+        ; terrain around mountains instead of always aiming straight at dest.
         Float descDist = IntelEngine.GetTeleportDistance(slot)
         Float leapDist
+        Float angle = 0.0
         If descDist >= 2000.0
-            leapDist = 200.0     ; First attempt — minimal nudge past cell boundary
+            leapDist = 200.0     ; First attempt — minimal nudge, straight
         ElseIf descDist >= 1000.0
-            leapDist = 500.0     ; Second attempt — small hop
+            leapDist = 500.0     ; Second attempt — try +30°
+            angle = 30.0
         ElseIf descDist >= 500.0
-            leapDist = 1000.0    ; Third attempt — medium hop
+            leapDist = 1000.0    ; Third attempt — try -30°
+            angle = -30.0
         Else
-            leapDist = LEAPFROG_MAX_DISTANCE  ; Fourth+ — full leapfrog (last resort)
+            leapDist = LEAPFROG_MAX_DISTANCE  ; Fourth+ — full distance, straight
         EndIf
 
         ; Calculate distance to destination using world positions
@@ -806,19 +825,27 @@ Function CheckIfStuck(Int slot, Actor npc)
             ; Close enough — teleport directly and arrive
             Core.DebugMsg("Stuck recovery: " + npc.GetDisplayName() + " close enough (" + totalDist + "u) — teleporting to dest")
             Core.NotifyPlayer(npc.GetDisplayName() + " arrived (teleported)")
-            npc.MoveTo(dest)
+            npc.MoveTo(dest, 0.0, 0.0, 50.0)
             npc.EvaluatePackage()
             OnArrival(slot, npc)
         Else
             ; Too far — leapfrog toward destination, then resume pathfinding.
-            ; Skyrim's navmesh pathfinder has limited range. For cross-worldspace
-            ; trips, the NPC walks to the edge of what it can route, stops, and
-            ; gets stuck. Leapfrogging past the dead zone lets the engine compute
-            ; a new path from the closer position.
             Float ratio = leapDist / totalDist
             Float offsetX = dx * ratio
             Float offsetY = dy * ratio
-            npc.MoveTo(npc, offsetX, offsetY, 0.0, false)
+
+            ; Rotate offset to try alternate paths around obstacles
+            If angle != 0.0
+                Float cosA = Math.cos(angle)
+                Float sinA = Math.sin(angle)
+                Float rotX = offsetX * cosA - offsetY * sinA
+                Float rotY = offsetX * sinA + offsetY * cosA
+                offsetX = rotX
+                offsetY = rotY
+            EndIf
+
+            ; Layer A: Z offset prevents sinking into terrain at mountain passes
+            npc.MoveTo(npc, offsetX, offsetY, 200.0, false)
 
             ; Re-apply travel package from new position
             Int speed = Core.SlotSpeeds[slot]
@@ -829,7 +856,7 @@ Function CheckIfStuck(Int slot, Actor npc)
             Utility.Wait(0.5)
             npc.EvaluatePackage()
 
-            Core.DebugMsg(npc.GetDisplayName() + " leapfrogged " + leapDist + "u toward dest (" + (totalDist - leapDist) + "u remaining)")
+            Core.DebugMsg(npc.GetDisplayName() + " leapfrogged " + leapDist + "u at " + angle + "° toward dest (" + (totalDist - leapDist) + "u remaining)")
             Core.NotifyPlayer(npc.GetDisplayName() + " making progress toward destination")
         EndIf
     EndIf

@@ -566,6 +566,7 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             ; Clear travel/navigation data
             StorageUtil.UnsetFormValue(agent, "Intel_DestMarker")
             StorageUtil.UnsetFormValue(agent, "Intel_ReturnMarker")
+            StorageUtil.UnsetFormValue(agent, "Intel_CurrentWaypoint")
             StorageUtil.UnsetFloatValue(agent, "Intel_TaskStartTime")
             StorageUtil.UnsetFloatValue(agent, "Intel_WaitHours")
             StorageUtil.UnsetFloatValue(agent, "Intel_Deadline")
@@ -900,7 +901,7 @@ Function SoftStuckRecovery(Actor npc, Int slot, ObjectReference dest)
     If !npc.Is3DLoaded()
         nudge = 200.0
     EndIf
-    npc.MoveTo(npc, Utility.RandomFloat(-nudge, nudge), Utility.RandomFloat(-nudge, nudge), 0.0, false)
+    npc.MoveTo(npc, Utility.RandomFloat(-nudge, nudge), Utility.RandomFloat(-nudge, nudge), 50.0, false)
 
     Int speed = SlotSpeeds[slot]
     Package travelPkg = GetTravelPackage(speed)
@@ -1228,6 +1229,72 @@ String Function GetSlotStatus(Int slot)
     EndIf
 
     Return "Unknown"
+EndFunction
+
+Bool Function TryWaypointNavigation(Int slot, Actor npc, ObjectReference dest)
+    {Attempt waypoint redirect for on-screen stuck NPC.
+    Finds nearest BGSLocation worldLocMarker toward dest and redirects
+    the travel package. If NPC was already targeting this waypoint and
+    is still stuck, teleports to it instead (known-good navmesh position).
+    Returns true if handled (caller should return).}
+    If !npc.Is3DLoaded()
+        Return false
+    EndIf
+
+    ObjectReference waypoint = IntelEngine.FindNearestWaypointToward(npc, dest, 5000.0)
+    If waypoint == None
+        Return false
+    EndIf
+
+    ObjectReference currentWP = StorageUtil.GetFormValue(npc, \
+        "Intel_CurrentWaypoint") as ObjectReference
+
+    If currentWP == waypoint
+        ; Already tried walking to this waypoint and still stuck —
+        ; teleport to it (short hop to known-good navmesh position)
+        DebugMsg(npc.GetDisplayName() + " stuck at waypoint — teleporting to it")
+        npc.MoveTo(waypoint, 0.0, 0.0, 50.0)
+        StorageUtil.UnsetFormValue(npc, "Intel_CurrentWaypoint")
+        PO3_SKSEFunctions.SetLinkedRef(npc, dest, IntelEngine_TravelTarget)
+        IntelEngine.ResetStuckSlot(slot, npc)
+    Else
+        ; New waypoint — redirect travel package (NPC walks there naturally)
+        DebugMsg(npc.GetDisplayName() + " redirecting to nearby location marker")
+        PO3_SKSEFunctions.SetLinkedRef(npc, waypoint, IntelEngine_TravelTarget)
+        StorageUtil.SetFormValue(npc, "Intel_CurrentWaypoint", waypoint)
+        IntelEngine.ResetStuckSlot(slot, npc)
+    EndIf
+
+    Int speed = SlotSpeeds[slot]
+    Package travelPkg = GetTravelPackage(speed)
+    If travelPkg
+        ActorUtil.AddPackageOverride(npc, travelPkg, PRIORITY_TRAVEL, 1)
+    EndIf
+    npc.EvaluatePackage()
+    NotifyPlayer(npc.GetDisplayName() + " finding alternate route")
+    Return true
+EndFunction
+
+Bool Function CheckWaypointArrival(Int slot, Actor npc, ObjectReference dest)
+    {Check if NPC reached their intermediate waypoint. If so, restore real
+    destination and resume normal travel. Called at top of monitoring loops.
+    Returns true if waypoint was reached (caller should skip normal checks).}
+    ObjectReference currentWaypoint = StorageUtil.GetFormValue(npc, \
+        "Intel_CurrentWaypoint") as ObjectReference
+    If currentWaypoint == None
+        Return false
+    EndIf
+
+    If npc.GetDistance(currentWaypoint) < ARRIVAL_DISTANCE
+        DebugMsg(npc.GetDisplayName() + " reached waypoint, resuming to dest")
+        PO3_SKSEFunctions.SetLinkedRef(npc, dest, IntelEngine_TravelTarget)
+        StorageUtil.UnsetFormValue(npc, "Intel_CurrentWaypoint")
+        IntelEngine.ResetStuckSlot(slot, npc)
+        npc.EvaluatePackage()
+        Return true
+    EndIf
+
+    Return false
 EndFunction
 
 Function ForceResetAllSlots()
