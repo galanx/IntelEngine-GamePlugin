@@ -581,8 +581,13 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             ; Reset C++ departure detector for this slot
             IntelEngine.ResetDepartureSlot(slot, None)
 
-            ; Clear scheduled meeting flag
+            ; Clear scheduled meeting flag + schedule slot arrays
+            ; Without clearing the arrays, OnUpdateGameTime can re-dispatch
+            ; the same meeting if Intel_ScheduledState gets reset to 0 here.
             StorageUtil.UnsetIntValue(agent, "Intel_IsScheduledMeeting")
+            If Schedule
+                Schedule.ClearScheduleSlotByAgent(agent)
+            EndIf
             StorageUtil.UnsetIntValue(agent, "Intel_ScheduledState")
             StorageUtil.UnsetFloatValue(agent, "Intel_ScheduledDepartureHours")
 
