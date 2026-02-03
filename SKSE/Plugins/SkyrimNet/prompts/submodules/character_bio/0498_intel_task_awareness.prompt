@@ -24,24 +24,7 @@ What I've done:
 {% set isLingering = papyrus_util("GetIntValue", actorUUID, "Intel_MeetingLingering", 0) %}
 {% set isTravelLingering = papyrus_util("GetIntValue", actorUUID, "Intel_TravelLingering", 0) %}
 {% set playerName = papyrus_util("GetStringValue", actorUUID, "Intel_MeetingPlayerName", player.name) %}
-{% set task_action = "" %}
-{% if taskType == "travel" and isLingering == 1 %}{% set task_action = "meeting with " + playerName + " at" %}
-{% elif taskType == "travel" and isTravelLingering == 1 %}{% set task_action = "arrived at" %}
-{% elif taskType == "travel" and taskState == 1 %}{% set task_action = "traveling to" %}
-{% elif taskType == "travel" and taskState == 2 %}{% set task_action = "waiting at" %}
-{% elif taskType == "travel" %}{% set task_action = "heading to" %}
-{% elif taskType == "fetch_npc" and taskState == 1 %}{% set task_action = "going to find" %}
-{% elif taskType == "fetch_npc" and taskState == 8 %}{% set task_action = "talking to" %}
-{% elif taskType == "fetch_npc" and taskState == 3 %}{% set task_action = "returning with" %}
-{% elif taskType == "fetch_npc" %}{% set task_action = "fetching" %}
-{% elif taskType == "deliver_message" and taskState == 1 %}{% set task_action = "delivering a message to" %}
-{% elif taskType == "deliver_message" and taskState == 8 %}{% set task_action = "speaking with" %}
-{% elif taskType == "deliver_message" and taskState == 3 %}{% set task_action = "returning after delivering a message to" %}
-{% elif taskType == "deliver_message" %}{% set task_action = "delivering a message to" %}
-{% elif taskType == "search_for_actor" and taskState == 1 %}{% set task_action = "searching for" %}
-{% elif taskType == "search_for_actor" and taskState == 5 %}{% set task_action = "waiting for the group to catch up while searching for" %}
-{% elif taskType == "search_for_actor" %}{% set task_action = "searching for" %}
-{% endif %}
+{% set task_action = "" %}{% if taskType == "travel" and isLingering == 1 %}{% set task_action = "meeting with " + playerName + " at" %}{% elif taskType == "travel" and isTravelLingering == 1 %}{% set task_action = "arrived at" %}{% elif taskType == "travel" and taskState == 1 %}{% set task_action = "traveling to" %}{% elif taskType == "travel" and taskState == 2 %}{% set task_action = "waiting at" %}{% elif taskType == "travel" %}{% set task_action = "heading to" %}{% elif taskType == "fetch_npc" and taskState == 1 %}{% set task_action = "going to find" %}{% elif taskType == "fetch_npc" and taskState == 8 %}{% set task_action = "talking to" %}{% elif taskType == "fetch_npc" and taskState == 3 %}{% set task_action = "returning with" %}{% elif taskType == "fetch_npc" %}{% set task_action = "fetching" %}{% elif taskType == "deliver_message" and taskState == 1 %}{% set task_action = "delivering a message to" %}{% elif taskType == "deliver_message" and taskState == 8 %}{% set task_action = "speaking with" %}{% elif taskType == "deliver_message" and taskState == 3 %}{% set task_action = "returning after delivering a message to" %}{% elif taskType == "deliver_message" %}{% set task_action = "delivering a message to" %}{% elif taskType == "search_for_actor" and taskState == 1 %}{% set task_action = "searching for" %}{% elif taskType == "search_for_actor" and taskState == 5 %}{% set task_action = "waiting for the group to catch up while searching for" %}{% elif taskType == "search_for_actor" %}{% set task_action = "searching for" %}{% endif %}
 ### Current Task
 {% if first_person %}
 I am currently **{% if task_action != "" %}{{ task_action }} {{ target }}{% else %}on a task{% endif %}**. To stop this task, use the **CancelCurrentTask** action. To change travel speed, use the **ChangeSpeed** action.
