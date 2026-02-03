@@ -7,6 +7,8 @@ description: >
   - The requester wants to COME WITH YOU to find someone
   - You and another NPC search for someone together
 
+  Check your "Current Task" first — if you have an active task, use CancelCurrentTask before this.
+
   NOT FetchPerson (solo round trip, requester stays behind).
   NOT DeliverMessage (carrying words, not guiding someone).
 
