@@ -7,8 +7,7 @@ description: >
   - You want to warn/inform someone but not right now
   - "send word to Jarl Balgruuf tomorrow morning"
 
-  Check your "Scheduled Commitment" first — if you already have a task scheduled,
-  don't schedule another unless the details changed.
+  Check your "Scheduled Commitment" if you have one.
 
   NOT ScheduleFetch. If there's a message to relay, this is the right action.
   If someone says "tell X to come here later" → schedule delivering that message.

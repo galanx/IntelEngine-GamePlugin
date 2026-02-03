@@ -1,20 +1,18 @@
 name: CancelCurrentTask
 description: >
-  Stop and cancel your current active task. Use this BEFORE starting a different task.
+  Stop your current active task. Check your "Current Task" section.
 
   Use when:
   - Someone tells you to stop, wait, hold on, come back, or stay
-  - Someone asks you to do something else (cancel current task first)
   - You decide the task is no longer worth doing
   - You are told to follow someone (cancel task first, then follow)
-  - Any instruction that contradicts your current task
 
-  You MUST use this action before starting a new task or following someone.
-  If your Task Status shows an active task and you need to stop, use this.
+  Only use if your "Current Task" shows an active task and you want to STOP entirely.
+  Starting a new task (GoToLocation, FetchPerson, etc.) replaces the current one
+  automatically — you don't need to cancel first.
 
-  NOTE: This only cancels active tasks (traveling, fetching, delivering, searching).
-  It does NOT cancel scheduled tasks — those will still trigger at their scheduled time.
-  To adjust speed on an active travel task without canceling, use ChangeSpeed instead.
+  Does NOT cancel scheduled tasks — those still trigger at their scheduled time.
+  To adjust speed without stopping, use ChangeSpeed instead.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Core
