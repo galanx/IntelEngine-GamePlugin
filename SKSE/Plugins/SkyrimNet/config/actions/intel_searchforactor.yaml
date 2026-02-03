@@ -1,19 +1,16 @@
 name: SearchForActor
 description: >
-  Lead the way to find someone TOGETHER with the requester. You guide, they follow. Group search.
+  Lead someone TO a person. You guide, they follow — you travel TOGETHER.
 
   Use when:
-  - Someone asks you to help find someone: "help me find X", "where is X?"
-  - Someone says "take me to X", "show me where X is", "lead me to X"
-  - You offer to help search for someone who is lost or missing
-  - You and another NPC go looking for someone together
-  - You decide to help locate someone on your own initiative
+  - "take me to Alvor", "show me where Ysolda is", "help me find Nazeem"
+  - The requester wants to COME WITH YOU to find someone
+  - You and another NPC search for someone together
 
-  You will travel toward the target. If the requester is following you,
-  you wait for them if they fall behind so you arrive together.
+  NOT FetchPerson (solo round trip, requester stays behind).
+  NOT DeliverMessage (carrying words, not guiding someone).
 
-  IMPORTANT: The target must be an actor who actually exists.
-  The system uses fuzzy matching, so minor typos are okay.
+  The target must be a person who actually exists.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_NPCTasks

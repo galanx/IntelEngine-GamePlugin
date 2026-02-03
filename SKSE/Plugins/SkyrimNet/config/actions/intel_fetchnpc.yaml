@@ -1,22 +1,17 @@
 name: FetchPerson
 description: >
-  Go find a specific person and BRING THEM BACK here. Round trip — you leave alone, find them, and return with them.
+  Physically GO GET someone and WALK THEM BACK. You escort them in person.
 
   Use when:
-  - Someone asks you to fetch, summon, or bring another person to them
-  - You decide on your own to go get someone (e.g., fetching a healer, calling for help)
-  - A situation requires bringing a specific person to the current location
-  - The player says "fetch X for me", "go get X", "bring X here", "send for X"
+  - "fetch Alvor", "go get Ysolda", "bring Nazeem here"
+  - You need someone's physical presence and will personally escort them
+  - No message involved — just "go get that person and bring them to me"
 
-  This action will:
-  1. You leave on your own to find the target person
-  2. Approach them and convince them to come
-  3. Bring them back to where you started
+  NOT DeliverMessage. If someone says "tell X to come here" or "let X know" —
+  that means relay a message, use DeliverMessage instead.
+  FetchPerson = you walk there, walk back WITH the person. No words to relay.
 
-  The player does NOT come with you. You go alone and return with the person.
-
-  IMPORTANT: The target must be a person who actually exists.
-  The system uses fuzzy matching, so minor typos are okay.
+  The target must be a person who actually exists.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_NPCTasks

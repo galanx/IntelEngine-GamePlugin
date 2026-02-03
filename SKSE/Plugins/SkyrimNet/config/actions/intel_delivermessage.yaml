@@ -1,19 +1,17 @@
 name: DeliverMessage
 description: >
-  Travel to find someone and deliver a specific MESSAGE to them. You are a messenger.
+  Go TELL someone something. You carry WORDS, not people.
 
-  Use when:
-  - Someone asks you to relay a message to another person: "tell X that...", "let X know...", "warn X about..."
-  - You decide on your own to warn, inform, or notify someone about something
-  - You have important news that someone else needs to hear
-  - You want to pass along what you were told to the right person
+  Use when you have something to SAY to someone:
+  - "tell Alvor to come to the Inn in 2 hours" → you go say that to Alvor
+  - "let Jarl Balgruuf know about the dragon"
+  - "warn Adrianne that trouble is coming"
+  - "go tell X to meet me at Y" → message with meeting request
 
-  If the message includes a request to MEET somewhere at a specific time,
-  set meetLocation and meetTime so the recipient will travel there after hearing your message.
+  NOT FetchPerson. FetchPerson = physically escort someone back. This = relay words.
+  If someone says "tell X to come here" that is a MESSAGE, not a fetch.
 
-  IMPORTANT:
-  - The target must be a person who actually exists
-  - You must have a clear message to deliver
+  If the message asks the target to meet somewhere, set meetLocation and meetTime.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_NPCTasks
