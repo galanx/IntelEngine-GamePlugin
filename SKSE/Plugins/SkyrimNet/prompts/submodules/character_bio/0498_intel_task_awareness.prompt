@@ -1,0 +1,48 @@
+{% if render_mode == "full" or render_mode == "static" %}
+{% set first_person = (render_mode == "transform" or render_mode == "full" or render_mode == "thoughts") %}
+{% if actorUUID and isValidActor(actorUUID) %}
+
+{% set historyDescs = papyrus_util("GetStringList", actorUUID, "Intel_TaskHistory") %}
+{% set historyTimes = papyrus_util("GetFloatList", actorUUID, "Intel_TaskHistoryTime") %}
+{% if length(historyDescs) > 0 %}
+{% set currentTime = get_global_value("GameDaysPassed") %}
+### Past Tasks
+{% if first_person %}
+What I've done:
+{% else %}
+{{ decnpc(actorUUID).name }}'s completed tasks:
+{% endif %}
+{% for _entry in historyDescs %}{% set idx = length(historyDescs) - loop.index1 %}{% set desc = at(historyDescs, idx) %}{% set hoursPassed = (currentTime - at(historyTimes, idx)) * 24.0 %}
+- {{ desc }} ({% if hoursPassed < 0.1 %}just now{% elif hoursPassed < 1.0 %}a few minutes ago{% elif hoursPassed < 3.0 %}a short while ago{% elif hoursPassed < 12.0 %}earlier today{% elif hoursPassed < 24.0 %}yesterday{% elif hoursPassed < 48.0 %}a day ago{% elif hoursPassed < 72.0 %}a couple of days ago{% elif hoursPassed < 120.0 %}a few days ago{% elif hoursPassed < 168.0 %}several days ago{% else %}some time ago{% endif %})
+{% endfor %}
+{% endif %}
+
+{% set taskType = papyrus_util("GetStringValue", actorUUID, "Intel_TaskType", "") %}
+{% if taskType != "" %}
+{% set target = papyrus_util("GetStringValue", actorUUID, "Intel_Target", "") %}
+{% set taskState = papyrus_util("GetIntValue", actorUUID, "Intel_State", 0) %}
+{% set isLingering = papyrus_util("GetIntValue", actorUUID, "Intel_MeetingLingering", 0) %}
+{% set playerName = papyrus_util("GetStringValue", actorUUID, "Intel_MeetingPlayerName", player.name) %}
+{% set task_action = "" %}
+{% if taskType == "travel" and isLingering == 1 %}{% set task_action = "meeting with " + playerName + " at" %}
+{% elif taskType == "travel" and taskState == 1 %}{% set task_action = "traveling to" %}
+{% elif taskType == "travel" and taskState == 2 %}{% set task_action = "waiting at" %}
+{% elif taskType == "fetch_npc" and taskState == 1 %}{% set task_action = "going to find" %}
+{% elif taskType == "fetch_npc" and taskState == 8 %}{% set task_action = "talking to" %}
+{% elif taskType == "fetch_npc" and taskState == 3 %}{% set task_action = "returning with" %}
+{% elif taskType == "deliver_message" and taskState == 1 %}{% set task_action = "delivering a message to" %}
+{% elif taskType == "deliver_message" and taskState == 8 %}{% set task_action = "speaking with" %}
+{% elif taskType == "deliver_message" and taskState == 3 %}{% set task_action = "returning after delivering a message to" %}
+{% elif taskType == "search_for_actor" and taskState == 1 %}{% set task_action = "searching for" %}
+{% elif taskType == "search_for_actor" and taskState == 5 %}{% set task_action = "waiting for the group to catch up while searching for" %}
+{% endif %}
+### Current Task
+{% if first_person %}
+I am currently **{% if task_action != "" %}{{ task_action }} {{ target }}{% else %}on a task{% endif %}**. To stop this task, use the **CancelCurrentTask** action. To change travel speed, use the **ChangeSpeed** action.
+{% else %}
+{{ decnpc(actorUUID).name }} is {% if task_action != "" %}{{ task_action }} {{ target }}{% else %}on a task{% endif %}. To stop: **CancelCurrentTask**. To change speed: **ChangeSpeed**.
+{% endif %}
+{% endif %}
+
+{% endif %}
+{% endif %}

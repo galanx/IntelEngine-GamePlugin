@@ -1,0 +1,3 @@
+{% if render_mode == "full" %}
+{# Spatial awareness - SkyrimNet provides Current Location data natively #}
+{% endif %}

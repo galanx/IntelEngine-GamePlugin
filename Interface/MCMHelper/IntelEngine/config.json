@@ -1,0 +1,459 @@
+{
+  "modName": "IntelEngine",
+  "displayName": "IntelEngine",
+  "minMcmVersion": 7,
+  "pluginRequirements": [
+    "IntelEngine.esp"
+  ],
+  "pages": [
+    {
+      "pageDisplayName": "Active Tasks",
+      "content": [
+        {
+          "id": "headerTaskStatus",
+          "type": "header",
+          "text": "Active Tasks"
+        },
+        {
+          "id": "sSlot0Status:Status",
+          "type": "text",
+          "text": "Slot 0: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "slot0Clear",
+          "type": "button",
+          "text": "Clear Slot 0",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "ClearSlot0"
+          }
+        },
+        {
+          "id": "sSlot1Status:Status",
+          "type": "text",
+          "text": "Slot 1: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "slot1Clear",
+          "type": "button",
+          "text": "Clear Slot 1",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "ClearSlot1"
+          }
+        },
+        {
+          "id": "sSlot2Status:Status",
+          "type": "text",
+          "text": "Slot 2: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "slot2Clear",
+          "type": "button",
+          "text": "Clear Slot 2",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "ClearSlot2"
+          }
+        },
+        {
+          "id": "sSlot3Status:Status",
+          "type": "text",
+          "text": "Slot 3: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "slot3Clear",
+          "type": "button",
+          "text": "Clear Slot 3",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "ClearSlot3"
+          }
+        },
+        {
+          "id": "sSlot4Status:Status",
+          "type": "text",
+          "text": "Slot 4: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "slot4Clear",
+          "type": "button",
+          "text": "Clear Slot 4",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "ClearSlot4"
+          }
+        },
+        {
+          "type": "empty"
+        },
+        {
+          "id": "headerActions",
+          "type": "header",
+          "text": "Actions"
+        },
+        {
+          "id": "resetAll",
+          "type": "button",
+          "text": "Reset All Tasks",
+          "help": "Force reset all active tasks. NPCs will return to their normal routines.",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "ResetAllTasks"
+          }
+        },
+        {
+          "id": "clearMessages",
+          "type": "button",
+          "text": "Clear Stored Messages",
+          "help": "Clear all stored messages from NPCs.",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "ClearAllMessages"
+          }
+        }
+      ]
+    },
+    {
+      "pageDisplayName": "Scheduled Meetings",
+      "content": [
+        {
+          "id": "headerScheduled",
+          "type": "header",
+          "text": "Scheduled Meetings"
+        },
+        {
+          "id": "sSchedule0:Schedule",
+          "type": "text",
+          "text": "Slot 0: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule0Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 0",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot0"
+          }
+        },
+        {
+          "id": "sSchedule1:Schedule",
+          "type": "text",
+          "text": "Slot 1: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule1Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 1",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot1"
+          }
+        },
+        {
+          "id": "sSchedule2:Schedule",
+          "type": "text",
+          "text": "Slot 2: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule2Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 2",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot2"
+          }
+        },
+        {
+          "id": "sSchedule3:Schedule",
+          "type": "text",
+          "text": "Slot 3: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule3Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 3",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot3"
+          }
+        },
+        {
+          "id": "sSchedule4:Schedule",
+          "type": "text",
+          "text": "Slot 4: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule4Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 4",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot4"
+          }
+        },
+        {
+          "id": "sSchedule5:Schedule",
+          "type": "text",
+          "text": "Slot 5: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule5Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 5",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot5"
+          }
+        },
+        {
+          "id": "sSchedule6:Schedule",
+          "type": "text",
+          "text": "Slot 6: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule6Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 6",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot6"
+          }
+        },
+        {
+          "id": "sSchedule7:Schedule",
+          "type": "text",
+          "text": "Slot 7: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule7Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 7",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot7"
+          }
+        },
+        {
+          "id": "sSchedule8:Schedule",
+          "type": "text",
+          "text": "Slot 8: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule8Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 8",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot8"
+          }
+        },
+        {
+          "id": "sSchedule9:Schedule",
+          "type": "text",
+          "text": "Slot 9: Empty",
+          "valueOptions": {
+            "sourceType": "ModSettingString"
+          }
+        },
+        {
+          "id": "schedule9Cancel",
+          "type": "button",
+          "text": "Cancel Schedule 9",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelScheduleSlot9"
+          }
+        },
+        {
+          "type": "empty"
+        },
+        {
+          "id": "headerScheduleActions",
+          "type": "header",
+          "text": "Actions"
+        },
+        {
+          "id": "cancelAllSchedules",
+          "type": "button",
+          "text": "Cancel All Scheduled",
+          "help": "Cancel all scheduled meetings and tasks.",
+          "action": {
+            "type": "CallFunction",
+            "form": "IntelEngine.esp|800",
+            "scriptName": "IntelEngine_MCM",
+            "function": "CancelAllSchedules"
+          }
+        }
+      ]
+    },
+    {
+      "pageDisplayName": "Settings",
+      "content": [
+        {
+          "id": "headerGeneral",
+          "type": "header",
+          "text": "General Settings"
+        },
+        {
+          "id": "bDebugMode:Settings",
+          "type": "toggle",
+          "text": "Debug Mode",
+          "help": "Enable debug notifications and logging.",
+          "valueOptions": {
+            "sourceType": "GlobalVariable",
+            "sourceForm": "IntelEngine.esp|801"
+          }
+        },
+        {
+          "id": "iMaxTasks:Settings",
+          "type": "slider",
+          "text": "Max Concurrent Tasks",
+          "help": "Maximum number of NPCs that can be on tasks at once. Default: 5",
+          "valueOptions": {
+            "sourceType": "GlobalVariable",
+            "sourceForm": "IntelEngine.esp|802",
+            "min": 1,
+            "max": 5,
+            "step": 1,
+            "formatString": "{0}"
+          }
+        },
+        {
+          "id": "fDefaultWait:Settings",
+          "type": "slider",
+          "text": "Default Wait Hours",
+          "help": "How long NPCs wait at destinations before returning. Default: 2 hours",
+          "valueOptions": {
+            "sourceType": "GlobalVariable",
+            "sourceForm": "IntelEngine.esp|803",
+            "min": 0.5,
+            "max": 24,
+            "step": 0.5,
+            "formatString": "{1} hours"
+          }
+        },
+        {
+          "type": "empty"
+        },
+        {
+          "id": "headerTravel",
+          "type": "header",
+          "text": "Travel Settings"
+        },
+        {
+          "id": "iTravelConfirmMode:Settings",
+          "type": "enum",
+          "text": "NPC Travel Confirmation",
+          "help": "Allow: NPCs travel freely. Prompt: Ask player before NPC travels. Deny: Silently block all NPC travel.",
+          "valueOptions": {
+            "sourceType": "ModSettingInt",
+            "options": ["Allow", "Prompt", "Deny Silently"],
+            "defaultValue": 0
+          }
+        },
+        {
+          "id": "bAllowTeleport:Settings",
+          "type": "toggle",
+          "text": "Allow Emergency Teleport",
+          "help": "If enabled, NPCs can teleport if they get truly stuck (after timeout). Disabled by default for immersion.",
+          "valueOptions": {
+            "sourceType": "GlobalVariable",
+            "sourceForm": "IntelEngine.esp|804",
+            "defaultValue": 0
+          }
+        },
+        {
+          "id": "fStuckTimeout:Settings",
+          "type": "slider",
+          "text": "Stuck Detection Timeout",
+          "help": "Seconds an NPC must be stuck before attempting recovery. Default: 30",
+          "valueOptions": {
+            "sourceType": "GlobalVariable",
+            "sourceForm": "IntelEngine.esp|805",
+            "min": 10,
+            "max": 120,
+            "step": 5,
+            "formatString": "{0} seconds"
+          }
+        }
+      ]
+    }
+  ]
+}

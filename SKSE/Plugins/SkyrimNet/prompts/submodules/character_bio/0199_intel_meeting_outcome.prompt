@@ -1,0 +1,49 @@
+{% if render_mode == "full" or render_mode == "static" %}
+{% set first_person = (render_mode == "transform" or render_mode == "full" or render_mode == "thoughts") %}
+{% if actorUUID and isValidActor(actorUUID) %}
+{% set isLingering = papyrus_util("GetIntValue", actorUUID, "Intel_MeetingLingering", 0) %}
+{% if isLingering != 1 %}
+{% set meetOutcome = papyrus_util("GetStringValue", actorUUID, "Intel_MeetingOutcome", "") %}
+{% if meetOutcome != "" %}
+{% set meetDest = papyrus_util("GetStringValue", actorUUID, "Intel_MeetingOutcomeDest", "") %}
+{% set meetOutcomeTime = papyrus_util("GetFloatValue", actorUUID, "Intel_MeetingOutcomeTime", 0.0) %}
+{% set hoursSince = (get_global_value("GameDaysPassed") - meetOutcomeTime) * 24.0 %}
+{% set lateHours = papyrus_util("GetFloatValue", actorUUID, "Intel_MeetingLateHours", 0.0) %}
+{% set playerName = papyrus_util("GetStringValue", actorUUID, "Intel_MeetingPlayerName", player.name) %}
+{% set timeAgo = "some time ago" %}{% if hoursSince < 1.0 %}{% set timeAgo = "very recently" %}{% elif hoursSince < 12.0 %}{% set timeAgo = "earlier today" %}{% elif hoursSince < 24.0 %}{% set timeAgo = "yesterday" %}{% elif hoursSince < 48.0 %}{% set timeAgo = "a day ago" %}{% elif hoursSince < 168.0 %}{% set timeAgo = "a few days ago" %}{% endif %}
+## Meeting at {{ meetDest }} ({{ timeAgo }})
+
+{% if first_person %}
+{% if meetOutcome == "player_no_show" %}
+I arranged to meet {{ playerName }} at {{ meetDest }}, but they never showed up. I waited and eventually gave up. This was {{ timeAgo }}.
+{% elif meetOutcome == "npc_late" %}
+I was supposed to meet {{ playerName }} at {{ meetDest }}, but I never made it there. I couldn't find my way or got held up. This was {{ timeAgo }}.
+{% elif meetOutcome == "npc_arrived_late" %}
+I met {{ playerName }} at {{ meetDest }}, but I was {% if lateHours < 1.5 %}about an hour{% elif lateHours < 3.0 %}a couple of hours{% else %}several hours{% endif %} late getting there. They were already waiting for me. This was {{ timeAgo }}.
+{% elif meetOutcome == "player_late" %}
+I met {{ playerName }} at {{ meetDest }}, but they were {% if lateHours < 1.5 %}about an hour{% elif lateHours < 3.0 %}a couple of hours{% else %}several hours{% endif %} late. This was {{ timeAgo }}.
+{% elif meetOutcome == "player_slightly_late" %}
+I met {{ playerName }} at {{ meetDest }}. They arrived a bit late, but we met as planned. This was {{ timeAgo }}.
+{% elif meetOutcome == "success" %}
+I met {{ playerName }} at {{ meetDest }} as planned. Everything went smoothly. This was {{ timeAgo }}.
+{% endif %}
+{% else %}
+{% if meetOutcome == "player_no_show" %}
+{{ decnpc(actorUUID).name }} arranged to meet {{ playerName }} at {{ meetDest }}, but {{ playerName }} never showed up. {{ decnpc(actorUUID).name }} waited and eventually gave up. This was {{ timeAgo }}.
+{% elif meetOutcome == "npc_late" %}
+{{ decnpc(actorUUID).name }} was supposed to meet {{ playerName }} at {{ meetDest }}, but never made it there. This was {{ timeAgo }}.
+{% elif meetOutcome == "npc_arrived_late" %}
+{{ decnpc(actorUUID).name }} met {{ playerName }} at {{ meetDest }}, but was {% if lateHours < 1.5 %}about an hour{% elif lateHours < 3.0 %}a couple of hours{% else %}several hours{% endif %} late. {{ playerName }} was already waiting. This was {{ timeAgo }}.
+{% elif meetOutcome == "player_late" %}
+{{ decnpc(actorUUID).name }} met {{ playerName }} at {{ meetDest }}, but {{ playerName }} was {% if lateHours < 1.5 %}about an hour{% elif lateHours < 3.0 %}a couple of hours{% else %}several hours{% endif %} late. This was {{ timeAgo }}.
+{% elif meetOutcome == "player_slightly_late" %}
+{{ decnpc(actorUUID).name }} met {{ playerName }} at {{ meetDest }}. {{ playerName }} was a bit late. This was {{ timeAgo }}.
+{% elif meetOutcome == "success" %}
+{{ decnpc(actorUUID).name }} met {{ playerName }} at {{ meetDest }} as planned. This was {{ timeAgo }}.
+{% endif %}
+{% endif %}
+
+{% endif %}
+{% endif %}
+{% endif %}
+{% endif %}

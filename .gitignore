@@ -1,0 +1,10 @@
+# ===========================================
+# IntelEngine-GamePlugin .gitignore
+# ===========================================
+# This is the packaged mod — track everything.
+# Only ignore OS artifacts and IDE files.
+
+# OS artifacts
+Thumbs.db
+Desktop.ini
+.DS_Store

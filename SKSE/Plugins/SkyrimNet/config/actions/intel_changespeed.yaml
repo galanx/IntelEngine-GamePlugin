@@ -1,0 +1,43 @@
+name: ChangeSpeed
+description: >
+  Change your travel speed mid-task WITHOUT canceling it. Adjusts pace on your current active task.
+
+  Use when:
+  - Someone tells you to hurry up, run, go faster, rush, "start running", "pick up the pace"
+  - Someone tells you to slow down, walk, take it easy, no rush, "stop running"
+  - The urgency of your task changes (e.g. danger ahead, relaxed situation)
+  - ANY mention of running, jogging, walking, or pace while you have an active task
+
+  Only works if your Task Status shows an active traveling, fetching, delivering, or searching task.
+  Do NOT use if you have no active task.
+
+  NOTE: This changes speed only. To completely stop a task, use CancelCurrentTask instead.
+
+questEditorId: IntelEngine
+scriptName: IntelEngine_Core
+executionFunctionName: ChangeTaskSpeed
+
+parameterMapping:
+  - type: speaker
+    name: akNPC
+    description: You (the NPC changing speed)
+  - type: dynamic
+    name: newSpeed
+    description: >
+      New travel speed as number: 0=walk, 1=jog, 2=run.
+      Choose based on what was requested.
+
+eligibilityRules:
+  - conditions:
+      - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+    logicalOperator: "AND"
+    required: true
+
+eventString: "{{ actor.name }} changed pace"
+isShortLived: true
+enabled: true
+defaultPriority: 7
+tags: []
