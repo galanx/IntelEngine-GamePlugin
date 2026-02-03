@@ -2,6 +2,10 @@ name: GoToLocation
 description: >
   Go to a PLACE right now. Named locations, relative directions (upstairs, outside), or "leave".
 
+  IMPORTANT: The destination MUST be a PLACE, NEVER a person.
+  If asked to "get him", "bring her", "fetch Nazeem", "go get someone" — that's FetchPerson, NOT this.
+  ANY request involving a person (name or pronoun like him/her/them) is NEVER GoToLocation.
+
   Use when:
   - "go to the Bannered Mare", "head to Whiterun", "go upstairs", "leave"
   - You decide to go somewhere on your own (errands, returning home)
