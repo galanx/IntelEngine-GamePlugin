@@ -271,6 +271,15 @@ Int Function CheckOffScreenProgress(Int slot, Actor npc, Float currentGameTime) 
 Function ResetOffScreenSlot(Int slot) Global Native
 
 ; =============================================================================
+; WAYPOINT NAVIGATION
+; Finds nearest BGSLocation worldLocMarker toward a destination for stuck
+; recovery. Returns a known-good navmesh position at a settlement entrance.
+; =============================================================================
+
+; Find nearest location marker that's closer to dest than the actor is
+ObjectReference Function FindNearestWaypointToward(Actor npc, ObjectReference dest, Float maxRadius) Global Native
+
+; =============================================================================
 ; DEBUG / TESTING FUNCTIONS
 ; =============================================================================
 
