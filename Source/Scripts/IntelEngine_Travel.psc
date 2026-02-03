@@ -52,10 +52,10 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 Float Property MEETING_PLAYER_PROXIMITY = 2000.0 AutoReadOnly
 {If player is within this distance of meeting destination, NPC starts walking toward them}
 
-Float Property LEAPFROG_DISTANCE = 2000.0 AutoReadOnly
-{When stuck recovery is exhausted during long-distance travel, teleport this far
-TOWARD the destination instead of directly to it. NPC resumes pathfinding from
-the new position. Repeats until close enough to arrive normally.}
+Float Property LEAPFROG_MAX_DISTANCE = 2000.0 AutoReadOnly
+{Maximum leapfrog distance (last resort). Actual distance is progressive:
+500u first attempt, 1000u second, 2000u third+. Keeps NPC visible to the
+player while still clearing pathfinding dead zones at cell boundaries.}
 
 Function EnsureMonitoringAlive()
     {Lightweight heartbeat: if active travel tasks exist, re-register the update loop.
@@ -770,13 +770,28 @@ Function CheckIfStuck(Int slot, Actor npc)
             Return
         EndIf
 
+        ; Progressive leapfrog distance: start small so the player can follow,
+        ; escalate if small hops aren't clearing the pathfinding dead zone.
+        ; C++ GetTeleportDistance returns descending (2000→1000→500→250) for
+        ; NPCTasks return-to-player. We invert it for Travel: ascending
+        ; (500→1000→2000) keeps the NPC visible while exploring past dead zones.
+        Float descDist = IntelEngine.GetTeleportDistance(slot)
+        Float leapDist
+        If descDist >= 2000.0
+            leapDist = 500.0     ; First attempt — gentle nudge past cell boundary
+        ElseIf descDist >= 1000.0
+            leapDist = 1000.0    ; Second attempt — medium hop
+        Else
+            leapDist = LEAPFROG_MAX_DISTANCE  ; Third+ — full leapfrog (last resort)
+        EndIf
+
         ; Calculate distance to destination using world positions
         ; (works even when dest 3D isn't loaded — positions are persistent)
         Float dx = dest.GetPositionX() - npc.GetPositionX()
         Float dy = dest.GetPositionY() - npc.GetPositionY()
         Float totalDist = Math.sqrt(dx * dx + dy * dy)
 
-        If totalDist <= LEAPFROG_DISTANCE + Core.ARRIVAL_DISTANCE
+        If totalDist <= leapDist + Core.ARRIVAL_DISTANCE
             ; Close enough — teleport directly and arrive
             Core.DebugMsg("Stuck recovery: " + npc.GetDisplayName() + " close enough (" + totalDist + "u) — teleporting to dest")
             Core.NotifyPlayer(npc.GetDisplayName() + " arrived (teleported)")
@@ -789,7 +804,7 @@ Function CheckIfStuck(Int slot, Actor npc)
             ; trips, the NPC walks to the edge of what it can route, stops, and
             ; gets stuck. Leapfrogging past the dead zone lets the engine compute
             ; a new path from the closer position.
-            Float ratio = LEAPFROG_DISTANCE / totalDist
+            Float ratio = leapDist / totalDist
             Float offsetX = dx * ratio
             Float offsetY = dy * ratio
             npc.MoveTo(npc, offsetX, offsetY, 0.0, false)
@@ -803,7 +818,7 @@ Function CheckIfStuck(Int slot, Actor npc)
             Utility.Wait(0.5)
             npc.EvaluatePackage()
 
-            Core.DebugMsg(npc.GetDisplayName() + " leapfrogged " + LEAPFROG_DISTANCE + "u toward dest (" + (totalDist - LEAPFROG_DISTANCE) + "u remaining)")
+            Core.DebugMsg(npc.GetDisplayName() + " leapfrogged " + leapDist + "u toward dest (" + (totalDist - leapDist) + "u remaining)")
             Core.NotifyPlayer(npc.GetDisplayName() + " making progress toward destination")
         EndIf
     EndIf
