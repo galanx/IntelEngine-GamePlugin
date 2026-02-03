@@ -7,6 +7,8 @@ description: >
   - You need someone's physical presence and will personally escort them
   - No message involved — just "go get that person and bring them to me"
 
+  Check your "Current Task" first — if you have an active task, use CancelCurrentTask before this.
+
   NOT DeliverMessage. If someone says "tell X to come here" or "let X know" —
   that means relay a message, use DeliverMessage instead.
   FetchPerson = you walk there, walk back WITH the person. No words to relay.

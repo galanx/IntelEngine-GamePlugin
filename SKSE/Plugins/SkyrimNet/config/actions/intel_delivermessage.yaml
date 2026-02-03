@@ -8,6 +8,8 @@ description: >
   - "warn Adrianne that trouble is coming"
   - "go tell X to meet me at Y" → message with meeting request
 
+  Check your "Current Task" first — if you have an active task, use CancelCurrentTask before this.
+
   NOT FetchPerson. FetchPerson = physically escort someone back. This = relay words.
   If someone says "tell X to come here" that is a MESSAGE, not a fetch.
 
