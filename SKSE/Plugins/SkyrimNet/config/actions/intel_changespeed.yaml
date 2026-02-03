@@ -8,10 +8,7 @@ description: >
   - The urgency of your task changes (e.g. danger ahead, relaxed situation)
   - ANY mention of running, jogging, walking, or pace while you have an active task
 
-  Only works if your "Current Task" shows an active task.
-  Do NOT use if you have no current task.
-
-  NOTE: This changes speed only. To completely stop a task, use CancelCurrentTask instead.
+  This changes speed only. To completely stop a task, use CancelCurrentTask instead.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Core

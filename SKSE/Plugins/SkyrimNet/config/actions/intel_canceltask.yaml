@@ -1,15 +1,13 @@
 name: CancelCurrentTask
 description: >
-  Stop your current active task. Check your "Current Task" section.
+  Stop your current active task entirely.
 
   Use when:
   - Someone tells you to stop, wait, hold on, come back, or stay
   - You decide the task is no longer worth doing
-  - You are told to follow someone (cancel task first, then follow)
+  - You need to follow someone (cancel task first, then follow)
 
-  Only use if your "Current Task" shows an active task and you want to STOP entirely.
-  Starting a new task (GoToLocation, FetchPerson, etc.) replaces the current one
-  automatically — you don't need to cancel first.
+  You don't need this before starting a new task — new tasks replace the current one automatically.
 
   Does NOT cancel scheduled tasks — those still trigger at their scheduled time.
   To adjust speed without stopping, use ChangeSpeed instead.
