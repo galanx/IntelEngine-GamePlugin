@@ -1764,7 +1764,7 @@ Function HandleDepartureFailure(Int slot, Actor agent)
         ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
         If dest != None
             Core.DebugMsg(agentName + " failed to depart (off-screen) — teleporting to destination")
-            agent.MoveTo(dest)
+            agent.MoveTo(dest, 0.0, 0.0, 50.0)
             agent.EvaluatePackage()
             Return
         EndIf

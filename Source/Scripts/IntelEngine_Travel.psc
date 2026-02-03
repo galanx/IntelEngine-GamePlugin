@@ -897,7 +897,7 @@ Function HandleMeetingDepartureFailure(Int slot, Actor npc)
         ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
         If dest != None
             Core.DebugMsg(npcName + " failed to depart for meeting (off-screen) — teleporting to destination")
-            npc.MoveTo(dest)
+            npc.MoveTo(dest, 0.0, 0.0, 50.0)
             npc.EvaluatePackage()
             OnArrival(slot, npc)
             Return
