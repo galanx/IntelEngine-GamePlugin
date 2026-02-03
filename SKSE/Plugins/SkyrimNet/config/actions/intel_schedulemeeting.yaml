@@ -2,30 +2,19 @@ name: ScheduleMeeting
 description: >
   Schedule a meeting at a PLACE for a FUTURE TIME. You stay put now and go when the time comes.
 
-  SCAN THE CONVERSATION for any hint of a future meeting. Use this action whenever:
-  - Someone says "see you tomorrow", "see you tonight", "until tomorrow", "until next time"
-  - Someone says "meet me at X", "let's meet at X", "want to meet at the tavern?"
-  - Someone agrees to a future meeting: "sure, tomorrow evening", "alright, I'll be there"
-  - Someone suggests a time: "how about at sunset?", "noon works", "let's say morning"
-  - You want to see someone again: "I'll come find you tomorrow", "same time tomorrow?"
-  - A farewell implies a future meeting: "see you at the inn", "tomorrow then"
-  - ANY combination of a future time + a place (explicit or implied) in the conversation
-  - You decide to go somewhere later on your own (returning home at dusk, errands tomorrow)
+  Use whenever the conversation contains ANY hint of a future meeting:
+  - Explicit: "meet me at the inn tomorrow", "let's meet at sunset"
+  - Agreements: "sure, tomorrow evening", "alright, I'll be there"
+  - Farewells: "see you tomorrow", "until tonight", "tomorrow then"
+  - Self-initiated: you want to see someone again, or go somewhere later
 
-  If a place was discussed but not explicitly named, use the most logical location from context
-  (e.g., if you're at the Bannered Mare and they say "see you tomorrow", use "Bannered Mare").
+  If no place is named, infer from context (e.g., current location or last mentioned place).
+  Check "Scheduled Commitment" first — don't duplicate an existing meeting.
 
-  BEFORE scheduling: Check your "Scheduled Commitment" section. If you already have a meeting
-  with this person at the same time and place, do NOT schedule a duplicate.
+  NOT GoToLocation (that's RIGHT NOW). NOT ScheduleDelivery/ScheduleFetch (those target a PERSON).
 
-  NOT GoToLocation (that's for going RIGHT NOW, not later).
-  NOT ScheduleDelivery/ScheduleFetch (those involve going to a PERSON, not a place).
-
-  IMPORTANT: Use natural time descriptions. The system understands:
-  - Times of day: dawn, sunrise, morning, noon, afternoon, evening, sunset, dusk, night, midnight
-  - Relative times: tonight, tomorrow, soon, shortly
-  - Relative hours: "in 2 hours", "in 1 hour", "a few hours", "in half an hour"
-  - Clock times: 3pm, 6am, etc.
+  Time descriptions: dawn, morning, noon, afternoon, evening, sunset, night, midnight,
+  tonight, tomorrow, "in 2 hours", "in half an hour", soon, 3pm, etc.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Schedule
