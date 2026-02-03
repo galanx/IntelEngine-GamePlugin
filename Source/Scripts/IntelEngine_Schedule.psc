@@ -482,7 +482,21 @@ String Function GetPreciseTimeDescription(Float hour, Float hoursUntil)
         EndIf
         Return "in about " + roundedHours + " hours (" + GetTimeDescription(hour) + ")"
     ElseIf hoursUntil < 36.0
-        ; Tomorrow — show time of day (avoid "tomorrow tonight")
+        ; Could be today or tomorrow — check if target crosses midnight
+        ; Derive current hour: currentHour = targetHour - hoursUntil, normalized to 0-24
+        Float currentHour = hour - hoursUntil
+        While currentHour < 0.0
+            currentHour += 24.0
+        EndWhile
+        While currentHour >= 24.0
+            currentHour -= 24.0
+        EndWhile
+        Float hoursToMidnight = 24.0 - currentHour
+        If hoursUntil < hoursToMidnight
+            ; Still today — just show time of day (e.g., "tonight", "in the evening")
+            Return GetTimeDescription(hour)
+        EndIf
+        ; Tomorrow — show time of day with "tomorrow" prefix
         If hour >= 22.0 || hour < 5.0
             Return "tomorrow at night"
         EndIf

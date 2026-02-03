@@ -52,6 +52,9 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 Float Property MEETING_PLAYER_PROXIMITY = 2000.0 AutoReadOnly
 {If player is within this distance of meeting destination, NPC starts walking toward them}
 
+Float Property TRAVEL_LINGER_RELEASE_DISTANCE = 1200.0 AutoReadOnly
+{Player must walk this far from NPC to end a GoToLocation linger}
+
 Function EnsureMonitoringAlive()
     {Lightweight heartbeat: if active travel tasks exist, re-register the update loop.
     Called by Schedule's game-time loop as a safety net against Papyrus VM stack dumps
@@ -493,9 +496,8 @@ Function OnArrival(Int slot, Actor npc)
                 ; Scheduled meeting — run the meeting flow (lateness, linger, etc.)
                 OnPlayerArrived(slot, npc)
             Else
-                ; Regular travel — complete immediately
-                StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
-                Core.ClearSlotRestoreFollower(slot, npc)
+                ; Regular travel — start linger (NPC stays, leaves when player walks away)
+                StartTravelLinger(slot, npc)
             EndIf
             Return
         EndIf
@@ -576,6 +578,21 @@ Function CheckWaiting(Int slot, Actor npc)
             StorageUtil.UnsetIntValue(npc, "Intel_LingerFarTicks")
         EndIf
         Return  ; Don't check anything else during linger
+    EndIf
+
+    ; Phase: Travel linger (GoToLocation — NPC arrived, player was nearby, waiting for player to leave)
+    If StorageUtil.GetIntValue(npc, "Intel_TravelLingering") == 1
+        Bool playerStillNear = false
+        If npc.Is3DLoaded() && player.Is3DLoaded()
+            playerStillNear = npc.GetDistance(player) <= TRAVEL_LINGER_RELEASE_DISTANCE
+        ElseIf npc.GetParentCell() == player.GetParentCell()
+            playerStillNear = true  ; same cell = still nearby
+        EndIf
+
+        If !playerStillNear
+            CompleteTravelLinger(slot, npc)
+        EndIf
+        Return  ; Don't check anything else during travel linger
     EndIf
 
     ; Check if player is right next to NPC
@@ -712,11 +729,8 @@ Function OnPlayerArrived(Int slot, Actor npc)
         ; Start linger — NPC stays nearby for a while instead of leaving immediately
         StartMeetingLinger(slot, npc)
     Else
-        ; === Regular travel: existing behavior ===
-        Core.NotifyPlayer(npcName + " noticed you arrived")
-        Core.SendTaskNarration(npc, playerName + " arrived at " + npcName + "'s location.")
-        StorageUtil.SetStringValue(npc, "Intel_Result", "player_arrived")
-        Core.ClearSlotRestoreFollower(slot, npc)
+        ; === Regular travel: start linger ===
+        StartTravelLinger(slot, npc)
     EndIf
 EndFunction
 
@@ -1041,6 +1055,27 @@ Function CompleteMeeting(Int slot, Actor npc)
     If Core.Schedule
         Core.Schedule.ClearScheduleSlotByAgent(npc)
     EndIf
+EndFunction
+
+; =============================================================================
+; TRAVEL LINGER (GoToLocation — NPC arrived, hangs out, leaves when player walks away)
+; =============================================================================
+
+Function StartTravelLinger(Int slot, Actor npc)
+    {NPC arrived at GoToLocation destination — linger at the destination.
+    NPC keeps their current sandbox package (already sandboxing at destination).
+    When player walks away, the task completes.}
+    Core.DebugMsg(npc.GetDisplayName() + " starting travel linger at destination")
+    StorageUtil.SetIntValue(npc, "Intel_TravelLingering", 1)
+    StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
+EndFunction
+
+Function CompleteTravelLinger(Int slot, Actor npc)
+    {Player walked away — travel linger complete, release the NPC.}
+    String npcName = npc.GetDisplayName()
+    Core.DebugMsg(npcName + " travel linger complete (player left)")
+    StorageUtil.UnsetIntValue(npc, "Intel_TravelLingering")
+    Core.ClearSlotRestoreFollower(slot, npc)
 EndFunction
 
 ; =============================================================================
