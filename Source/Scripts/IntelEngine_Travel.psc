@@ -124,6 +124,13 @@ Function RecoverTravelPackage(Int slot)
 
     ; Re-initialize stuck tracking so detection starts fresh
     Core.InitializeStuckTrackingForSlot(slot, npc)
+
+    ; Re-init off-screen tracking from persisted data
+    Float offscreenArrival = StorageUtil.GetFloatValue(npc, "Intel_OffscreenArrival", 0.0)
+    If offscreenArrival > 0.0
+        IntelEngine.InitOffScreenTravel(slot, offscreenArrival, npc)
+    EndIf
+
     Core.DebugMsg("Recovered travel package for " + npc.GetDisplayName())
 EndFunction
 
@@ -235,6 +242,9 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Bool 
 
     ; Initialize stuck tracking
     Core.InitializeStuckTrackingForSlot(slot, akNPC)
+
+    ; Initialize off-screen travel tracking (distance-based estimated arrival)
+    Core.InitOffScreenTracking(slot, akNPC, destMarker)
 
     ; For scheduled meetings, also track departure position
     If StorageUtil.GetIntValue(akNPC, "Intel_IsScheduledMeeting") == 1
@@ -415,12 +425,16 @@ Function CheckForArrival(Int slot, Actor npc)
         Return
     EndIf
 
-    ; NPC is on-screen but destination is too far for its 3D to be loaded.
-    ; Normal for long-distance travel (e.g. Helgen → Riften). Stuck detection
-    ; only needs the NPC's position, not the destination 3D. Without this,
-    ; NPCs that stop at pathfinding dead zones are never recovered.
+    ; NPC is on-screen — normal stuck detection + leapfrog recovery.
+    ; Stuck detection only needs the NPC's position, not the destination 3D.
     If npc.Is3DLoaded()
         CheckIfStuck(slot, npc)
+        Return
+    EndIf
+
+    ; NPC is off-screen — check estimated travel time and teleport if stationary
+    If Core.HandleOffScreenTravel(slot, npc, dest)
+        OnArrival(slot, npc)
     EndIf
 EndFunction
 

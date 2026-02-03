@@ -502,9 +502,10 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     Core.DebugMsg("FetchNPC: Pathfinding to " + targetNPC.GetDisplayName())
     Core.NotifyPlayer(akAgent.GetDisplayName() + " went to find " + targetNPC.GetDisplayName())
 
-    ; Initialize stuck tracking + departure detection
+    ; Initialize stuck tracking + departure detection + off-screen tracking
     Core.InitializeStuckTrackingForSlot(slot, akAgent)
     Core.InitializeDepartureTracking(slot, akAgent)
+    Core.InitOffScreenTracking(slot, akAgent, targetNPC)
 
     ; Set distance-based deadline (round trip: go to target + return to player)
     SetDistanceBasedDeadline(slot, akAgent, targetNPC, true)
@@ -634,9 +635,10 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     Core.DebugMsg("DeliverMessage: Pathfinding to " + targetNPC.GetDisplayName())
     Core.NotifyPlayer(akAgent.GetDisplayName() + " went to deliver a message to " + targetNPC.GetDisplayName())
 
-    ; Initialize stuck tracking + departure detection
+    ; Initialize stuck tracking + departure detection + off-screen tracking
     Core.InitializeStuckTrackingForSlot(slot, akAgent)
     Core.InitializeDepartureTracking(slot, akAgent)
+    Core.InitOffScreenTracking(slot, akAgent, targetNPC)
 
     ; Set distance-based deadline. Round trip if report-back is enabled, one-way otherwise.
     Bool isRoundTrip = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack") == 1
@@ -753,9 +755,10 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
 
     Core.NotifyPlayer(akAgent.GetDisplayName() + " is going to search for " + targetNPC.GetDisplayName())
 
-    ; Initialize stuck tracking + departure detection
+    ; Initialize stuck tracking + departure detection + off-screen tracking
     Core.InitializeStuckTrackingForSlot(slot, akAgent)
     Core.InitializeDepartureTracking(slot, akAgent)
+    Core.InitOffScreenTracking(slot, akAgent, targetNPC)
 
     ; Start monitoring
     RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
@@ -982,17 +985,22 @@ Function CheckArrivalAtTarget(Int slot, Actor agent, Actor target)
         Return
     EndIf
 
-    ; Agent on-screen but target off-screen — can't distance-check
-    ; but CAN detect if the agent is stuck and not making progress
+    ; Agent on-screen but target off-screen — stuck detection only
     If agent.Is3DLoaded()
         CheckIfStuck(slot, agent)
+        Return
     EndIf
 
-    ; Off-screen: same cell (interior or exterior) means the agent
-    ; pathfound their way to the target. Consider arrived.
+    ; Off-screen: same cell means the agent pathfound to the target naturally
     Cell agentCell = agent.GetParentCell()
     If agentCell != None && agentCell == target.GetParentCell()
         Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName() + "'s cell (off-screen)")
+        OnArrivedAtTarget(slot, agent, target)
+        Return
+    EndIf
+
+    ; Off-screen: check estimated travel time and teleport if stationary
+    If Core.HandleOffScreenTravel(slot, agent, target)
         OnArrivedAtTarget(slot, agent, target)
     EndIf
 EndFunction
@@ -1634,8 +1642,11 @@ Function HandleSearchState(Int slot, Actor agent, Int taskState)
         Return
     EndIf
 
-    ; Skip all distance checks if agent's 3D isn't loaded
+    ; Agent off-screen — check estimated travel time for teleport
     If !agent.Is3DLoaded()
+        If Core.HandleOffScreenTravel(slot, agent, target)
+            OnArrivedAtSearchTarget(slot, agent, target)
+        EndIf
         Return
     EndIf
 
