@@ -744,11 +744,10 @@ Function CheckIfStuck(Int slot, Actor npc)
         Return
     EndIf
 
-    ; Skip stuck detection while NPC is in dialogue (SkyrimNet TalkToPlayer,
-    ; vanilla greetings, NPC-to-NPC). The NPC is stationary by design during
-    ; conversation — not actually stuck. Reset the C++ counter so dialogue
-    ; time doesn't accumulate toward a false stuck trigger.
-    If npc.GetDialogueTarget() != None
+    ; Skip stuck detection while NPC is in dialogue or combat — stationary
+    ; by design, not actually stuck. Reset the C++ counter so time spent
+    ; talking/fighting doesn't accumulate toward a false stuck trigger.
+    If npc.GetDialogueTarget() != None || npc.IsInCombat()
         IntelEngine.ResetStuckSlot(slot, npc)
         Return
     EndIf
