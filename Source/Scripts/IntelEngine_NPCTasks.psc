@@ -1786,8 +1786,8 @@ EndFunction
 ; =============================================================================
 
 Function CheckIfStuck(Int slot, Actor npc)
-    ; Skip stuck detection while NPC is in dialogue — stationary by design
-    If npc.GetDialogueTarget() != None
+    ; Skip stuck detection while NPC is in dialogue or combat — stationary by design
+    If npc.GetDialogueTarget() != None || npc.IsInCombat()
         IntelEngine.ResetStuckSlot(slot, npc)
         Return
     EndIf
