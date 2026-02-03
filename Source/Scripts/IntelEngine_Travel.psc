@@ -52,6 +52,11 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 Float Property MEETING_PLAYER_PROXIMITY = 2000.0 AutoReadOnly
 {If player is within this distance of meeting destination, NPC starts walking toward them}
 
+Float Property LEAPFROG_DISTANCE = 2000.0 AutoReadOnly
+{When stuck recovery is exhausted during long-distance travel, teleport this far
+TOWARD the destination instead of directly to it. NPC resumes pathfinding from
+the new position. Repeats until close enough to arrive normally.}
+
 Function EnsureMonitoringAlive()
     {Lightweight heartbeat: if active travel tasks exist, re-register the update loop.
     Called by Schedule's game-time loop as a safety net against Papyrus VM stack dumps
@@ -407,6 +412,15 @@ Function CheckForArrival(Int slot, Actor npc)
     If npcCell != None && npcCell == dest.GetParentCell() && npcCell.IsInterior()
         Core.DebugMsg(npc.GetDisplayName() + " reached destination cell (off-screen)")
         OnArrival(slot, npc)
+        Return
+    EndIf
+
+    ; NPC is on-screen but destination is too far for its 3D to be loaded.
+    ; Normal for long-distance travel (e.g. Helgen → Riften). Stuck detection
+    ; only needs the NPC's position, not the destination 3D. Without this,
+    ; NPCs that stop at pathfinding dead zones are never recovered.
+    If npc.Is3DLoaded()
+        CheckIfStuck(slot, npc)
     EndIf
 EndFunction
 
@@ -738,15 +752,46 @@ Function CheckIfStuck(Int slot, Actor npc)
     EndIf
 
     If status == 3
-        Core.DebugMsg("Stuck recovery exhausted — teleporting " + npc.GetDisplayName())
-        Core.NotifyPlayer(npc.GetDisplayName() + " got unstuck (teleported)")
-
-        If dest != None
-            npc.MoveTo(dest)
-            npc.EvaluatePackage()
+        If dest == None
+            Return
         EndIf
 
-        OnArrival(slot, npc)
+        ; Calculate distance to destination using world positions
+        ; (works even when dest 3D isn't loaded — positions are persistent)
+        Float dx = dest.GetPositionX() - npc.GetPositionX()
+        Float dy = dest.GetPositionY() - npc.GetPositionY()
+        Float totalDist = Math.sqrt(dx * dx + dy * dy)
+
+        If totalDist <= LEAPFROG_DISTANCE + Core.ARRIVAL_DISTANCE
+            ; Close enough — teleport directly and arrive
+            Core.DebugMsg("Stuck recovery: " + npc.GetDisplayName() + " close enough (" + totalDist + "u) — teleporting to dest")
+            Core.NotifyPlayer(npc.GetDisplayName() + " arrived (teleported)")
+            npc.MoveTo(dest)
+            npc.EvaluatePackage()
+            OnArrival(slot, npc)
+        Else
+            ; Too far — leapfrog toward destination, then resume pathfinding.
+            ; Skyrim's navmesh pathfinder has limited range. For cross-worldspace
+            ; trips, the NPC walks to the edge of what it can route, stops, and
+            ; gets stuck. Leapfrogging past the dead zone lets the engine compute
+            ; a new path from the closer position.
+            Float ratio = LEAPFROG_DISTANCE / totalDist
+            Float offsetX = dx * ratio
+            Float offsetY = dy * ratio
+            npc.MoveTo(npc, offsetX, offsetY, 0.0, false)
+
+            ; Re-apply travel package from new position
+            Int speed = Core.SlotSpeeds[slot]
+            Package travelPkg = Core.GetTravelPackage(speed)
+            If travelPkg
+                ActorUtil.AddPackageOverride(npc, travelPkg, Core.PRIORITY_TRAVEL, 1)
+            EndIf
+            Utility.Wait(0.5)
+            npc.EvaluatePackage()
+
+            Core.DebugMsg(npc.GetDisplayName() + " leapfrogged " + LEAPFROG_DISTANCE + "u toward dest (" + (totalDist - LEAPFROG_DISTANCE) + "u remaining)")
+            Core.NotifyPlayer(npc.GetDisplayName() + " making progress toward destination")
+        EndIf
     EndIf
 EndFunction
 
