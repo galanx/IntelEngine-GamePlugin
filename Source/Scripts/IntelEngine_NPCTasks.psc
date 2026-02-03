@@ -1851,7 +1851,20 @@ Function CheckIfStuck(Int slot, Actor npc)
         EndIf
 
         If taskType == "search_for_actor"
-            ; No waypoint found — don't blind-teleport search NPC, just keep retrying
+            ; No waypoint found. After 4+ failed teleport cycles (~80s stuck),
+            ; bring the search target to the player area as a last resort.
+            ; Looks like the target wandered into range naturally.
+            Float descDist = IntelEngine.GetTeleportDistance(slot)
+            If descDist <= 250.0
+                Actor searchTarget = StorageUtil.GetFormValue(npc, \
+                    "Intel_TargetNPC") as Actor
+                If searchTarget != None
+                    Core.DebugMsg("Search exhausted — bringing " + \
+                        searchTarget.GetDisplayName() + " to player area")
+                    Core.TeleportBehindPlayer(searchTarget, 500.0)
+                    IntelEngine.ResetStuckSlot(slot, npc)
+                EndIf
+            EndIf
             Return
         EndIf
 
