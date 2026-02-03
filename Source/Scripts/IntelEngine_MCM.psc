@@ -418,8 +418,12 @@ Function ClearSlotWithConfirm(Int slot)
     EndIf
 
     Bool confirm = ShowMessage("Clear task in slot " + slot + "?\n" + status, true, "Yes", "No")
+    Core.DebugMsg("MCM ClearSlot " + slot + " confirm: " + confirm)
     If confirm
+        Core.DebugMsg("MCM ClearSlot " + slot + " calling ClearSlot now")
         Core.ClearSlot(slot, true)
+        Core.DebugMsg("MCM ClearSlot " + slot + " ClearSlot returned, state now: " + Core.SlotStates[slot])
+        Debug.Notification("IntelEngine: Slot " + slot + " cleared")
         ForcePageReset()
     EndIf
 EndFunction
