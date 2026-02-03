@@ -1842,13 +1842,16 @@ Function CheckIfStuck(Int slot, Actor npc)
         ; Teleport — recovery exhausted
         Core.DebugMsg("Stuck teleport for " + npc.GetDisplayName() + " (slot " + slot + ")")
 
-        If taskType == "search_for_actor"
-            ; Don't teleport search NPC — player should be nearby, just keep retrying
+        ; Layer B: Try location marker navigation (on-screen, outbound only).
+        ; Applies to all task types including search_for_actor — the search
+        ; target could be far away and the NPC needs to navigate through
+        ; mountain passes. Walking to a nearby location marker is immersive.
+        If !isReturning && dest != None && Core.TryWaypointNavigation(slot, npc, dest)
             Return
         EndIf
 
-        ; Layer B: Try location marker navigation (on-screen, outbound only)
-        If !isReturning && dest != None && Core.TryWaypointNavigation(slot, npc, dest)
+        If taskType == "search_for_actor"
+            ; No waypoint found — don't blind-teleport search NPC, just keep retrying
             Return
         EndIf
 
