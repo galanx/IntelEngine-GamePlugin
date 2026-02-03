@@ -1,20 +1,18 @@
 name: ScheduleDelivery
 description: >
-  Schedule delivering a message at a FUTURE TIME. Delayed version of DeliverMessage — you stay put now and go later.
+  Schedule telling someone something LATER. Delayed DeliverMessage — you stay put now, go deliver words later.
 
   Use when:
-  - You decide to tell someone something later: "I should warn Adrianne after sunset"
-  - Someone (player or NPC) asks you to deliver a message later, not right now
-  - You want to pass along information you just learned at a better time
-  - Another NPC asks you to relay a message to someone at a specific time
-  - You want to arrange a meeting by sending word ahead: "Tell Jarl Balgruuf
-    to meet me at Dragonsreach at noon"
+  - "tell Adrianne after sunset that..." → schedule the message for later
+  - You want to warn/inform someone but not right now
+  - "send word to Jarl Balgruuf tomorrow morning"
 
-  This schedules the delivery for later. You will NOT leave immediately.
-  When the time comes, you will automatically go deliver the message.
+  NOT ScheduleFetch. If there's a message to relay, this is the right action.
+  If someone says "tell X to come here later" → schedule delivering that message.
 
-  IMPORTANT: The target must be a person who actually exists.
-  The system uses fuzzy matching, so minor typos are okay.
+  You will NOT leave immediately. You go when the time comes.
+
+  The target must be a person who actually exists.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Schedule

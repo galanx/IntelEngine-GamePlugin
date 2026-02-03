@@ -1026,7 +1026,9 @@ Function CompleteMeeting(Int slot, Actor npc)
     String npcName = npc.GetDisplayName()
     Core.DebugMsg(npcName + " meeting complete (player left)")
 
-    ; No narration — player already walked away (800+ units). Notification only.
+    ; Narrate player departure — past tense, factual only (no emotion, no future intent)
+    String playerName = Game.GetPlayer().GetDisplayName()
+    Core.SendTaskNarration(npc, playerName + " walked away.", Game.GetPlayer())
     Core.NotifyPlayer(npcName + " headed off after the meeting")
 
     ; Mark as complete

@@ -1,18 +1,15 @@
 name: GoToLocation
 description: >
-  Travel to a LOCATION (a place, not a person). Supports named locations (Whiterun, Bannered Mare),
-  relative directions (upstairs, outside, downstairs, the bedroom, the back room),
-  and semantic terms (leave, get out of here).
+  Go to a PLACE right now. Named locations, relative directions (upstairs, outside), or "leave".
 
   Use when:
-  - Someone asks you to go somewhere (a place name, not a person's name)
-  - You decide to go somewhere on your own (errands, duties, returning home)
-  - You need to leave for personal reasons (emotions, danger, obligations)
-  - You want to move to a different part of the building (upstairs, outside, the back)
-  - You agree to meet someone at a specific place RIGHT NOW
+  - "go to the Bannered Mare", "head to Whiterun", "go upstairs", "leave"
+  - You decide to go somewhere on your own (errands, returning home)
+  - You agree to meet someone at a place RIGHT NOW
 
-  DO NOT use just because a location was mentioned in conversation.
-  To change speed on an active task, use ChangeSpeed instead.
+  NOT ScheduleMeeting (that's for going somewhere LATER).
+  NOT FetchPerson/DeliverMessage (those are about a PERSON, not a place).
+  Do NOT use just because a location was mentioned in conversation.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Travel

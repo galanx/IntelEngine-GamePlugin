@@ -1,21 +1,19 @@
 name: ScheduleMeeting
 description: >
-  Schedule to travel to a LOCATION at a FUTURE TIME. Delayed version of GoToLocation — you stay put now and go later.
+  Schedule going to a PLACE at a FUTURE TIME. Delayed GoToLocation — you stay put now, go later.
 
-  BEFORE scheduling: Check your "Scheduled Commitment" section in your bio. If you already have a meeting
-  scheduled with this person, do NOT schedule another one unless the time or location needs to change.
-  Only reschedule if the conversation explicitly changes the meeting details.
+  BEFORE scheduling: Check your "Scheduled Commitment" section. If you already have a meeting
+  with this person, do NOT schedule another unless the time or location changed.
 
   Use when:
-  - You tell someone "meet me at the Bannered Mare at sundown"
-  - You agree to meet someone somewhere later (player or another NPC)
-  - You decide on your own to go somewhere at a future time (e.g., returning home at dusk)
-  - You propose meeting up with someone: "I'll be at Dragonsreach tonight"
-  - You and another NPC agree to meet somewhere later
-  - You want to keep an appointment or attend a gathering
+  - "meet me at the Bannered Mare at sundown" → you'll go there later
+  - You agree to meet someone somewhere at a future time
+  - You decide to go somewhere later on your own (returning home at dusk)
 
-  This schedules future travel — you will NOT leave immediately.
-  You will go to the destination when the time comes.
+  NOT GoToLocation (that's for going RIGHT NOW).
+  NOT ScheduleDelivery/ScheduleFetch (those involve going to a PERSON, not a place).
+
+  You will NOT leave immediately. You go when the time comes.
 
   IMPORTANT: Use natural time descriptions. The system understands:
   - Times of day: dawn, sunrise, morning, noon, afternoon, evening, sunset, dusk, night, midnight

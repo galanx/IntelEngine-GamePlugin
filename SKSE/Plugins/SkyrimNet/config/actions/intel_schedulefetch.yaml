@@ -1,19 +1,17 @@
 name: ScheduleFetch
 description: >
-  Schedule fetching a person at a FUTURE TIME. Delayed version of FetchPerson — you stay put now and go later.
+  Schedule physically fetching someone LATER. Delayed FetchPerson — you stay put now, go escort them back later.
 
   Use when:
-  - You decide to go get someone later: "I'll go find Ysolda after sunset"
-  - Someone (player or NPC) asks you to fetch a person later, not right now
-  - You want to bring someone to a location at a future time
-  - You overhear that someone is needed and decide to go get them later
-  - Another NPC asks you to bring someone to them at a specific time
+  - "go get Ysolda after sunset" → no message, just bring them back later
+  - You need someone's physical presence at a future time and will personally escort them
 
-  This schedules the task for later. You will NOT leave immediately.
-  When the time comes, you will automatically go fetch the person.
+  NOT ScheduleDelivery. If there are WORDS to relay ("tell X that...", "let X know..."),
+  use ScheduleDelivery. ScheduleFetch = no message, just physically go get them later.
 
-  IMPORTANT: The target must be a person who actually exists.
-  The system uses fuzzy matching, so minor typos are okay.
+  You will NOT leave immediately. You go when the time comes.
+
+  The target must be a person who actually exists.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Schedule

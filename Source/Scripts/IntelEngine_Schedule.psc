@@ -722,12 +722,14 @@ Function ExecuteScheduledTask(Int slot)
         Bool success = Travel.GoToLocation(npc, destination, speed, true)
         If success
             If npc.Is3DLoaded()
-                Core.SendTaskNarration(npc, npc.GetDisplayName() + " headed out to " + destination + " as planned.")
+                ; Narrate TO the player so the NPC addresses them directly ("see you there")
+                ; instead of monologuing about the player in third person
+                Core.SendTaskNarration(npc, npc.GetDisplayName() + " departed for " + destination + ".", Game.GetPlayer())
             EndIf
         Else
             Core.DebugMsg("Schedule GoToLocation FAILED for " + npc.GetDisplayName())
             If npc.Is3DLoaded()
-                Core.SendTaskNarration(npc, npc.GetDisplayName() + " tried to leave for " + destination + " but couldn't.")
+                Core.SendTaskNarration(npc, npc.GetDisplayName() + " tried to leave for " + destination + " but was unable to.", Game.GetPlayer())
             EndIf
             StorageUtil.UnsetIntValue(npc, "Intel_IsScheduledMeeting")
             StorageUtil.UnsetFloatValue(npc, "Intel_MeetingTime")
