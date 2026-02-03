@@ -771,18 +771,21 @@ Function CheckIfStuck(Int slot, Actor npc)
         EndIf
 
         ; Progressive leapfrog distance: start small so the player can follow,
-        ; escalate if small hops aren't clearing the pathfinding dead zone.
+        ; escalate if consecutive hops aren't clearing the dead zone.
         ; C++ GetTeleportDistance returns descending (2000→1000→500→250) for
         ; NPCTasks return-to-player. We invert it for Travel: ascending
-        ; (500→1000→2000) keeps the NPC visible while exploring past dead zones.
+        ; (200→500→1000→2000) keeps the NPC visible to the player.
+        ; Resets to 200u every time the NPC moves between stuck events.
         Float descDist = IntelEngine.GetTeleportDistance(slot)
         Float leapDist
         If descDist >= 2000.0
-            leapDist = 500.0     ; First attempt — gentle nudge past cell boundary
+            leapDist = 200.0     ; First attempt — minimal nudge past cell boundary
         ElseIf descDist >= 1000.0
-            leapDist = 1000.0    ; Second attempt — medium hop
+            leapDist = 500.0     ; Second attempt — small hop
+        ElseIf descDist >= 500.0
+            leapDist = 1000.0    ; Third attempt — medium hop
         Else
-            leapDist = LEAPFROG_MAX_DISTANCE  ; Third+ — full leapfrog (last resort)
+            leapDist = LEAPFROG_MAX_DISTANCE  ; Fourth+ — full leapfrog (last resort)
         EndIf
 
         ; Calculate distance to destination using world positions
