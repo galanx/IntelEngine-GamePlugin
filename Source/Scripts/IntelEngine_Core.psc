@@ -607,6 +607,9 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetIntValue(agent, "Intel_ApproachStuckNarrated")
             StorageUtil.UnsetIntValue(agent, "Intel_TaskStuckNarrated")
 
+            ; Clear travel linger flag
+            StorageUtil.UnsetIntValue(agent, "Intel_TravelLingering")
+
             ; Clear off-screen return tracking
             StorageUtil.UnsetIntValue(agent, "Intel_OffScreenCycles")
             StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenLastDist")
