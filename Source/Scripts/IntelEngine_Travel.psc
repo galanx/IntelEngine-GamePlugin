@@ -52,9 +52,6 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 Float Property MEETING_PLAYER_PROXIMITY = 2000.0 AutoReadOnly
 {If player is within this distance of meeting destination, NPC starts walking toward them}
 
-Float Property TRAVEL_LINGER_RELEASE_DISTANCE = 1200.0 AutoReadOnly
-{Player must walk this far from NPC to end a GoToLocation linger}
-
 Function EnsureMonitoringAlive()
     {Lightweight heartbeat: if active travel tasks exist, re-register the update loop.
     Called by Schedule's game-time loop as a safety net against Papyrus VM stack dumps
@@ -508,91 +505,20 @@ Function CheckWaiting(Int slot, Actor npc)
     Actor player = Game.GetPlayer()
     Float currentTime = Utility.GetCurrentGameTime()
     Float deadline = Core.SlotDeadlines[slot]
-    Bool isMeeting = StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
-
     ; Phase: Post-meeting linger (player already met NPC, NPC hanging around)
     If StorageUtil.GetIntValue(npc, "Intel_MeetingLingering") == 1
-
-        ; Sub-phase: approaching player — walk until within 100 units, then sandbox
-        If StorageUtil.GetIntValue(npc, "Intel_MeetingLingerApproaching") == 1
-            Bool closeEnough = false
-            Bool stillFar = true
-            If npc.Is3DLoaded() && player.Is3DLoaded()
-                Float dist = npc.GetDistance(player)
-                closeEnough = dist <= LINGER_APPROACH_DISTANCE
-                stillFar = dist > MEETING_LINGER_RELEASE_DISTANCE
-            ElseIf npc.GetParentCell() == player.GetParentCell()
-                Cell npcCell = npc.GetParentCell()
-                stillFar = false
-                If npcCell != None && npcCell.IsInterior()
-                    closeEnough = true
-                EndIf
-            EndIf
-
-            If closeEnough
-                ; Add sandbox BEFORE removing travel — no gap for default AI to kick in
-                PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
-                ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
-                ActorUtil.RemovePackageOverride(npc, Core.TravelPackage_Walk)
-                Utility.Wait(0.1)
-                npc.EvaluatePackage()
-                StorageUtil.UnsetIntValue(npc, "Intel_MeetingLingerApproaching")
-                Core.DebugMsg(npc.GetDisplayName() + " reached player, sandboxing")
-            ElseIf stillFar
-                ; Player still far during approach — keep incrementing far ticks
-                Int farTicks = StorageUtil.GetIntValue(npc, "Intel_LingerFarTicks", 0) + 1
-                StorageUtil.SetIntValue(npc, "Intel_LingerFarTicks", farTicks)
-                If farTicks >= LINGER_FAR_TICKS_LIMIT
-                    CompleteMeeting(slot, npc)
-                EndIf
-            EndIf
-            Return  ; Still approaching or just switched — check again next cycle
+        If ProcessLingerProximity(slot, npc)
+            CompleteMeeting(slot, npc)
         EndIf
-
-        ; Sub-phase: sandboxing — release when player walks away
-        Bool playerFar = true
-        If npc.Is3DLoaded() && player.Is3DLoaded()
-            playerFar = npc.GetDistance(player) > MEETING_LINGER_RELEASE_DISTANCE
-        ElseIf npc.GetParentCell() == player.GetParentCell()
-            playerFar = false  ; same interior cell = still nearby
-        EndIf
-
-        If playerFar
-            ; Grace period — don't end on first "far" check
-            Int farTicks = StorageUtil.GetIntValue(npc, "Intel_LingerFarTicks", 0) + 1
-            StorageUtil.SetIntValue(npc, "Intel_LingerFarTicks", farTicks)
-            If farTicks >= LINGER_FAR_TICKS_LIMIT
-                CompleteMeeting(slot, npc)
-            Else
-                ; NPC drifted — sandbox can't pull them back, switch to approach
-                Core.DebugMsg(npc.GetDisplayName() + " linger: drifted (tick " + farTicks + "), re-approaching player")
-                PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
-                ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-                ActorUtil.RemovePackageOverride(npc, Core.SandboxNearPlayerPackage)
-                Utility.Wait(0.1)
-                npc.EvaluatePackage()
-                StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
-            EndIf
-        Else
-            ; Player is nearby — reset far counter
-            StorageUtil.UnsetIntValue(npc, "Intel_LingerFarTicks")
-        EndIf
-        Return  ; Don't check anything else during linger
+        Return
     EndIf
 
-    ; Phase: Travel linger (GoToLocation — NPC arrived, player was nearby, waiting for player to leave)
+    ; Phase: Travel linger (GoToLocation — NPC arrived, player nearby, sandboxing near player)
     If StorageUtil.GetIntValue(npc, "Intel_TravelLingering") == 1
-        Bool playerStillNear = false
-        If npc.Is3DLoaded() && player.Is3DLoaded()
-            playerStillNear = npc.GetDistance(player) <= TRAVEL_LINGER_RELEASE_DISTANCE
-        ElseIf npc.GetParentCell() == player.GetParentCell()
-            playerStillNear = true  ; same cell = still nearby
-        EndIf
-
-        If !playerStillNear
+        If ProcessLingerProximity(slot, npc)
             CompleteTravelLinger(slot, npc)
         EndIf
-        Return  ; Don't check anything else during travel linger
+        Return
     EndIf
 
     ; Check if player is right next to NPC
@@ -617,49 +543,47 @@ Function CheckWaiting(Int slot, Actor npc)
         Return
     EndIf
 
-    ; For scheduled meetings: smart approach — if player is near the meeting spot
-    ; but not right next to NPC, walk toward them
-    If isMeeting
-        ObjectReference destMarker = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
-        Bool playerNearMeetingSpot = false
+    ; Smart approach — if player is near the destination but not right next to NPC,
+    ; walk toward them. Works for both scheduled meetings and GoToLocation.
+    ObjectReference destMarker = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+    Bool playerNearDest = false
 
-        If destMarker != None
-            If player.GetParentCell() == destMarker.GetParentCell()
-                If player.Is3DLoaded() && destMarker.Is3DLoaded()
-                    playerNearMeetingSpot = player.GetDistance(destMarker) < MEETING_PLAYER_PROXIMITY
-                Else
-                    ; Same cell but 3D not loaded — only trust for interior cells
-                    Cell destCell = destMarker.GetParentCell()
-                    If destCell != None && destCell.IsInterior()
-                        playerNearMeetingSpot = true
-                    EndIf
+    If destMarker != None
+        If player.GetParentCell() == destMarker.GetParentCell()
+            If player.Is3DLoaded() && destMarker.Is3DLoaded()
+                playerNearDest = player.GetDistance(destMarker) < MEETING_PLAYER_PROXIMITY
+            Else
+                ; Same cell but 3D not loaded — only trust for interior cells
+                Cell destCell = destMarker.GetParentCell()
+                If destCell != None && destCell.IsInterior()
+                    playerNearDest = true
                 EndIf
             EndIf
         EndIf
+    EndIf
 
-        If playerNearMeetingSpot
-            ; Player is near the meeting spot — NPC should walk toward them
-            If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
-                ; Only start approach if NPC is visible — avoids ghost notifications
-                If npc.Is3DLoaded()
-                    StartApproachingPlayer(slot, npc)
-                EndIf
-            Else
-                CheckMeetingApproach(slot, npc)
+    If playerNearDest
+        ; Player is near the destination — NPC should walk toward them
+        If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
+            ; Only start approach if NPC is visible — avoids ghost notifications
+            If npc.Is3DLoaded()
+                StartApproachingPlayer(slot, npc)
             EndIf
-            Return  ; Don't timeout while player is nearby
         Else
-            ; Player left the area — stop approaching and return to destination sandbox
-            If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
-                StopApproachingPlayer(npc)
-                ; Restore sandbox at meeting destination (not player)
-                ObjectReference destMarker2 = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
-                If destMarker2 != None
-                    PO3_SKSEFunctions.SetLinkedRef(npc, destMarker2, Core.IntelEngine_TravelTarget)
-                EndIf
-                ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
-                npc.EvaluatePackage()
+            CheckMeetingApproach(slot, npc)
+        EndIf
+        Return  ; Don't timeout while player is nearby
+    Else
+        ; Player left the area — stop approaching and return to destination sandbox
+        If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
+            StopApproachingPlayer(npc)
+            ; Restore sandbox at destination (not player)
+            ObjectReference destMarker2 = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+            If destMarker2 != None
+                PO3_SKSEFunctions.SetLinkedRef(npc, destMarker2, Core.IntelEngine_TravelTarget)
             EndIf
+            ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+            npc.EvaluatePackage()
         EndIf
     EndIf
 
@@ -1001,11 +925,90 @@ Function StopApproachingPlayer(Actor npc)
 EndFunction
 
 ; =============================================================================
-; SCHEDULED MEETING — LINGER SYSTEM
+; SHARED LINGER PROXIMITY — used by both meeting and travel linger
 ;
-; After the player arrives at a meeting, the NPC sandboxes nearby
-; (proximity-based). When the player walks MEETING_LINGER_RELEASE_DISTANCE
-; away, the meeting ends and the NPC is released.
+; Phase 1: Walk toward player (approach).
+; Phase 2: Sandbox within 200 units once close.
+; Released when the player walks MEETING_LINGER_RELEASE_DISTANCE away.
+; =============================================================================
+
+Bool Function ProcessLingerProximity(Int slot, Actor npc)
+    {Shared approach/sandbox/release logic for both meeting and travel linger.
+    Returns true when linger should end (player walked away).}
+    Actor player = Game.GetPlayer()
+
+    ; Sub-phase: approaching player — walk until close, then sandbox
+    If StorageUtil.GetIntValue(npc, "Intel_MeetingLingerApproaching") == 1
+        Bool closeEnough = false
+        Bool stillFar = true
+        If npc.Is3DLoaded() && player.Is3DLoaded()
+            Float dist = npc.GetDistance(player)
+            closeEnough = dist <= LINGER_APPROACH_DISTANCE
+            stillFar = dist > MEETING_LINGER_RELEASE_DISTANCE
+        ElseIf npc.GetParentCell() == player.GetParentCell()
+            Cell npcCell = npc.GetParentCell()
+            stillFar = false
+            If npcCell != None && npcCell.IsInterior()
+                closeEnough = true
+            EndIf
+        EndIf
+
+        If closeEnough
+            ; Add sandbox BEFORE removing travel — no gap for default AI to kick in
+            PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
+            ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
+            ActorUtil.RemovePackageOverride(npc, Core.TravelPackage_Walk)
+            Utility.Wait(0.1)
+            npc.EvaluatePackage()
+            StorageUtil.UnsetIntValue(npc, "Intel_MeetingLingerApproaching")
+            Core.DebugMsg(npc.GetDisplayName() + " reached player, sandboxing")
+        ElseIf stillFar
+            ; Player still far during approach — increment far ticks
+            Int farTicks = StorageUtil.GetIntValue(npc, "Intel_LingerFarTicks", 0) + 1
+            StorageUtil.SetIntValue(npc, "Intel_LingerFarTicks", farTicks)
+            If farTicks >= LINGER_FAR_TICKS_LIMIT
+                Return true
+            EndIf
+        EndIf
+        Return false  ; Still approaching or just switched — check again next cycle
+    EndIf
+
+    ; Sub-phase: sandboxing — release when player walks away
+    Bool playerFar = true
+    If npc.Is3DLoaded() && player.Is3DLoaded()
+        playerFar = npc.GetDistance(player) > MEETING_LINGER_RELEASE_DISTANCE
+    ElseIf npc.GetParentCell() == player.GetParentCell()
+        playerFar = false  ; same interior cell = still nearby
+    EndIf
+
+    If playerFar
+        ; Grace period — don't end on first "far" check
+        Int farTicks = StorageUtil.GetIntValue(npc, "Intel_LingerFarTicks", 0) + 1
+        StorageUtil.SetIntValue(npc, "Intel_LingerFarTicks", farTicks)
+        If farTicks >= LINGER_FAR_TICKS_LIMIT
+            Return true
+        Else
+            ; NPC drifted — sandbox can't pull them back, switch to approach
+            Core.DebugMsg(npc.GetDisplayName() + " linger: drifted (tick " + farTicks + "), re-approaching player")
+            PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
+            ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+            ActorUtil.RemovePackageOverride(npc, Core.SandboxNearPlayerPackage)
+            Utility.Wait(0.1)
+            npc.EvaluatePackage()
+            StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
+        EndIf
+    Else
+        ; Player is nearby — reset far counter
+        StorageUtil.UnsetIntValue(npc, "Intel_LingerFarTicks")
+    EndIf
+    Return false
+EndFunction
+
+; =============================================================================
+; SCHEDULED MEETING — LINGER
+;
+; After the player arrives at a meeting, the NPC walks toward the player,
+; then sandboxes nearby. Released when the player walks away.
 ; =============================================================================
 
 Function StartMeetingLinger(Int slot, Actor npc)
@@ -1062,11 +1065,23 @@ EndFunction
 ; =============================================================================
 
 Function StartTravelLinger(Int slot, Actor npc)
-    {NPC arrived at GoToLocation destination — linger at the destination.
-    NPC keeps their current sandbox package (already sandboxing at destination).
-    When player walks away, the task completes.}
-    Core.DebugMsg(npc.GetDisplayName() + " starting travel linger at destination")
+    {NPC arrived at GoToLocation destination and player is nearby.
+    Same approach-then-sandbox pattern as meeting linger:
+    Phase 1: Walk toward player. Phase 2: Sandbox within 200 units.
+    Released when the player walks away.}
+    Actor player = Game.GetPlayer()
+    Core.DebugMsg(npc.GetDisplayName() + " starting travel linger (approach first)")
+
+    ; Clear overrides WITHOUT evaluating — prevents NPC briefly reverting to base AI
+    Core.RemoveAllPackages(npc, false)
+    PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
+
+    ; Phase 1: Walk toward player first — sandbox kicks in at LINGER_APPROACH_DISTANCE
+    ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    npc.EvaluatePackage()
+
     StorageUtil.SetIntValue(npc, "Intel_TravelLingering", 1)
+    StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
     StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
 EndFunction
 
@@ -1074,7 +1089,7 @@ Function CompleteTravelLinger(Int slot, Actor npc)
     {Player walked away — travel linger complete, release the NPC.}
     String npcName = npc.GetDisplayName()
     Core.DebugMsg(npcName + " travel linger complete (player left)")
-    StorageUtil.UnsetIntValue(npc, "Intel_TravelLingering")
+    StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
     Core.ClearSlotRestoreFollower(slot, npc)
 EndFunction
 
@@ -1093,6 +1108,7 @@ Function CancelTravel(Actor npc)
     If slot >= 0 && Core.SlotTaskTypes[slot] == "travel"
         Core.DebugMsg("Canceling travel for " + npc.GetDisplayName())
         Core.NotifyPlayer(npc.GetDisplayName() + " stopped traveling")
+        StorageUtil.SetStringValue(npc, "Intel_Result", "cancelled")
         Core.ClearSlot(slot, true)
     EndIf
 EndFunction
