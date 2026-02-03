@@ -421,6 +421,14 @@ Function ClearSlotWithConfirm(Int slot)
     Core.DebugMsg("MCM ClearSlot " + slot + " confirm: " + confirm)
     If confirm
         Core.DebugMsg("MCM ClearSlot " + slot + " calling ClearSlot now")
+        ; Mark as cancelled so it doesn't appear in task history
+        ReferenceAlias slotAlias = Core.GetAgentAlias(slot)
+        If slotAlias
+            Actor agent = slotAlias.GetActorReference()
+            If agent
+                StorageUtil.SetStringValue(agent, "Intel_Result", "cancelled")
+            EndIf
+        EndIf
         Core.ClearSlot(slot, true)
         Core.DebugMsg("MCM ClearSlot " + slot + " ClearSlot returned, state now: " + Core.SlotStates[slot])
         Debug.Notification("IntelEngine: Slot " + slot + " cleared")

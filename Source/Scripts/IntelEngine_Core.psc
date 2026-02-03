@@ -254,6 +254,12 @@ Function SaveTaskToHistory(Actor akAgent, String taskType, String target, String
         Return
     EndIf
 
+    ; Skip cancelled tasks — they shouldn't appear in history
+    If result == "cancelled"
+        DebugMsg(akAgent.GetDisplayName() + " task cancelled — skipping history")
+        Return
+    EndIf
+
     ; Build past-tense description based on task type and result
     String desc = ""
 
@@ -656,6 +662,7 @@ Bool Function CancelCurrentTask(Actor akNPC)
         Return false
     EndIf
 
+    StorageUtil.SetStringValue(akNPC, "Intel_Result", "cancelled")
     ClearSlotRestoreFollower(slot, akNPC)
     Return true
 EndFunction
