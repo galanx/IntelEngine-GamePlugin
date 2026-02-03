@@ -405,11 +405,14 @@ Bool Function IsScheduleCancelOption(Int optionId)
 EndFunction
 
 Function ClearSlotWithConfirm(Int slot)
+    Core.DebugMsg("MCM ClearSlotWithConfirm called for slot " + slot)
     If Core == None
+        Debug.Trace("IntelEngine MCM: Core is None in ClearSlotWithConfirm")
         Return
     EndIf
 
     String status = Core.GetSlotStatus(slot)
+    Core.DebugMsg("MCM ClearSlot " + slot + " status: " + status)
     If status == "Empty"
         Return
     EndIf
