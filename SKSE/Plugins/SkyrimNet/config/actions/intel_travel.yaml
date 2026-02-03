@@ -7,8 +7,6 @@ description: >
   - You decide to go somewhere on your own (errands, returning home)
   - You agree to meet someone at a place RIGHT NOW
 
-  Check your "Current Task" first — if you have an active task, use CancelCurrentTask before this.
-
   NOT ScheduleMeeting (that's for going somewhere LATER).
   NOT FetchPerson/DeliverMessage (those are about a PERSON, not a place).
   Do NOT use just because a location was mentioned in conversation.
