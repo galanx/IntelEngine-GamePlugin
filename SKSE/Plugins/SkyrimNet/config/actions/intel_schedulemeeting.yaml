@@ -1,19 +1,25 @@
 name: ScheduleMeeting
 description: >
-  Schedule going to a PLACE at a FUTURE TIME. Delayed GoToLocation — you stay put now, go later.
+  Schedule a meeting at a PLACE for a FUTURE TIME. You stay put now and go when the time comes.
+
+  SCAN THE CONVERSATION for any hint of a future meeting. Use this action whenever:
+  - Someone says "see you tomorrow", "see you tonight", "until tomorrow", "until next time"
+  - Someone says "meet me at X", "let's meet at X", "want to meet at the tavern?"
+  - Someone agrees to a future meeting: "sure, tomorrow evening", "alright, I'll be there"
+  - Someone suggests a time: "how about at sunset?", "noon works", "let's say morning"
+  - You want to see someone again: "I'll come find you tomorrow", "same time tomorrow?"
+  - A farewell implies a future meeting: "see you at the inn", "tomorrow then"
+  - ANY combination of a future time + a place (explicit or implied) in the conversation
+  - You decide to go somewhere later on your own (returning home at dusk, errands tomorrow)
+
+  If a place was discussed but not explicitly named, use the most logical location from context
+  (e.g., if you're at the Bannered Mare and they say "see you tomorrow", use "Bannered Mare").
 
   BEFORE scheduling: Check your "Scheduled Commitment" section. If you already have a meeting
-  with this person, do NOT schedule another unless the time or location changed.
+  with this person at the same time and place, do NOT schedule a duplicate.
 
-  Use when:
-  - "meet me at the Bannered Mare at sundown" → you'll go there later
-  - You agree to meet someone somewhere at a future time
-  - You decide to go somewhere later on your own (returning home at dusk)
-
-  NOT GoToLocation (that's for going RIGHT NOW).
+  NOT GoToLocation (that's for going RIGHT NOW, not later).
   NOT ScheduleDelivery/ScheduleFetch (those involve going to a PERSON, not a place).
-
-  You will NOT leave immediately. You go when the time comes.
 
   IMPORTANT: Use natural time descriptions. The system understands:
   - Times of day: dawn, sunrise, morning, noon, afternoon, evening, sunset, dusk, night, midnight
