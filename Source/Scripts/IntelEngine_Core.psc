@@ -804,11 +804,34 @@ Function OverrideExistingTask(Actor npc)
 EndFunction
 
 Function DismissFollowerForTask(Actor npc)
-    {If NPC is a follower, dismiss them so travel packages take effect.}
+    {Prepare NPC for a new IntelEngine task by clearing ALL package overrides.
+
+    Uses ActorUtil.ClearPackageOverride to remove overrides from ALL sources —
+    IntelEngine, SkyrimNet (companion follow, TalkToPlayer), and any other mod.
+    IntelEngine's task functions (GoToLocation, FetchNPC, etc.) immediately apply
+    their own packages after this call, so the NPC is never left without overrides.
+
+    Why blanket clear instead of removing specific packages:
+    SkyrimNet's companion follow system uses its own package overrides that are
+    invisible to IntelEngine. SetPlayerTeammate(false) only clears the vanilla
+    follower flag — SkyrimNet's follow package stays active and overrides the
+    travel package, causing the NPC to follow the player instead of traveling.
+    Diagnosed via Ingrid's Western Watchtower trip where she followed the player
+    for 1.5 hours instead of walking to the destination, with no stuck detection
+    (she was moving, just not toward the destination).
+
+    Note: EvaluatePackage is NOT called here — callers apply their own packages
+    first, then evaluate. This prevents a brief gap where the NPC has no overrides
+    and reverts to default AI.}
+
+    ; Clear ALL package overrides from all sources
+    ActorUtil.ClearPackageOverride(npc)
+    DebugMsg("Cleared all package overrides for " + npc.GetDisplayName())
+
+    ; Also clear vanilla follower state so the engine doesn't re-apply follow AI
     If npc.IsPlayerTeammate()
         StorageUtil.SetIntValue(npc, "Intel_WasFollower", 1)
         npc.SetPlayerTeammate(false)
-        npc.EvaluatePackage()
         DebugMsg("Dismissed follower: " + npc.GetDisplayName())
     EndIf
 EndFunction
