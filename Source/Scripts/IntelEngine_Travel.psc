@@ -517,8 +517,9 @@ Function OnArrival(Int slot, Actor npc)
         StorageUtil.SetFloatValue(npc, "Intel_MeetingNpcArrivalTime", Utility.GetCurrentGameTime())
         Core.DebugMsg(npc.GetDisplayName() + " arrived at meeting spot " + destination + " (waiting for player)")
     Else
-        ; GoToLocation: no narration — task awareness prompt shows "waiting at"
-        ; and OnPlayerArrived will trigger dialogue when player shows up
+        ; GoToLocation: store arrival time for wait duration tracking.
+        ; OnPlayerArrived uses this to narrate context-aware greetings.
+        StorageUtil.SetFloatValue(npc, "Intel_TravelArrivalTime", Utility.GetCurrentGameTime())
         Core.DebugMsg(npc.GetDisplayName() + " arrived at " + destination + " (waiting)")
     EndIf
 
@@ -530,7 +531,9 @@ Function OnArrival(Int slot, Actor npc)
                 ; Scheduled meeting — run the meeting flow (lateness, linger, etc.)
                 OnPlayerArrived(slot, npc)
             Else
-                ; Regular travel — start linger (NPC stays, leaves when player walks away)
+                ; Regular travel — arrived with player nearby (traveled together)
+                Core.SendTaskNarration(npc, npc.GetDisplayName() + " arrived at " \
+                    + destination + " together with " + player.GetDisplayName() + ".", player)
                 StartTravelLinger(slot, npc)
             EndIf
             Return
@@ -690,7 +693,25 @@ Function OnPlayerArrived(Int slot, Actor npc)
         ; Start linger — NPC stays nearby for a while instead of leaving immediately
         StartMeetingLinger(slot, npc)
     Else
-        ; === Regular travel: start linger ===
+        ; === Regular travel: context-aware arrival narration ===
+        Float arrivalTime = StorageUtil.GetFloatValue(npc, "Intel_TravelArrivalTime", 0.0)
+        Float waitHours = 0.0
+        If arrivalTime > 0.0
+            waitHours = (Utility.GetCurrentGameTime() - arrivalTime) * 24.0
+        EndIf
+
+        npc.SetLookAt(player)
+
+        If waitHours > 2.0
+            ; Long wait — NPC notices player finally showing up
+            Core.SendTaskNarration(npc, playerName + " finally arrived at " \
+                + destination + ". " + npcName + " had been waiting for a long time.", player)
+        Else
+            ; Normal wait — player showed up
+            Core.SendTaskNarration(npc, playerName + " arrived at " + destination \
+                + " where " + npcName + " was waiting.", player)
+        EndIf
+
         StartTravelLinger(slot, npc)
     EndIf
 EndFunction
@@ -801,6 +822,16 @@ Function CheckIfStuck(Int slot, Actor npc)
         ; On consecutive attempts, rotate direction ±30° to find passable
         ; terrain around mountains instead of always aiming straight at dest.
         Float descDist = IntelEngine.GetTeleportDistance(slot)
+
+        ; First leapfrog attempt — tell player to go ahead while NPC tries to get unstuck.
+        ; Resets naturally if NPC moves (teleportAttempts resets), so it re-fires on new episodes.
+        If descDist >= 2000.0
+            String destination = Core.SlotTargetNames[slot]
+            Core.SendTaskNarration(npc, npc.GetDisplayName() + " is having trouble getting through and urged " \
+                + Game.GetPlayer().GetDisplayName() + " to go on ahead to " + destination \
+                + " while they try to find a way around.", Game.GetPlayer())
+        EndIf
+
         Float leapDist
         Float angle = 0.0
         If descDist >= 2000.0

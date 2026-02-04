@@ -568,6 +568,7 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetFormValue(agent, "Intel_ReturnMarker")
             StorageUtil.UnsetFormValue(agent, "Intel_CurrentWaypoint")
             StorageUtil.UnsetFloatValue(agent, "Intel_TaskStartTime")
+            StorageUtil.UnsetFloatValue(agent, "Intel_TravelArrivalTime")
             StorageUtil.UnsetFloatValue(agent, "Intel_WaitHours")
             StorageUtil.UnsetFloatValue(agent, "Intel_Deadline")
             StorageUtil.UnsetIntValue(agent, "Intel_WasFollower")
