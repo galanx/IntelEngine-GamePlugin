@@ -796,7 +796,7 @@ Function CheckIfStuck(Int slot, Actor npc)
 
         ; First stuck — let NPC react in-character while player is nearby
         If attempts == 1
-            Core.SendTaskNarration(npc, npc.GetDisplayName() + " got stuck and was unable to continue on their path.")
+            Core.SendTaskNarration(npc, npc.GetDisplayName() + " felt their feet catch on something and couldn't move for a moment, stumbling on the path.")
         EndIf
 
         Core.SoftStuckRecovery(npc, slot, dest)
