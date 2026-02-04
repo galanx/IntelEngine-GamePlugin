@@ -1826,13 +1826,13 @@ Function CheckIfStuck(Int slot, Actor npc)
             String npcName = npc.GetDisplayName()
             String target = Core.SlotTargetNames[slot]
             If taskType == "fetch_npc"
-                Core.SendTaskNarration(npc, npcName + " got stuck and couldn't find a way to reach " + target + ".")
+                Core.SendTaskNarration(npc, npcName + " felt their feet catch on something and couldn't move for a moment, stumbling on the way to " + target + ".")
             ElseIf taskType == "deliver_message"
-                Core.SendTaskNarration(npc, npcName + " got stuck trying to get to " + target + " to deliver a message.")
+                Core.SendTaskNarration(npc, npcName + " felt their feet catch on something and couldn't move for a moment, stumbling on the way to deliver a message to " + target + ".")
             ElseIf taskType == "search_for_actor"
-                Core.SendTaskNarration(npc, npcName + " got stuck and was unable to continue the search.")
+                Core.SendTaskNarration(npc, npcName + " felt their feet catch on something and couldn't move for a moment, stumbling while searching.")
             Else
-                Core.SendTaskNarration(npc, npcName + " got stuck and was unable to continue.")
+                Core.SendTaskNarration(npc, npcName + " felt their feet catch on something and couldn't move for a moment.")
             EndIf
         EndIf
 
