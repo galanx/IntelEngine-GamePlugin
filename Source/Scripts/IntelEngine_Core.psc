@@ -125,6 +125,11 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 Int Property DEPARTURE_CHECK_CYCLES = 5 AutoReadOnly
 {Update cycles before checking if NPC actually departed (~15s at 3s interval)}
 
+Float Property MeetingGracePeriod = 0.5 Auto
+{Grace period for meeting arrival tolerance (in game hours).
+Default 0.5 hours (30 minutes). Configurable via MCM.
+Handles timescale variations from Dynamic Time Scaling mods.}
+
 ; =============================================================================
 ; SLOT STATE TRACKING
 ;
@@ -888,6 +893,21 @@ Int Function ShowTaskConfirmation(Actor npc, String promptText)
         Return 0
     EndIf
     Return 2
+EndFunction
+
+String Function DetermineLatenessOutcome(Float actualGameTime, Float deadlineGameTime)
+    {Determine if arrival time is late, early, or on-time relative to deadline.
+    Uses MeetingGracePeriod tolerance to handle timescale variations.
+    Returns: "late", "early", or "on_time"}
+    Float hoursLate = (actualGameTime - deadlineGameTime) * 24.0
+
+    If hoursLate > MeetingGracePeriod
+        Return "late"
+    ElseIf hoursLate < -MeetingGracePeriod
+        Return "early"
+    Else
+        Return "on_time"
+    EndIf
 EndFunction
 
 Function InitializeStuckTrackingForSlot(Int slot, Actor npc)
