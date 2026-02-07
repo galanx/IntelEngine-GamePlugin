@@ -33,13 +33,12 @@ Float Property LEAD_PAUSE_DISTANCE = 1500.0 AutoReadOnly
 Float Property LEAD_RESUME_DISTANCE = 500.0 AutoReadOnly
 {If player gets within this distance, NPC auto-resumes searching}
 
-; =============================================================================
-; STUCK DETECTION CONSTANTS
-; =============================================================================
+; STUCK_DISTANCE_THRESHOLD, LINGER_APPROACH_DISTANCE, LINGER_FAR_TICKS_LIMIT,
+; DEPARTURE_CHECK_CYCLES are defined on Core (single source of truth).
 
-Float Property STUCK_DISTANCE_THRESHOLD = 50.0 AutoReadOnly
-{If NPC moved less than this between checks, might be stuck.
-Passed to C++ StuckDetector.CheckStuckStatus as threshold parameter.}
+; =============================================================================
+; TASK-SPECIFIC CONSTANTS
+; =============================================================================
 
 Float Property MIN_TASK_HOURS = 1.0 AutoReadOnly
 {Minimum deadline in game hours (even for nearby targets)}
@@ -47,19 +46,10 @@ Float Property MIN_TASK_HOURS = 1.0 AutoReadOnly
 Float Property MAX_TASK_HOURS = 6.0 AutoReadOnly
 {Maximum deadline in game hours (even for cross-map targets)}
 
-; =============================================================================
-; IMMERSIVE TASK CONSTANTS
-; =============================================================================
-
 ; STATE_AT_TARGET moved to Core.STATE_AT_TARGET (=8)
 
 Int Property INTERACT_CYCLES = 2 AutoReadOnly
 {Update cycles to "converse" at target (~6s)}
-
-Int Property DEPARTURE_CHECK_CYCLES = 5 AutoReadOnly
-{Update cycles before checking if NPC actually departed (~15s at 3s interval).
-If NPC hasn't moved from their starting position: teleport if player not
-looking, or narrate failure if player is watching.}
 
 Int Property MAX_TARGET_WAIT_CYCLES = 15 AutoReadOnly
 {Max cycles to wait for the fetched target to walk to the player (~45s).
@@ -71,12 +61,6 @@ Progress-tracked: if target is getting closer, the counter resets.}
 Float Property LINGER_PROXIMITY = 800.0 AutoReadOnly
 {Phase 2: distance within which the player is considered "nearby".
 When the player moves beyond this, the NPC is released.}
-
-Float Property LINGER_APPROACH_DISTANCE = 100.0 AutoReadOnly
-{NPC switches from approach (TravelPackage_Walk) to sandbox when within this distance of player}
-
-Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
-{Consecutive far checks before the lingering NPC is released}
 
 Float Property RETURN_POLL_INTERVAL = 0.5 AutoReadOnly
 {Fast update interval when NPCs are in state 3 (returning). Catches arrival
@@ -95,7 +79,7 @@ Function EnsureMonitoringAlive()
     Int i = 0
     While i < Core.MAX_SLOTS
         String taskType = Core.SlotTaskTypes[i]
-        If Core.SlotStates[i] != 0 && (taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor")
+        If Core.SlotStates[i] != 0 && IsNPCTaskType(taskType)
             RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
             Return
         EndIf
@@ -112,7 +96,7 @@ Function RestartMonitoring()
     Int i = 0
     While i < Core.MAX_SLOTS
         String taskType = Core.SlotTaskTypes[i]
-        If Core.SlotStates[i] != 0 && (taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor")
+        If Core.SlotStates[i] != 0 && IsNPCTaskType(taskType)
             hasActive = true
             RecoverSlotPackages(i)
         EndIf
@@ -266,7 +250,7 @@ Function CheckLingeringTargets()
                 Bool stillFar = true
                 If target.Is3DLoaded() && player.Is3DLoaded()
                     Float targetDist = target.GetDistance(player)
-                    closeEnough = targetDist <= LINGER_APPROACH_DISTANCE
+                    closeEnough = targetDist <= Core.LINGER_APPROACH_DISTANCE
                     stillFar = targetDist > LINGER_PROXIMITY
                 ElseIf target.GetParentCell() == player.GetParentCell()
                     ; Same cell off-screen — close enough in interiors
@@ -290,7 +274,7 @@ Function CheckLingeringTargets()
                     ; Player still far during approach — keep incrementing far ticks
                     Int farTicks = StorageUtil.GetIntValue(target, "Intel_LingerFarTicks", 0) + 1
                     StorageUtil.SetIntValue(target, "Intel_LingerFarTicks", farTicks)
-                    If farTicks >= LINGER_FAR_TICKS_LIMIT
+                    If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
                         ActorUtil.RemovePackageOverride(target, Core.TravelPackage_Walk)
                         Utility.Wait(0.1)
                         target.EvaluatePackage()
@@ -312,7 +296,7 @@ Function CheckLingeringTargets()
                     ; Grace period with re-approach — NPC may have drifted from sandbox
                     Int farTicks = StorageUtil.GetIntValue(target, "Intel_LingerFarTicks", 0) + 1
                     StorageUtil.SetIntValue(target, "Intel_LingerFarTicks", farTicks)
-                    If farTicks >= LINGER_FAR_TICKS_LIMIT
+                    If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
                         ; Player genuinely left — release
                         ActorUtil.RemovePackageOverride(target, Core.SandboxNearPlayerPackage)
                         ActorUtil.RemovePackageOverride(target, Core.TravelPackage_Walk)
@@ -401,7 +385,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     EndIf
 
     ; Find the target NPC using DLL fuzzy search
-    Actor targetNPC = IntelEngine.FindNPCByName(targetName)
+    Actor targetNPC = IntelEngine.FindNPCByNameNear(targetName, akAgent)
     If targetNPC == None
         ; NPC not found - describe the situation, let NPC decide their response
         String suggestion = GetNPCSuggestion(targetName)
@@ -456,6 +440,9 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
+
+    ; Anti-trespass: unlock target NPC's home door so agent can enter
+    Core.UnlockHomeForTask(akAgent, targetNPC)
 
     ; Destination is always the target actor directly
     ObjectReference destMarker = targetNPC
@@ -538,7 +525,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     }
 
     ; Validate
-    If akAgent == None || akAgent.IsDead()
+    If akAgent == None || akAgent.IsDead() || akAgent.IsInCombat()
         Return false
     EndIf
 
@@ -572,9 +559,15 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     EndIf
 
     ; Find target
-    Actor targetNPC = IntelEngine.FindNPCByName(targetName)
+    Actor targetNPC = IntelEngine.FindNPCByNameNear(targetName, akAgent)
     If targetNPC == None
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to '" + targetName + "'. No one by that name could be located.")
+        ; NPC not found - provide "did you mean?" suggestion if available
+        String suggestion = GetNPCSuggestion(targetName)
+        If suggestion != ""
+            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to '" + targetName + "'. No one by that exact name could be located. The closest known name is " + suggestion + ".")
+        Else
+            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to '" + targetName + "'. No one by that name could be located.")
+        EndIf
         Return false
     EndIf
 
@@ -588,12 +581,25 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         Return false
     EndIf
 
+    If targetNPC == akAgent
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to themselves.")
+        Return false
+    EndIf
+
+    If targetNPC == Game.GetPlayer()
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to " + Game.GetPlayer().GetDisplayName() + ", who is already right here.")
+        Return false
+    EndIf
+
     ; Find slot
     Int slot = Core.FindFreeAgentSlot()
     If slot < 0
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
+
+    ; Anti-trespass: unlock target NPC's home door so agent can enter
+    Core.UnlockHomeForTask(akAgent, targetNPC)
 
     ; Destination is always the target actor directly.
     ; Skyrim's AI pathfinding handles cross-cell Actor targets natively.
@@ -697,8 +703,15 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
     ; Override existing task if any
     Core.OverrideExistingTask(akAgent)
 
+    ; Cooldown — prevents narration-triggered re-selection loops
+    Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
+    If cooldown > 0.0 && (Utility.GetCurrentRealTime() - cooldown) < 15.0
+        Core.DebugMsg("SearchForActor: " + akAgent.GetDisplayName() + " on cooldown")
+        Return false
+    EndIf
+
     ; Find the target NPC
-    Actor targetNPC = IntelEngine.FindNPCByName(targetName)
+    Actor targetNPC = IntelEngine.FindNPCByNameNear(targetName, akAgent)
     If targetNPC == None
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
@@ -714,8 +727,18 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
         Return false
     EndIf
 
+    If targetNPC.IsDisabled()
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
+        Return false
+    EndIf
+
     If targetNPC == akAgent
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to help find themselves.")
+        Return false
+    EndIf
+
+    If targetNPC == Game.GetPlayer()
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to help find " + Game.GetPlayer().GetDisplayName() + ", who is already right here.")
         Return false
     EndIf
 
@@ -725,6 +748,9 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
+
+    ; Anti-trespass: unlock target NPC's home door so agent can enter
+    Core.UnlockHomeForTask(akAgent, targetNPC)
 
     ; Destination is always the target actor directly.
     ; Skyrim's AI pathfinding handles cross-cell Actor targets natively.
@@ -778,7 +804,7 @@ Event OnUpdate()
     Int i = 0
     While i < Core.MAX_SLOTS
         String taskType = Core.SlotTaskTypes[i]
-        If Core.SlotStates[i] != 0 && (taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor")
+        If Core.SlotStates[i] != 0 && IsNPCTaskType(taskType)
             hasActiveTasks = true
             If Core.SlotStates[i] == 3
                 hasReturning = true
@@ -803,7 +829,7 @@ Event OnUpdate()
     i = 0
     While i < Core.MAX_SLOTS
         String taskType = Core.SlotTaskTypes[i]
-        If Core.SlotStates[i] != 0 && (taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor")
+        If Core.SlotStates[i] != 0 && IsNPCTaskType(taskType)
             CheckNPCTaskSlot(i)
         EndIf
         i += 1
@@ -1743,7 +1769,7 @@ EndFunction
 Bool Function CheckDeparture(Int slot, Actor agent)
     {Check if NPC departed. Uses Core.CheckDepartureProgress for shared logic.
     Returns true if departure failed and slot was handled (caller should return).}
-    Int status = Core.CheckDepartureProgress(slot, agent, STUCK_DISTANCE_THRESHOLD)
+    Int status = Core.CheckDepartureProgress(slot, agent, Core.STUCK_DISTANCE_THRESHOLD)
 
     If status <= 2
         ; 0=too early, 1=departed, 2=soft recovery applied — all OK
@@ -1798,7 +1824,7 @@ Function CheckIfStuck(Int slot, Actor npc)
         Return
     EndIf
 
-    Int status = IntelEngine.CheckStuckStatus(npc, slot, STUCK_DISTANCE_THRESHOLD)
+    Int status = IntelEngine.CheckStuckStatus(npc, slot, Core.STUCK_DISTANCE_THRESHOLD)
 
     If status == 0
         ; Moving normally — nothing to do
@@ -1921,7 +1947,7 @@ Function CancelNPCTask(Actor agent)
     EndIf
 
     String taskType = Core.SlotTaskTypes[slot]
-    If taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor"
+    If IsNPCTaskType(taskType)
         Core.DebugMsg("Canceling " + taskType + " for " + agent.GetDisplayName())
 
         ; Also release target if escorting or lingering — use targeted removal
@@ -1945,13 +1971,19 @@ EndFunction
 ; STATUS API
 ; =============================================================================
 
+Bool Function IsNPCTaskType(String taskType)
+    {Check if a task type string is one of the NPC task types managed by this script.
+    Single source of truth for the task type check — avoids repeating the 3-way
+    string comparison in 6+ places throughout the script.}
+    Return taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor"
+EndFunction
+
 Bool Function IsOnNPCTask(Actor agent)
     Int slot = Core.FindSlotByAgent(agent)
     If slot < 0
         Return false
     EndIf
-    String taskType = Core.SlotTaskTypes[slot]
-    Return taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor"
+    Return IsNPCTaskType(Core.SlotTaskTypes[slot])
 EndFunction
 
 String Function GetNPCTaskStatus(Actor agent)

@@ -110,6 +110,21 @@ Float Property ARRIVAL_DISTANCE = 300.0 AutoReadOnly
 Float Property UPDATE_INTERVAL = 3.0 AutoReadOnly
 {Seconds between status checks}
 
+; --- Shared constants (single source of truth for Travel + NPCTasks) ---
+
+Float Property STUCK_DISTANCE_THRESHOLD = 50.0 AutoReadOnly
+{If NPC moved less than this between stuck checks, might be stuck.
+Passed to C++ StuckDetector.CheckStuckStatus as threshold parameter.}
+
+Float Property LINGER_APPROACH_DISTANCE = 100.0 AutoReadOnly
+{NPC switches from approach (TravelPackage_Walk) to sandbox when within this distance of player}
+
+Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
+{Consecutive far checks before a lingering NPC is released}
+
+Int Property DEPARTURE_CHECK_CYCLES = 5 AutoReadOnly
+{Update cycles before checking if NPC actually departed (~15s at 3s interval)}
+
 ; =============================================================================
 ; SLOT STATE TRACKING
 ;
@@ -183,6 +198,10 @@ Function Maintenance(Bool isFirstLoad = false)
     If !isFirstLoad
         RecoverActiveTasks()
     EndIf
+
+    ; Register SkyrimNet tag for action eligibility filtering.
+    ; This allows SkyrimNet to filter out NPCs with active tasks.
+    RegisterSkyrimNetTag()
 
     ; Restart monitoring loops on all task scripts.
     ; RegisterForSingleUpdate is per-script and does NOT survive save/load,
@@ -512,6 +531,9 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
     StorageUtil.SetIntValue(akAgent, "Intel_State", 1)
     StorageUtil.SetIntValue(akAgent, "Intel_Speed", speed)
 
+    ; Push to C++ SlotTracker for SkyrimNet decorators/eligibility
+    IntelEngine.UpdateSlotState(slot, akAgent, 1, taskType, targetName)
+
     DebugMsg("Allocated slot " + slot + " to " + akAgent.GetDisplayName() + " for " + taskType)
 EndFunction
 
@@ -624,6 +646,14 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetIntValue(agent, "Intel_OffScreenCycles")
             StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenLastDist")
 
+            ; Re-lock home door if we unlocked one (anti-trespass cleanup)
+            Int unlockedCellId = StorageUtil.GetIntValue(agent, "Intel_UnlockedHomeCellId")
+            If unlockedCellId != 0
+                IntelEngine.SetHomeDoorAccessForCell(unlockedCellId, false)
+                StorageUtil.UnsetIntValue(agent, "Intel_UnlockedHomeCellId")
+                DebugMsg("Re-locked home door for cell " + unlockedCellId)
+            EndIf
+
             ; Clear task cooldown
             StorageUtil.UnsetFloatValue(agent, "Intel_TaskCooldown")
 
@@ -650,6 +680,9 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
     SlotTargetNames[slot] = ""
     SlotDeadlines[slot] = 0.0
     SlotSpeeds[slot] = 0
+
+    ; Push to C++ SlotTracker for SkyrimNet decorators/eligibility
+    IntelEngine.ClearSlotState(slot)
 EndFunction
 
 ; =============================================================================
@@ -715,7 +748,7 @@ EndFunction
 ; =============================================================================
 
 Function SetSlotState(Int slot, Actor akAgent, Int newState)
-    {Update task state — writes both array and StorageUtil.}
+    {Update task state — writes both array, StorageUtil, and C++ SlotTracker.}
     If slot < 0 || slot >= MAX_SLOTS
         Return
     EndIf
@@ -723,6 +756,9 @@ Function SetSlotState(Int slot, Actor akAgent, Int newState)
     If akAgent != None
         StorageUtil.SetIntValue(akAgent, "Intel_State", newState)
     EndIf
+
+    ; Push to C++ SlotTracker for SkyrimNet decorators/eligibility
+    IntelEngine.UpdateSlotState(slot, akAgent, newState, SlotTaskTypes[slot], SlotTargetNames[slot])
 EndFunction
 
 Function SetSlotSpeed(Int slot, Actor akAgent, Int newSpeed)
@@ -878,6 +914,21 @@ Function InitOffScreenTracking(Int slot, Actor npc, ObjectReference dest)
     IntelEngine.InitOffScreenTravel(slot, estimatedArrival, npc)
     StorageUtil.SetFloatValue(npc, "Intel_OffscreenArrival", estimatedArrival)
     DebugMsg(npc.GetDisplayName() + " off-screen tracking: est. arrival in " + ((estimatedArrival - Utility.GetCurrentGameTime()) * 24.0) + "h")
+EndFunction
+
+Function UnlockHomeForTask(Actor akAgent, Actor targetNPC)
+    {Anti-trespass: unlock target NPC's home door so agent can enter.
+    Stores cell ID on agent for re-locking in ClearSlot.
+    Shared by FetchNPC, DeliverMessage, SearchForActor — all have an Actor target.
+    Travel uses SetHomeDoorAccessForCell directly (has cell ID from ResolveAnyDestination).}
+    ObjectReference homeDoor = IntelEngine.SetHomeDoorAccess(targetNPC, true)
+    If homeDoor != None
+        Int homeCellId = IntelEngine.GetLastResolvedHomeCellId()
+        If homeCellId != 0
+            StorageUtil.SetIntValue(akAgent, "Intel_UnlockedHomeCellId", homeCellId)
+        EndIf
+        DebugMsg("Unlocked " + targetNPC.GetDisplayName() + "'s home door for task")
+    EndIf
 EndFunction
 
 Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
@@ -1060,6 +1111,46 @@ Function RecoverActiveTasks()
         EndIf
         i += 1
     EndWhile
+
+    ; Re-sync C++ SlotTracker from recovered arrays (save-safe)
+    ; On game load, C++ SlotTracker is empty (cleared in kPostLoadGame).
+    ; This pushes ALL recovered slot state in a single native call so
+    ; SkyrimNet decorators and eligibility tags reflect the loaded state.
+    SyncSlotTrackerFromArrays()
+EndFunction
+
+Function SyncSlotTrackerFromArrays()
+    {Push current Papyrus slot state to C++ SlotTracker per-slot.
+    Called after RecoverActiveTasks to re-sync on game load.}
+    Int i = 0
+    While i < MAX_SLOTS
+        If SlotStates[i] != 0
+            ReferenceAlias slotAlias = GetAgentAlias(i)
+            If slotAlias
+                Actor agent = slotAlias.GetActorReference()
+                If agent
+                    IntelEngine.UpdateSlotState(i, agent, SlotStates[i], SlotTaskTypes[i], SlotTargetNames[i])
+                EndIf
+            EndIf
+        Else
+            IntelEngine.ClearSlotState(i)
+        EndIf
+        i += 1
+    EndWhile
+    DebugMsg("C++ SlotTracker synced from Papyrus arrays")
+EndFunction
+
+Function RegisterSkyrimNetTag()
+    {Register the intel_available tag with SkyrimNet for action eligibility filtering.
+    Called on every game load to ensure the tag is available for action evaluation.}
+
+    Int result = SkyrimNetApi.RegisterTag("intel_available", "IntelEngine_Core", "IntelAvailable_Eligibility")
+
+    If result == 0
+        DebugMsg("Registered SkyrimNet tag: intel_available")
+    Else
+        DebugMsg("WARNING: Failed to register SkyrimNet tag intel_available (error " + result + ")")
+    EndIf
 EndFunction
 
 ; NOTE: No OnUpdate here. IntelEngine_Travel and IntelEngine_NPCTasks each
@@ -1125,6 +1216,22 @@ EndFunction
 Function NotifyPlayer(String msgText)
     Debug.Notification(msgText)
     Debug.Trace("IntelEngine: " + msgText)
+EndFunction
+
+; =============================================================================
+; SKYRIMNET TAG ELIGIBILITY (for action filtering)
+; =============================================================================
+
+Bool Function IntelAvailable_Eligibility(Actor akActor, String contextJson, String paramsJson) Global
+    {SkyrimNet tag eligibility function for intel_available tag.
+    Returns true if actor can accept new tasks (no active task + no cooldown).
+    Registered via SkyrimNetApi.RegisterTag() during init.
+
+    Parameters:
+    - akActor: The actor being checked for eligibility
+    - contextJson: Context information from SkyrimNet (unused)
+    - paramsJson: Parameters from SkyrimNet (unused)}
+    Return IntelEngine.IsActorAvailable(akActor)
 EndFunction
 
 ; =============================================================================

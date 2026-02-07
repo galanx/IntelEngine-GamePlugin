@@ -20,6 +20,10 @@ Scriptname IntelEngine Hidden
 ; Returns: Actor if found, None otherwise
 Actor Function FindNPCByName(String searchTerm) Global Native
 
+; Find NPC by name, preferring the closest one to akNear when multiple match.
+; Use for actor-based actions where proximity matters (fetch, deliver, search).
+Actor Function FindNPCByNameNear(String searchTerm, Actor akNear) Global Native
+
 ; Get human-readable location name for an NPC
 ; Returns: Location string (e.g., "Whiterun Marketplace", "Dragonsreach")
 String Function GetNPCCurrentLocation(Actor akNPC) Global Native
@@ -278,6 +282,39 @@ Function ResetOffScreenSlot(Int slot) Global Native
 
 ; Find nearest location marker that's closer to dest than the actor is
 ObjectReference Function FindNearestWaypointToward(Actor npc, ObjectReference dest, Float maxRadius) Global Native
+
+; =============================================================================
+; HOME DOOR ACCESS (anti-trespass + pathfinding)
+; Unlock/lock home doors and set cells public/private before NPC travel.
+; Prevents trespass warnings and locked-door pathfinding failures.
+; =============================================================================
+
+; Unlock/lock NPC's home door + set cell public/private. Returns door ref.
+; Call with unlock=true before travel, unlock=false on task completion.
+ObjectReference Function SetHomeDoorAccess(Actor akNPC, Bool unlock) Global Native
+
+; Same but takes a cell FormID directly (for target NPC's home in fetch/deliver).
+ObjectReference Function SetHomeDoorAccessForCell(Int cellFormId, Bool unlock) Global Native
+
+; Get the home cell ID from the last ResolveAnyDestination call.
+; Returns 0 if the last destination was not a home. Used to store for re-locking.
+Int Function GetLastResolvedHomeCellId() Global Native
+
+; =============================================================================
+; SLOT TRACKER FUNCTIONS (C++ state mirror for SkyrimNet decorators)
+; Push slot state from Papyrus to C++ so SkyrimNet decorators and eligibility
+; tags can read it synchronously. Called by Core on state changes and game load.
+; =============================================================================
+
+; Push a slot update to C++ SlotTracker. Called by AllocateSlot, SetSlotState.
+Function UpdateSlotState(Int slot, Actor agent, Int newState, String taskType, String targetName) Global Native
+
+; Clear a slot in C++ SlotTracker. Called by ClearSlot.
+Function ClearSlotState(Int slot) Global Native
+
+; Check if an actor is available for new tasks (no active task + no cooldown).
+; Used as backend for SkyrimNet tag eligibility check.
+Bool Function IsActorAvailable(Actor akActor) Global Native
 
 ; =============================================================================
 ; DEBUG / TESTING FUNCTIONS

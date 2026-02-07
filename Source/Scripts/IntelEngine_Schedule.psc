@@ -105,63 +105,29 @@ EndFunction
 ; =============================================================================
 
 Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondition)
-    {
-    Schedule NPC to travel to destination at a specific time.
+    {Schedule NPC to travel to destination at a specific time.}
 
-    Parameters:
-        akNPC - The NPC to schedule
-        destination - Where to go
-        timeCondition - When to go ("after sunset", "at dawn", "tonight", etc.)
-
-    Returns:
-        true if scheduled successfully
-    }
-
-    If akNPC == None
-        Core.DebugMsg("ScheduleMeeting: None actor")
+    If akNPC == None || akNPC.IsDead()
         Return false
     EndIf
-
-    If akNPC.IsDead()
-        Return false
-    EndIf
-
     If destination == ""
         Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " was asked to schedule a meeting but no destination was provided.")
         Return false
     EndIf
 
-    ; Parse the time condition (C++ native — single call replaces 30+ StringContains)
-    Float targetHour = IntelEngine.ParseTimeCondition(timeCondition)
-    If targetHour < 0.0
-        targetHour = HOUR_EVENING
-    EndIf
-    Float currentHour = GetCurrentGameHour()
-
-    ; Calculate when the NPC should be at the destination
-    Float meetingGameTime = IntelEngine.CalculateTargetGameTime(targetHour, currentHour)
-
-    ; MCM confirmation prompt — BEFORE clearing any existing schedules
-    If StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt") == 1
-        String npcName = akNPC.GetDisplayName()
-        Float hoursPreview = (meetingGameTime - Utility.GetCurrentGameTime()) * 24.0
-        String timePreview = GetPreciseTimeDescription(targetHour, hoursPreview)
-        String promptText = npcName + " wants to meet at " + destination + " " + timePreview + "."
-        String confirmResult = SkyMessage.Show(promptText, "Allow", "Deny", "Deny (Silent)")
-        If confirmResult == "Deny"
-            Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule the meeting.")
-            Return false
-        ElseIf confirmResult != "Allow"
-            Return false
-        EndIf
+    ; Shared scheduling scaffolding: time parse → MCM confirm → override → allocate
+    Int slot = PrepareScheduleSlot(akNPC, "travel", "meet at " + destination, timeCondition)
+    If slot < 0
+        Return false
     EndIf
 
-    ; Override any existing schedule for this NPC (after confirmation)
-    Int existingSchedule = FindScheduleSlotByAgent(akNPC)
-    If existingSchedule >= 0
-        Core.DebugMsg("ScheduleMeeting: " + akNPC.GetDisplayName() + " already scheduled — overriding")
-        ClearScheduleSlot(existingSchedule)
-    EndIf
+    Float targetHour = StorageUtil.GetFloatValue(akNPC, "Intel_ScheduledHour")
+    Float meetingGameTime = ScheduledTimes[slot]
+
+    ; Meeting-specific: store destination + player name
+    ScheduledDestinations[slot] = destination
+    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledDest", destination)
+    StorageUtil.SetStringValue(akNPC, "Intel_MeetingPlayerName", Game.GetPlayer().GetDisplayName())
 
     ; Also cancel any active meeting task
     If StorageUtil.GetIntValue(akNPC, "Intel_IsScheduledMeeting") == 1
@@ -170,28 +136,6 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
             Core.ClearSlot(activeSlot, true)
         EndIf
     EndIf
-
-    ; Find a schedule slot
-    Int slot = FindFreeScheduleSlot()
-    If slot < 0
-        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " has too many scheduled tasks already.")
-        Return false
-    EndIf
-
-    ; Store schedule data
-    ScheduledAgents[slot] = akNPC
-    ScheduledDestinations[slot] = destination
-    ScheduledTimes[slot] = meetingGameTime
-    ScheduledTaskTypes[slot] = "travel"
-    StorageUtil.SetIntValue(akNPC, "Intel_ScheduledState", 0)  ; pending
-    ScheduledCount += 1
-
-    ; Also store on actor for persistence
-    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledDest", destination)
-    StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledTime", meetingGameTime)
-    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledType", "travel")
-    StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledHour", targetHour)
-    StorageUtil.SetStringValue(akNPC, "Intel_MeetingPlayerName", Game.GetPlayer().GetDisplayName())
 
     ; Calculate distance-based departure buffer (C++ estimates travel hours)
     Float currentGameTime = Utility.GetCurrentGameTime()
@@ -206,19 +150,12 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
         Core.DebugMsg("Departure buffer for " + akNPC.GetDisplayName() + ": " + DEPARTURE_BUFFER_HOURS + "h (fallback, dest not resolved)")
     EndIf
 
-    ; Calculate human-readable time description using hours-until for precision
     Float hoursUntil = (meetingGameTime - currentGameTime) * 24.0
     String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
-
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will meet you at " + destination + " " + timeDesc)
+    Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " → " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", in " + hoursUntil + "h, condition='" + timeCondition + "')")
 
-    Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " → " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", now " + currentHour + ", in " + hoursUntil + "h, condition='" + timeCondition + "')")
-
-    ; Ensure the update loop is running at the higher-frequency interval.
-    ; This guards against the loop having stopped due to a prior error,
-    ; and shortens the first check interval after scheduling.
     RegisterForSingleUpdateGameTime(0.5)
-
     Return true
 EndFunction
 
@@ -227,116 +164,93 @@ EndFunction
 ; =============================================================================
 
 Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition)
-    {
-    Schedule fetching a person at a future time.
-
-    Parameters:
-        akNPC - The NPC who will do the fetching
-        targetName - Name of the person to fetch
-        timeCondition - When to go ("after sunset", "at dawn", "in 2 hours", etc.)
-
-    Returns:
-        true if scheduled successfully
-    }
+    {Schedule fetching a person at a future time.}
 
     If akNPC == None || akNPC.IsDead()
         Return false
     EndIf
-
     If targetName == ""
         Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " was asked to schedule fetching someone but no target was specified.")
         Return false
     EndIf
 
-    Float targetHour = IntelEngine.ParseTimeCondition(timeCondition)
-    If targetHour < 0.0
-        targetHour = HOUR_EVENING
-    EndIf
-    Float currentHour = GetCurrentGameHour()
-    Float targetGameTime = IntelEngine.CalculateTargetGameTime(targetHour, currentHour)
-
-    ; MCM confirmation prompt — BEFORE clearing any existing schedules
-    If StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt") == 1
-        String npcName = akNPC.GetDisplayName()
-        Float hoursPreview = (targetGameTime - Utility.GetCurrentGameTime()) * 24.0
-        String timePreview = GetPreciseTimeDescription(targetHour, hoursPreview)
-        String promptText = npcName + " wants to fetch " + targetName + " " + timePreview + "."
-        String confirmResult = SkyMessage.Show(promptText, "Allow", "Deny", "Deny (Silent)")
-        If confirmResult == "Deny"
-            Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule the fetch.")
-            Return false
-        ElseIf confirmResult != "Allow"
-            Return false
-        EndIf
-    EndIf
-
-    ; Override any existing schedule for this NPC (after confirmation)
-    Int existingSchedule = FindScheduleSlotByAgent(akNPC)
-    If existingSchedule >= 0
-        Core.DebugMsg("ScheduleFetch: " + akNPC.GetDisplayName() + " already scheduled — overriding")
-        ClearScheduleSlot(existingSchedule)
-    EndIf
-
-    Int slot = FindFreeScheduleSlot()
+    Int slot = PrepareScheduleSlot(akNPC, "fetch_npc", "fetch " + targetName, timeCondition)
     If slot < 0
-        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " has too many scheduled tasks already.")
         Return false
     EndIf
 
-    ; Store schedule data
-    ScheduledAgents[slot] = akNPC
-    ScheduledDestinations[slot] = ""
-    ScheduledTimes[slot] = targetGameTime
-    ScheduledTaskTypes[slot] = "fetch_npc"
-    ScheduledTargetNames[slot] = targetName
-    ScheduledMessages[slot] = ""
-    StorageUtil.SetIntValue(akNPC, "Intel_ScheduledState", 0)  ; pending
-    ScheduledCount += 1
+    Float targetHour = StorageUtil.GetFloatValue(akNPC, "Intel_ScheduledHour")
 
-    ; Persist on actor
-    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledDest", "")
-    StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledTime", targetGameTime)
-    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledType", "fetch_npc")
-    StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledHour", targetHour)
+    ; Fetch-specific: store target name
+    ScheduledTargetNames[slot] = targetName
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledTargetName", targetName)
 
-    Float hoursUntil = (targetGameTime - Utility.GetCurrentGameTime()) * 24.0
+    Float hoursUntil = (ScheduledTimes[slot] - Utility.GetCurrentGameTime()) * 24.0
     String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
-
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will fetch " + targetName + " " + timeDesc)
-    Core.DebugMsg("Scheduled fetch: " + akNPC.GetDisplayName() + " → fetch " + targetName + " at game time " + targetGameTime)
+    Core.DebugMsg("Scheduled fetch: " + akNPC.GetDisplayName() + " → fetch " + targetName + " at game time " + ScheduledTimes[slot])
 
     RegisterForSingleUpdateGameTime(0.5)
     Return true
 EndFunction
 
 Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent, String timeCondition, String meetLocation = "none", String meetTime = "none")
-    {
-    Schedule delivering a message to someone at a future time.
+    {Schedule delivering a message to someone at a future time.
     If meetLocation and meetTime are provided, the recipient will also
-    be scheduled to travel to that location after receiving the message.
-
-    Parameters:
-        akNPC - The NPC who will deliver the message
-        targetName - Name of the person to deliver to
-        msgContent - The message content
-        timeCondition - When to deliver ("after sunset", "at dawn", "in 2 hours", etc.)
-        meetLocation - Where the recipient should go (or "none")
-        meetTime - When the recipient should go (or "none")
-
-    Returns:
-        true if scheduled successfully
-    }
+    be scheduled to travel to that location after receiving the message.}
 
     If akNPC == None || akNPC.IsDead()
         Return false
     EndIf
-
     If targetName == ""
         Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " was asked to schedule a delivery but no target was specified.")
         Return false
     EndIf
 
+    Int slot = PrepareScheduleSlot(akNPC, "deliver_message", "deliver a message to " + targetName, timeCondition)
+    If slot < 0
+        Return false
+    EndIf
+
+    Float targetHour = StorageUtil.GetFloatValue(akNPC, "Intel_ScheduledHour")
+
+    ; Delivery-specific: store target, message, meeting data
+    ScheduledTargetNames[slot] = targetName
+    ScheduledMessages[slot] = msgContent
+    ScheduledMeetLocations[slot] = meetLocation
+    ScheduledMeetTimes[slot] = meetTime
+    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledTargetName", targetName)
+    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMessage", msgContent)
+    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetLocation", meetLocation)
+    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetTime", meetTime)
+
+    Float hoursUntil = (ScheduledTimes[slot] - Utility.GetCurrentGameTime()) * 24.0
+    String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " will deliver message to " + targetName + " " + timeDesc)
+    Core.DebugMsg("Scheduled delivery: " + akNPC.GetDisplayName() + " → message to " + targetName + " at game time " + ScheduledTimes[slot])
+
+    RegisterForSingleUpdateGameTime(0.5)
+    Return true
+EndFunction
+
+; =============================================================================
+; SHARED SCHEDULING SCAFFOLDING
+;
+; Consolidates the common pattern shared by ScheduleMeeting, ScheduleFetch,
+; and ScheduleDelivery: time parsing → MCM confirmation → override existing →
+; find free slot → store common data + persistence.
+;
+; Returns: schedule slot index (>= 0) on success, -1 on failure.
+; Callers then store task-specific data and notify the player.
+; =============================================================================
+
+Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescription, String timeCondition)
+    {Shared scheduling setup. Handles time parsing, MCM confirmation, slot override,
+    and common data storage. Returns slot index or -1 on failure.
+    After success, callers store task-specific data into ScheduledTargetNames,
+    ScheduledMessages, etc. and call RegisterForSingleUpdateGameTime(0.5).}
+
+    ; Parse time condition
     Float targetHour = IntelEngine.ParseTimeCondition(timeCondition)
     If targetHour < 0.0
         targetHour = HOUR_EVENING
@@ -349,59 +263,49 @@ Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent
         String npcName = akNPC.GetDisplayName()
         Float hoursPreview = (targetGameTime - Utility.GetCurrentGameTime()) * 24.0
         String timePreview = GetPreciseTimeDescription(targetHour, hoursPreview)
-        String promptText = npcName + " wants to deliver a message to " + targetName + " " + timePreview + "."
+        String promptText = npcName + " wants to " + taskDescription + " " + timePreview + "."
         String confirmResult = SkyMessage.Show(promptText, "Allow", "Deny", "Deny (Silent)")
         If confirmResult == "Deny"
-            Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule the delivery.")
-            Return false
+            Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule that.")
+            Return -1
         ElseIf confirmResult != "Allow"
-            Return false
+            Return -1
         EndIf
     EndIf
 
     ; Override any existing schedule for this NPC (after confirmation)
     Int existingSchedule = FindScheduleSlotByAgent(akNPC)
     If existingSchedule >= 0
-        Core.DebugMsg("ScheduleDelivery: " + akNPC.GetDisplayName() + " already scheduled — overriding")
+        Core.DebugMsg("PrepareScheduleSlot: " + akNPC.GetDisplayName() + " already scheduled — overriding")
         ClearScheduleSlot(existingSchedule)
     EndIf
 
+    ; Find a schedule slot
     Int slot = FindFreeScheduleSlot()
     If slot < 0
         Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " has too many scheduled tasks already.")
-        Return false
+        Return -1
     EndIf
 
-    ; Store schedule data
+    ; Store common schedule data
     ScheduledAgents[slot] = akNPC
     ScheduledDestinations[slot] = ""
     ScheduledTimes[slot] = targetGameTime
-    ScheduledTaskTypes[slot] = "deliver_message"
-    ScheduledTargetNames[slot] = targetName
-    ScheduledMessages[slot] = msgContent
-    ScheduledMeetLocations[slot] = meetLocation
-    ScheduledMeetTimes[slot] = meetTime
+    ScheduledTaskTypes[slot] = taskType
+    ScheduledTargetNames[slot] = ""
+    ScheduledMessages[slot] = ""
+    ScheduledMeetLocations[slot] = ""
+    ScheduledMeetTimes[slot] = ""
     StorageUtil.SetIntValue(akNPC, "Intel_ScheduledState", 0)  ; pending
     ScheduledCount += 1
 
-    ; Persist on actor
+    ; Persist common fields on actor
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledDest", "")
     StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledTime", targetGameTime)
-    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledType", "deliver_message")
+    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledType", taskType)
     StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledHour", targetHour)
-    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledTargetName", targetName)
-    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMessage", msgContent)
-    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetLocation", meetLocation)
-    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetTime", meetTime)
 
-    Float hoursUntil = (targetGameTime - Utility.GetCurrentGameTime()) * 24.0
-    String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
-
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " will deliver message to " + targetName + " " + timeDesc)
-    Core.DebugMsg("Scheduled delivery: " + akNPC.GetDisplayName() + " → message to " + targetName + " at game time " + targetGameTime)
-
-    RegisterForSingleUpdateGameTime(0.5)
-    Return true
+    Return slot
 EndFunction
 
 ; =============================================================================
