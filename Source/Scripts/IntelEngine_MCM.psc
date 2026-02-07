@@ -53,6 +53,7 @@ Int OID_DefaultWaitHours
 Int OID_TravelConfirmMode
 Int OID_DeliveryReportBack
 Int OID_MeetingTimeoutHours
+Int OID_MeetingGracePeriod
 
 ; =============================================================================
 ; SKI_ConfigBase OVERRIDES
@@ -252,6 +253,12 @@ Function ShowSettingsPage()
 
     Float meetTimeout = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 3.0)
     OID_MeetingTimeoutHours = AddSliderOption("Meeting Timeout Hours", meetTimeout, "{1}")
+
+    Float gracePeriod = 0.5
+    If Core != None
+        gracePeriod = Core.MeetingGracePeriod
+    EndIf
+    OID_MeetingGracePeriod = AddSliderOption("Meeting Grace Period (hours)", gracePeriod, "{1}")
 EndFunction
 
 ; =============================================================================
@@ -338,6 +345,15 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogDefaultValue(3.0)
         SetSliderDialogRange(1.0, 12.0)
         SetSliderDialogInterval(0.5)
+    ElseIf optionId == OID_MeetingGracePeriod
+        Float currentValue = 0.5
+        If Core != None
+            currentValue = Core.MeetingGracePeriod
+        EndIf
+        SetSliderDialogStartValue(currentValue)
+        SetSliderDialogDefaultValue(0.5)
+        SetSliderDialogRange(0.0, 2.0)
+        SetSliderDialogInterval(0.1)
     EndIf
 EndEvent
 
@@ -351,6 +367,11 @@ Event OnOptionSliderAccept(Int optionId, Float sliderValue)
     ElseIf optionId == OID_MeetingTimeoutHours
         StorageUtil.SetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", sliderValue)
         SetSliderOptionValue(OID_MeetingTimeoutHours, sliderValue, "{1}")
+    ElseIf optionId == OID_MeetingGracePeriod
+        If Core != None
+            Core.MeetingGracePeriod = sliderValue
+        EndIf
+        SetSliderOptionValue(OID_MeetingGracePeriod, sliderValue, "{1}")
     EndIf
 EndEvent
 
@@ -369,6 +390,8 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("When enabled, messengers return to you after delivering a message off-screen and report back.")
     ElseIf optionId == OID_MeetingTimeoutHours
         SetInfoText("How long an NPC waits at the meeting spot after the scheduled time before giving up. If you're later than this, the meeting is cancelled.")
+    ElseIf optionId == OID_MeetingGracePeriod
+        SetInfoText("Arrival tolerance for meetings (±hours). Handles Dynamic Time Scaling mods. Default 0.5 (30 minutes). Set higher if using variable timescales.")
     ElseIf optionId == OID_CancelAllSchedules
         SetInfoText("Cancel all scheduled meetings and tasks.")
     EndIf

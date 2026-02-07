@@ -659,22 +659,28 @@ Function OnPlayerArrived(Int slot, Actor npc)
             npcHoursLate = (npcArrivalTime - meetingGameTime) * 24.0
         EndIf
 
-        ; Determine outcome — check NPC lateness first, then player
+        ; Determine outcome using grace period tolerance (DRY)
         String outcome = "success"
-        If npcHoursLate > 1.0
+        String npcLateness = "on_time"
+        If npcArrivalTime > 0.0
+            npcLateness = Core.DetermineLatenessOutcome(npcArrivalTime, meetingGameTime)
+        EndIf
+        String playerLateness = Core.DetermineLatenessOutcome(currentGameTime, meetingGameTime)
+
+        If npcLateness == "late"
             ; NPC was significantly late getting to the meeting spot
             outcome = "npc_arrived_late"
             StorageUtil.SetFloatValue(npc, "Intel_MeetingLateHours", npcHoursLate)
             Core.SendTaskNarration(npc, npcName + " arrived at " + meetDest + " about " + (npcHoursLate as Int) + " hours late. " + playerName + " was already waiting.", player)
             Core.DebugMsg(npcName + ": NPC was " + (npcHoursLate as Int) + "h late to meeting")
-        ElseIf playerHoursLate > 1.0
-            ; Player is significantly late
+        ElseIf playerLateness == "late"
+            ; Player is significantly late (beyond grace period)
             outcome = "player_late"
             StorageUtil.SetFloatValue(npc, "Intel_MeetingLateHours", playerHoursLate)
             Core.SendTaskNarration(npc, npcName + " waited at " + meetDest + " for " + playerName + " who arrived about " + (playerHoursLate as Int) + " hours late.", player)
             Core.DebugMsg(npcName + ": Player " + (playerHoursLate as Int) + "h late to meeting")
         ElseIf playerHoursLate > 0.25
-            ; Player is slightly late (>15 min)
+            ; Player is slightly late (within grace period but >15 min) - minor note
             outcome = "player_slightly_late"
             Core.SendTaskNarration(npc, npcName + " was waiting at " + meetDest + " for " + playerName + " who arrived a bit late, but they met as planned.", player)
             Core.DebugMsg(npcName + ": Player slightly late to meeting")
