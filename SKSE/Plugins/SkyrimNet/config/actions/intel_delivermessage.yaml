@@ -38,6 +38,10 @@ parameterMapping:
       If the message asks the target to meet somewhere, provide the
       location name (e.g., "Bannered Mare", "Dragonsreach").
       The recipient will be scheduled to travel there.
+      Can also be a home: "Alvor's home", "Camilla's place", or just "Camilla".
+      HOME RULES: "my home" = YOUR home. For the player's home, ALWAYS use
+      their name (e.g., if the player is named Erik, write "Erik's home").
+      For any NPC's home, use their name (e.g., "Alvor's home", "Camilla's place").
       If NOT a meeting request: you MUST set this to "none"
   - type: dynamic
     name: meetTime

@@ -24,30 +24,21 @@ IntelEngine_Core Property Core Auto
 ; CONSTANTS
 ; =============================================================================
 
-Float Property STUCK_DISTANCE_THRESHOLD = 50.0 AutoReadOnly
-{If NPC moved less than this distance between stuck checks, might be stuck}
+; STUCK_DISTANCE_THRESHOLD, LINGER_APPROACH_DISTANCE, LINGER_FAR_TICKS_LIMIT,
+; DEPARTURE_CHECK_CYCLES are defined on Core (single source of truth).
 
 Float Property MAX_TASK_HOURS = 24.0 AutoReadOnly
 {Game hours before an off-screen travel task is force-completed. Safety net for
 NPCs whose 3D never loads (player never visits their cell), so position-based
-stuck detection never fires. Travel uses 24h (longer than NPCTasks' 3h) because
+stuck detection never fires. Travel uses 24h (longer than NPCTasks' 6h) because
 cross-worldspace travel legitimately takes longer.}
 
 Float Property MIN_WAIT_HOURS = 6.0 AutoReadOnly
 Float Property MAX_WAIT_HOURS = 168.0 AutoReadOnly
 Float Property DEFAULT_WAIT_HOURS = 48.0 AutoReadOnly
 
-Int Property DEPARTURE_CHECK_CYCLES = 5 AutoReadOnly
-{Update cycles before checking if scheduled meeting NPC actually departed (~15s at 3s interval)}
-
 Float Property MEETING_LINGER_RELEASE_DISTANCE = 800.0 AutoReadOnly
 {Player must walk this far from NPC to end the meeting linger}
-
-Float Property LINGER_APPROACH_DISTANCE = 100.0 AutoReadOnly
-{NPC switches from approach (TravelPackage_Walk) to sandbox when within this distance of player}
-
-Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
-{Consecutive far checks before meeting linger ends or NPC is released}
 
 Float Property MEETING_PLAYER_PROXIMITY = 2000.0 AutoReadOnly
 {If player is within this distance of meeting destination, NPC starts walking toward them}
@@ -205,6 +196,14 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Bool 
         ; Couldn't resolve - describe the situation factually
         Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " was asked to travel to '" + destination + "' but a route could not be determined.")
         Return false
+    EndIf
+
+    ; Anti-trespass: unlock home door if destination is a home
+    Int homeCellId = IntelEngine.GetLastResolvedHomeCellId()
+    If homeCellId != 0
+        IntelEngine.SetHomeDoorAccessForCell(homeCellId, true)
+        StorageUtil.SetIntValue(akNPC, "Intel_UnlockedHomeCellId", homeCellId)
+        Core.DebugMsg("Unlocked home door for " + destination)
     EndIf
 
     Core.NotifyPlayer(akNPC.GetDisplayName() + " headed off to " + destination)
@@ -782,7 +781,7 @@ Function CheckIfStuck(Int slot, Actor npc)
         Return
     EndIf
 
-    Int status = IntelEngine.CheckStuckStatus(npc, slot, STUCK_DISTANCE_THRESHOLD)
+    Int status = IntelEngine.CheckStuckStatus(npc, slot, Core.STUCK_DISTANCE_THRESHOLD)
 
     If status == 0
         Return
@@ -904,7 +903,7 @@ EndFunction
 Bool Function CheckMeetingDeparture(Int slot, Actor npc)
     {Returns true if departure failed and slot was handled (caller should return).
     Uses Core.CheckDepartureProgress for shared tick/position logic.}
-    Int status = Core.CheckDepartureProgress(slot, npc, STUCK_DISTANCE_THRESHOLD)
+    Int status = Core.CheckDepartureProgress(slot, npc, Core.STUCK_DISTANCE_THRESHOLD)
 
     If status <= 2
         ; 0=too early, 1=departed, 2=soft recovery applied — all OK
@@ -1004,7 +1003,7 @@ Function CheckMeetingApproach(Int slot, Actor npc)
     Int tick = StorageUtil.GetIntValue(npc, "Intel_ApproachTick") + 1
     StorageUtil.SetIntValue(npc, "Intel_ApproachTick", tick)
 
-    If tick < DEPARTURE_CHECK_CYCLES
+    If tick < Core.DEPARTURE_CHECK_CYCLES
         ; Too early to check — give NPC time to walk
         Return
     EndIf
@@ -1014,7 +1013,7 @@ Function CheckMeetingApproach(Int slot, Actor npc)
     Float dy = npc.GetPositionY() - StorageUtil.GetFloatValue(npc, "Intel_ApproachStartY")
     Float dist = Math.sqrt(dx * dx + dy * dy)
 
-    If dist >= STUCK_DISTANCE_THRESHOLD
+    If dist >= Core.STUCK_DISTANCE_THRESHOLD
         ; Moving — reset tracking
         StorageUtil.SetFloatValue(npc, "Intel_ApproachStartX", npc.GetPositionX())
         StorageUtil.SetFloatValue(npc, "Intel_ApproachStartY", npc.GetPositionY())
@@ -1086,7 +1085,7 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
         Bool stillFar = true
         If npc.Is3DLoaded() && player.Is3DLoaded()
             Float dist = npc.GetDistance(player)
-            closeEnough = dist <= LINGER_APPROACH_DISTANCE
+            closeEnough = dist <= Core.LINGER_APPROACH_DISTANCE
             stillFar = dist > MEETING_LINGER_RELEASE_DISTANCE
         ElseIf npc.GetParentCell() == player.GetParentCell()
             Cell npcCell = npc.GetParentCell()
@@ -1109,7 +1108,7 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
             ; Player still far during approach — increment far ticks
             Int farTicks = StorageUtil.GetIntValue(npc, "Intel_LingerFarTicks", 0) + 1
             StorageUtil.SetIntValue(npc, "Intel_LingerFarTicks", farTicks)
-            If farTicks >= LINGER_FAR_TICKS_LIMIT
+            If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
                 Return true
             EndIf
         EndIf
@@ -1128,7 +1127,7 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
         ; Grace period — don't end on first "far" check
         Int farTicks = StorageUtil.GetIntValue(npc, "Intel_LingerFarTicks", 0) + 1
         StorageUtil.SetIntValue(npc, "Intel_LingerFarTicks", farTicks)
-        If farTicks >= LINGER_FAR_TICKS_LIMIT
+        If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
             Return true
         Else
             ; NPC drifted — sandbox can't pull them back, switch to approach
