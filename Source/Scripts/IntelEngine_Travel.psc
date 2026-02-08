@@ -391,6 +391,10 @@ Function CheckForArrival(Int slot, Actor npc)
         Return
     EndIf
 
+    ; Max Z difference to consider NPC on the same floor as a non-door target.
+    ; Matches C++ FindFurnitureAbove minZDiff — one floor is typically 200-400 units.
+    Float floorZTolerance = 150.0
+
     If npc.Is3DLoaded() && dest.Is3DLoaded()
         ; Both loaded — use precise distance check
         Float dist = npc.GetDistance(dest)
@@ -403,6 +407,11 @@ Function CheckForArrival(Int slot, Actor npc)
                 Core.DebugMsg(npc.GetDisplayName() + " reached door, teleporting through")
                 npc.MoveTo(doorDest)
 
+                ; Update refs to the door in the new cell so post-arrival sandbox
+                ; and approach-proximity checks work in the correct cell.
+                PO3_SKSEFunctions.SetLinkedRef(npc, doorDest, Core.IntelEngine_TravelTarget)
+                StorageUtil.SetFormValue(npc, "Intel_DestMarker", doorDest)
+
                 ; Multi-hop: if target was "outside" but the door led to another
                 ; interior (e.g. upstairs -> main floor), find the exterior door
                 ; in the new cell and teleport through that too.
@@ -412,9 +421,19 @@ Function CheckForArrival(Int slot, Actor npc)
                         TeleportToExterior(npc)
                     EndIf
                 EndIf
+                OnArrival(slot, npc)
+            Else
+                ; Non-door target (furniture/marker): verify NPC is on the same
+                ; floor. Prevents false arrival when NPC stands below upper-floor
+                ; furniture in same-cell interiors (e.g. Bannered Mare).
+                Float zDiff = Math.Abs(dest.GetPositionZ() - npc.GetPositionZ())
+                If zDiff <= floorZTolerance
+                    OnArrival(slot, npc)
+                Else
+                    Core.DebugMsg(npc.GetDisplayName() + " within range but wrong floor (Z diff " + zDiff as Int + ")")
+                    CheckIfStuck(slot, npc)
+                EndIf
             EndIf
-
-            OnArrival(slot, npc)
         Else
             CheckIfStuck(slot, npc)
         EndIf
@@ -428,9 +447,16 @@ Function CheckForArrival(Int slot, Actor npc)
     ; check never runs). The game-time timeout is the final safety net.
     Cell npcCell = npc.GetParentCell()
     If npcCell != None && npcCell == dest.GetParentCell() && npcCell.IsInterior()
-        Core.DebugMsg(npc.GetDisplayName() + " reached destination cell (off-screen)")
-        OnArrival(slot, npc)
-        Return
+        ; Z-height check: same-cell multi-floor interiors (e.g. Bannered Mare)
+        ; need Z proximity to confirm NPC is on the correct floor.
+        Float zDiff = Math.Abs(dest.GetPositionZ() - npc.GetPositionZ())
+        If zDiff <= floorZTolerance
+            Core.DebugMsg(npc.GetDisplayName() + " reached destination cell (off-screen)")
+            OnArrival(slot, npc)
+            Return
+        EndIf
+        ; Wrong floor — fall through to HandleOffScreenTravel which will
+        ; eventually MoveTo(dest), placing the NPC on the correct floor.
     EndIf
 
     ; NPC is on-screen — normal stuck detection + leapfrog recovery.
@@ -457,6 +483,8 @@ Function TeleportToExterior(Actor npc)
             If extDest != None
                 Core.DebugMsg(npc.GetDisplayName() + " multi-hop: teleporting to exterior")
                 npc.MoveTo(extDest)
+                PO3_SKSEFunctions.SetLinkedRef(npc, extDest, Core.IntelEngine_TravelTarget)
+                StorageUtil.SetFormValue(npc, "Intel_DestMarker", extDest)
                 Return
             EndIf
         EndIf
@@ -477,7 +505,8 @@ Function OnArrival(Int slot, Actor npc)
     ; Remove travel package, apply sandbox
     Core.RemoveAllPackages(npc)
 
-    ; Keep travel linked ref — it points to the destination marker.
+    ; Keep travel linked ref — points to the destination marker (or doorDest
+    ; after door teleportation, updated in CheckForArrival/TeleportToExterior).
     ; SandboxNearPlayerPackage uses this ref for its sandbox location (200-unit radius).
     ; Clearing it here causes the NPC to fall back to their home location.
     ; The ref is cleaned up later in ClearSlot → ClearLinkedRefs.
@@ -533,7 +562,11 @@ Function OnArrival(Int slot, Actor npc)
                 ; Regular travel — arrived with player nearby (traveled together)
                 Core.SendTaskNarration(npc, npc.GetDisplayName() + " arrived at " \
                     + destination + " together with " + player.GetDisplayName() + ".", player)
-                StartTravelLinger(slot, npc)
+                If IsStayAtDestination(destination)
+                    StartStayAtDestLinger(slot, npc)
+                Else
+                    StartTravelLinger(slot, npc)
+                EndIf
             EndIf
             Return
         EndIf
@@ -603,13 +636,16 @@ Function CheckWaiting(Int slot, Actor npc)
 
     If playerNearDest
         ; Player is near the destination — NPC should walk toward them
-        If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
-            ; Only start approach if NPC is visible — avoids ghost notifications
-            If npc.Is3DLoaded()
-                StartApproachingPlayer(slot, npc)
+        ; (skip for stay-at-dest — NPC stays put, playerNearby handles arrival)
+        If !IsStayAtDestination(Core.SlotTargetNames[slot])
+            If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
+                ; Only start approach if NPC is visible — avoids ghost notifications
+                If npc.Is3DLoaded()
+                    StartApproachingPlayer(slot, npc)
+                EndIf
+            Else
+                CheckMeetingApproach(slot, npc)
             EndIf
-        Else
-            CheckMeetingApproach(slot, npc)
         EndIf
         Return  ; Don't timeout while player is nearby
     Else
@@ -717,7 +753,11 @@ Function OnPlayerArrived(Int slot, Actor npc)
                 + " where " + npcName + " was waiting.", player)
         EndIf
 
-        StartTravelLinger(slot, npc)
+        If IsStayAtDestination(destination)
+            StartStayAtDestLinger(slot, npc)
+        Else
+            StartTravelLinger(slot, npc)
+        EndIf
     EndIf
 EndFunction
 
@@ -1136,14 +1176,24 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
         If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
             Return true
         Else
-            ; NPC drifted — sandbox can't pull them back, switch to approach
-            Core.DebugMsg(npc.GetDisplayName() + " linger: drifted (tick " + farTicks + "), re-approaching player")
-            PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
-            ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-            ActorUtil.RemovePackageOverride(npc, Core.SandboxNearPlayerPackage)
-            Utility.Wait(0.1)
-            npc.EvaluatePackage()
-            StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
+            If StorageUtil.GetIntValue(npc, "Intel_StayAtDest") == 1
+                ; Stay-at-dest: return to destination sandbox instead of re-approaching
+                Core.DebugMsg(npc.GetDisplayName() + " linger: player drifted, returning to dest sandbox")
+                ObjectReference destRef = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+                If destRef != None
+                    PO3_SKSEFunctions.SetLinkedRef(npc, destRef, Core.IntelEngine_TravelTarget)
+                    npc.EvaluatePackage()
+                EndIf
+            Else
+                ; Normal: NPC drifted — sandbox can't pull them back, switch to approach
+                Core.DebugMsg(npc.GetDisplayName() + " linger: drifted (tick " + farTicks + "), re-approaching player")
+                PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
+                ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+                ActorUtil.RemovePackageOverride(npc, Core.SandboxNearPlayerPackage)
+                Utility.Wait(0.1)
+                npc.EvaluatePackage()
+                StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
+            EndIf
         EndIf
     Else
         ; Player is nearby — reset far counter
@@ -1233,12 +1283,43 @@ Function StartTravelLinger(Int slot, Actor npc)
     StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
 EndFunction
 
+Function StartStayAtDestLinger(Int slot, Actor npc)
+    {Gentle linger for interior semantic destinations (upstairs, bedroom, etc.).
+    Keeps SandboxNearPlayerPackage — just switches linked ref to the player so
+    the NPC drifts within 200 units instead of aggressively walking over.}
+    Actor player = Game.GetPlayer()
+    Core.DebugMsg(npc.GetDisplayName() + " starting stay-at-dest linger (sandbox only)")
+
+    PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
+    npc.EvaluatePackage()
+
+    StorageUtil.SetIntValue(npc, "Intel_TravelLingering", 1)
+    StorageUtil.SetIntValue(npc, "Intel_StayAtDest", 1)
+    StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
+EndFunction
+
 Function CompleteTravelLinger(Int slot, Actor npc)
     {Player walked away — travel linger complete, release the NPC.}
     String npcName = npc.GetDisplayName()
     Core.DebugMsg(npcName + " travel linger complete (player left)")
     StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
     Core.ClearSlotRestoreFollower(slot, npc)
+EndFunction
+
+Bool Function IsStayAtDestination(String destination)
+    {Returns true for interior semantic destinations where the NPC should
+    sandbox at the location rather than approach the player.}
+    String dest = IntelEngine.StringToLower(destination)
+    If IntelEngine.StringContains(dest, "upstairs") || IntelEngine.StringContains(dest, "downstairs")
+        Return true
+    EndIf
+    If IntelEngine.StringContains(dest, "bedroom") || IntelEngine.StringContains(dest, "cellar")
+        Return true
+    EndIf
+    If IntelEngine.StringContains(dest, "basement") || IntelEngine.StringContains(dest, "attic")
+        Return true
+    EndIf
+    Return false
 EndFunction
 
 ; =============================================================================
