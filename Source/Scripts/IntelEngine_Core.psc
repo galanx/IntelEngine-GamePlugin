@@ -1172,6 +1172,7 @@ Function RegisterSkyrimNetTag()
     Else
         DebugMsg("WARNING: Failed to register SkyrimNet tag intel_available (error " + result + ")")
     EndIf
+
 EndFunction
 
 ; NOTE: No OnUpdate here. IntelEngine_Travel and IntelEngine_NPCTasks each
@@ -1254,6 +1255,7 @@ Bool Function IntelAvailable_Eligibility(Actor akActor, String contextJson, Stri
     - paramsJson: Parameters from SkyrimNet (unused)}
     Return IntelEngine.IsActorAvailable(akActor)
 EndFunction
+
 
 ; =============================================================================
 ; DEBUG

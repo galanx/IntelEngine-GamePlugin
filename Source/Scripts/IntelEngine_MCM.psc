@@ -259,6 +259,7 @@ Function ShowSettingsPage()
         gracePeriod = Core.MeetingGracePeriod
     EndIf
     OID_MeetingGracePeriod = AddSliderOption("Meeting Grace Period (hours)", gracePeriod, "{1}")
+
 EndFunction
 
 ; =============================================================================
@@ -326,6 +327,7 @@ Event OnOptionSelect(Int optionId)
             StorageUtil.SetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack", 1)
             SetToggleOptionValue(OID_DeliveryReportBack, true)
         EndIf
+
     EndIf
 EndEvent
 
