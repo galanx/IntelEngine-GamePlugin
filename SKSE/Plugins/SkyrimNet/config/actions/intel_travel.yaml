@@ -1,19 +1,22 @@
 name: GoToLocation
 description: >
-  Go to a PLACE right now. Named locations, relative directions (upstairs, outside), or "leave".
+  Go to a PLACE right now. Leave immediately.
 
-  IMPORTANT: The destination MUST be a PLACE, NEVER a person.
-  If asked to "get him", "bring her", "fetch Nazeem", "go get someone" — that's FetchPerson, NOT this.
-  ANY request involving a person (name or pronoun like him/her/them) is NEVER GoToLocation.
+  TRIGGER: You need to physically move to a location NOW (not later).
 
-  Use when:
-  - "go to the Bannered Mare", "head to Whiterun", "go upstairs", "leave"
-  - You decide to go somewhere on your own (errands, returning home)
-  - You agree to meet someone at a place RIGHT NOW
+  Examples:
+  - "go to the Bannered Mare", "head to Whiterun", "go home"
+  - "go upstairs", "go outside", "leave", "go to the back room"
+  - You decide to go somewhere on your own right now
 
-  NOT ScheduleMeeting (that's for going somewhere LATER).
-  NOT FetchPerson/DeliverMessage (those are about a PERSON, not a place).
-  Do NOT use just because a location was mentioned in conversation.
+  DECISION RULES:
+  - Destination is a PLACE (building, city, direction) = GoToLocation
+  - Destination is a PERSON (name or pronoun) = NEVER GoToLocation
+  - "go get him/her/them" or "bring someone" = FetchPerson, NOT this
+  - "go talk to X" or "tell X something" = DeliverMessage, NOT this
+  - "take X home" or "walk X to Y" = EscortTarget, NOT this (escorting a person)
+  - "go there LATER" or "meet me TONIGHT" = ScheduleMeeting, NOT this
+  - Just mentioning a location in conversation does NOT mean go there
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Travel
@@ -28,20 +31,21 @@ parameterMapping:
     description: >
       Where to travel. Can be:
       - A named location: Whiterun, Solitude, Bannered Mare, Dragonsreach
-      - A relative term: upstairs, downstairs, outside, inside, the back room
-      - "home" or "my home" — YOUR own home (the NPC's home)
-      - "<Name>'s home" or "<Name>'s place" — someone's home (e.g., "Alvor's home", "Camilla's place")
-      - Just an NPC name like "Camilla" or "Camilla Valerius" — resolves to their home
-      - A fuzzy match: "the inn" might match "Bannered Mare"
-      The system resolves destinations automatically.
-      HOME RULES: "my home" = YOUR home. For the player's home, ALWAYS use
-      their name (e.g., if the player is named Erik, write "Erik's home").
-      For any NPC's home, use their name (e.g., "Alvor's home", "Camilla's place").
+      - A relative term: upstairs, downstairs, outside, inside
+      - "home" or "my home" — YOUR own home
+      - "<Name>'s home" — someone's home (e.g., "Alvor's home")
+      - Just a name like "Camilla" — resolves to their home
   - type: dynamic
     name: speed
     description: >
-      Travel speed as number: 0=walk, 1=jog, 2=run.
-      Choose based on urgency: casual stroll=0, normal=1, urgent=2
+      Travel speed: 0=walk, 1=jog, 2=run.
+      Casual=0, normal=1, urgent=2
+  - type: dynamic
+    name: waitForPlayer
+    description: >
+      1 if the player asked or told you to go there (you should wait for them).
+      0 if you decided to go on your own (fresh air, errands, personal business).
+      When nobody asked you to go, use 0.
   - type: static
     value: false
     name: isScheduled

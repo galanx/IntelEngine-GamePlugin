@@ -1,0 +1,56 @@
+name: EscortTarget
+description: >
+  Walk WITH someone to a destination. You personally accompany them.
+
+  TRIGGER: Any request to escort, walk, or take someone to a specific place.
+
+  Examples:
+  - "take Alvor home", "walk Ysolda to the inn", "escort this pilgrim to Whiterun"
+  - "take him home", "walk her to safety"
+  - You stay with them during the entire journey
+
+  DECISION RULES:
+  - "take X home" or "walk X to Y" = EscortTarget (you walk WITH them)
+  - "bring X here" or "get X" = FetchPerson (you go alone, return with them)
+  - "tell X to come" = DeliverMessage (relay words, not physically escort)
+
+questEditorId: IntelEngine
+scriptName: IntelEngine_NPCTasks
+executionFunctionName: EscortTarget
+
+parameterMapping:
+  - type: speaker
+    name: akAgent
+    description: You (the NPC doing the escorting)
+  - type: dynamic
+    name: targetName
+    description: >
+      The person to escort. Must be a real Skyrim NPC name. NEVER {{ player.name }}.
+      Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
+  - type: dynamic
+    name: destination
+    description: >
+      Where to escort them. Use "home" if taking them home.
+      Otherwise use a location name like "Whiterun", "Dragonsreach", "the inn".
+  - type: dynamic
+    name: shouldWait
+    description: >
+      1 if the escorted person should wait at the destination for the player.
+      0 if they should just stay there and resume normal life.
+      Use 1 when: the player asked for the escort, someone is being taken somewhere for the player to meet.
+      Use 0 when: taking someone home, moving someone away from danger.
+
+eligibilityRules:
+  - conditions:
+      - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+    logicalOperator: "AND"
+    required: true
+
+eventString: "{{ actor.name }} already left to escort {{ targetName }} to {{ destination }} (task in progress)"
+isShortLived: false
+enabled: true
+defaultPriority: 6
+tags: []

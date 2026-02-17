@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+    <moduleName>IntelEngine</moduleName>
+    <moduleImage path="fomod\screenshot.png" />
+
+    <requiredInstallFiles>
+        <file source="IntelEngine.esp" destination="IntelEngine.esp" />
+        <folder source="Scripts" destination="Scripts" />
+        <folder source="Source" destination="Source" />
+        <folder source="Interface" destination="Interface" />
+        <folder source="SKSE" destination="SKSE" />
+    </requiredInstallFiles>
+
+    <installSteps order="Explicit">
+        <installStep name="IntelEngine">
+            <optionalFileGroups order="Explicit">
+                <group name="Install" type="SelectAll">
+                    <plugins order="Explicit">
+                        <plugin name="IntelEngine">
+                            <description>AI-powered NPC autonomy mod for Skyrim. Gives NPCs the ability to travel, perform tasks, and create dynamic story events powered by SkyrimNet's LLM integration.
+
+Features:
+- Player-directed NPC tasks (GoToLocation, FetchPerson, DeliverMessage, SearchForActor, ScheduleMeeting, EscortTarget)
+- LLM Dungeon Master story events (seek_player, informant, road_encounter, ambush, stalker, message, quest)
+- Autonomous NPC social interactions (npc_interaction, npc_gossip)
+- All features configurable via MCM
+
+Requirements: SKSE, SkyrimNet, PapyrusExtender (po3), PapyrusUtil, MCM Helper</description>
+                            <files />
+                            <typeDescriptor>
+                                <type name="Required"/>
+                            </typeDescriptor>
+                        </plugin>
+                    </plugins>
+                </group>
+            </optionalFileGroups>
+        </installStep>
+    </installSteps>
+
+</config>

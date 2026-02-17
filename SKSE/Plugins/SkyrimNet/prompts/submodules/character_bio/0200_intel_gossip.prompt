@@ -1,0 +1,49 @@
+{% if render_mode == "full" or render_mode == "static" %}
+{% set first_person = (render_mode == "transform" or render_mode == "full" or render_mode == "thoughts") %}
+{% if actorUUID and isValidActor(actorUUID) %}
+{% set gossipRendered = papyrus_util("GetStringValue", actorUUID, "Intel_GossipRendered", "") %}
+{% if gossipRendered != "" and first_person %}
+{{ gossipRendered }}
+{% else %}
+{% set gossipHeard = papyrus_util("GetStringList", actorUUID, "Intel_GossipHeard") %}
+{% set gossipHeardFrom = papyrus_util("GetStringList", actorUUID, "Intel_GossipHeardFrom") %}
+{% set gossipHeardTimes = papyrus_util("GetFloatList", actorUUID, "Intel_GossipHeardTimes") %}
+{% set gossipTold = papyrus_util("GetStringList", actorUUID, "Intel_GossipTold") %}
+{% set gossipToldTo = papyrus_util("GetStringList", actorUUID, "Intel_GossipToldTo") %}
+{% set gossipToldTimes = papyrus_util("GetFloatList", actorUUID, "Intel_GossipToldTimes") %}
+{% set currentTime = get_global_value("GameDaysPassed") %}
+{% if length(gossipHeard) > 0 %}
+{% if first_person %}
+## Rumors I've Heard
+
+{% for _entry in gossipHeard %}{% set idx = length(gossipHeard) - loop.index1 %}{% set rumor = at(gossipHeard, idx) %}{% set source = at(gossipHeardFrom, idx) %}{% set hoursPassed = (currentTime - at(gossipHeardTimes, idx)) * 24.0 %}
+- {{ source }} told me: {{ rumor }} ({% if hoursPassed < 1.0 %}just now{% elif hoursPassed < 3.0 %}a short while ago{% elif hoursPassed < 12.0 %}earlier today{% elif hoursPassed < 24.0 %}yesterday{% elif hoursPassed < 48.0 %}a day ago{% elif hoursPassed < 72.0 %}a couple of days ago{% elif hoursPassed < 120.0 %}a few days ago{% elif hoursPassed < 168.0 %}several days ago{% else %}some time ago{% endif %})
+{% endfor %}
+{% else %}
+## Rumors Heard
+
+{% for _entry in gossipHeard %}{% set idx = length(gossipHeard) - loop.index1 %}{% set rumor = at(gossipHeard, idx) %}{% set source = at(gossipHeardFrom, idx) %}{% set hoursPassed = (currentTime - at(gossipHeardTimes, idx)) * 24.0 %}
+- {{ source }} told {{ decnpc(actorUUID).name }}: {{ rumor }} ({% if hoursPassed < 1.0 %}just now{% elif hoursPassed < 3.0 %}a short while ago{% elif hoursPassed < 12.0 %}earlier today{% elif hoursPassed < 24.0 %}yesterday{% elif hoursPassed < 48.0 %}a day ago{% elif hoursPassed < 72.0 %}a couple of days ago{% elif hoursPassed < 120.0 %}a few days ago{% elif hoursPassed < 168.0 %}several days ago{% else %}some time ago{% endif %})
+{% endfor %}
+{% endif %}
+
+{% endif %}
+{% if length(gossipTold) > 0 %}
+{% if first_person %}
+## Rumors I've Shared
+
+{% for _entry in gossipTold %}{% set idx = length(gossipTold) - loop.index1 %}{% set rumor = at(gossipTold, idx) %}{% set recipient = at(gossipToldTo, idx) %}{% set hoursPassed = (currentTime - at(gossipToldTimes, idx)) * 24.0 %}
+- I told {{ recipient }}: {{ rumor }} ({% if hoursPassed < 1.0 %}just now{% elif hoursPassed < 3.0 %}a short while ago{% elif hoursPassed < 12.0 %}earlier today{% elif hoursPassed < 24.0 %}yesterday{% elif hoursPassed < 48.0 %}a day ago{% elif hoursPassed < 72.0 %}a couple of days ago{% elif hoursPassed < 120.0 %}a few days ago{% elif hoursPassed < 168.0 %}several days ago{% else %}some time ago{% endif %})
+{% endfor %}
+{% else %}
+## Rumors Shared
+
+{% for _entry in gossipTold %}{% set idx = length(gossipTold) - loop.index1 %}{% set rumor = at(gossipTold, idx) %}{% set recipient = at(gossipToldTo, idx) %}{% set hoursPassed = (currentTime - at(gossipToldTimes, idx)) * 24.0 %}
+- {{ decnpc(actorUUID).name }} told {{ recipient }}: {{ rumor }} ({% if hoursPassed < 1.0 %}just now{% elif hoursPassed < 3.0 %}a short while ago{% elif hoursPassed < 12.0 %}earlier today{% elif hoursPassed < 24.0 %}yesterday{% elif hoursPassed < 48.0 %}a day ago{% elif hoursPassed < 72.0 %}a couple of days ago{% elif hoursPassed < 120.0 %}a few days ago{% elif hoursPassed < 168.0 %}several days ago{% else %}some time ago{% endif %})
+{% endfor %}
+{% endif %}
+
+{% endif %}
+{% endif %}
+{% endif %}
+{% endif %}
