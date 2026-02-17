@@ -58,9 +58,7 @@ Progress-tracked: if target is getting closer, the counter resets.}
 ; STATE_TARGET_PRESENTING (9) and MAX_PRESENT_CYCLES removed.
 ; Target-first completion in CheckReturnArrival makes intermediate states unnecessary.
 
-Float Property LINGER_PROXIMITY = 800.0 AutoReadOnly
-{Phase 2: distance within which the player is considered "nearby".
-When the player moves beyond this, the NPC is released.}
+; LINGER_RELEASE_DISTANCE defined on Core (single source of truth).
 
 Float Property RETURN_POLL_INTERVAL = 0.5 AutoReadOnly
 {Fast update interval when NPCs are in state 3 (returning). Catches arrival
@@ -146,8 +144,8 @@ Function RecoverSlotPackages(Int slot)
         ActorUtil.AddPackageOverride(agent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
         agent.EvaluatePackage()
 
-        ; Also recover target's travel package for fetch returns
-        If taskType == "fetch_npc"
+        ; Also recover target's travel package for fetch/escort returns
+        If taskType == "fetch_npc" || taskType == "escort_target"
             Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
             String result = StorageUtil.GetStringValue(agent, "Intel_Result")
             If target != None && !target.IsDead() && result != "refused"
@@ -176,7 +174,7 @@ EndFunction
 ; After fetch completion the target lingers near the player using a tight
 ; sandbox (SandboxNearPlayerPackage, 200-unit radius). The NPC idles, sits,
 ; or uses furniture near the player without walking into their face.
-; Released when the player leaves LINGER_PROXIMITY.
+; Released when the player leaves Core.LINGER_RELEASE_DISTANCE.
 ;
 ; Uses StorageUtil instead of script-level arrays to avoid save-compatibility
 ; issues when script variables change between builds. Linger state stored on
@@ -186,7 +184,7 @@ EndFunction
 Function StartTargetLinger(Actor target, Actor agent)
     {Start lingering near the player. Phase 1: walk toward player using
     TravelPackage_Walk. Phase 2: sandbox within 200 units once close (100 units).
-    Released when the player leaves LINGER_PROXIMITY (800 units).}
+    Released when the player leaves Core.LINGER_RELEASE_DISTANCE (800 units).}
 
     ; Dedup — don't add the same target twice
     If StorageUtil.GetIntValue(target, "Intel_LingerPhase", 0) > 0
@@ -219,6 +217,9 @@ Function ClearLingerSlot(Actor target)
     StorageUtil.UnsetIntValue(target, "Intel_LingerPhase")
     StorageUtil.UnsetFormValue(target, "Intel_LingerAgent")
     StorageUtil.UnsetIntValue(target, "Intel_LingerFarTicks")
+    ; Escort-wait keys (safe to unset even if not present)
+    StorageUtil.UnsetStringValue(target, "Intel_LingerDestName")
+    StorageUtil.UnsetFloatValue(target, "Intel_LingerStart")
     StorageUtil.FormListRemove(self, "Intel_LingeringTargets", target, true)
 EndFunction
 
@@ -251,7 +252,7 @@ Function CheckLingeringTargets()
                 If target.Is3DLoaded() && player.Is3DLoaded()
                     Float targetDist = target.GetDistance(player)
                     closeEnough = targetDist <= Core.LINGER_APPROACH_DISTANCE
-                    stillFar = targetDist > LINGER_PROXIMITY
+                    stillFar = targetDist > Core.LINGER_RELEASE_DISTANCE
                 ElseIf target.GetParentCell() == player.GetParentCell()
                     ; Same cell off-screen — close enough in interiors
                     Cell targetCell = target.GetParentCell()
@@ -286,39 +287,39 @@ Function CheckLingeringTargets()
 
             ElseIf phase == 2
                 ; Phase 2: NPC sandboxing near player.
-                ; Release when player leaves proximity.
-                Float dist = LINGER_PROXIMITY + 1.0
-                If target.Is3DLoaded() && player.Is3DLoaded() && target.GetParentCell() == player.GetParentCell()
-                    dist = target.GetDistance(player)
+                ; Release when player leaves proximity (same as Travel/StoryEngine).
+                If Core.ShouldReleaseLinger(target)
+                    Core.ReleaseLinger(target)
+                    Core.SendTransientEvent(target, agent, target.GetDisplayName() + " is heading back.")
+                    Core.DebugMsg(target.GetDisplayName() + " player left proximity, heading home")
+                    ClearLingerSlot(target)
                 EndIf
 
-                If dist > LINGER_PROXIMITY
-                    ; Grace period with re-approach — NPC may have drifted from sandbox
-                    Int farTicks = StorageUtil.GetIntValue(target, "Intel_LingerFarTicks", 0) + 1
-                    StorageUtil.SetIntValue(target, "Intel_LingerFarTicks", farTicks)
-                    If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
-                        ; Player genuinely left — release
-                        ActorUtil.RemovePackageOverride(target, Core.SandboxNearPlayerPackage)
-                        ActorUtil.RemovePackageOverride(target, Core.TravelPackage_Walk)
-                        Utility.Wait(0.1)
-                        target.EvaluatePackage()
-
-                        Core.SendTransientEvent(target, agent, target.GetDisplayName() + " is heading back.")
-                        Core.DebugMsg(target.GetDisplayName() + " player left proximity, heading home")
-                        ClearLingerSlot(target)
-                    Else
-                        ; NPC drifted — switch back to approach to walk back
-                        Core.DebugMsg(target.GetDisplayName() + " linger: drifted (tick " + farTicks + "), re-approaching player")
-                        PO3_SKSEFunctions.SetLinkedRef(target, player as ObjectReference, Core.IntelEngine_TravelTarget)
-                        ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-                        ActorUtil.RemovePackageOverride(target, Core.SandboxNearPlayerPackage)
-                        Utility.Wait(0.1)
-                        target.EvaluatePackage()
-                        StorageUtil.SetIntValue(target, "Intel_LingerPhase", 1)
-                    EndIf
+            ElseIf phase == 3
+                ; Phase 3: Escort target waiting at destination for player
+                ; Timeout after 6 game hours, otherwise check player proximity
+                Float lingerStart = StorageUtil.GetFloatValue(target, "Intel_LingerStart")
+                If lingerStart > 0.0 && (Utility.GetCurrentGameTime() - lingerStart) * 24.0 > 6.0
+                    Core.DebugMsg(target.GetDisplayName() + " escort wait timed out")
+                    Core.RemoveIntelPackages(target)
+                    PO3_SKSEFunctions.SetLinkedRef(target, None, Core.IntelEngine_TravelTarget)
+                    target.EvaluatePackage()
+                    ClearLingerSlot(target)
                 Else
-                    ; Player nearby — reset far counter
-                    StorageUtil.UnsetIntValue(target, "Intel_LingerFarTicks")
+                    ; Check if player arrived at the destination
+                    Bool playerArrived = false
+                    If target.Is3DLoaded() && player.Is3DLoaded()
+                        playerArrived = target.GetDistance(player) <= Core.ARRIVAL_DISTANCE * 2.0
+                    ElseIf target.GetParentCell() == player.GetParentCell()
+                        Cell pCell = player.GetParentCell()
+                        If pCell != None && pCell.IsInterior()
+                            playerArrived = true
+                        EndIf
+                    EndIf
+
+                    If playerArrived
+                        OnPlayerArrivedAtEscortTarget(target)
+                    EndIf
                 EndIf
             EndIf
         EndIf
@@ -793,6 +794,199 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
 EndFunction
 
 ; =============================================================================
+; ESCORT TARGET — Walk target NPC to a destination
+; =============================================================================
+
+Bool Function EscortTarget(Actor akAgent, String targetName, String destination = "home", Int shouldWait = 0)
+    {
+    Send an NPC to escort another NPC to a destination.
+
+    Parameters:
+        akAgent - The NPC doing the escorting
+        targetName - Name of NPC to escort (fuzzy matched)
+        destination - Where to escort them ("home", or a location name like "Whiterun")
+        shouldWait - 1 if the target should wait at destination for player arrival, 0 otherwise
+
+    Returns:
+        true if escort task started successfully
+    }
+
+    ; Normalize destination
+    If destination == ""
+        destination = "home"
+    EndIf
+    String destLabel = destination
+
+    ; Validate agent
+    If akAgent == None
+        Core.DebugMsg("EscortTarget: None agent")
+        Return false
+    EndIf
+
+    If akAgent.IsDead() || akAgent.IsInCombat()
+        Core.DebugMsg("EscortTarget: Agent dead or in combat")
+        Return false
+    EndIf
+
+    ; Duplicate action guard
+    If Core.IsDuplicateTask(akAgent, "escort_target", targetName)
+        Return false
+    EndIf
+
+    ; MCM task confirmation prompt
+    Int confirmResult = Core.ShowTaskConfirmation(akAgent, akAgent.GetDisplayName() + " wants to escort " + targetName + " to " + destLabel + ".")
+    If confirmResult == 1
+        Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to escort " + targetName + ".")
+        Return false
+    ElseIf confirmResult == 2
+        Return false
+    EndIf
+
+    ; Override existing task if any
+    Core.OverrideExistingTask(akAgent)
+
+    ; Cooldown
+    Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
+    If cooldown > 0.0 && (Utility.GetCurrentRealTime() - cooldown) < 15.0
+        Core.DebugMsg("EscortTarget: " + akAgent.GetDisplayName() + " on cooldown")
+        Return false
+    EndIf
+
+    ; Find the target NPC using DLL fuzzy search
+    Actor targetNPC = IntelEngine.FindNPCByNameNear(targetName, akAgent)
+    If targetNPC == None
+        String suggestion = GetNPCSuggestion(targetName)
+        If suggestion != ""
+            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort '" + targetName + "' to " + destLabel + ". No one by that exact name could be located. The closest known name is " + suggestion + ".")
+        Else
+            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort someone named '" + targetName + "' to " + destLabel + ". No one by that name could be located.")
+        EndIf
+        Return false
+    EndIf
+
+    ; Check if target is valid
+    If targetNPC.IsDead()
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort " + targetNPC.GetDisplayName() + " to " + destLabel + ", but they are dead.")
+        Return false
+    EndIf
+
+    If targetNPC.IsDisabled()
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
+        Return false
+    EndIf
+
+    If targetNPC == akAgent
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort themselves.")
+        Return false
+    EndIf
+
+    If targetNPC == Game.GetPlayer()
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort " + Game.GetPlayer().GetDisplayName() + ".")
+        Return false
+    EndIf
+
+    ; Cancel any existing task the target is involved in
+    Int existingSlot = Core.FindSlotByActor(targetNPC)
+    If existingSlot >= 0
+        Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is in active slot " + existingSlot + " -- cancelling")
+        Core.ClearSlot(existingSlot, true)
+    EndIf
+
+    ; Cancel pending schedule for the target
+    If Core.Schedule
+        Int schedSlot = Core.Schedule.FindScheduleSlotByAgent(targetNPC)
+        If schedSlot >= 0
+            Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " has scheduled task -- cancelling")
+            Core.Schedule.ClearScheduleSlot(schedSlot)
+        EndIf
+    EndIf
+
+    ; Resolve destination
+    ObjectReference destMarkerRef
+    If destination == "home"
+        destMarkerRef = IntelEngine.ResolveAnyDestination(targetNPC, "home")
+        If destMarkerRef == None
+            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not figure out where " + targetNPC.GetDisplayName() + " lives.")
+            Return false
+        EndIf
+    Else
+        destMarkerRef = IntelEngine.ResolveAnyDestination(akAgent, destination)
+        If destMarkerRef == None
+            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " does not know where " + destination + " is.")
+            Return false
+        EndIf
+    EndIf
+
+    ; Check if target is already at destination
+    If targetNPC.Is3DLoaded() && destMarkerRef.Is3DLoaded()
+        If targetNPC.GetDistance(destMarkerRef) <= Core.ARRIVAL_DISTANCE
+            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort " + targetNPC.GetDisplayName() + " to " + destLabel + ", but they are already there.")
+            Return false
+        EndIf
+    EndIf
+
+    ; Find free slot
+    Int slot = Core.FindFreeAgentSlot()
+    If slot < 0
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Return false
+    EndIf
+
+    ; Anti-trespass: unlock destination so both can enter
+    If destination == "home"
+        Core.UnlockHomeForTask(akAgent, targetNPC)
+    EndIf
+
+    ; Stop following if agent is follower
+    Core.DismissFollowerForTask(akAgent)
+
+    ; Allocate slot
+    Core.AllocateSlot(slot, akAgent, "escort_target", targetNPC.GetDisplayName(), 1)
+
+    ; Store escort-specific data
+    StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
+    StorageUtil.SetFormValue(akAgent, "Intel_DestMarker", targetNPC as ObjectReference)
+    StorageUtil.SetFormValue(akAgent, "Intel_ReturnMarker", destMarkerRef)
+    StorageUtil.SetStringValue(akAgent, "Intel_EscortDestName", destLabel)
+    If shouldWait == 1
+        StorageUtil.SetIntValue(akAgent, "Intel_EscortShouldWait", 1)
+    EndIf
+
+    ; Assign target alias
+    ReferenceAlias targetAlias = Core.GetTargetAlias(slot)
+    If targetAlias
+        targetAlias.ForceRefTo(targetNPC)
+    EndIf
+
+    ; Set up travel to the target NPC (may be nearby, may be across town)
+    PO3_SKSEFunctions.SetLinkedRef(akAgent, targetNPC as ObjectReference, Core.IntelEngine_TravelTarget)
+    Bool sameCell = (akAgent.GetParentCell() == Game.GetPlayer().GetParentCell())
+    If sameCell
+        ActorUtil.AddPackageOverride(akAgent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    Else
+        ActorUtil.AddPackageOverride(akAgent, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
+    EndIf
+    Utility.Wait(0.1)
+    akAgent.EvaluatePackage()
+
+    Core.DebugMsg("EscortTarget: " + akAgent.GetDisplayName() + " going to " + targetNPC.GetDisplayName() + " to escort them to " + destLabel)
+    Core.NotifyPlayer(akAgent.GetDisplayName() + " is going to escort " + targetNPC.GetDisplayName() + " to " + destLabel)
+
+    ; Initialize tracking
+    Core.InitializeStuckTrackingForSlot(slot, akAgent)
+    Core.InitializeDepartureTracking(slot, akAgent)
+    Core.InitOffScreenTracking(slot, akAgent, targetNPC)
+
+    ; One-way deadline (not round trip)
+    SetDistanceBasedDeadline(slot, akAgent, destMarkerRef, false)
+
+    ; Start monitoring
+    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+
+    Return true
+EndFunction
+
+; =============================================================================
 ; UPDATE LOOP
 ; =============================================================================
 
@@ -874,6 +1068,8 @@ Function CheckNPCTaskSlot(Int slot)
         HandleMessageState(slot, agent, taskState)
     ElseIf taskType == "search_for_actor"
         HandleSearchState(slot, agent, taskState)
+    ElseIf taskType == "escort_target"
+        HandleEscortTargetState(slot, agent, taskState)
     EndIf
 EndFunction
 
@@ -893,7 +1089,7 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
     ObjectReference dest
     Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
 
-    If taskType == "fetch_npc" && taskState == 3
+    If (taskType == "fetch_npc" && taskState == 3) || (taskType == "escort_target" && taskState == 3)
         dest = StorageUtil.GetFormValue(agent, "Intel_ReturnMarker") as ObjectReference
     Else
         dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
@@ -914,6 +1110,12 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
     Bool isReturning = (taskState == 3 && (taskType == "fetch_npc" || taskType == "deliver_message"))
     If isReturning
         Core.TeleportBehindPlayer(agent)
+    ElseIf taskType == "escort_target" && taskState == 3 && dest != None
+        ; Escort: teleport both to destination (not to player)
+        agent.MoveTo(dest)
+        If target != None && !target.IsDead()
+            target.MoveTo(dest)
+        EndIf
     ElseIf dest != None
         agent.MoveTo(dest)
     ElseIf target != None
@@ -948,6 +1150,18 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
         Else
             ; At target (state 8) — deliver then return
             OnArrivedToDeliver(slot, agent, target)
+        EndIf
+    ElseIf taskType == "escort_target"
+        If target == None || target.IsDead()
+            Core.ClearSlot(slot, true)
+            Return
+        EndIf
+        If taskState == 1 || taskState == Core.STATE_AT_TARGET
+            OnArrivedAtTarget(slot, agent, target)
+        ElseIf taskState == 3
+            OnEscortComplete(slot, agent, target)
+        Else
+            Core.ClearSlot(slot, true)
         EndIf
     Else
         Core.ClearSlot(slot, true)
@@ -1472,6 +1686,246 @@ EndFunction
 ; player as soon as they arrive, regardless of the agent's position.
 
 ; =============================================================================
+; ESCORT HOME STATE MACHINE
+; =============================================================================
+
+Function HandleEscortTargetState(Int slot, Actor agent, Int taskState)
+    Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
+
+    If target == None || target.IsDead()
+        Core.NotifyPlayer(agent.GetDisplayName() + " lost their escort target")
+        Core.ClearSlot(slot, true)
+        Return
+    EndIf
+
+    If taskState == 1
+        ; Traveling to target
+        If CheckDeparture(slot, agent)
+            Return
+        EndIf
+        CheckArrivalAtTarget(slot, agent, target)
+
+    ElseIf taskState == Core.STATE_AT_TARGET
+        ; At target — brief interaction before escorting
+        HandleAtTarget_Escort(slot, agent, target)
+
+    ElseIf taskState == 3
+        ; Escorting target to destination
+        CheckEscortArrival(slot, agent, target)
+    EndIf
+EndFunction
+
+Function HandleAtTarget_Escort(Int slot, Actor agent, Actor target)
+    Int remaining = StorageUtil.GetIntValue(agent, "Intel_InteractCyclesRemaining")
+    remaining -= 1
+    StorageUtil.SetIntValue(agent, "Intel_InteractCyclesRemaining", remaining)
+
+    If remaining > 0
+        Return
+    EndIf
+
+    ; Interaction complete — check success/failure
+    Actor player = Game.GetPlayer()
+    Bool playerPresent = (agent.GetParentCell() == player.GetParentCell())
+    String agentName = agent.GetDisplayName()
+    String targetName = target.GetDisplayName()
+    String destName = StorageUtil.GetStringValue(agent, "Intel_EscortDestName")
+    If destName == ""
+        destName = "their destination"
+    EndIf
+
+    If playerPresent
+        Core.SendTaskNarration(agent, agentName + " offered to walk " + targetName + " to " + destName + " safely.", target)
+    Else
+        Core.SendTransientEvent(agent, target, agentName + " offered to walk " + targetName + " to " + destName + ".")
+    EndIf
+
+    Core.NotifyPlayer(agentName + " is escorting " + targetName + " to " + destName)
+    BeginEscortToDestination(slot, agent, target)
+EndFunction
+
+Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
+    ObjectReference destMarkerRef = StorageUtil.GetFormValue(agent, "Intel_ReturnMarker") as ObjectReference
+    If destMarkerRef == None
+        Core.DebugMsg("EscortTarget: lost destination marker -- aborting")
+        Core.ClearSlot(slot, true)
+        Return
+    EndIf
+
+    String destName = StorageUtil.GetStringValue(agent, "Intel_EscortDestName")
+    If destName == ""
+        destName = "their destination"
+    EndIf
+
+    ; Both NPCs walk to destination together
+    PO3_SKSEFunctions.SetLinkedRef(target, destMarkerRef, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    Utility.Wait(0.1)
+    target.EvaluatePackage()
+
+    PO3_SKSEFunctions.SetLinkedRef(agent, destMarkerRef, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(agent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    Utility.Wait(0.1)
+    agent.EvaluatePackage()
+
+    Core.SetSlotState(slot, agent, 3)
+    Core.InitializeStuckTrackingForSlot(slot, agent)
+    Core.SendTransientEvent(agent, target, agent.GetDisplayName() + " began walking " + target.GetDisplayName() + " to " + destName + ".")
+EndFunction
+
+Function CheckEscortArrival(Int slot, Actor agent, Actor target)
+    ObjectReference destMarkerRef = StorageUtil.GetFormValue(agent, "Intel_ReturnMarker") as ObjectReference
+    If destMarkerRef == None
+        OnEscortComplete(slot, agent, target)
+        Return
+    EndIf
+
+    ; Target arrived at destination = completion
+    If target.Is3DLoaded() && destMarkerRef.Is3DLoaded()
+        If target.GetDistance(destMarkerRef) <= Core.ARRIVAL_DISTANCE
+            OnEscortComplete(slot, agent, target)
+            Return
+        EndIf
+    ElseIf !target.Is3DLoaded()
+        Cell targetCell = target.GetParentCell()
+        Cell destCell = destMarkerRef.GetParentCell()
+        If targetCell != None && destCell != None && targetCell == destCell
+            OnEscortComplete(slot, agent, target)
+            Return
+        EndIf
+    EndIf
+
+    ; Agent stuck detection
+    If agent.Is3DLoaded()
+        Int stuckStatus = IntelEngine.CheckStuckStatus(agent, slot, Core.STUCK_DISTANCE_THRESHOLD)
+        If stuckStatus == 1
+            Core.SoftStuckRecovery(agent, slot, destMarkerRef)
+        ElseIf stuckStatus >= 3
+            ; Teleport both to destination
+            agent.MoveTo(destMarkerRef)
+            target.MoveTo(destMarkerRef)
+            OnEscortComplete(slot, agent, target)
+            Return
+        EndIf
+    EndIf
+
+    ; Off-screen: estimated travel time
+    If !agent.Is3DLoaded()
+        If Core.HandleOffScreenTravel(slot, agent, destMarkerRef)
+            agent.MoveTo(destMarkerRef)
+            target.MoveTo(destMarkerRef)
+            OnEscortComplete(slot, agent, target)
+        EndIf
+    EndIf
+EndFunction
+
+Function StartEscortTargetWait(Actor target, ObjectReference destRef, String destName)
+    {Target sandboxes at destination after escort. Waits for player arrival, times out after 6h.}
+
+    ; Dedup — if already lingering, just release
+    If StorageUtil.GetIntValue(target, "Intel_LingerPhase", 0) > 0
+        Core.RemoveIntelPackages(target)
+        target.EvaluatePackage()
+        Return
+    EndIf
+
+    ; Sandbox at destination
+    Core.RemoveIntelPackages(target, false)
+    If destRef != None
+        PO3_SKSEFunctions.SetLinkedRef(target, destRef, Core.IntelEngine_TravelTarget)
+    EndIf
+    ActorUtil.AddPackageOverride(target, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+    Utility.Wait(0.1)
+    target.EvaluatePackage()
+
+    ; Store linger state — phase 3 = waiting at destination for player
+    StorageUtil.SetIntValue(target, "Intel_LingerPhase", 3)
+    StorageUtil.SetStringValue(target, "Intel_LingerDestName", destName)
+    StorageUtil.SetFloatValue(target, "Intel_LingerStart", Utility.GetCurrentGameTime())
+    StorageUtil.FormListAdd(self, "Intel_LingeringTargets", target, false)
+
+    Core.DebugMsg(target.GetDisplayName() + " waiting at " + destName + " for player (escort linger phase 3)")
+    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+EndFunction
+
+Function OnPlayerArrivedAtEscortTarget(Actor target)
+    {Player arrived at destination where escort target is waiting. Narrate, then transition to normal linger.}
+    String targetName = target.GetDisplayName()
+    String destName = StorageUtil.GetStringValue(target, "Intel_LingerDestName")
+    If destName == ""
+        destName = "their destination"
+    EndIf
+
+    ; Narrate so SkyrimNet generates a greeting
+    Core.SendTaskNarration(target, targetName + " noticed " + Game.GetPlayer().GetDisplayName() + " arrived at " + destName + ".", Game.GetPlayer())
+    Utility.Wait(1.0)
+
+    ; Transition to standard linger phase 1 (approach player → sandbox → release)
+    Actor player = Game.GetPlayer()
+    Core.RemoveIntelPackages(target, false)
+    PO3_SKSEFunctions.SetLinkedRef(target, player as ObjectReference, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    Utility.Wait(0.1)
+    target.EvaluatePackage()
+
+    StorageUtil.SetIntValue(target, "Intel_LingerPhase", 1)
+    ; Clean up escort-specific keys (phase 1/2 don't need them)
+    StorageUtil.UnsetStringValue(target, "Intel_LingerDestName")
+    StorageUtil.UnsetFloatValue(target, "Intel_LingerStart")
+
+    Core.DebugMsg(targetName + " noticed player at " + destName + " -- switching to normal linger")
+EndFunction
+
+Function OnEscortComplete(Int slot, Actor agent, Actor target)
+    Core.MarkSlotProcessing(slot, agent)
+
+    String agentName = agent.GetDisplayName()
+    String targetName = target.GetDisplayName()
+    String destName = StorageUtil.GetStringValue(agent, "Intel_EscortDestName")
+    If destName == ""
+        destName = "their destination"
+    EndIf
+    Core.DebugMsg(agentName + " escorted " + targetName + " to " + destName)
+
+    Int shouldWaitVal = StorageUtil.GetIntValue(agent, "Intel_EscortShouldWait")
+
+    ; Release target alias
+    ReferenceAlias targetAlias = Core.GetTargetAlias(slot)
+    If targetAlias
+        targetAlias.Clear()
+    EndIf
+
+    ; Check if player is already at the destination
+    Actor player = Game.GetPlayer()
+    Bool playerPresent = (target.GetParentCell() == player.GetParentCell())
+
+    If shouldWaitVal == 1 && !playerPresent
+        ; Player not here — target waits at destination for player arrival
+        ObjectReference destRef = StorageUtil.GetFormValue(agent, "Intel_ReturnMarker") as ObjectReference
+        StartEscortTargetWait(target, destRef, destName)
+    Else
+        ; Player already here or no wait requested — normal release
+        Core.RemoveIntelPackages(target)
+        PO3_SKSEFunctions.SetLinkedRef(target, None, Core.IntelEngine_TravelTarget)
+        PO3_SKSEFunctions.SetLinkedRef(target, None, Core.IntelEngine_AgentLink)
+        target.EvaluatePackage()
+    EndIf
+
+    ; Narrate
+    If agent.Is3DLoaded() && playerPresent
+        Core.SendTaskNarration(agent, agentName + " escorted " + targetName + " to " + destName + " safely.", player)
+    Else
+        Core.SendTransientEvent(agent, target, agentName + " escorted " + targetName + " safely to " + destName + ".")
+    EndIf
+
+    Core.NotifyPlayer(agentName + " escorted " + targetName + " to " + destName)
+
+    ; Clean up agent — resumes normal AI (no return to player needed)
+    Core.ClearSlotRestoreFollower(slot, agent)
+    StorageUtil.SetFloatValue(agent, "Intel_TaskCooldown", Utility.GetCurrentRealTime())
+EndFunction
+
+; =============================================================================
 ; MESSAGE DELIVERY STATE MACHINE
 ; =============================================================================
 
@@ -1531,6 +1985,9 @@ Function OnArrivedToDeliver(Int slot, Actor agent, Actor target)
     ; Store message on recipient so they remember it
     ; This makes the message appear in their prompt context via decorators
     Core.StoreReceivedMessage(target, agent, msgContent)
+
+    ; Persistent memory — agent remembers delivering this message
+    Core.SendPersistentMemory(agent, target, agent.GetDisplayName() + " delivered a message to " + target.GetDisplayName() + ": " + msgContent)
 
     ; If the message included a meeting request, schedule it now
     String meetLoc = StorageUtil.GetStringValue(agent, "Intel_DeliveryMeetLocation")
@@ -1857,6 +2314,8 @@ Function CheckIfStuck(Int slot, Actor npc)
                 Core.SendTaskNarration(npc, npcName + " felt their feet catch on something and couldn't move for a moment, stumbling on the way to deliver a message to " + target + ".")
             ElseIf taskType == "search_for_actor"
                 Core.SendTaskNarration(npc, npcName + " felt their feet catch on something and couldn't move for a moment, stumbling while searching.")
+            ElseIf taskType == "escort_target"
+                Core.SendTaskNarration(npc, npcName + " felt their feet catch on something and couldn't move for a moment, stumbling while escorting " + target + ".")
             Else
                 Core.SendTaskNarration(npc, npcName + " felt their feet catch on something and couldn't move for a moment.")
             EndIf
@@ -1975,48 +2434,6 @@ Bool Function IsNPCTaskType(String taskType)
     {Check if a task type string is one of the NPC task types managed by this script.
     Single source of truth for the task type check — avoids repeating the 3-way
     string comparison in 6+ places throughout the script.}
-    Return taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor"
+    Return taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor" || taskType == "escort_target"
 EndFunction
 
-Bool Function IsOnNPCTask(Actor agent)
-    Int slot = Core.FindSlotByAgent(agent)
-    If slot < 0
-        Return false
-    EndIf
-    Return IsNPCTaskType(Core.SlotTaskTypes[slot])
-EndFunction
-
-String Function GetNPCTaskStatus(Actor agent)
-    Int slot = Core.FindSlotByAgent(agent)
-    If slot < 0
-        Return ""
-    EndIf
-
-    String taskType = Core.SlotTaskTypes[slot]
-    String target = Core.SlotTargetNames[slot]
-    Int taskState = Core.SlotStates[slot]
-
-    If taskType == "fetch_npc"
-        If taskState == 1
-            Return "going to find " + target
-        ElseIf taskState == Core.STATE_AT_TARGET
-            Return "talking to " + target
-        ElseIf taskState == 3
-            Return "returning with " + target
-        EndIf
-    ElseIf taskType == "deliver_message"
-        If taskState == 1
-            Return "delivering message to " + target
-        ElseIf taskState == Core.STATE_AT_TARGET
-            Return "speaking with " + target
-        EndIf
-    ElseIf taskType == "search_for_actor"
-        If taskState == 1
-            Return "searching for " + target
-        ElseIf taskState == 5
-            Return "waiting for instructions (searching for " + target + ")"
-        EndIf
-    EndIf
-
-    Return ""
-EndFunction

@@ -1,19 +1,20 @@
 name: ScheduleFetch
 description: >
-  Schedule physically fetching someone LATER. Delayed FetchPerson — you stay put now, go escort them back later.
+  Schedule fetching someone LATER. Delayed FetchPerson — stay put now, go get them when the time comes.
 
-  Use when:
-  - "go get Ysolda after sunset" → no message, just bring them back later
-  - You need someone's physical presence at a future time and will personally escort them
+  TRIGGER: Need to bring someone back, but NOT right now.
 
-  Check your "Scheduled Commitment" if you have one.
+  Examples:
+  - "go get Ysolda after sunset"
+  - You need someone's presence at a future time
 
-  NOT ScheduleDelivery. If there are WORDS to relay ("tell X that...", "let X know..."),
-  use ScheduleDelivery. ScheduleFetch = no message, just physically go get them later.
+  DECISION RULES:
+  - Fetch NOW = FetchPerson
+  - Fetch LATER = ScheduleFetch
+  - Deliver WORDS later = ScheduleDelivery (has a message to relay)
+  - Go to a PLACE later = ScheduleMeeting (no person to fetch)
 
   You will NOT leave immediately. You go when the time comes.
-
-  The target must be a person who actually exists.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Schedule
@@ -26,17 +27,13 @@ parameterMapping:
   - type: dynamic
     name: targetName
     description: >
-      The name of the person to fetch. Examples:
-      - "Nazeem"
-      - "Jarl Balgruuf"
-      - "Adrianne Avenicci"
-      Do NOT make up names that don't exist in Skyrim.
+      The person to fetch. Must be a real Skyrim NPC name.
+      Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
   - type: dynamic
     name: timeCondition
     description: >
-      When to go fetch them. Natural language time expression.
-      Examples: "at dawn", "after sunset", "in 2 hours",
-      "tonight", "tomorrow morning", "at midday"
+      When to go fetch them. Examples: "at dawn", "after sunset",
+      "in 2 hours", "tonight", "tomorrow morning"
 
 eligibilityRules:
   - conditions:

@@ -2,15 +2,16 @@ name: SearchForActor
 description: >
   Lead someone TO a person. You guide, they follow — you travel TOGETHER.
 
-  Use when:
+  TRIGGER: Someone wants to COME WITH YOU to find a person.
+
+  Examples:
   - "take me to Alvor", "show me where Ysolda is", "help me find Nazeem"
-  - The requester wants to COME WITH YOU to find someone
-  - You and another NPC search for someone together
+  - "lead me to the blacksmith", "where is she? Take me there"
 
-  NOT FetchPerson (solo round trip, requester stays behind).
-  NOT DeliverMessage (carrying words, not guiding someone).
-
-  The target must be a person who actually exists.
+  DECISION RULES:
+  - Requester COMES WITH YOU = SearchForActor (travel together)
+  - Requester STAYS BEHIND, you go alone = FetchPerson (solo round trip)
+  - You carry words, not guide someone = DeliverMessage
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_NPCTasks
@@ -23,16 +24,12 @@ parameterMapping:
   - type: dynamic
     name: targetName
     description: >
-      The name of the person to search for. Examples:
-      - "Nazeem"
-      - "Jarl Balgruuf"
-      - "Adrianne Avenicci"
-      Do NOT make up names that don't exist in Skyrim.
+      The person to search for. Must be a real Skyrim NPC name.
+      Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
   - type: dynamic
     name: speed
     description: >
-      Travel speed. 0 = walk (default, good for searching together),
-      1 = jog (moderate pace), 2 = run (urgent search).
+      Travel speed: 0=walk (default), 1=jog, 2=run (urgent).
 
 eligibilityRules:
   - conditions:

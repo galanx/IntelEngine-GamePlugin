@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fomod>
+    <Name>IntelEngine</Name>
+    <Author>Galanx</Author>
+    <Version>2.0</Version>
+    <Description>AI-powered NPC autonomy mod for Skyrim. Gives NPCs the ability to travel, perform tasks, and create dynamic story events powered by SkyrimNet's LLM integration.
+
+Requirements: SKSE, SkyrimNet, PapyrusExtender (po3), PapyrusUtil, MCM Helper</Description>
+    <Groups>
+        <element>SkyrimNet</element>
+        <element>AI</element>
+        <element>NPC</element>
+    </Groups>
+</fomod>

@@ -1,19 +1,19 @@
 name: FetchPerson
 description: >
-  Physically GO GET someone and WALK THEM BACK. You escort them in person.
+  Go GET someone and BRING THEM BACK. Solo round trip — you go alone, return with them.
 
-  Use when:
+  TRIGGER: Any request to bring/get/fetch a person (by name or pronoun).
+
+  Examples:
   - "fetch Alvor", "go get Ysolda", "bring Nazeem here"
-  - "go get him", "bring her here", "get them", "go and get him here"
-  - ANY request to bring/get/fetch a person (by name OR pronoun like him/her/them)
-  - You need someone's physical presence and will personally escort them
-  - No message involved — just "go get that person and bring them to me"
+  - "go get him", "bring her here", "get them"
+  - You need someone's physical presence and will personally escort them back
 
-  NOT DeliverMessage. If someone says "tell X to come here" or "let X know" —
-  that means relay a message, use DeliverMessage instead.
-  FetchPerson = you walk there, walk back WITH the person. No words to relay.
-
-  The target must be a person who actually exists.
+  DECISION RULES:
+  - "bring X here" or "get X" = FetchPerson (you go alone, return with them)
+  - "take X home" or "walk X to Y" = EscortTarget (you walk WITH them)
+  - "tell X to come" = DeliverMessage (relay words, not physically escort)
+  - "go get X LATER" = ScheduleFetch (delayed version)
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_NPCTasks
@@ -26,22 +26,13 @@ parameterMapping:
   - type: dynamic
     name: targetName
     description: >
-      The name of the person to fetch. Examples:
-      - "Nazeem"
-      - "Jarl Balgruuf"
-      - "Adrianne Avenicci"
-      - "the blacksmith" (will try to match)
-      Do NOT make up names that don't exist in Skyrim.
+      The person to fetch. Must be a real Skyrim NPC name.
+      Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
   - type: dynamic
     name: failReason
     description: >
-      REQUIRED. Should the target refuse to come?
-      If the target would come willingly (most cases), set this to
-      the exact string "none" (not empty, not omitted — the word none).
-      If the target would realistically refuse, write the reason instead.
-      Examples of refusal: "too busy with court duties", "doesn't trust you",
-      "refuses to leave the shop unattended"
-      Consider the target's personality, social status, and relationship.
+      Should the target refuse? Set to "none" if they come willingly.
+      If they would refuse, write the reason (e.g., "too busy with court duties").
 
 eligibilityRules:
   - conditions:

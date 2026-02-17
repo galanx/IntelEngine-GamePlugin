@@ -315,6 +315,159 @@ Function ClearSlotState(Int slot) Global Native
 ; Check if an actor is available for new tasks (no active task + no cooldown).
 ; Used as backend for SkyrimNet tag eligibility check.
 Bool Function IsActorAvailable(Actor akActor) Global Native
+Bool Function HasBaseAIPackages(Actor akActor) Global Native
+Bool Function HasNonSandboxAI(Actor akActor) Global Native
+ObjectReference Function GetEditorLocationRef(Actor akActor) Global Native
+
+; =============================================================================
+; STORY ENGINE FUNCTIONS
+; =============================================================================
+
+; Resolve a name from the DM response to the EXACT Actor from the last candidate pool.
+; Uses stored FormIDs from BuildDungeonMasterContext/BuildNPCInteractionContext.
+; Falls back to FindNPCByName if the name isn't in the pool.
+; USE THIS instead of FindNPCByName for story dispatch to avoid name ambiguity.
+Actor Function ResolveStoryCandidate(String name) Global Native
+
+; Get a random NPC eligible for Story Engine dispatch.
+; Filters: alive, not disabled, not in combat, not in player's cell,
+; not on an active IntelEngine task, not on cooldown.
+Actor Function GetRandomStoryCandidate() Global Native
+
+; Get a story candidate ranked by MemoryDB engagement (memories + events).
+; Falls back to GetRandomStoryCandidate if no memory-ranked candidates.
+Actor Function GetMemoryDrivenCandidate() Global Native
+
+; Get a story candidate related to the given actor (shared event history).
+; Falls back to any ranked NPC excluding akRelatedTo.
+Actor Function GetRelatedCandidate(Actor akRelatedTo) Global Native
+
+; Get an actor's UUID as hex FormID string (e.g., "0x00013B9E").
+; Used for SkyrimNet template context.
+String Function GetActorUUID(Actor akActor) Global Native
+
+; Check if the player is in a dangerous location (dungeon, crypt, cave, etc.).
+; Used by Story Engine to avoid dispatching NPCs into danger zones.
+Bool Function IsPlayerInDangerousLocation() Global Native
+
+; Check if a JSON LLM response contains "should_act":true.
+; Faster than Papyrus string parsing. Used by Story Engine response handlers.
+Bool Function StoryResponseShouldAct(String response) Global Native
+
+; Extract a string field value from simple JSON (e.g., "narration", "subject").
+; Handles escaped quotes. Returns "" if field not found.
+String Function StoryResponseGetField(String json, String fieldName) Global Native
+
+; Build a JSON fragment with actor data for LLM context.
+; slot 0 = single actor: actorName, actorRace, actorGender, subj, obj, poss
+; slot 1 = first in pair: actor1Name, actor1Race, actor1Gender
+; slot 2 = second in pair: actor2Name, actor2Race, actor2Gender
+String Function BuildActorContextJson(Actor akActor, Int slot) Global Native
+
+; Build DM context (world state + candidate pool) for Story Engine tick.
+; Returns JSON-safe pre-escaped markdown string, or "" if no eligible candidates.
+; absenceDays: min days since player interaction for NPC eligibility (MCM-configurable).
+String Function BuildDungeonMasterContext(Int maxCandidates = 7, Float absenceDays = 3.0) Global Native
+
+; Build complete JSON request for Story DM prompt.
+; dmContext is pre-escaped from BuildDungeonMasterContext; other values are escaped here.
+String Function BuildStoryDMRequestJson(String dmContext, String recentLog, String excludedTypes) Global Native
+
+; Build NPC-to-NPC interaction context for the NPC Social tick.
+; Groups eligible loaded NPCs by location, scores by density and MemoryDB social history.
+; Returns JSON-escaped markdown string, or "" if no eligible groups.
+String Function BuildNPCInteractionContext(Int maxPairs = 4) Global Native
+
+; Wrap NPC context + recent log into JSON for the NPC-to-NPC DM prompt.
+; npcContext is pre-escaped from BuildNPCInteractionContext; recentLog is escaped here.
+String Function BuildNPCInteractionRequestJson(String npcContext, String recentLog) Global Native
+
+; Mirror story cooldown to C++ so candidate builders can filter before LLM call.
+; gameTime: the Intel_StoryLastPicked timestamp (NOT current time on rejection).
+Function NotifyStoryCooldown(Actor akActor, Float gameTime) Global Native
+
+; Record that the LLM picked a story type. Used for DM prompt balancing.
+Function NotifyStoryTypePicked(String storyType) Global Native
+
+; Get FormIDs of all NPCs in the last DM candidate pool.
+; Used to pre-warm cooldowns from StorageUtil before the DM prompt.
+Int[] Function GetDMCandidatePoolFormIDs() Global Native
+
+; Spawn leveled enemies at a location for quest system.
+; Looks up vanilla ActorBases by EditorID (no CK properties needed).
+; enemyType: "bandit", "draugr", or "dragon"
+; Returns: array of spawned Actor references.
+Actor[] Function SpawnQuestEnemies(ObjectReference location, String enemyType) Global Native
+
+; =============================================================================
+; MEMORYDB FUNCTIONS (SkyrimNet SQLite reader)
+; =============================================================================
+
+; Get formatted memories for an NPC from SkyrimNet database.
+; Returns LLM-ready text with memories ordered by importance and recency.
+String Function GetNPCMemories(Actor akActor, Int maxCount = 5) Global Native
+
+; Get recent world events from SkyrimNet database.
+; eventTypeFilter: comma-separated types ("dialogue,direct_narration") or "" for all.
+String Function GetRecentWorldEvents(Int maxCount = 10, String eventTypeFilter = "") Global Native
+
+; Get NPCs ranked by story activity (memories + events weighted by recency).
+; Returns comma-separated NPC names, excludes player.
+String Function GetActiveStoryNPCs(Int maxCount = 10) Global Native
+
+; Get relationship summary between two NPCs based on shared events and memories.
+String Function GetNPCRelationshipSummary(Actor akActor1, Actor akActor2) Global Native
+
+; Check if the MemoryDB is connected to SkyrimNet database.
+; Returns "true" or "false".
+String Function IsMemoryDBConnected() Global Native
+
+; =============================================================================
+; DIALOGUE SAFETY NET FUNCTIONS
+; =============================================================================
+
+; Tick-based safety net check. Queries MemoryDB for new dialogue since last call,
+; runs keyword matching, validates NPC. All logic in C++.
+; Returns: 0=nothing, 1=meeting, 2=fetch, 3=delivery keywords detected.
+; Call GetSafetyNetNPC() to retrieve the NPC after a positive result.
+Int Function RunSafetyNetCheck() Global Native
+
+; Returns the NPC from the last positive RunSafetyNetCheck() call.
+Actor Function GetSafetyNetNPC() Global Native
+
+; Get the last NPC the player had a conversation with (from MemoryDB).
+Actor Function GetLastConversationPartner() Global Native
+
+; Get recent dialogue text between player and NPC (from MemoryDB).
+; Returns JSON-escaped conversation text for safe embedding in contextJson.
+String Function GetRecentDialogue(Actor npc, Int maxExchanges = 4) Global Native
+
+; Check if recent dialogue with NPC contains schedule-related keywords.
+; Returns: 0=none, 1=meeting, 2=fetch, 3=delivery.
+Int Function HasScheduleKeywords(Actor npc) Global Native
+
+; Build JSON context for safety net LLM prompt (all values properly escaped in C++).
+String Function BuildSafetyNetContextJson(Actor npc, Int keywordHint) Global Native
+
+; =============================================================================
+; BIO SECTION PRE-RENDERING FUNCTIONS
+; Workaround: papyrus_util("GetStringList") can't see lists created during
+; the current session. These render list data as a single string for
+; papyrus_util("GetStringValue") which works immediately.
+; =============================================================================
+
+; Pre-render facts section (first person). Returns "## Things I Know\n- I ..."
+; Store result with StorageUtil.SetStringValue(npc, "Intel_FactsRendered", ...)
+String Function RenderFactsSection(String[] facts, Float[] factTimes, Float currentGameDays) Global Native
+
+; Pre-render gossip heard section (first person). Returns "## Rumors I've Heard\n..."
+String Function RenderGossipHeardSection(String[] rumors, String[] sources, Float[] times, Float currentGameDays) Global Native
+
+; Pre-render gossip told section (first person). Returns "## Rumors I've Shared\n..."
+String Function RenderGossipToldSection(String[] rumors, String[] recipients, Float[] times, Float currentGameDays) Global Native
+
+; Pre-render task history section (first person). Returns "### Past Tasks\nWhat I've done:\n..."
+String Function RenderTaskHistorySection(String[] descs, Float[] times, Float currentGameDays) Global Native
 
 ; =============================================================================
 ; DEBUG / TESTING FUNCTIONS

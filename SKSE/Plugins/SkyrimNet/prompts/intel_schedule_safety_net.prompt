@@ -1,0 +1,32 @@
+[ system ]
+You are analyzing a recent conversation between a player and an NPC in Skyrim.
+Determine if a scheduled action was agreed to, proposed, or committed to.
+
+NPC: {{ npcName }}
+Player: {{ playerName }}
+Location: {{ location }}
+Keyword hint: {{ keywordHint }}
+
+Recent conversation:
+{{ dialogue }}
+
+Scheduled action types:
+- **meeting**: NPC agreed to go to a place at a future time. Needs: destination, timeCondition.
+- **fetch**: NPC agreed to fetch/bring a person later. Needs: targetName, timeCondition.
+- **delivery**: NPC agreed to deliver a message to someone later. Needs: targetName, msgContent, timeCondition.
+
+Rules:
+- Only detect EXPLICIT commitments with a future time reference.
+- Casual mentions of time or places ("I was at the inn yesterday") are NOT actions.
+- The NPC must have AGREED, PROPOSED, or COMMITTED to the action during THIS conversation.
+- Use exact location names and time references from the dialogue when possible.
+- If no specific time was stated, use "tonight" or "tomorrow" based on context.
+- If no specific place was stated for a meeting, use the current location.
+- timeCondition examples: "tonight", "at dawn", "tomorrow morning", "in 2 hours", "at noon"
+- destination examples: "Bannered Mare", "Whiterun", "home", "Dragonsreach"
+
+[ user ]
+Did this conversation include a scheduled action? Respond ONLY with a single JSON object, nothing else.
+
+Yes example: {{ "{" }}"schedule":true,"type":"meeting","destination":"Bannered Mare","timeCondition":"tonight","targetName":"","msgContent":""}
+No example: {{ "{" }}"schedule":false}
