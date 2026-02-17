@@ -72,7 +72,7 @@ EndEvent
 
 Function RestartMonitoring()
     {Restart the schedule update loop after game load. Called by Core.Maintenance().
-    Quest scripts don't receive OnPlayerLoadGame — this is the equivalent.
+    Quest scripts don't receive OnPlayerLoadGame ? this is the equivalent.
     Script-level arrays survive save/load, so scheduled tasks are still intact.}
     If ScheduledAgents == None
         InitializeScheduleArrays()
@@ -115,7 +115,7 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
         Return false
     EndIf
 
-    ; Shared scheduling scaffolding: time parse → MCM confirm → override → allocate
+    ; Shared scheduling scaffolding: time parse ? MCM confirm ? override ? allocate
     Int slot = PrepareScheduleSlot(akNPC, "travel", "meet at " + destination, timeCondition)
     If slot < 0
         Return false
@@ -153,7 +153,7 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     Float hoursUntil = (meetingGameTime - currentGameTime) * 24.0
     String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will meet you at " + destination + " " + timeDesc)
-    Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " → " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", in " + hoursUntil + "h, condition='" + timeCondition + "')")
+    Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", in " + hoursUntil + "h, condition='" + timeCondition + "')")
 
     RegisterForSingleUpdateGameTime(0.5)
     Return true
@@ -188,7 +188,7 @@ Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition
     Float hoursUntil = (ScheduledTimes[slot] - Utility.GetCurrentGameTime()) * 24.0
     String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will fetch " + targetName + " " + timeDesc)
-    Core.DebugMsg("Scheduled fetch: " + akNPC.GetDisplayName() + " → fetch " + targetName + " at game time " + ScheduledTimes[slot])
+    Core.DebugMsg("Scheduled fetch: " + akNPC.GetDisplayName() + " ? fetch " + targetName + " at game time " + ScheduledTimes[slot])
 
     RegisterForSingleUpdateGameTime(0.5)
     Return true
@@ -227,7 +227,7 @@ Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent
     Float hoursUntil = (ScheduledTimes[slot] - Utility.GetCurrentGameTime()) * 24.0
     String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will deliver message to " + targetName + " " + timeDesc)
-    Core.DebugMsg("Scheduled delivery: " + akNPC.GetDisplayName() + " → message to " + targetName + " at game time " + ScheduledTimes[slot])
+    Core.DebugMsg("Scheduled delivery: " + akNPC.GetDisplayName() + " ? message to " + targetName + " at game time " + ScheduledTimes[slot])
 
     RegisterForSingleUpdateGameTime(0.5)
     Return true
@@ -237,8 +237,8 @@ EndFunction
 ; SHARED SCHEDULING SCAFFOLDING
 ;
 ; Consolidates the common pattern shared by ScheduleMeeting, ScheduleFetch,
-; and ScheduleDelivery: time parsing → MCM confirmation → override existing →
-; find free slot → store common data + persistence.
+; and ScheduleDelivery: time parsing ? MCM confirmation ? override existing ?
+; find free slot ? store common data + persistence.
 ;
 ; Returns: schedule slot index (>= 0) on success, -1 on failure.
 ; Callers then store task-specific data and notify the player.
@@ -258,7 +258,7 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     Float currentHour = GetCurrentGameHour()
     Float targetGameTime = IntelEngine.CalculateTargetGameTime(targetHour, currentHour)
 
-    ; MCM confirmation prompt — BEFORE clearing any existing schedules
+    ; MCM confirmation prompt ? BEFORE clearing any existing schedules
     If StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt") == 1
         String npcName = akNPC.GetDisplayName()
         Float hoursPreview = (targetGameTime - Utility.GetCurrentGameTime()) * 24.0
@@ -267,8 +267,11 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
         String confirmResult = SkyMessage.Show(promptText, "Allow", "Deny", "Deny (Silent)")
         If confirmResult == "Deny"
             Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule that.")
+            Core.InjectFact(akNPC, "invited " + Game.GetPlayer().GetDisplayName() + " to " + taskDescription + " but was turned down")
             Return -1
         ElseIf confirmResult != "Allow"
+            ; Silent decline: inject fact (no narration) so LLM knows not to retry
+            Core.InjectFact(akNPC, "proposed to " + taskDescription + " but the plan fell through")
             Return -1
         EndIf
     EndIf
@@ -276,7 +279,7 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     ; Override any existing schedule for this NPC (after confirmation)
     Int existingSchedule = FindScheduleSlotByAgent(akNPC)
     If existingSchedule >= 0
-        Core.DebugMsg("PrepareScheduleSlot: " + akNPC.GetDisplayName() + " already scheduled — overriding")
+        Core.DebugMsg("PrepareScheduleSlot: " + akNPC.GetDisplayName() + " already scheduled ? overriding")
         ClearScheduleSlot(existingSchedule)
     EndIf
 
@@ -313,7 +316,7 @@ EndFunction
 ; =============================================================================
 
 String Function GetScheduleDisplay(Int slot)
-    {Get a display string for a schedule slot (used by MCM)}
+    {Get task description for a schedule slot -- left column in MCM}
 
     If slot < 0 || slot >= MAX_SCHEDULED || ScheduledAgents[slot] == None
         Return "Empty"
@@ -321,46 +324,47 @@ String Function GetScheduleDisplay(Int slot)
 
     String npcName = ScheduledAgents[slot].GetDisplayName()
     String taskType = ScheduledTaskTypes[slot]
-    Float hoursUntil = (ScheduledTimes[slot] - Utility.GetCurrentGameTime()) * 24.0
 
-    ; Build task description
-    String taskDesc = ""
     If taskType == "travel"
-        taskDesc = "meet at " + ScheduledDestinations[slot]
+        Return npcName + " @ " + ScheduledDestinations[slot]
     ElseIf taskType == "fetch_npc"
-        taskDesc = "fetch " + ScheduledTargetNames[slot]
+        Return npcName + ": fetch " + ScheduledTargetNames[slot]
     ElseIf taskType == "deliver_message"
-        taskDesc = "deliver message to " + ScheduledTargetNames[slot]
-    Else
-        taskDesc = taskType
+        Return npcName + ": msg to " + ScheduledTargetNames[slot]
+    EndIf
+    Return npcName + ": " + taskType
+EndFunction
+
+String Function GetScheduleStatus(Int slot)
+    {Get timing status for a schedule slot -- right column in MCM}
+
+    If slot < 0 || slot >= MAX_SCHEDULED || ScheduledAgents[slot] == None
+        Return ""
     EndIf
 
-    ; Build status string based on dispatch state (stored via StorageUtil on actor)
+    Float hoursUntil = (ScheduledTimes[slot] - Utility.GetCurrentGameTime()) * 24.0
     Int schedState = StorageUtil.GetIntValue(ScheduledAgents[slot], "Intel_ScheduledState", 0)
-    String statusStr = ""
+
     If schedState == 0
-        ; Pending — show time estimate
         If hoursUntil <= 0.0
-            statusStr = "overdue"
+            Return "overdue"
         ElseIf hoursUntil < 1.0
-            statusStr = "very soon"
+            Return "very soon"
         Else
-            statusStr = "in ~" + (hoursUntil as Int) + "h"
+            Return "in ~" + (hoursUntil as Int) + "h"
         EndIf
     ElseIf schedState == 1
-        ; En route — also show time remaining or overdue
         If hoursUntil <= 0.0
-            statusStr = "en route, overdue"
+            Return "en route, overdue"
         ElseIf hoursUntil < 1.0
-            statusStr = "en route, very soon"
+            Return "en route, soon"
         Else
-            statusStr = "en route, in ~" + (hoursUntil as Int) + "h"
+            Return "en route, ~" + (hoursUntil as Int) + "h"
         EndIf
     ElseIf schedState == 2
-        statusStr = "meeting"
+        Return "meeting"
     EndIf
-
-    Return npcName + " — " + taskDesc + " (" + statusStr + ")"
+    Return ""
 EndFunction
 
 Float Function GetCurrentGameHour()
@@ -379,14 +383,14 @@ String Function GetPreciseTimeDescription(Float hour, Float hoursUntil)
     ElseIf hoursUntil < 1.5
         Return "in about an hour"
     ElseIf hoursUntil < 12.0
-        ; Short-to-medium wait — show relative hours + time of day for clarity
+        ; Short-to-medium wait ? show relative hours + time of day for clarity
         Int roundedHours = hoursUntil as Int
         If roundedHours < 1
             roundedHours = 1
         EndIf
         Return "in about " + roundedHours + " hours (" + GetTimeDescription(hour) + ")"
     ElseIf hoursUntil < 36.0
-        ; Could be today or tomorrow — check if target crosses midnight
+        ; Could be today or tomorrow ? check if target crosses midnight
         ; Derive current hour: currentHour = targetHour - hoursUntil, normalized to 0-24
         Float currentHour = hour - hoursUntil
         While currentHour < 0.0
@@ -397,17 +401,17 @@ String Function GetPreciseTimeDescription(Float hour, Float hoursUntil)
         EndWhile
         Float hoursToMidnight = 24.0 - currentHour
         If hoursUntil < hoursToMidnight
-            ; Still today — just show time of day (e.g., "tonight", "in the evening")
+            ; Still today ? just show time of day (e.g., "tonight", "in the evening")
             Return GetTimeDescription(hour)
         EndIf
-        ; Tomorrow — show time of day with "tomorrow" prefix
+        ; Tomorrow ? show time of day with "tomorrow" prefix
         If hour >= 22.0 || hour < 5.0
             Return "tomorrow at night"
         EndIf
         Return "tomorrow " + GetTimeDescription(hour)
     EndIf
 
-    ; Far future — just show time of day
+    ; Far future ? just show time of day
     Return GetTimeDescription(hour)
 EndFunction
 
@@ -551,7 +555,7 @@ Event OnUpdateGameTime()
         NPCTasks.EnsureMonitoringAlive()
     EndIf
 
-    ; Continue checking — sleep until next task is due (or 1 game hour if nothing pending)
+    ; Continue checking ? sleep until next task is due (or 1 game hour if nothing pending)
     If ScheduledCount > 0
         ; Find soonest dispatch time among pending tasks
         Float soonest = currentGameTime + (1.0 / 24.0)  ; default: 1 game hour
@@ -590,7 +594,7 @@ Function ExecuteScheduledTask(Int slot)
     String meetLoc = ScheduledMeetLocations[slot]
     String meetTimeStr = ScheduledMeetTimes[slot]
 
-    Core.DebugMsg("Executing scheduled task for " + npc.GetDisplayName() + ": " + taskType + " → " + destination)
+    Core.DebugMsg("Executing scheduled task for " + npc.GetDisplayName() + ": " + taskType + " ? " + destination)
 
     ; Check if NPC is still valid
     If npc == None || npc.IsDead()
@@ -601,14 +605,14 @@ Function ExecuteScheduledTask(Int slot)
 
     ; If NPC is already on a task, clear it first so the scheduled task takes priority
     If npc.IsInFaction(Core.IntelEngine_TaskFaction)
-        Core.DebugMsg("Scheduled NPC " + npc.GetDisplayName() + " is on a task — clearing it for scheduled task")
+        Core.DebugMsg("Scheduled NPC " + npc.GetDisplayName() + " is on a task ? clearing it for scheduled task")
         Int existingSlot = Core.FindSlotByAgent(npc)
         If existingSlot >= 0
             Core.ClearSlot(existingSlot, true)
         EndIf
     EndIf
 
-    ; Mark dispatched AFTER clearing any existing task — Core.ClearSlot unsets
+    ; Mark dispatched AFTER clearing any existing task ? Core.ClearSlot unsets
     ; Intel_ScheduledState as a side effect, so we must set it after, not before.
     StorageUtil.SetIntValue(npc, "Intel_ScheduledState", 1)
 
@@ -629,15 +633,15 @@ Function ExecuteScheduledTask(Int slot)
         Float hoursToMeeting = (meetingGameTime - Utility.GetCurrentGameTime()) * 24.0
         Int speed = 0  ; walk
         If hoursToMeeting < 1.0
-            speed = 1  ; jog — we're cutting it close
+            speed = 1  ; jog ? we're cutting it close
         EndIf
 
-        ; Always pathfind to meetings — even off-screen — so NPCs can realistically
+        ; Always pathfind to meetings ? even off-screen ? so NPCs can realistically
         ; be early or late. Teleporting skips travel time and removes immersion.
         ; The engine handles off-screen pathfinding via AI packages natively.
-        Core.DebugMsg("Schedule execute: " + npc.GetDisplayName() + " → " + destination + " (3D=" + npc.Is3DLoaded() + ", speed=" + speed + ", " + hoursToMeeting + "h to meeting)")
-        ; isScheduled=true bypasses MCM confirmation (player already agreed)
-        Bool success = Travel.GoToLocation(npc, destination, speed, true)
+        Core.DebugMsg("Schedule execute: " + npc.GetDisplayName() + " ? " + destination + " (3D=" + npc.Is3DLoaded() + ", speed=" + speed + ", " + hoursToMeeting + "h to meeting)")
+        ; waitForPlayer=1, isScheduled=true bypasses MCM confirmation (player already agreed)
+        Bool success = Travel.GoToLocation(npc, destination, speed, 1, true)
         If success
             If npc.Is3DLoaded()
                 ; Narrate TO the player so the NPC addresses them directly ("see you there")
@@ -656,12 +660,12 @@ Function ExecuteScheduledTask(Int slot)
         EndIf
 
     ElseIf taskType == "fetch_npc"
-        Core.DebugMsg("Schedule execute: " + npc.GetDisplayName() + " → fetch " + targetName)
+        Core.DebugMsg("Schedule execute: " + npc.GetDisplayName() + " ? fetch " + targetName)
         ClearScheduleSlot(slot)  ; Non-meeting tasks don't need persistent schedule tracking
         NPCTasks.FetchNPC(npc, targetName)
 
     ElseIf taskType == "deliver_message"
-        Core.DebugMsg("Schedule execute: " + npc.GetDisplayName() + " → deliver message to " + targetName)
+        Core.DebugMsg("Schedule execute: " + npc.GetDisplayName() + " ? deliver message to " + targetName)
         ClearScheduleSlot(slot)  ; Non-meeting tasks don't need persistent schedule tracking
         NPCTasks.DeliverMessage(npc, targetName, msgContent, meetLoc, meetTimeStr)
     EndIf

@@ -2,6 +2,10 @@
 {% set first_person = (render_mode == "transform" or render_mode == "full" or render_mode == "thoughts") %}
 {% if actorUUID and isValidActor(actorUUID) %}
 
+{% set historyRendered = papyrus_util("GetStringValue", actorUUID, "Intel_TaskHistoryRendered", "") %}
+{% if historyRendered != "" and first_person %}
+{{ historyRendered }}
+{% else %}
 {% set historyDescs = papyrus_util("GetStringList", actorUUID, "Intel_TaskHistory") %}
 {% set historyTimes = papyrus_util("GetFloatList", actorUUID, "Intel_TaskHistoryTime") %}
 {% if length(historyDescs) > 0 %}
@@ -15,6 +19,7 @@ What I've done:
 {% for _entry in historyDescs %}{% set idx = length(historyDescs) - loop.index1 %}{% set desc = at(historyDescs, idx) %}{% set hoursPassed = (currentTime - at(historyTimes, idx)) * 24.0 %}
 - {{ desc }} ({% if hoursPassed < 0.1 %}just now{% elif hoursPassed < 1.0 %}a few minutes ago{% elif hoursPassed < 3.0 %}a short while ago{% elif hoursPassed < 12.0 %}earlier today{% elif hoursPassed < 24.0 %}yesterday{% elif hoursPassed < 48.0 %}a day ago{% elif hoursPassed < 72.0 %}a couple of days ago{% elif hoursPassed < 120.0 %}a few days ago{% elif hoursPassed < 168.0 %}several days ago{% else %}some time ago{% endif %})
 {% endfor %}
+{% endif %}
 {% endif %}
 
 {% set taskType = papyrus_util("GetStringValue", actorUUID, "Intel_TaskType", "") %}

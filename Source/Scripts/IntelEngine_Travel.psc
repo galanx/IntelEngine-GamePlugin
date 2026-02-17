@@ -36,17 +36,31 @@ cross-worldspace travel legitimately takes longer.}
 Float Property MIN_WAIT_HOURS = 6.0 AutoReadOnly
 Float Property MAX_WAIT_HOURS = 168.0 AutoReadOnly
 Float Property DEFAULT_WAIT_HOURS = 48.0 AutoReadOnly
+Float Property SELF_MOTIVATED_LINGER_HOURS = 3.0 AutoReadOnly
 
-Float Property MEETING_LINGER_RELEASE_DISTANCE = 800.0 AutoReadOnly
-{Player must walk this far from NPC to end the meeting linger}
+; LINGER_RELEASE_DISTANCE defined on Core (single source of truth).
 
 Float Property MEETING_PLAYER_PROXIMITY = 2000.0 AutoReadOnly
 {If player is within this distance of meeting destination, NPC starts walking toward them}
 
 Float Property LEAPFROG_MAX_DISTANCE = 2000.0 AutoReadOnly
-{Maximum leapfrog distance (last resort). Actual distance is progressive:
-500u first attempt, 1000u second, 2000u third+. Keeps NPC visible to the
-player while still clearing pathfinding dead zones at cell boundaries.}
+{Maximum leapfrog distance (last resort).}
+
+Float Property LEAPFROG_NUDGE_DISTANCE = 200.0 AutoReadOnly
+{First leapfrog attempt: minimal nudge straight toward destination.}
+
+Float Property LEAPFROG_MEDIUM_DISTANCE = 500.0 AutoReadOnly
+{Second attempt: medium leap with angle rotation to try alternate terrain.}
+
+Float Property LEAPFROG_LARGE_DISTANCE = 1000.0 AutoReadOnly
+{Third attempt: large leap with opposite angle to try other side of obstacle.}
+
+Float Property LEAPFROG_ANGLE_CW = 30.0 AutoReadOnly
+{Clockwise angle offset (degrees) for second leapfrog attempt.
+Rotates movement vector to find passable terrain around mountains.}
+
+Float Property LEAPFROG_ANGLE_CCW = -30.0 AutoReadOnly
+{Counter-clockwise angle for third attempt. Alternation tries both sides.}
 
 Function EnsureMonitoringAlive()
     {Lightweight heartbeat: if active travel tasks exist, re-register the update loop.
@@ -133,7 +147,7 @@ EndFunction
 ; MAIN API - GoToLocation
 ; =============================================================================
 
-Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Bool isScheduled = false)
+Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int waitForPlayer = 1, Bool isScheduled = false)
     {
     Send an NPC to a destination. Supports both named and semantic locations.
 
@@ -226,6 +240,9 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Bool 
 
     ; Store wait hours - deadline will be calculated on arrival, not now
     StorageUtil.SetFloatValue(akNPC, "Intel_WaitHours", waitHours)
+
+    ; Self-motivated flag: NPC went on their own, no player expectation
+    StorageUtil.SetIntValue(akNPC, "Intel_WaitForPlayer", waitForPlayer)
 
     ; Store destination marker
     StorageUtil.SetFormValue(akNPC, "Intel_DestMarker", destMarker)
@@ -515,7 +532,12 @@ Function OnArrival(Int slot, Actor npc)
     ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
     npc.EvaluatePackage()
 
+    ; Ensure building access: if NPC is inside an interior, unlock door + remove trespass
+    Core.EnsureBuildingAccess(npc)
+
     ; Calculate wait deadline NOW (at arrival, not at task creation)
+    Bool isSelfMotivated = StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") != 1
+
     If isMeetingArrival
         ; Meetings: deadline is always meetingTime + timeout.
         ; If NPC arrives late and the deadline already passed, OnWaitTimeout
@@ -523,6 +545,9 @@ Function OnArrival(Int slot, Actor npc)
         Float meetingTime = StorageUtil.GetFloatValue(npc, "Intel_MeetingTime", 0.0)
         Float meetTimeout = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 3.0)
         Core.SetSlotDeadline(slot, meetingTime + (meetTimeout / 24.0))
+    ElseIf isSelfMotivated
+        ; Self-motivated: short linger at destination, no player expectation
+        Core.SetSlotDeadline(slot, Utility.GetCurrentGameTime() + (SELF_MOTIVATED_LINGER_HOURS / 24.0))
     Else
         Float waitHours = StorageUtil.GetFloatValue(npc, "Intel_WaitHours")
         If waitHours <= 0.0
@@ -544,8 +569,11 @@ Function OnArrival(Int slot, Actor npc)
         ; (avoids premature "arrived at" when player hasn't shown up yet)
         StorageUtil.SetFloatValue(npc, "Intel_MeetingNpcArrivalTime", Utility.GetCurrentGameTime())
         Core.DebugMsg(npc.GetDisplayName() + " arrived at meeting spot " + destination + " (waiting for player)")
+    ElseIf isSelfMotivated
+        ; Self-motivated: NPC went here for their own reasons, no wait tracking
+        Core.DebugMsg(npc.GetDisplayName() + " arrived at " + destination + " (self-motivated)")
     Else
-        ; GoToLocation: store arrival time for wait duration tracking.
+        ; Player-directed GoToLocation: store arrival time for wait duration tracking.
         ; OnPlayerArrived uses this to narrate context-aware greetings.
         StorageUtil.SetFloatValue(npc, "Intel_TravelArrivalTime", Utility.GetCurrentGameTime())
         Core.DebugMsg(npc.GetDisplayName() + " arrived at " + destination + " (waiting)")
@@ -558,8 +586,8 @@ Function OnArrival(Int slot, Actor npc)
             If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
                 ; Scheduled meeting — run the meeting flow (lateness, linger, etc.)
                 OnPlayerArrived(slot, npc)
-            Else
-                ; Regular travel — arrived with player nearby (traveled together)
+            ElseIf StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") == 1
+                ; Player-directed travel — arrived with player nearby (traveled together)
                 Core.SendTaskNarration(npc, npc.GetDisplayName() + " arrived at " \
                     + destination + " together with " + player.GetDisplayName() + ".", player)
                 If IsStayAtDestination(destination)
@@ -567,6 +595,9 @@ Function OnArrival(Int slot, Actor npc)
                 Else
                     StartTravelLinger(slot, npc)
                 EndIf
+            Else
+                ; Self-motivated — player just happens to be here, sandbox quietly
+                StartStayAtDestLinger(slot, npc)
             EndIf
             Return
         EndIf
@@ -616,49 +647,52 @@ Function CheckWaiting(Int slot, Actor npc)
     EndIf
 
     ; Smart approach — if player is near the destination but not right next to NPC,
-    ; walk toward them. Works for both scheduled meetings and GoToLocation.
-    ObjectReference destMarker = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
-    Bool playerNearDest = false
+    ; walk toward them. Self-motivated NPCs stay put (they're here for themselves, not the player).
+    Bool isWaitingForPlayer = StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") == 1 || StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
+    If isWaitingForPlayer
+        ObjectReference destMarker = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+        Bool playerNearDest = false
 
-    If destMarker != None
-        If player.GetParentCell() == destMarker.GetParentCell()
-            If player.Is3DLoaded() && destMarker.Is3DLoaded()
-                playerNearDest = player.GetDistance(destMarker) < MEETING_PLAYER_PROXIMITY
-            Else
-                ; Same cell but 3D not loaded — only trust for interior cells
-                Cell destCell = destMarker.GetParentCell()
-                If destCell != None && destCell.IsInterior()
-                    playerNearDest = true
+        If destMarker != None
+            If player.GetParentCell() == destMarker.GetParentCell()
+                If player.Is3DLoaded() && destMarker.Is3DLoaded()
+                    playerNearDest = player.GetDistance(destMarker) < MEETING_PLAYER_PROXIMITY
+                Else
+                    ; Same cell but 3D not loaded — only trust for interior cells
+                    Cell destCell = destMarker.GetParentCell()
+                    If destCell != None && destCell.IsInterior()
+                        playerNearDest = true
+                    EndIf
                 EndIf
             EndIf
         EndIf
-    EndIf
 
-    If playerNearDest
-        ; Player is near the destination — NPC should walk toward them
-        ; (skip for stay-at-dest — NPC stays put, playerNearby handles arrival)
-        If !IsStayAtDestination(Core.SlotTargetNames[slot])
-            If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
-                ; Only start approach if NPC is visible — avoids ghost notifications
-                If npc.Is3DLoaded()
-                    StartApproachingPlayer(slot, npc)
+        If playerNearDest
+            ; Player is near the destination — NPC should walk toward them
+            ; (skip for stay-at-dest — NPC stays put, playerNearby handles arrival)
+            If !IsStayAtDestination(Core.SlotTargetNames[slot])
+                If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
+                    ; Only start approach if NPC is visible — avoids ghost notifications
+                    If npc.Is3DLoaded()
+                        StartApproachingPlayer(slot, npc)
+                    EndIf
+                Else
+                    CheckMeetingApproach(slot, npc)
                 EndIf
-            Else
-                CheckMeetingApproach(slot, npc)
             EndIf
-        EndIf
-        Return  ; Don't timeout while player is nearby
-    Else
-        ; Player left the area — stop approaching and return to destination sandbox
-        If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
-            StopApproachingPlayer(npc)
-            ; Restore sandbox at destination (not player)
-            ObjectReference destMarker2 = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
-            If destMarker2 != None
-                PO3_SKSEFunctions.SetLinkedRef(npc, destMarker2, Core.IntelEngine_TravelTarget)
+            Return  ; Don't timeout while player is nearby
+        Else
+            ; Player left the area — stop approaching and return to destination sandbox
+            If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
+                StopApproachingPlayer(npc)
+                ; Restore sandbox at destination (not player)
+                ObjectReference destMarker2 = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+                If destMarker2 != None
+                    PO3_SKSEFunctions.SetLinkedRef(npc, destMarker2, Core.IntelEngine_TravelTarget)
+                EndIf
+                ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+                npc.EvaluatePackage()
             EndIf
-            ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
-            npc.EvaluatePackage()
         EndIf
     EndIf
 
@@ -734,29 +768,34 @@ Function OnPlayerArrived(Int slot, Actor npc)
         ; Start linger — NPC stays nearby for a while instead of leaving immediately
         StartMeetingLinger(slot, npc)
     Else
-        ; === Regular travel: context-aware arrival narration ===
-        Float arrivalTime = StorageUtil.GetFloatValue(npc, "Intel_TravelArrivalTime", 0.0)
-        Float waitHours = 0.0
-        If arrivalTime > 0.0
-            waitHours = (Utility.GetCurrentGameTime() - arrivalTime) * 24.0
-        EndIf
-
+        ; === Regular travel ===
         npc.SetLookAt(player)
 
-        If waitHours > 2.0
-            ; Long wait — NPC notices player finally showing up
-            Core.SendTaskNarration(npc, playerName + " finally arrived at " \
-                + destination + ". " + npcName + " had been waiting for a long time.", player)
-        Else
-            ; Normal wait — player showed up
-            Core.SendTaskNarration(npc, playerName + " arrived at " + destination \
-                + " where " + npcName + " was waiting.", player)
-        EndIf
+        If StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") == 1
+            ; Player-directed: context-aware arrival narration with wait tracking
+            Float arrivalTime = StorageUtil.GetFloatValue(npc, "Intel_TravelArrivalTime", 0.0)
+            Float waitHours = 0.0
+            If arrivalTime > 0.0
+                waitHours = (Utility.GetCurrentGameTime() - arrivalTime) * 24.0
+            EndIf
 
-        If IsStayAtDestination(destination)
-            StartStayAtDestLinger(slot, npc)
+            If waitHours > 2.0
+                Core.SendTaskNarration(npc, playerName + " finally arrived at " \
+                    + destination + ". " + npcName + " had been waiting for a long time.", player)
+            Else
+                Core.SendTaskNarration(npc, playerName + " arrived at " + destination \
+                    + " where " + npcName + " was waiting.", player)
+            EndIf
+
+            If IsStayAtDestination(destination)
+                StartStayAtDestLinger(slot, npc)
+            Else
+                StartTravelLinger(slot, npc)
+            EndIf
         Else
-            StartTravelLinger(slot, npc)
+            ; Self-motivated: NPC is here for their own reasons, no waiting narration
+            ; SkyrimNet handles natural dialogue via the NPC's travel fact in their bio
+            StartStayAtDestLinger(slot, npc)
         EndIf
     EndIf
 EndFunction
@@ -811,9 +850,9 @@ EndFunction
 ; =============================================================================
 
 Function CheckIfStuck(Int slot, Actor npc)
-    {Stuck detection using native C++ StuckDetector singleton.
-    Soft recovery is shared via Core.SoftStuckRecovery.
-    Teleport behavior is Travel-specific (direct to dest + OnArrival).}
+    {Stuck detection dispatcher. Delegates to recovery strategies by severity.
+    Status 0: moving normally. Status 1: soft recovery (nudge). Status 3: escalate
+    (waypoint nav → multi-angle leapfrog → direct teleport).}
 
     If !npc.Is3DLoaded()
         Return
@@ -828,7 +867,6 @@ Function CheckIfStuck(Int slot, Actor npc)
     EndIf
 
     Int status = IntelEngine.CheckStuckStatus(npc, slot, Core.STUCK_DISTANCE_THRESHOLD)
-
     If status == 0
         Return
     EndIf
@@ -836,105 +874,104 @@ Function CheckIfStuck(Int slot, Actor npc)
     ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
 
     If status == 1
-        Int attempts = IntelEngine.GetStuckRecoveryAttempts(slot)
-        Core.DebugMsg("Soft recovery " + attempts + " for " + npc.GetDisplayName())
+        HandleSoftStuckRecovery(slot, npc, dest)
+    ElseIf status == 3 && dest != None
+        HandleLeapfrogRecovery(slot, npc, dest)
+    EndIf
+EndFunction
 
-        ; First stuck — let NPC react in-character while player is nearby
-        If attempts == 1
-            Core.SendTaskNarration(npc, npc.GetDisplayName() + " felt their feet catch on something and couldn't move for a moment, stumbling on the path.")
-        EndIf
+Function HandleSoftStuckRecovery(Int slot, Actor npc, ObjectReference dest)
+    {Status 1: NPC hasn't moved enough. Nudge + re-pathfind.
+    First occurrence narrates so NPC reacts in-character.}
+    Int attempts = IntelEngine.GetStuckRecoveryAttempts(slot)
+    Core.DebugMsg("Soft recovery " + attempts + " for " + npc.GetDisplayName())
 
-        Core.SoftStuckRecovery(npc, slot, dest)
+    If attempts == 1
+        Core.SendTaskNarration(npc, npc.GetDisplayName() + " felt their feet catch on something and couldn't move for a moment, stumbling on the path.")
+    EndIf
+
+    Core.SoftStuckRecovery(npc, slot, dest)
+EndFunction
+
+Function HandleLeapfrogRecovery(Int slot, Actor npc, ObjectReference dest)
+    {Status 3: Escalated stuck. Layer B: waypoint nav. Layer C: multi-angle leapfrog.
+    Progressive distance (200→500→1000→2000) keeps NPC visible to player.
+    Consecutive attempts rotate ±30° to find passable terrain around mountains.}
+
+    ; Layer B: Try location marker navigation (on-screen only).
+    If Core.TryWaypointNavigation(slot, npc, dest)
         Return
     EndIf
 
-    If status == 3
-        If dest == None
-            Return
+    ; Layer C: Multi-angle leapfrog.
+    ; C++ GetTeleportDistance returns descending values per attempt.
+    ; We invert for Travel: ascending keeps NPC visible to player.
+    Float descDist = IntelEngine.GetTeleportDistance(slot)
+
+    ; First leapfrog — narrate so NPC tells player to go ahead
+    If descDist >= 2000.0
+        String destination = Core.SlotTargetNames[slot]
+        Core.SendTaskNarration(npc, npc.GetDisplayName() + " had trouble getting through and urged " \
+            + Game.GetPlayer().GetDisplayName() + " to go on ahead to " + destination \
+            + " while trying to find a way around.", Game.GetPlayer())
+    EndIf
+
+    ; Pick distance + angle based on attempt progression
+    Float leapDist
+    Float angle = 0.0
+    If descDist >= 2000.0
+        leapDist = LEAPFROG_NUDGE_DISTANCE
+    ElseIf descDist >= 1000.0
+        leapDist = LEAPFROG_MEDIUM_DISTANCE
+        angle = LEAPFROG_ANGLE_CW
+    ElseIf descDist >= 500.0
+        leapDist = LEAPFROG_LARGE_DISTANCE
+        angle = LEAPFROG_ANGLE_CCW
+    Else
+        leapDist = LEAPFROG_MAX_DISTANCE
+    EndIf
+
+    ; Calculate vector toward destination
+    Float dx = dest.GetPositionX() - npc.GetPositionX()
+    Float dy = dest.GetPositionY() - npc.GetPositionY()
+    Float totalDist = Math.sqrt(dx * dx + dy * dy)
+
+    If totalDist <= leapDist + Core.ARRIVAL_DISTANCE
+        ; Close enough — teleport directly and arrive
+        Core.DebugMsg("Stuck recovery: " + npc.GetDisplayName() + " close enough (" + totalDist + "u) — teleporting to dest")
+        Core.NotifyPlayer(npc.GetDisplayName() + " arrived (teleported)")
+        npc.MoveTo(dest, 0.0, 0.0, 50.0)
+        npc.EvaluatePackage()
+        OnArrival(slot, npc)
+    Else
+        ; Leapfrog toward destination with optional angle rotation
+        Float ratio = leapDist / totalDist
+        Float offsetX = dx * ratio
+        Float offsetY = dy * ratio
+
+        If angle != 0.0
+            Float cosA = Math.cos(angle)
+            Float sinA = Math.sin(angle)
+            Float rotX = offsetX * cosA - offsetY * sinA
+            Float rotY = offsetX * sinA + offsetY * cosA
+            offsetX = rotX
+            offsetY = rotY
         EndIf
 
-        ; Layer B: Try location marker navigation (on-screen only).
-        ; Finds nearest BGSLocation worldLocMarker toward dest and redirects
-        ; travel package — NPC walks there naturally on navmesh.
-        If Core.TryWaypointNavigation(slot, npc, dest)
-            Return
+        ; Z offset prevents sinking into terrain at mountain passes
+        npc.MoveTo(npc, offsetX, offsetY, 200.0, false)
+
+        ; Re-apply travel package from new position
+        Int speed = Core.SlotSpeeds[slot]
+        Package travelPkg = Core.GetTravelPackage(speed)
+        If travelPkg
+            ActorUtil.AddPackageOverride(npc, travelPkg, Core.PRIORITY_TRAVEL, 1)
         EndIf
+        Utility.Wait(0.5)
+        npc.EvaluatePackage()
 
-        ; Layer C: Multi-angle leapfrog with progressive distance.
-        ; C++ GetTeleportDistance returns descending (2000→1000→500→250) for
-        ; NPCTasks return-to-player. We invert it for Travel: ascending
-        ; (200→500→1000→2000) keeps the NPC visible to the player.
-        ; On consecutive attempts, rotate direction ±30° to find passable
-        ; terrain around mountains instead of always aiming straight at dest.
-        Float descDist = IntelEngine.GetTeleportDistance(slot)
-
-        ; First leapfrog attempt — tell player to go ahead while NPC tries to get unstuck.
-        ; Resets naturally if NPC moves (teleportAttempts resets), so it re-fires on new episodes.
-        If descDist >= 2000.0
-            String destination = Core.SlotTargetNames[slot]
-            Core.SendTaskNarration(npc, npc.GetDisplayName() + " is having trouble getting through and urged " \
-                + Game.GetPlayer().GetDisplayName() + " to go on ahead to " + destination \
-                + " while they try to find a way around.", Game.GetPlayer())
-        EndIf
-
-        Float leapDist
-        Float angle = 0.0
-        If descDist >= 2000.0
-            leapDist = 200.0     ; First attempt — minimal nudge, straight
-        ElseIf descDist >= 1000.0
-            leapDist = 500.0     ; Second attempt — try +30°
-            angle = 30.0
-        ElseIf descDist >= 500.0
-            leapDist = 1000.0    ; Third attempt — try -30°
-            angle = -30.0
-        Else
-            leapDist = LEAPFROG_MAX_DISTANCE  ; Fourth+ — full distance, straight
-        EndIf
-
-        ; Calculate distance to destination using world positions
-        ; (works even when dest 3D isn't loaded — positions are persistent)
-        Float dx = dest.GetPositionX() - npc.GetPositionX()
-        Float dy = dest.GetPositionY() - npc.GetPositionY()
-        Float totalDist = Math.sqrt(dx * dx + dy * dy)
-
-        If totalDist <= leapDist + Core.ARRIVAL_DISTANCE
-            ; Close enough — teleport directly and arrive
-            Core.DebugMsg("Stuck recovery: " + npc.GetDisplayName() + " close enough (" + totalDist + "u) — teleporting to dest")
-            Core.NotifyPlayer(npc.GetDisplayName() + " arrived (teleported)")
-            npc.MoveTo(dest, 0.0, 0.0, 50.0)
-            npc.EvaluatePackage()
-            OnArrival(slot, npc)
-        Else
-            ; Too far — leapfrog toward destination, then resume pathfinding.
-            Float ratio = leapDist / totalDist
-            Float offsetX = dx * ratio
-            Float offsetY = dy * ratio
-
-            ; Rotate offset to try alternate paths around obstacles
-            If angle != 0.0
-                Float cosA = Math.cos(angle)
-                Float sinA = Math.sin(angle)
-                Float rotX = offsetX * cosA - offsetY * sinA
-                Float rotY = offsetX * sinA + offsetY * cosA
-                offsetX = rotX
-                offsetY = rotY
-            EndIf
-
-            ; Layer A: Z offset prevents sinking into terrain at mountain passes
-            npc.MoveTo(npc, offsetX, offsetY, 200.0, false)
-
-            ; Re-apply travel package from new position
-            Int speed = Core.SlotSpeeds[slot]
-            Package travelPkg = Core.GetTravelPackage(speed)
-            If travelPkg
-                ActorUtil.AddPackageOverride(npc, travelPkg, Core.PRIORITY_TRAVEL, 1)
-            EndIf
-            Utility.Wait(0.5)
-            npc.EvaluatePackage()
-
-            Core.DebugMsg(npc.GetDisplayName() + " leapfrogged " + leapDist + "u at " + angle + "° toward dest (" + (totalDist - leapDist) + "u remaining)")
-            Core.NotifyPlayer(npc.GetDisplayName() + " making progress toward destination")
-        EndIf
+        Core.DebugMsg(npc.GetDisplayName() + " leapfrogged " + leapDist + "u at " + angle + "° toward dest (" + (totalDist - leapDist) + "u remaining)")
+        Core.NotifyPlayer(npc.GetDisplayName() + " making progress toward destination")
     EndIf
 EndFunction
 
@@ -1081,7 +1118,7 @@ Function CheckMeetingApproach(Int slot, Actor npc)
         ; Narrate once so NPC can react to being stuck near the player
         If StorageUtil.GetIntValue(npc, "Intel_ApproachStuckNarrated") != 1
             StorageUtil.SetIntValue(npc, "Intel_ApproachStuckNarrated", 1)
-            Core.SendTaskNarration(npc, npc.GetDisplayName() + " is trying to reach " + player.GetDisplayName() + " but seems unable to get past something.", player)
+            Core.SendTaskNarration(npc, npc.GetDisplayName() + " tried to reach " + player.GetDisplayName() + " but seemed unable to get past something.", player)
         EndIf
 
         npc.EvaluatePackage()
@@ -1117,7 +1154,7 @@ EndFunction
 ;
 ; Phase 1: Walk toward player (approach).
 ; Phase 2: Sandbox within 200 units once close.
-; Released when the player walks MEETING_LINGER_RELEASE_DISTANCE away.
+; Released when the player walks Core.LINGER_RELEASE_DISTANCE away.
 ; =============================================================================
 
 Bool Function ProcessLingerProximity(Int slot, Actor npc)
@@ -1132,7 +1169,7 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
         If npc.Is3DLoaded() && player.Is3DLoaded()
             Float dist = npc.GetDistance(player)
             closeEnough = dist <= Core.LINGER_APPROACH_DISTANCE
-            stillFar = dist > MEETING_LINGER_RELEASE_DISTANCE
+            stillFar = dist > Core.LINGER_RELEASE_DISTANCE
         ElseIf npc.GetParentCell() == player.GetParentCell()
             Cell npcCell = npc.GetParentCell()
             stillFar = false
@@ -1162,44 +1199,7 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
     EndIf
 
     ; Sub-phase: sandboxing — release when player walks away
-    Bool playerFar = true
-    If npc.Is3DLoaded() && player.Is3DLoaded()
-        playerFar = npc.GetDistance(player) > MEETING_LINGER_RELEASE_DISTANCE
-    ElseIf npc.GetParentCell() == player.GetParentCell()
-        playerFar = false  ; same interior cell = still nearby
-    EndIf
-
-    If playerFar
-        ; Grace period — don't end on first "far" check
-        Int farTicks = StorageUtil.GetIntValue(npc, "Intel_LingerFarTicks", 0) + 1
-        StorageUtil.SetIntValue(npc, "Intel_LingerFarTicks", farTicks)
-        If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
-            Return true
-        Else
-            If StorageUtil.GetIntValue(npc, "Intel_StayAtDest") == 1
-                ; Stay-at-dest: return to destination sandbox instead of re-approaching
-                Core.DebugMsg(npc.GetDisplayName() + " linger: player drifted, returning to dest sandbox")
-                ObjectReference destRef = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
-                If destRef != None
-                    PO3_SKSEFunctions.SetLinkedRef(npc, destRef, Core.IntelEngine_TravelTarget)
-                    npc.EvaluatePackage()
-                EndIf
-            Else
-                ; Normal: NPC drifted — sandbox can't pull them back, switch to approach
-                Core.DebugMsg(npc.GetDisplayName() + " linger: drifted (tick " + farTicks + "), re-approaching player")
-                PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
-                ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-                ActorUtil.RemovePackageOverride(npc, Core.SandboxNearPlayerPackage)
-                Utility.Wait(0.1)
-                npc.EvaluatePackage()
-                StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
-            EndIf
-        EndIf
-    Else
-        ; Player is nearby — reset far counter
-        StorageUtil.UnsetIntValue(npc, "Intel_LingerFarTicks")
-    EndIf
-    Return false
+    Return Core.ShouldReleaseLinger(npc)
 EndFunction
 
 ; =============================================================================
@@ -1323,26 +1323,6 @@ Bool Function IsStayAtDestination(String destination)
 EndFunction
 
 ; =============================================================================
-; CANCEL API
-; =============================================================================
-
-Function CancelTravel(Actor npc)
-    {Cancel active travel for an NPC}
-
-    If npc == None
-        Return
-    EndIf
-
-    Int slot = Core.FindSlotByAgent(npc)
-    If slot >= 0 && Core.SlotTaskTypes[slot] == "travel"
-        Core.DebugMsg("Canceling travel for " + npc.GetDisplayName())
-        Core.NotifyPlayer(npc.GetDisplayName() + " stopped traveling")
-        StorageUtil.SetStringValue(npc, "Intel_Result", "cancelled")
-        Core.ClearSlot(slot, true)
-    EndIf
-EndFunction
-
-; =============================================================================
 ; UTILITY
 ; =============================================================================
 
@@ -1355,37 +1335,3 @@ Float Function ClampFloat(Float value, Float minVal, Float maxVal)
     Return value
 EndFunction
 
-; =============================================================================
-; STATUS QUERIES
-; =============================================================================
-
-Bool Function IsNPCTraveling(Actor npc)
-    Int slot = Core.FindSlotByAgent(npc)
-    Return slot >= 0 && Core.SlotTaskTypes[slot] == "travel"
-EndFunction
-
-String Function GetTravelStatus(Actor npc)
-    Int slot = Core.FindSlotByAgent(npc)
-    If slot < 0 || Core.SlotTaskTypes[slot] != "travel"
-        Return ""
-    EndIf
-
-    Int taskState = Core.SlotStates[slot]
-    String dest = Core.SlotTargetNames[slot]
-
-    If taskState == 1
-        Return "traveling to " + dest
-    ElseIf taskState == 2
-        Return "waiting at " + dest
-    EndIf
-
-    Return "on travel task"
-EndFunction
-
-String Function GetDestination(Actor npc)
-    Int slot = Core.FindSlotByAgent(npc)
-    If slot < 0 || Core.SlotTaskTypes[slot] != "travel"
-        Return ""
-    EndIf
-    Return Core.SlotTargetNames[slot]
-EndFunction
