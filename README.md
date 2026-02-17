@@ -1,8 +1,16 @@
-# IntelEngine
-### Autonomous NPC Dispatch & Scheduling for SkyrimNet
+# IntelEngine v2.0
+### NPC Autonomy & Player-Driven Task Framework for SkyrimNet
 
 *"Meet me at the Western Watchtower at sunset."*
 *She agrees. Hours pass. The sun dips. You arrive — and she's already there.*
+
+---
+
+IntelEngine has two parts that work together to make Skyrim's NPCs feel alive.
+
+**Part 1 — Player-Driven Actions:** You tell NPCs what to do through natural conversation and they follow through physically across the entire game world. Scheduling is the core — meetings, fetches, and deliveries all support future time expressions.
+
+**Part 2 — Dungeon Master (AI-Driven Stories):** An LLM Dungeon Master observes the world state and decides when NPCs should act on their own — seeking you out, ambushing you, spreading gossip, delivering messages, offering quests, and interacting with each other.
 
 ---
 
@@ -22,9 +30,13 @@ Hours later, the sun touches the mountains. You reach the Western Watchtower. Je
 
 That evening, you push through the door of the Bannered Mare. Balgruuf is there — the message reached him, and he **kept his scheduled appointment**. He remembers the dragon warning. He knows Farengar carried it.
 
-Tomorrow, things get more complex. You tell a guard: *"Go get Ysolda after sunrise."* The **fetch is scheduled** for morning — the guard stays at his post until dawn, then departs. You ask a courier: *"Tell Adrianne tomorrow afternoon that the steel shipment is ready."* The **delivery is scheduled** — words carried at the right time, not a moment too soon. Meanwhile, a companion offers to **search for** a missing traveler with you — *"Take me to Belethor."* You travel **together**, side by side, and when you fall behind, they **pause and wait** for you to catch up.
+But something else happened while you were at the watchtower. **On the road back**, you crossed paths with Adrianne — she was heading to Falkreath to sell swords, minding her own business. You stopped and chatted. She had no idea you'd be there. Neither did you. The **Dungeon Master** placed that encounter because it fit the moment.
 
-Five NPCs are acting simultaneously. Ten more tasks are queued for the future. The world doesn't wait for you to do everything yourself.
+And later that night, sitting in the inn, **a warrior you'd wronged three days ago tracked you down**. He snuck through the door, drew his blade, and attacked. You beat him — he yielded, dropped to his knees, and begged for mercy. He told you someone sent him. Someone you thought was a friend. That fact is now in his bio. And in yours.
+
+Tomorrow, things get more complex. You tell a guard: *"Go get Ysolda after sunrise."* The **fetch is scheduled** for morning — the guard stays at his post until dawn, then departs. Meanwhile, **two NPCs at the market start arguing** about something that happened yesterday — the Dungeon Master decided it was time. You overhear it. Both of them remember it differently.
+
+Five NPCs are acting simultaneously. Ten more tasks are queued for the future. Stories are unfolding that you didn't start. The world doesn't wait for you to do everything yourself.
 
 This is **IntelEngine**.
 
@@ -32,7 +44,9 @@ This is **IntelEngine**.
 
 ## What This Mod Does
 
-IntelEngine is a task execution framework for [SkyrimNet](https://github.com/MinLL/SkyrimNet-GamePlugin). Where SkyrimNet gives NPCs the ability to think and speak through AI, IntelEngine gives them the ability to **act** — physically, across the game world, on their own two feet.
+IntelEngine is an NPC autonomy framework for [SkyrimNet](https://github.com/MinLL/SkyrimNet-GamePlugin). Where SkyrimNet gives NPCs the ability to think and speak through AI, IntelEngine gives them the ability to **act** — physically, across the game world, on their own two feet. Both on your command and on their own initiative.
+
+### Part 1 — Player-Driven Actions
 
 Through natural conversation, any NPC can:
 
@@ -41,6 +55,18 @@ Through natural conversation, any NPC can:
 - **Fetch** people and escort them back to you on foot
 - **Deliver messages** to anyone — with optional meeting requests that schedule the recipient to travel
 - **Search** for someone alongside you, traveling together
+
+### Part 2 — Dungeon Master (AI-Driven Stories)
+
+Without any player input, NPCs autonomously:
+
+- **Seek you out** over unfinished business, old friendships, or something they overheard
+- **Share gossip** traced to real events, spreading through chains of up to 10 people
+- **Ambush you** for real grudges — with stealth approach, combat, and a yield system
+- **Secretly follow you** out of obsession until caught
+- **Deliver messages** from NPCs who can't come themselves
+- **Offer quests** to clear enemy camps, with a guide option and map marker
+- **Interact with each other** independently — arguments, deals, whispered conspiracies
 
 No teleportation. No console commands. No hardcoded location lists. IntelEngine dynamically indexes every actor and location across every cell in the game — every inn, every home, every NPC is discoverable because the index is built from your actual load order.
 
@@ -207,7 +233,7 @@ When an NPC is supposed to leave a location, IntelEngine verifies they actually 
 
 ## NPC Memory — Awareness Prompts
 
-IntelEngine injects four **SkyrimNet awareness prompts** into every NPC's character bio. These are Jinja2 templates that read live game state and render it as natural-language context the AI sees on every dialogue cycle. NPCs don't just execute tasks — they **know** what they've done, what they're doing, and what they've committed to.
+IntelEngine injects six **SkyrimNet awareness prompts** into every NPC's character bio. These render live game state as natural-language context the AI sees on every dialogue cycle. NPCs don't just execute tasks — they **know** what they've done, what they're doing, and what they've committed to.
 
 ### Task Awareness
 NPCs know their current task — *"traveling to Dragonsreach"*, *"delivering a message to Nazeem"*, *"returning with Adrianne"* — and maintain a timestamped history of completed tasks. *"I fetched Ysolda earlier today. Delivered a message to the Jarl yesterday."*
@@ -220,6 +246,12 @@ NPCs remember how meetings went. Did the player show up on time? Late? Not at al
 
 ### Received Messages
 When a message is delivered, the recipient retains who sent it, who carried it, what it said, and when it arrived. This information stays in their character context so they can react naturally — *"Farengar told me about the dragon sighting. That was your warning?"*
+
+### Known Facts
+Everything the NPC learned through story events — gossip heard, ambush outcomes, stalker catches, quest results. Displayed with natural time references: *"just now"*, *"earlier today"*, *"a few days ago."* Facts expire over time, so recent events feel vivid while old news fades.
+
+### Gossip Network
+Both rumors the NPC has heard (and from whom) and rumors they've shared (and to whom). Creates a visible web of social information — *"Ysolda told me that Nazeem was seen lurking near the warehouse."*
 
 ---
 
@@ -279,25 +311,33 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 
 ---
 
+## Story Engine — The Dungeon Master
+
+The Story Engine is Part 2 of IntelEngine. Every few in-game hours, an LLM Dungeon Master observes the full world state — your location, time of day, NPC memories and relationships — and decides if something should happen. No random dice rolls. Every event is grounded in the actual history of your playthrough.
+
+Nine story types, each individually toggleable via MCM:
+
+- **Seek Player** — NPCs travel to find you because of unfinished business, old friendships, or something they overheard. Forgotten friends don't stay forgotten — NPCs you haven't seen in a while are more likely to come looking.
+- **Informant** — NPCs approach with real gossip traced to actual game events. The chain of who told whom is tracked.
+- **Road Encounter** — You cross paths with NPCs traveling on their own business. Exterior only. They have their own destination.
+- **Ambush** — Hostile NPCs with real grudges stalk and attack you. Stealth or charge variants. Beat them and they yield — talk, kill, or walk away.
+- **Stalker** — Romantically obsessed NPCs secretly follow you until caught. No combat — the emotional confrontation is the payoff.
+- **Message** — Couriers deliver verbal messages from NPCs who can't come themselves, with optional meeting invitations that schedule the sender.
+- **Quest** — NPCs ask you to clear enemies from a location. Guide option (they jog with you) or go alone with a map marker. Bandits, draugr, or dragons.
+- **NPC Interaction** — Two NPCs interact independently of you. Arguments, deals, training, whispered conspiracies. Happens whether you're watching or not.
+- **NPC Gossip** — Rumors spread through chains of up to 10 people. Information travels realistically through the world.
+
+Every event injects facts into NPC bios that persist and influence all future dialogue. The Dungeon Master uses anti-repetition, type balancing, and per-NPC cooldowns to keep stories varied and meaningful.
+
+---
+
 ## Planned Features
 
 IntelEngine is under active development. The following features are planned for future releases:
 
-### New Task Types
-
 - **Eliminate Target** — dispatch an NPC to kill a specific person. Assassinations, bounty hunting, or settling grudges — carried out autonomously across the world.
 - **Lockpick Door** — send an NPC to pick a locked door, gaining access to restricted areas without doing the dirty work yourself.
 - **Steal Item** — task an NPC with stealing something from someone's inventory or home. Risk and reward — their skill determines success.
-
-### NPC-Initiated Visits
-
-The most ambitious planned feature: **NPCs will visit you on their own.**
-
-Based on their accumulated memories, past interactions, and relationship with you, NPCs may decide to seek you out. A companion you adventured with might track you down at the Bannered Mare because they haven't seen you in days. A friend might propose traveling somewhere together, hunting a dragon they heard about, or simply going for a walk. An NPC you wronged might show up with less friendly intentions.
-
-This inverts the entire framework — instead of you dispatching NPCs, they dispatch themselves. The same cross-cell travel, scheduling, and awareness systems that power player-issued tasks would drive NPC-initiated ones. The world doesn't just respond to you — it comes looking for you.
-
-> **Note:** This feature depends on SkyrimNet API capabilities that don't exist yet — specifically, endpoints to query NPC bios, memories, and relationship data relative to the player, and a way to run an LLM evaluation outside of dialogue to let NPCs decide *why* they'd visit. The visit reasons must also be grounded in real game state — if an NPC proposes hunting a dragon together, that dragon needs to actually exist in the world, and the NPC needs to lead you there. This is a long-term goal that will evolve alongside the SkyrimNet API.
 
 ---
 
@@ -322,4 +362,4 @@ This inverts the entire framework — instead of you dispatching NPCs, they disp
 
 ---
 
-*IntelEngine doesn't add quests, dialogue, or story. It adds capability. Combined with SkyrimNet's conversational AI, it turns Skyrim's people from scenery into agents you can dispatch across the world — NPCs who walk where you point, carry what you say, fetch who you need, keep appointments, and remember what happened. The world doesn't wait for you to do everything yourself anymore.*
+*IntelEngine turns Skyrim's people from scenery into agents — NPCs who keep appointments, carry your words, fetch who you need, and remember what happened. And with the Dungeon Master, they also act on their own — seeking you out, settling grudges, spreading gossip, and living their own lives whether you're watching or not. The world doesn't wait for you anymore.*
