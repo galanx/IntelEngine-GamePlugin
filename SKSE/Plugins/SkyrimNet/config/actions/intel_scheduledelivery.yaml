@@ -1,20 +1,21 @@
 name: ScheduleDelivery
 description: >
-  Schedule telling someone something LATER. Delayed DeliverMessage — you stay put now, go deliver words later.
+  Schedule telling someone something LATER. Delayed DeliverMessage — stay put now, deliver words when the time comes.
 
-  Use when:
-  - "tell Adrianne after sunset that..." → schedule the message for later
-  - You want to warn/inform someone but not right now
+  TRIGGER: Need to relay a message to someone, but NOT right now.
+
+  Examples:
+  - "tell Adrianne after sunset that I need a sword"
   - "send word to Jarl Balgruuf tomorrow morning"
+  - "let Nazeem know later that I was looking for him"
 
-  Check your "Scheduled Commitment" if you have one.
-
-  NOT ScheduleFetch. If there's a message to relay, this is the right action.
-  If someone says "tell X to come here later" → schedule delivering that message.
+  DECISION RULES:
+  - Deliver words NOW = DeliverMessage
+  - Deliver words LATER = ScheduleDelivery
+  - Fetch a PERSON later (no message) = ScheduleFetch
+  - Go to a PLACE later = ScheduleMeeting
 
   You will NOT leave immediately. You go when the time comes.
-
-  The target must be a person who actually exists.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Schedule
@@ -27,41 +28,29 @@ parameterMapping:
   - type: dynamic
     name: targetName
     description: >
-      The name of the person to deliver the message to. Examples:
-      - "Nazeem"
-      - "Jarl Balgruuf"
-      - "Adrianne Avenicci"
-      Do NOT make up names that don't exist in Skyrim.
+      Who to deliver the message to. Must be a real NPC name.
+      Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
   - type: dynamic
     name: msgContent
     description: >
       The message to deliver. Summarize what needs to be communicated.
-      Keep it concise but include the key information.
   - type: dynamic
     name: timeCondition
     description: >
-      When to deliver the message. Natural language time expression.
-      Examples: "at dawn", "after sunset", "in 2 hours",
-      "tonight", "tomorrow morning", "at midday"
+      When to deliver. Examples: "at dawn", "after sunset",
+      "in 2 hours", "tonight", "tomorrow morning"
   - type: dynamic
     name: meetLocation
     description: >
-      If the message includes a meeting request, provide the location
-      name (e.g., "Bannered Mare", "Dragonsreach").
-      The recipient will be scheduled to travel there after receiving
-      the message. Can also be a home: "Alvor's home", "Camilla's place",
-      or just "Camilla".
-      HOME RULES: "my home" = YOUR home. For the player's home, ALWAYS use
-      their name (e.g., if the player is named Erik, write "Erik's home").
-      For any NPC's home, use their name (e.g., "Alvor's home", "Camilla's place").
-      If NOT a meeting request: you MUST set this to "none"
+      If the message includes a meeting request, provide the location.
+      Examples: "Bannered Mare", "Dragonsreach"
+      If NOT a meeting request: set this to "none"
   - type: dynamic
     name: meetTime
     description: >
-      If the message includes a meeting time, provide the time condition
-      (e.g., "at noon", "after sunset").
-      The recipient will be scheduled to arrive at that time.
-      If NOT a meeting request: you MUST set this to "none"
+      If the message includes a meeting time, provide it.
+      Examples: "at noon", "after sunset"
+      If NOT a meeting request: set this to "none"
 
 eligibilityRules:
   - conditions:

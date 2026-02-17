@@ -1,20 +1,24 @@
 name: ScheduleMeeting
 description: >
-  Schedule a meeting at a PLACE for a FUTURE TIME. You stay put now and go when the time comes.
+  AGREE TO MEET LATER or PLAN TO GO SOMEWHERE LATER. You stay put now, travel when the time comes.
 
-  Use whenever the conversation contains ANY hint of a future meeting:
-  - Explicit: "meet me at the inn tomorrow", "let's meet at sunset"
-  - Agreements: "sure, tomorrow evening", "alright, I'll be there"
-  - Farewells: "see you tomorrow", "until tonight", "tomorrow then"
-  - Self-initiated: you want to see someone again, or go somewhere later
+  TRIGGER: Any mention of a future time + a place (explicit or implied).
+  This includes farewells, agreements, promises, and self-initiated plans.
 
-  If no place is named, infer from context (e.g., current location or last mentioned place).
-  Check "Scheduled Commitment" first — don't duplicate an existing meeting.
+  Examples that MUST trigger this action:
+  - "see you in the evening" / "see you tonight" / "see you tomorrow"
+  - "meet me at the inn at sunset" / "let's meet at noon"
+  - "sure, tomorrow evening" / "alright, I'll be there" / "tomorrow then"
+  - "until tonight" / "I'll come by later" / "catch you at dusk"
+  - You want to visit someone or go somewhere later on your own
 
-  NOT GoToLocation (that's RIGHT NOW). NOT ScheduleDelivery/ScheduleFetch (those target a PERSON).
+  If no place is named, use the current location or the most relevant place from context.
 
-  Time descriptions: dawn, morning, noon, afternoon, evening, sunset, night, midnight,
-  tonight, tomorrow, "in 2 hours", "in half an hour", soon, 3pm, etc.
+  KEY RULE: If the conversation implies "I will be somewhere at a future time" = ScheduleMeeting.
+  Does NOT matter if it's casual ("see you later") or formal ("meet me at Dragonsreach at noon").
+
+  NOT GoToLocation — GoToLocation means leave RIGHT NOW.
+  NOT ScheduleFetch/ScheduleDelivery — those involve a TARGET PERSON to fetch or message.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Schedule
@@ -28,37 +32,18 @@ parameterMapping:
     name: destination
     description: >
       Where to go. Examples:
-      - "Bannered Mare"
-      - "Dragonsreach"
-      - "the marketplace"
-      - "home" or "my home" — YOUR own home (the NPC's home)
-      - "<Name>'s home" or "<Name>'s place" — someone's home (e.g., "Alvor's home", "Camilla's place")
-      - Just an NPC name like "Camilla" or "Camilla Valerius" — resolves to their home
-      - "the temple"
-      HOME RULES: "my home" = YOUR home. For the player's home, ALWAYS use
-      their name (e.g., if the player is named Erik, write "Erik's home").
-      For any NPC's home, use their name (e.g., "Alvor's home", "Camilla's place").
+      - "Bannered Mare", "Dragonsreach", "the marketplace"
+      - "home" or "my home" — YOUR own home
+      - "<Name>'s home" — someone else's home (e.g., "Alvor's home")
+      - Just a name like "Camilla" — resolves to their home
+      If no place was mentioned, use the current location or best guess from context.
   - type: dynamic
     name: timeCondition
     description: >
-      When to arrive. IMPORTANT: If a relative time is mentioned
-      (e.g., "in 2 hours", "in 3 hours"), pass those words EXACTLY as-is.
-      Do NOT convert relative times to absolute times like "dawn" or "morning".
-
-      Relative times (pass verbatim):
-      - "in 2 hours"
-      - "in 1 hour"
-      - "in 3 hours"
-      - "in half an hour"
-      - "soon"
-
-      Absolute times (when a specific time of day is named):
-      - "at dawn"
-      - "at noon"
-      - "in the evening"
-      - "after sunset"
-      - "tonight"
-      - "tomorrow morning"
+      When to arrive. Pass relative times EXACTLY as spoken.
+      Relative (pass verbatim): "in 2 hours", "in half an hour", "soon"
+      Absolute: "at dawn", "at noon", "in the evening", "tonight",
+      "after sunset", "tomorrow morning", "at midnight"
 
 eligibilityRules:
   - conditions:

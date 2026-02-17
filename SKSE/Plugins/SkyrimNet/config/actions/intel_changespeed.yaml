@@ -1,14 +1,13 @@
 name: ChangeSpeed
 description: >
-  Change your travel speed mid-task WITHOUT canceling it. Adjusts pace on your current active task.
+  Change your travel speed mid-task WITHOUT canceling it. Only use this if you are CURRENTLY performing a task (fetching someone, delivering a message, traveling somewhere, etc.).
 
   Use when:
-  - Someone tells you to hurry up, run, go faster, rush, "start running", "pick up the pace"
-  - Someone tells you to slow down, walk, take it easy, no rush, "stop running"
-  - The urgency of your task changes (e.g. danger ahead, relaxed situation)
-  - ANY mention of running, jogging, walking, or pace while you have an active task
+  - You have an active task AND someone tells you to hurry up, run, go faster, rush, "start running", "pick up the pace"
+  - You have an active task AND someone tells you to slow down, walk, take it easy, no rush, "stop running"
+  - You have an active task AND the urgency changes (e.g. danger ahead, relaxed situation)
 
-  This changes speed only. To completely stop a task, use CancelCurrentTask instead.
+  Do NOT use this if you are idle, sandboxing, or have no current task. This changes speed only. To completely stop a task, use CancelCurrentTask instead.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Core

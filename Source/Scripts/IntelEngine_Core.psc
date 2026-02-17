@@ -42,6 +42,9 @@ IntelEngine_NPCTasks Property NPCTasks Auto
 IntelEngine_Schedule Property Schedule Auto
 {Reference to schedule script for monitoring restart on game load}
 
+IntelEngine_StoryEngine Property StoryEngine Auto
+{Reference to story engine script for monitoring restart on game load}
+
 ; =============================================================================
 ; PROPERTIES - Keywords
 ; =============================================================================
@@ -70,6 +73,9 @@ Package Property TravelPackage_Jog Auto
 
 Package Property TravelPackage_Run Auto
 {Travel package - running speed}
+
+Package Property TravelPackage_Stalk Auto
+{Travel package - walk speed with Always Sneak flag, 800-unit arrive radius, for stalkers}
 
 Package Property SandboxPackage Auto
 {Sandbox package - idle at destination}
@@ -124,6 +130,10 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 
 Int Property DEPARTURE_CHECK_CYCLES = 5 AutoReadOnly
 {Update cycles before checking if NPC actually departed (~15s at 3s interval)}
+
+Float Property LINGER_RELEASE_DISTANCE = 800.0 Auto Hidden
+{Distance (game units) the player must walk away before a lingering NPC loses interest.
+Configurable via MCM. Shared between Travel, NPCTasks, and StoryEngine linger systems.}
 
 Float Property MeetingGracePeriod = 0.5 Auto
 {Grace period for meeting arrival tolerance (in game hours).
@@ -208,6 +218,35 @@ Function Maintenance(Bool isFirstLoad = false)
     ; This allows SkyrimNet to filter out NPCs with active tasks.
     RegisterSkyrimNetTag()
 
+    ; Self-heal script references if CK properties were lost (e.g. after
+    ; console stopquest/startquest). All scripts live on the same quest,
+    ; so casting via Quest base type recovers them.
+    Quest q = self as Quest
+    If !Travel
+        Travel = q as IntelEngine_Travel
+        If Travel
+            DebugMsg("WARNING: Travel property was None, recovered via cast")
+        EndIf
+    EndIf
+    If !NPCTasks
+        NPCTasks = q as IntelEngine_NPCTasks
+        If NPCTasks
+            DebugMsg("WARNING: NPCTasks property was None, recovered via cast")
+        EndIf
+    EndIf
+    If !Schedule
+        Schedule = q as IntelEngine_Schedule
+        If Schedule
+            DebugMsg("WARNING: Schedule property was None, recovered via cast")
+        EndIf
+    EndIf
+    If !StoryEngine
+        StoryEngine = q as IntelEngine_StoryEngine
+        If StoryEngine
+            DebugMsg("WARNING: StoryEngine property was None, recovered via cast")
+        EndIf
+    EndIf
+
     ; Restart monitoring loops on all task scripts.
     ; RegisterForSingleUpdate is per-script and does NOT survive save/load,
     ; so we must explicitly restart each script's update loop here.
@@ -219,6 +258,14 @@ Function Maintenance(Bool isFirstLoad = false)
     EndIf
     If Schedule
         Schedule.RestartMonitoring()
+    EndIf
+    If StoryEngine
+        StoryEngine.RestartMonitoring()
+    EndIf
+
+    ; Clean expired facts on subsequent loads
+    If !isFirstLoad
+        CleanExpiredFactsGlobal()
     EndIf
 EndFunction
 
@@ -317,6 +364,10 @@ Function SaveTaskToHistory(Actor akAgent, String taskType, String target, String
         EndIf
     ElseIf taskType == "search_for_actor"
         desc = "Searched for " + target
+    ElseIf taskType == "story"
+        desc = "Sought out " + target
+    ElseIf taskType == "story_npc"
+        desc = "Went to talk with " + target
     Else
         desc = "Completed a task involving " + target
     EndIf
@@ -330,6 +381,20 @@ Function SaveTaskToHistory(Actor akAgent, String taskType, String target, String
         StorageUtil.StringListRemoveAt(akAgent, "Intel_TaskHistory", 0)
         StorageUtil.FloatListRemoveAt(akAgent, "Intel_TaskHistoryTime", 0)
     EndWhile
+
+    ; Pre-render task history section for immediate template visibility
+    Float currentTime = Utility.GetCurrentGameTime()
+    String[] histArr = StorageUtil.StringListToArray(akAgent, "Intel_TaskHistory")
+    Float[] histTimes = StorageUtil.FloatListToArray(akAgent, "Intel_TaskHistoryTime")
+    String rendered = IntelEngine.RenderTaskHistorySection(histArr, histTimes, currentTime)
+    StorageUtil.SetStringValue(akAgent, "Intel_TaskHistoryRendered", rendered)
+
+    ; Track NPC in interacted list for Story Engine weighted selection
+    Actor player = Game.GetPlayer()
+    Int npcFormId = akAgent.GetFormID()
+    If StorageUtil.IntListFind(player, "Intel_InteractedNPCs", npcFormId) < 0
+        StorageUtil.IntListAdd(player, "Intel_InteractedNPCs", npcFormId)
+    EndIf
 
     DebugMsg(akAgent.GetDisplayName() + " task history saved: " + desc)
 EndFunction
@@ -357,20 +422,6 @@ Function StoreReceivedMessage(Actor akRecipient, Actor akSender, String msgConte
     StorageUtil.SetFloatValue(akRecipient, "Intel_MessageTime", Utility.GetCurrentGameTime())
 
     DebugMsg(akRecipient.GetDisplayName() + " received message from " + senderName)
-EndFunction
-
-Function ClearReceivedMessage(Actor akNPC)
-    {
-        Clears the stored message from an NPC.
-        Call this when the NPC acknowledges or forgets the message.
-    }
-    If akNPC == None
-        Return
-    EndIf
-
-    StorageUtil.UnsetStringValue(akNPC, "Intel_ReceivedMessage")
-    StorageUtil.UnsetStringValue(akNPC, "Intel_MessageSender")
-    StorageUtil.UnsetFloatValue(akNPC, "Intel_MessageTime")
 EndFunction
 
 ; =============================================================================
@@ -597,14 +648,17 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetFloatValue(agent, "Intel_TaskStartTime")
             StorageUtil.UnsetFloatValue(agent, "Intel_TravelArrivalTime")
             StorageUtil.UnsetFloatValue(agent, "Intel_WaitHours")
+            StorageUtil.UnsetIntValue(agent, "Intel_WaitForPlayer")
             StorageUtil.UnsetFloatValue(agent, "Intel_Deadline")
             StorageUtil.UnsetIntValue(agent, "Intel_WasFollower")
 
-            ; Clear fetch/deliver task data
+            ; Clear fetch/deliver/escort task data
             StorageUtil.UnsetIntValue(agent, "Intel_InteractCyclesRemaining")
             StorageUtil.UnsetIntValue(agent, "Intel_ShouldFail")
             StorageUtil.UnsetStringValue(agent, "Intel_FailReason")
             StorageUtil.UnsetStringValue(agent, "Intel_Result")
+            StorageUtil.UnsetStringValue(agent, "Intel_EscortDestName")
+            StorageUtil.UnsetIntValue(agent, "Intel_EscortShouldWait")
             StorageUtil.UnsetIntValue(agent, "Intel_TargetWaitCycles")
             StorageUtil.UnsetFloatValue(agent, "Intel_TargetLastDist")
             StorageUtil.UnsetIntValue(agent, "Intel_ReturnCycles")
@@ -662,6 +716,10 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
 
             ; Clear task cooldown
             StorageUtil.UnsetFloatValue(agent, "Intel_TaskCooldown")
+
+            ; Clear story engine dispatch keys
+            StorageUtil.UnsetIntValue(agent, "Intel_IsStoryDispatch")
+            StorageUtil.UnsetStringValue(agent, "Intel_StoryNarration")
 
             ; Re-evaluate AI
             agent.EvaluatePackage()
@@ -821,6 +879,88 @@ Function MarkSlotProcessing(Int slot, Actor akAgent)
 EndFunction
 
 ; =============================================================================
+; SHARED LINGER PROXIMITY (DRY — called by Travel + StoryEngine)
+;
+; Single source of truth for linger release. Uses LINGER_RELEASE_DISTANCE.
+; =============================================================================
+
+Bool Function ShouldReleaseLinger(Actor npc)
+    {Single source of truth: should a lingering NPC be released?
+    Returns true when the player is far enough away (or NPC unloaded).}
+    If !npc.Is3DLoaded()
+        return true
+    EndIf
+
+    Actor player = Game.GetPlayer()
+    If player.Is3DLoaded()
+        Float dist = npc.GetDistance(player)
+        If dist > 0.0
+            return dist > LINGER_RELEASE_DISTANCE
+        Else
+            ; GetDistance returns 0 for cross-worldspace — fall back to cell check
+            return npc.GetParentCell() != player.GetParentCell()
+        EndIf
+    EndIf
+    ; Player not loaded — release unless same cell
+    return npc.GetParentCell() != player.GetParentCell()
+EndFunction
+
+Function ReleaseLinger(Actor npc)
+    {Remove sandbox override and send NPC back where they belong.
+    NPCs with schedule AI (eat, sleep, patrol) are trusted to handle themselves.
+    NPCs with only sandbox AI or no AI get a walk-home fallback so they don't
+    stand frozen at the linger location forever.
+    Shared by Travel, StoryEngine, and NPCTasks.}
+    DebugMsg("Linger release START: " + npc.GetDisplayName() + " [formID=" + npc.GetFormID() + ", 3Dloaded=" + npc.Is3DLoaded() + ", isTeammate=" + npc.IsPlayerTeammate() + "]")
+    ActorUtil.RemovePackageOverride(npc, SandboxNearPlayerPackage)
+    DebugMsg("Linger release: removed sandbox from " + npc.GetDisplayName())
+    ; NPCs with schedule-based AI (eat, sleep, patrol, travel) can handle
+    ; returning to their routine on their own. NPCs with ONLY sandbox AI
+    ; (common for modded followers) will just sandbox wherever they are,
+    ; which looks broken if they're displaced. Walk those home instead.
+    If npc.IsPlayerTeammate()
+        PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+        DebugMsg("Linger release: " + npc.GetDisplayName() + " is teammate -> cleared linked ref")
+    ElseIf IntelEngine.HasNonSandboxAI(npc)
+        PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+        DebugMsg("Linger release: " + npc.GetDisplayName() + " has schedule AI -> relying on base packages")
+    Else
+        ; Sandbox-only or no AI: send them back where they belong.
+        ; If player can't see them, teleport instantly. Otherwise walk naturally.
+        ObjectReference destRef = IntelEngine.ResolveAnyDestination(npc, "home")
+        If destRef == None
+            destRef = IntelEngine.GetEditorLocationRef(npc)
+        EndIf
+        If destRef != None
+            If !npc.Is3DLoaded()
+                ; Player can't see: teleport silently, no override needed
+                npc.MoveTo(destRef)
+                PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+                DebugMsg("Linger release: " + npc.GetDisplayName() + " sandbox-only AI, not loaded -> teleported home")
+            Else
+                ; Player can see: walk naturally
+                PO3_SKSEFunctions.SetLinkedRef(npc, destRef, IntelEngine_TravelTarget)
+                ActorUtil.AddPackageOverride(npc, TravelPackage_Walk, PRIORITY_TRAVEL, 1)
+                DebugMsg("Linger release: " + npc.GetDisplayName() + " sandbox-only AI, 3D loaded -> walking home")
+            EndIf
+        Else
+            PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+            DebugMsg("Linger release: " + npc.GetDisplayName() + " sandbox-only AI, no home/editor location -> sandbox in place")
+        EndIf
+    EndIf
+    npc.EvaluatePackage()
+    DebugMsg("Linger release DONE: " + npc.GetDisplayName() + " EvaluatePackage called")
+    StorageUtil.UnsetIntValue(npc, "Intel_LingerFarTicks")
+    ; Re-lock building if we unlocked one during linger
+    Int unlockedCellId = StorageUtil.GetIntValue(npc, "Intel_UnlockedHomeCellId")
+    If unlockedCellId != 0
+        IntelEngine.SetHomeDoorAccessForCell(unlockedCellId, false)
+        StorageUtil.UnsetIntValue(npc, "Intel_UnlockedHomeCellId")
+        DebugMsg("Building access: re-locked cell " + unlockedCellId + " (linger release)")
+    EndIf
+EndFunction
+
+; =============================================================================
 ; SHARED TASK HELPERS (DRY — called by Travel, NPCTasks, Schedule)
 ; =============================================================================
 
@@ -952,6 +1092,36 @@ Function UnlockHomeForTask(Actor akAgent, Actor targetNPC)
     EndIf
 EndFunction
 
+Function EnsureBuildingAccess(Actor npc)
+    {Single source of truth: if NPC is inside an interior cell, unlock the door
+    and remove trespass so the player can enter. Called at all arrival points
+    (Travel, StoryEngine, NPC Social). ClearSlot re-locks via Intel_UnlockedHomeCellId.}
+    If npc == None
+        return
+    EndIf
+    Cell npcCell = npc.GetParentCell()
+    If npcCell == None || !npcCell.IsInterior()
+        return
+    EndIf
+    Int cellId = npcCell.GetFormID()
+    If cellId == 0
+        return
+    EndIf
+    ; Already unlocked this cell for this NPC?
+    Int existingCellId = StorageUtil.GetIntValue(npc, "Intel_UnlockedHomeCellId")
+    If existingCellId == cellId
+        return
+    EndIf
+    ; If a different cell was previously unlocked, re-lock it
+    If existingCellId != 0
+        IntelEngine.SetHomeDoorAccessForCell(existingCellId, false)
+    EndIf
+    ; Unlock the NPC's current building (door + trespass removal)
+    IntelEngine.SetHomeDoorAccessForCell(cellId, true)
+    StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", cellId)
+    DebugMsg("Building access: unlocked cell " + cellId + " for " + npc.GetDisplayName())
+EndFunction
+
 Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
     {Check if off-screen NPC should be teleported to destination.
     Returns true if teleported (caller should handle arrival).
@@ -1010,6 +1180,9 @@ Function RemoveIntelPackages(Actor akActor, Bool evaluate = true)
     ActorUtil.RemovePackageOverride(akActor, TravelPackage_Walk)
     ActorUtil.RemovePackageOverride(akActor, TravelPackage_Jog)
     ActorUtil.RemovePackageOverride(akActor, TravelPackage_Run)
+    If TravelPackage_Stalk
+        ActorUtil.RemovePackageOverride(akActor, TravelPackage_Stalk)
+    EndIf
     If SandboxPackage
         ActorUtil.RemovePackageOverride(akActor, SandboxPackage)
     EndIf
@@ -1194,23 +1367,6 @@ Package Function GetTravelPackage(Int speed)
     Return TravelPackage_Walk
 EndFunction
 
-Int Function ParseSpeed(String speedText)
-    String lower = IntelEngine.StringToLower(speedText)
-
-    If IntelEngine.StringContains(lower, "run") || \
-       IntelEngine.StringContains(lower, "hurry") || \
-       IntelEngine.StringContains(lower, "quick") || \
-       IntelEngine.StringContains(lower, "fast") || \
-       IntelEngine.StringContains(lower, "urgent")
-        Return 2
-    ElseIf IntelEngine.StringContains(lower, "jog") || \
-           IntelEngine.StringContains(lower, "brisk")
-        Return 1
-    EndIf
-
-    Return 0  ; Default walk
-EndFunction
-
 ; =============================================================================
 ; NARRATION HELPERS
 ; =============================================================================
@@ -1233,6 +1389,163 @@ Function SendTransientEvent(Actor akOriginator, Actor akTarget, String msgText)
     ; but it does NOT persist in their prompt context permanently.
     ; Use for task outcomes, delivery confirmations, etc. that should fade over time.
     SkyrimNetApi.RegisterEvent("intel_task_event", msgText, akOriginator, akTarget)
+EndFunction
+
+; =============================================================================
+; FACT INJECTION API
+; Injects narrative facts into NPC bios via StorageUtil.
+; Facts appear in the character bio submodule (0497_intel_facts.prompt)
+; and expire after a configurable number of game days.
+; =============================================================================
+
+Function InjectFact(Actor akNPC, String factText)
+    {Inject a narrative fact into an NPC's bio context. Pure FIFO: oldest
+    facts are evicted when the cap is reached, no time-based expiry.
+    factText: Past-tense verb phrase WITHOUT subject prefix,
+    e.g., "got into a brawl with Uthgerd near the market"}
+    If akNPC == None || factText == ""
+        Return
+    EndIf
+
+    Float currentTime = Utility.GetCurrentGameTime()
+
+    ; Cap at 10 facts per NPC — remove oldest if full (FIFO)
+    Int count = StorageUtil.StringListCount(akNPC, "Intel_Facts")
+    While count >= 10
+        StorageUtil.StringListRemoveAt(akNPC, "Intel_Facts", 0)
+        StorageUtil.FloatListRemoveAt(akNPC, "Intel_FactTimes", 0)
+        count -= 1
+    EndWhile
+
+    StorageUtil.StringListAdd(akNPC, "Intel_Facts", factText)
+    StorageUtil.FloatListAdd(akNPC, "Intel_FactTimes", currentTime)
+
+    ; Pre-render facts section for immediate template visibility.
+    ; papyrus_util("GetStringList") can't see newly created lists during current session,
+    ; but papyrus_util("GetStringValue") can see SetStringValue immediately.
+    String[] factsArr = StorageUtil.StringListToArray(akNPC, "Intel_Facts")
+    Float[] timesArr = StorageUtil.FloatListToArray(akNPC, "Intel_FactTimes")
+    String rendered = IntelEngine.RenderFactsSection(factsArr, timesArr, currentTime)
+    StorageUtil.SetStringValue(akNPC, "Intel_FactsRendered", rendered)
+
+    ; Track NPC in global fact registry for Maintenance sweep
+    Actor player = Game.GetPlayer()
+    Int formId = akNPC.GetFormID()
+    If StorageUtil.IntListFind(player, "Intel_FactNPCs", formId) < 0
+        StorageUtil.IntListAdd(player, "Intel_FactNPCs", formId)
+    EndIf
+
+    DebugMsg("Fact injected into " + akNPC.GetDisplayName() + ": " + factText)
+EndFunction
+
+; =============================================================================
+; GOSSIP INJECTION API
+; NPCs share rumors with each other. Both parties track what was shared.
+; Gossip renders in its own bio section (0195_intel_gossip.prompt), separate from facts.
+; =============================================================================
+
+Function InjectGossip(Actor akGiver, Actor akReceiver, String gossipText)
+    {Inject a gossip rumor between two NPCs.
+    gossipText: Past-tense verb phrase, e.g., "heard that the Jarl is raising taxes"
+    Both NPCs track who told/received the gossip (5-entry rolling cap).
+    Renders in "Rumors I've Heard" bio section, separate from personal facts.}
+    If akGiver == None || akReceiver == None || gossipText == ""
+        Return
+    EndIf
+
+    Float currentTime = Utility.GetCurrentGameTime()
+    String giverName = akGiver.GetDisplayName()
+    String receiverName = akReceiver.GetDisplayName()
+
+    ; --- Receiver side: what I've been told ---
+    Int heardCount = StorageUtil.StringListCount(akReceiver, "Intel_GossipHeard")
+    While heardCount >= 5
+        StorageUtil.StringListRemoveAt(akReceiver, "Intel_GossipHeard", 0)
+        StorageUtil.StringListRemoveAt(akReceiver, "Intel_GossipHeardFrom", 0)
+        StorageUtil.FloatListRemoveAt(akReceiver, "Intel_GossipHeardTimes", 0)
+        heardCount -= 1
+    EndWhile
+    StorageUtil.StringListAdd(akReceiver, "Intel_GossipHeard", gossipText)
+    StorageUtil.StringListAdd(akReceiver, "Intel_GossipHeardFrom", giverName)
+    StorageUtil.FloatListAdd(akReceiver, "Intel_GossipHeardTimes", currentTime)
+
+    ; --- Giver side: what I've told others ---
+    Int toldCount = StorageUtil.StringListCount(akGiver, "Intel_GossipTold")
+    While toldCount >= 5
+        StorageUtil.StringListRemoveAt(akGiver, "Intel_GossipTold", 0)
+        StorageUtil.StringListRemoveAt(akGiver, "Intel_GossipToldTo", 0)
+        StorageUtil.FloatListRemoveAt(akGiver, "Intel_GossipToldTimes", 0)
+        toldCount -= 1
+    EndWhile
+    StorageUtil.StringListAdd(akGiver, "Intel_GossipTold", gossipText)
+    StorageUtil.StringListAdd(akGiver, "Intel_GossipToldTo", receiverName)
+    StorageUtil.FloatListAdd(akGiver, "Intel_GossipToldTimes", currentTime)
+
+    ; Pre-render gossip sections for immediate template visibility.
+    ; Receiver's heard section changed:
+    String[] heardTexts = StorageUtil.StringListToArray(akReceiver, "Intel_GossipHeard")
+    String[] heardFrom = StorageUtil.StringListToArray(akReceiver, "Intel_GossipHeardFrom")
+    Float[] heardTimes = StorageUtil.FloatListToArray(akReceiver, "Intel_GossipHeardTimes")
+    String heardRendered = IntelEngine.RenderGossipHeardSection(heardTexts, heardFrom, heardTimes, currentTime)
+    ; Also get receiver's existing told section:
+    String[] recvToldTexts = StorageUtil.StringListToArray(akReceiver, "Intel_GossipTold")
+    String[] recvToldTo = StorageUtil.StringListToArray(akReceiver, "Intel_GossipToldTo")
+    Float[] recvToldTimes = StorageUtil.FloatListToArray(akReceiver, "Intel_GossipToldTimes")
+    String recvToldRendered = IntelEngine.RenderGossipToldSection(recvToldTexts, recvToldTo, recvToldTimes, currentTime)
+    StorageUtil.SetStringValue(akReceiver, "Intel_GossipRendered", heardRendered + recvToldRendered)
+
+    ; Giver's told section changed:
+    String[] giverToldTexts = StorageUtil.StringListToArray(akGiver, "Intel_GossipTold")
+    String[] giverToldTo = StorageUtil.StringListToArray(akGiver, "Intel_GossipToldTo")
+    Float[] giverToldTimes = StorageUtil.FloatListToArray(akGiver, "Intel_GossipToldTimes")
+    String giverToldRendered = IntelEngine.RenderGossipToldSection(giverToldTexts, giverToldTo, giverToldTimes, currentTime)
+    ; Also get giver's existing heard section:
+    String[] giverHeardTexts = StorageUtil.StringListToArray(akGiver, "Intel_GossipHeard")
+    String[] giverHeardFrom = StorageUtil.StringListToArray(akGiver, "Intel_GossipHeardFrom")
+    Float[] giverHeardTimes = StorageUtil.FloatListToArray(akGiver, "Intel_GossipHeardTimes")
+    String giverHeardRendered = IntelEngine.RenderGossipHeardSection(giverHeardTexts, giverHeardFrom, giverHeardTimes, currentTime)
+    StorageUtil.SetStringValue(akGiver, "Intel_GossipRendered", giverHeardRendered + giverToldRendered)
+
+    DebugMsg("Gossip: " + giverName + " told " + receiverName + ": " + gossipText)
+EndFunction
+
+Function CleanExpiredFacts(Actor akNPC)
+    {Legacy cleanup: remove Intel_FactExpiry lists from old saves.
+    Fact system is now pure FIFO with no time-based expiry.}
+    If akNPC == None
+        Return
+    EndIf
+    ; Remove legacy expiry list if present (one-time migration)
+    StorageUtil.FloatListClear(akNPC, "Intel_FactExpiry")
+
+    ; If no facts remain, remove from global registry
+    If StorageUtil.StringListCount(akNPC, "Intel_Facts") == 0
+        Actor player = Game.GetPlayer()
+        Int formId = akNPC.GetFormID()
+        Int idx = StorageUtil.IntListFind(player, "Intel_FactNPCs", formId)
+        If idx >= 0
+            StorageUtil.IntListRemoveAt(player, "Intel_FactNPCs", idx)
+        EndIf
+    EndIf
+EndFunction
+
+Function CleanExpiredFactsGlobal()
+    {Sweep all NPCs with facts and remove expired entries.
+    Called from Maintenance() on every game load.}
+    Actor player = Game.GetPlayer()
+    Int count = StorageUtil.IntListCount(player, "Intel_FactNPCs")
+    Int i = count - 1
+    While i >= 0
+        Int formId = StorageUtil.IntListGet(player, "Intel_FactNPCs", i)
+        Actor npc = Game.GetForm(formId) as Actor
+        If npc != None
+            CleanExpiredFacts(npc)
+        Else
+            ; NPC no longer valid — remove from registry
+            StorageUtil.IntListRemoveAt(player, "Intel_FactNPCs", i)
+        EndIf
+        i -= 1
+    EndWhile
 EndFunction
 
 Function NotifyPlayer(String msgText)
@@ -1258,6 +1571,85 @@ EndFunction
 
 
 ; =============================================================================
+; DIALOGUE SAFETY NET
+; =============================================================================
+
+Function RunDialogueSafetyNet()
+    {Called from Story Engine tick. C++ handles MemoryDB query, keyword matching.
+    Papyrus checks schedule slots and fires LLM call if C++ found keywords.}
+
+    ; C++ does all heavy lifting: new dialogue check, keyword match, NPC validation
+    Int keywordHint = IntelEngine.RunSafetyNetCheck()
+    If keywordHint == 0
+        Return
+    EndIf
+
+    Actor npc = IntelEngine.GetSafetyNetNPC()
+    If npc == None || npc.IsDead()
+        Return
+    EndIf
+
+    ; Schedule slot check (schedule slots are not mirrored in C++)
+    If Schedule.FindScheduleSlotByAgent(npc) >= 0
+        Return
+    EndIf
+
+    ; C++ builds the entire context JSON (proper escaping, no Papyrus casing bugs)
+    String contextJson = IntelEngine.BuildSafetyNetContextJson(npc, keywordHint)
+    If contextJson == ""
+        Return
+    EndIf
+
+    DebugMsg("SafetyNet: keywords detected for " + npc.GetDisplayName() + ", firing LLM verification")
+
+    Int result = SkyrimNetApi.SendCustomPromptToLLM("intel_schedule_safety_net", "", contextJson, \
+        Self as Quest, "IntelEngine_Core", "OnScheduleSafetyNetResponse")
+    If result < 0
+        DebugMsg("SafetyNet: LLM call failed, code " + result)
+    EndIf
+EndFunction
+
+Function OnScheduleSafetyNetResponse(String response, Int success)
+    {Callback from LLM schedule verification. Dispatches schedule action if confirmed.}
+    Actor npc = IntelEngine.GetSafetyNetNPC()
+    If success != 1 || npc == None || npc.IsDead()
+        DebugMsg("SafetyNet response: rejected (success=" + success + ", npc=" + (npc != None) + ")")
+        Return
+    EndIf
+
+    ; Re-check schedule slots (may have been filled while LLM was processing)
+    ; NOTE: Core slots (FindSlotByAgent) are intentionally NOT checked here.
+    ; NPCs in active story dispatches (seek_player, etc.) often discuss scheduling
+    ; during their arrival dialogue. The schedule fires in the future, after the
+    ; Core slot is released. Blocking here would silently discard valid schedules.
+    If Schedule.FindScheduleSlotByAgent(npc) >= 0
+        DebugMsg("SafetyNet response: " + npc.GetDisplayName() + " already has a schedule slot, skipping")
+        Return
+    EndIf
+
+    If IntelEngine.StringContains(response, "\"schedule\":true") || IntelEngine.StringContains(response, "\"schedule\": true")
+        String actionType = IntelEngine.StoryResponseGetField(response, "type")
+        String destination = IntelEngine.StoryResponseGetField(response, "destination")
+        String timeCondition = IntelEngine.StoryResponseGetField(response, "timeCondition")
+        String targetName = IntelEngine.StoryResponseGetField(response, "targetName")
+        String msgContent = IntelEngine.StoryResponseGetField(response, "msgContent")
+
+        DebugMsg("SafetyNet confirmed: type=" + actionType + " dest=" + destination + " time=" + timeCondition)
+
+        If actionType == "meeting" && destination != "" && timeCondition != ""
+            Schedule.ScheduleMeeting(npc, destination, timeCondition)
+        ElseIf actionType == "fetch" && targetName != "" && timeCondition != ""
+            Schedule.ScheduleFetch(npc, targetName, timeCondition)
+        ElseIf actionType == "delivery" && targetName != "" && msgContent != "" && timeCondition != ""
+            Schedule.ScheduleDelivery(npc, targetName, msgContent, timeCondition)
+        Else
+            DebugMsg("SafetyNet: LLM confirmed but missing required params")
+        EndIf
+    EndIf
+EndFunction
+
+
+; =============================================================================
 ; DEBUG
 ; =============================================================================
 
@@ -1271,18 +1663,6 @@ EndFunction
 ; =============================================================================
 ; STATUS API (for MCM/debugging)
 ; =============================================================================
-
-Int Function GetActiveTaskCount()
-    Int count = 0
-    Int i = 0
-    While i < MAX_SLOTS
-        If SlotStates[i] != 0
-            count += 1
-        EndIf
-        i += 1
-    EndWhile
-    Return count
-EndFunction
 
 String Function GetSlotStatus(Int slot)
     If slot < 0 || slot >= MAX_SLOTS
