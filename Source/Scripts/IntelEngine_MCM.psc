@@ -250,22 +250,13 @@ Function ShowSettingsPage()
     AddHeaderOption("General Settings")
     AddTextOption("Mod by", "Galanx", OPTION_FLAG_DISABLED)
 
-    Bool debugEnabled = false
-    If IntelEngine_DebugMode != None
-        debugEnabled = IntelEngine_DebugMode.GetValue() > 0
-    EndIf
+    Bool debugEnabled = Core.IsDebugMode()
     OID_DebugMode = AddToggleOption("Debug Mode", debugEnabled)
 
-    Float maxTasks = 5.0
-    If IntelEngine_MaxConcurrentTasks != None
-        maxTasks = IntelEngine_MaxConcurrentTasks.GetValue()
-    EndIf
+    Float maxTasks = Core.GetMaxConcurrentTasks() as Float
     OID_MaxTasks = AddSliderOption("Max Concurrent Tasks", maxTasks, "{0}")
 
-    Float waitHours = 48.0
-    If IntelEngine_DefaultWaitHours != None
-        waitHours = IntelEngine_DefaultWaitHours.GetValue()
-    EndIf
+    Float waitHours = Core.GetDefaultWaitHours()
     OID_DefaultWaitHours = AddSliderOption("Default Wait Hours", waitHours, "{0}")
 
     AddEmptyOption()
@@ -295,23 +286,14 @@ Function ShowSettingsPage()
     AddEmptyOption()
     AddHeaderOption("Story Engine")
 
-    Bool storyEnabled = true
-    If IntelEngine_StoryEngineEnabled != None
-        storyEnabled = IntelEngine_StoryEngineEnabled.GetValue() > 0
-    EndIf
+    Bool storyEnabled = Core.IsStoryEngineEnabled()
     OID_StoryEngineEnabled = AddToggleOption("Enable Story Engine", storyEnabled)
     OID_StoryForceRestart = AddTextOption("Force Restart", "GO")
 
-    Float storyInterval = 2.0
-    If IntelEngine_StoryEngineInterval != None
-        storyInterval = IntelEngine_StoryEngineInterval.GetValue()
-    EndIf
+    Float storyInterval = Core.GetStoryEngineInterval()
     OID_StoryEngineInterval = AddSliderOption("Check Interval (hours)", storyInterval, "{1}")
 
-    Float storyCooldown = 24.0
-    If IntelEngine_StoryEngineCooldown != None
-        storyCooldown = IntelEngine_StoryEngineCooldown.GetValue()
-    EndIf
+    Float storyCooldown = Core.GetStoryEngineCooldown()
     OID_StoryEngineCooldown = AddSliderOption("Story NPC Cooldown (hours)", storyCooldown, "{0}")
 
     AddEmptyOption()
@@ -428,16 +410,9 @@ Event OnOptionSelect(Int optionId)
         ; Handled inside IsScheduleCancelOption via side-effect
 
     ElseIf optionId == OID_DebugMode
-        If IntelEngine_DebugMode != None
-            Float current = IntelEngine_DebugMode.GetValue()
-            If current > 0
-                IntelEngine_DebugMode.SetValue(0)
-                SetToggleOptionValue(OID_DebugMode, false)
-            Else
-                IntelEngine_DebugMode.SetValue(1)
-                SetToggleOptionValue(OID_DebugMode, true)
-            EndIf
-        EndIf
+        Bool newVal = !Core.IsDebugMode()
+        Core.SetSettingBool("Intel_MCM_DebugMode", newVal)
+        SetToggleOptionValue(OID_DebugMode, newVal)
 
     ElseIf optionId == OID_TravelConfirmMode
         Int current = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt")
@@ -460,20 +435,14 @@ Event OnOptionSelect(Int optionId)
         EndIf
 
     ElseIf optionId == OID_StoryEngineEnabled
-        If IntelEngine_StoryEngineEnabled != None
-            Float current = IntelEngine_StoryEngineEnabled.GetValue()
-            If current > 0
-                IntelEngine_StoryEngineEnabled.SetValue(0)
-                SetToggleOptionValue(OID_StoryEngineEnabled, false)
-                If Core != None && Core.StoryEngine != None
-                    Core.StoryEngine.StopScheduler()
-                EndIf
+        Bool newVal = !Core.IsStoryEngineEnabled()
+        Core.SetSettingBool("Intel_MCM_StoryEnabled", newVal)
+        SetToggleOptionValue(OID_StoryEngineEnabled, newVal)
+        If Core.StoryEngine != None
+            If newVal
+                Core.StoryEngine.StartScheduler()
             Else
-                IntelEngine_StoryEngineEnabled.SetValue(1)
-                SetToggleOptionValue(OID_StoryEngineEnabled, true)
-                If Core != None && Core.StoryEngine != None
-                    Core.StoryEngine.StartScheduler()
-                EndIf
+                Core.StoryEngine.StopScheduler()
             EndIf
         EndIf
 
@@ -526,12 +495,12 @@ EndEvent
 
 Event OnOptionSliderOpen(Int optionId)
     If optionId == OID_MaxTasks
-        SetSliderDialogStartValue(IntelEngine_MaxConcurrentTasks.GetValue())
+        SetSliderDialogStartValue(Core.GetMaxConcurrentTasks() as Float)
         SetSliderDialogDefaultValue(5.0)
         SetSliderDialogRange(1.0, 5.0)
         SetSliderDialogInterval(1.0)
     ElseIf optionId == OID_DefaultWaitHours
-        SetSliderDialogStartValue(IntelEngine_DefaultWaitHours.GetValue())
+        SetSliderDialogStartValue(Core.GetDefaultWaitHours())
         SetSliderDialogDefaultValue(48.0)
         SetSliderDialogRange(6.0, 168.0)
         SetSliderDialogInterval(1.0)
@@ -559,20 +528,12 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogRange(200.0, 2000.0)
         SetSliderDialogInterval(100.0)
     ElseIf optionId == OID_StoryEngineInterval
-        Float currentValue = 2.0
-        If IntelEngine_StoryEngineInterval != None
-            currentValue = IntelEngine_StoryEngineInterval.GetValue()
-        EndIf
-        SetSliderDialogStartValue(currentValue)
+        SetSliderDialogStartValue(Core.GetStoryEngineInterval())
         SetSliderDialogDefaultValue(2.0)
         SetSliderDialogRange(0.5, 12.0)
         SetSliderDialogInterval(0.5)
     ElseIf optionId == OID_StoryEngineCooldown
-        Float currentValue = 24.0
-        If IntelEngine_StoryEngineCooldown != None
-            currentValue = IntelEngine_StoryEngineCooldown.GetValue()
-        EndIf
-        SetSliderDialogStartValue(currentValue)
+        SetSliderDialogStartValue(Core.GetStoryEngineCooldown())
         SetSliderDialogDefaultValue(24.0)
         SetSliderDialogRange(6.0, 72.0)
         SetSliderDialogInterval(6.0)
@@ -626,10 +587,10 @@ EndEvent
 
 Event OnOptionSliderAccept(Int optionId, Float sliderValue)
     If optionId == OID_MaxTasks
-        IntelEngine_MaxConcurrentTasks.SetValue(sliderValue)
+        Core.SetSettingFloat("Intel_MCM_MaxTasks", sliderValue)
         SetSliderOptionValue(OID_MaxTasks, sliderValue, "{0}")
     ElseIf optionId == OID_DefaultWaitHours
-        IntelEngine_DefaultWaitHours.SetValue(sliderValue)
+        Core.SetSettingFloat("Intel_MCM_DefaultWaitHours", sliderValue)
         SetSliderOptionValue(OID_DefaultWaitHours, sliderValue, "{0}")
     ElseIf optionId == OID_MeetingTimeoutHours
         StorageUtil.SetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", sliderValue)
@@ -645,14 +606,14 @@ Event OnOptionSliderAccept(Int optionId, Float sliderValue)
         EndIf
         SetSliderOptionValue(OID_LingerReleaseDistance, sliderValue, "{0}")
     ElseIf optionId == OID_StoryEngineInterval
-        If IntelEngine_StoryEngineInterval != None
-            IntelEngine_StoryEngineInterval.SetValue(sliderValue)
-        EndIf
+        Core.SetSettingFloat("Intel_MCM_StoryInterval", sliderValue)
         SetSliderOptionValue(OID_StoryEngineInterval, sliderValue, "{1}")
-    ElseIf optionId == OID_StoryEngineCooldown
-        If IntelEngine_StoryEngineCooldown != None
-            IntelEngine_StoryEngineCooldown.SetValue(sliderValue)
+        ; Restart scheduler so the new interval takes effect immediately
+        If Core != None && Core.StoryEngine != None
+            Core.StoryEngine.StartScheduler()
         EndIf
+    ElseIf optionId == OID_StoryEngineCooldown
+        Core.SetSettingFloat("Intel_MCM_StoryCooldown", sliderValue)
         SetSliderOptionValue(OID_StoryEngineCooldown, sliderValue, "{0}")
     ElseIf optionId == OID_StoryLongAbsence
         If Core != None && Core.StoryEngine != None

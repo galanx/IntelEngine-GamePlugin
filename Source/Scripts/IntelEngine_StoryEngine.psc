@@ -104,17 +104,13 @@ Int Property QUEST_OBJECTIVE_ID = 0 AutoReadOnly
 ; =============================================================================
 
 Function StartScheduler()
-    If IntelEngine_StoryEngineEnabled == None || IntelEngine_StoryEngineEnabled.GetValue() <= 0
+    If !Core.IsStoryEngineEnabled()
         return
     EndIf
     If IsActive
         RegisterForSingleUpdate(MONITOR_INTERVAL)
     Else
-        Float interval = 2.0
-        If IntelEngine_StoryEngineInterval != None
-            interval = IntelEngine_StoryEngineInterval.GetValue()
-        EndIf
-        RegisterForSingleUpdateGameTime(interval)
+        RegisterForSingleUpdateGameTime(Core.GetStoryEngineInterval())
     EndIf
 EndFunction
 
@@ -334,7 +330,7 @@ EndEvent
 ; =============================================================================
 
 Function TickScheduler()
-    If IntelEngine_StoryEngineEnabled == None || IntelEngine_StoryEngineEnabled.GetValue() <= 0
+    If !Core.IsStoryEngineEnabled()
         return
     EndIf
 
@@ -692,11 +688,7 @@ Bool Function ApplyCooldownCheck(Actor candidate)
 
     Float lastPicked = StorageUtil.GetFloatValue(candidate, "Intel_StoryLastPicked", 0.0)
     Float currentTime = Utility.GetCurrentGameTime()
-    Float cooldownHours = 24.0
-    If IntelEngine_StoryEngineCooldown != None
-        cooldownHours = IntelEngine_StoryEngineCooldown.GetValue()
-    EndIf
-    Float cooldownDays = cooldownHours / 24.0
+    Float cooldownDays = Core.GetStoryEngineCooldown() / 24.0
     If lastPicked > 0.0 && (currentTime - lastPicked) < cooldownDays
         IntelEngine.NotifyStoryCooldown(candidate, lastPicked)
         ; Self-heal formlist for warmup on next game load
@@ -728,11 +720,7 @@ EndFunction
 Function WarmCooldownMirror()
     {Populate C++ cooldown mirror from StorageUtil on game load. Prevents wasted LLM turns.}
     Float currentTime = Utility.GetCurrentGameTime()
-    Float cooldownHours = 24.0
-    If IntelEngine_StoryEngineCooldown != None
-        cooldownHours = IntelEngine_StoryEngineCooldown.GetValue()
-    EndIf
-    Float cooldownDays = cooldownHours / 24.0
+    Float cooldownDays = Core.GetStoryEngineCooldown() / 24.0
 
     Int count = StorageUtil.FormListCount(self, "Intel_CooldownActors")
     Int warmed = 0
@@ -766,11 +754,7 @@ Bool Function WarmCooldownsForPool()
     EndIf
 
     Float currentTime = Utility.GetCurrentGameTime()
-    Float cooldownHours = 24.0
-    If IntelEngine_StoryEngineCooldown != None
-        cooldownHours = IntelEngine_StoryEngineCooldown.GetValue()
-    EndIf
-    Float cooldownDays = cooldownHours / 24.0
+    Float cooldownDays = Core.GetStoryEngineCooldown() / 24.0
 
     Int warmed = 0
     Int i = 0
@@ -1627,20 +1611,19 @@ Function HandleMessageDispatch(Actor npc, String narration, String response)
     String destination = ExtractJsonField(response, "destination")
     String meetTime = ExtractJsonField(response, "meetTime")
 
-    ; Inject fact on sender -- they remember sending the message
-    If senderName != ""
+    ; Inject facts so both sender and messenger know about each other
+    String playerName = Game.GetPlayer().GetDisplayName()
+    String messengerName = npc.GetDisplayName()
+    If senderName != "" && senderName != messengerName
+        ; Separate sender and messenger — both remember the arrangement
         Actor senderNPC = IntelEngine.FindNPCByName(senderName)
         If senderNPC != None
-            Core.InjectFact(senderNPC, "sent word to " + Game.GetPlayer().GetDisplayName() + ": " + msgContent)
+            Core.InjectFact(senderNPC, "asked " + messengerName + " to deliver a message to " + playerName + ": " + msgContent)
         EndIf
-    EndIf
-
-    ; Inject purpose fact on messenger (survives narration failure)
-    String playerName = Game.GetPlayer().GetDisplayName()
-    If senderName != "" && senderName != npc.GetDisplayName()
-        Core.InjectFact(npc, "was sent to deliver a message from " + senderName + " for " + playerName)
+        Core.InjectFact(npc, "was sent by " + senderName + " to deliver a message to " + playerName + ": " + msgContent)
     Else
-        Core.InjectFact(npc, "came to deliver an important message for " + playerName)
+        ; NPC is their own sender
+        Core.InjectFact(npc, "set out to deliver a message to " + playerName + ": " + msgContent)
     EndIf
 
     ; Store for arrival narration

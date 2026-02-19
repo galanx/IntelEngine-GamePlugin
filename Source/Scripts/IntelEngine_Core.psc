@@ -496,14 +496,11 @@ EndFunction
 
 Int Function FindFreeAgentSlot()
     ; Respect user-configured max concurrent tasks
-    Int maxAllowed = MAX_SLOTS
-    If IntelEngine_MaxConcurrentTasks != None
-        maxAllowed = IntelEngine_MaxConcurrentTasks.GetValue() as Int
-        If maxAllowed > MAX_SLOTS
-            maxAllowed = MAX_SLOTS
-        ElseIf maxAllowed < 1
-            maxAllowed = 1
-        EndIf
+    Int maxAllowed = GetMaxConcurrentTasks()
+    If maxAllowed > MAX_SLOTS
+        maxAllowed = MAX_SLOTS
+    ElseIf maxAllowed < 1
+        maxAllowed = 1
     EndIf
 
     Int activeCount = 0
@@ -707,11 +704,17 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenLastDist")
 
             ; Re-lock home door if we unlocked one (anti-trespass cleanup)
+            ; Skip if player is still inside — don't trigger trespass while they're there
             Int unlockedCellId = StorageUtil.GetIntValue(agent, "Intel_UnlockedHomeCellId")
             If unlockedCellId != 0
-                IntelEngine.SetHomeDoorAccessForCell(unlockedCellId, false)
+                Cell playerCell = Game.GetPlayer().GetParentCell()
+                If playerCell != None && playerCell.GetFormID() == unlockedCellId
+                    DebugMsg("Keeping cell " + unlockedCellId + " public (player inside)")
+                Else
+                    IntelEngine.SetHomeDoorAccessForCell(unlockedCellId, false)
+                    DebugMsg("Re-locked home door for cell " + unlockedCellId)
+                EndIf
                 StorageUtil.UnsetIntValue(agent, "Intel_UnlockedHomeCellId")
-                DebugMsg("Re-locked home door for cell " + unlockedCellId)
             EndIf
 
             ; Clear task cooldown
@@ -952,11 +955,17 @@ Function ReleaseLinger(Actor npc)
     DebugMsg("Linger release DONE: " + npc.GetDisplayName() + " EvaluatePackage called")
     StorageUtil.UnsetIntValue(npc, "Intel_LingerFarTicks")
     ; Re-lock building if we unlocked one during linger
+    ; Skip if player is still inside — don't trigger trespass while they're there
     Int unlockedCellId = StorageUtil.GetIntValue(npc, "Intel_UnlockedHomeCellId")
     If unlockedCellId != 0
-        IntelEngine.SetHomeDoorAccessForCell(unlockedCellId, false)
+        Cell playerCell = Game.GetPlayer().GetParentCell()
+        If playerCell != None && playerCell.GetFormID() == unlockedCellId
+            DebugMsg("Keeping cell " + unlockedCellId + " public (player inside, linger release)")
+        Else
+            IntelEngine.SetHomeDoorAccessForCell(unlockedCellId, false)
+            DebugMsg("Building access: re-locked cell " + unlockedCellId + " (linger release)")
+        EndIf
         StorageUtil.UnsetIntValue(npc, "Intel_UnlockedHomeCellId")
-        DebugMsg("Building access: re-locked cell " + unlockedCellId + " (linger release)")
     EndIf
 EndFunction
 
@@ -1650,12 +1659,73 @@ EndFunction
 
 
 ; =============================================================================
+; MCM SETTINGS (StorageUtil-backed, survives ESP redeployment)
+; =============================================================================
+
+; StorageUtil keys for MCM settings (on player actor)
+; Fallback to GlobalVariable ESP defaults on first access.
+
+Bool Function GetSettingBool(String settingKey, Bool defaultVal)
+    Actor player = Game.GetPlayer()
+    If StorageUtil.HasIntValue(player, settingKey)
+        return StorageUtil.GetIntValue(player, settingKey) > 0
+    EndIf
+    return defaultVal
+EndFunction
+
+Function SetSettingBool(String settingKey, Bool val)
+    Actor player = Game.GetPlayer()
+    If val
+        StorageUtil.SetIntValue(player, settingKey, 1)
+    Else
+        StorageUtil.SetIntValue(player, settingKey, 0)
+    EndIf
+EndFunction
+
+Float Function GetSettingFloat(String settingKey, Float defaultVal)
+    Actor player = Game.GetPlayer()
+    If StorageUtil.HasFloatValue(player, settingKey)
+        return StorageUtil.GetFloatValue(player, settingKey)
+    EndIf
+    return defaultVal
+EndFunction
+
+Function SetSettingFloat(String settingKey, Float val)
+    StorageUtil.SetFloatValue(Game.GetPlayer(), settingKey, val)
+EndFunction
+
+; Convenience accessors for commonly used settings
+Bool Function IsDebugMode()
+    return GetSettingBool("Intel_MCM_DebugMode", false)
+EndFunction
+
+Int Function GetMaxConcurrentTasks()
+    return GetSettingFloat("Intel_MCM_MaxTasks", 5.0) as Int
+EndFunction
+
+Float Function GetDefaultWaitHours()
+    return GetSettingFloat("Intel_MCM_DefaultWaitHours", 48.0)
+EndFunction
+
+Bool Function IsStoryEngineEnabled()
+    return GetSettingBool("Intel_MCM_StoryEnabled", true)
+EndFunction
+
+Float Function GetStoryEngineInterval()
+    return GetSettingFloat("Intel_MCM_StoryInterval", 2.0)
+EndFunction
+
+Float Function GetStoryEngineCooldown()
+    return GetSettingFloat("Intel_MCM_StoryCooldown", 24.0)
+EndFunction
+
+; =============================================================================
 ; DEBUG
 ; =============================================================================
 
 Function DebugMsg(String msg)
     Debug.Trace("IntelEngine: " + msg)
-    If IntelEngine_DebugMode && IntelEngine_DebugMode.GetValue() > 0
+    If IsDebugMode()
         Debug.Notification("Intel: " + msg)
     EndIf
 EndFunction
