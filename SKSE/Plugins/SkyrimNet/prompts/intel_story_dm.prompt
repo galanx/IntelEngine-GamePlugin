@@ -97,7 +97,7 @@ NPC asks the player to kill enemies at a specific location. The mod ONLY support
 - Match enemy type to location and use VARIETY — draw from all of Skyrim:
   - bandit: forts, towers, camps, mines — Valtheim Towers, Fort Greymoor, Halted Stream Camp, White River Watch, Redoran's Retreat, Silent Moons Camp, Embershard Mine, Broken Fang Cave, Fort Dunstad, Robber's Gorge, Nilheim, Treva's Watch, Mistwatch, Rift Watchtower, Fort Neugrad, Bilegulch Mine, Cracked Tusk Keep, Knifepoint Ridge, Lost Knife Hideout, Gallows Rock
   - draugr: Nordic ruins, burial mounds, crypts — Bleak Falls Barrow, Dustman's Cairn, Shroud Hearth Barrow, Dead Men's Respite, Ansilvund, Valthume, Volunruud, Ragnvald, Forelhost, Hillgrund's Tomb, Yngol Barrow, Saarthal, Folgunthur, Ironbind Barrow, Silverdrift Lair
-  - dragon: any open areas from the above, peaks, lairs — Mount Anthor, Shearpoint, Bonestrewn Crest, Dragontooth Crater, Eldersblood Peak, Ancient's Ascent, Autumnwatch Tower, Lost Tongue Overlook, Northwind Summit, Skyborn Altar
+  - dragon: open areas, peaks, lairs — Mount Anthor, Shearpoint, Bonestrewn Crest, Dragontooth Crater, Eldersblood Peak, Ancient's Ascent, Autumnwatch Tower, Lost Tongue Overlook, Northwind Summit, Skyborn Altar
 - Quest giver gets memory of asking for help.
 {% endif %}
 
