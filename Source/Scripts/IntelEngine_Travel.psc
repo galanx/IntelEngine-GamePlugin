@@ -226,13 +226,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     Core.DismissFollowerForTask(akNPC)
 
     ; Calculate wait deadline from MCM setting
-    Float waitHours = 0.0
-    If Core.IntelEngine_DefaultWaitHours != None
-        waitHours = Core.IntelEngine_DefaultWaitHours.GetValue()
-    EndIf
-    If waitHours <= 0.0
-        waitHours = DEFAULT_WAIT_HOURS
-    EndIf
+    Float waitHours = Core.GetDefaultWaitHours()
     waitHours = ClampFloat(waitHours, MIN_WAIT_HOURS, MAX_WAIT_HOURS)
 
     ; Allocate slot
@@ -551,12 +545,7 @@ Function OnArrival(Int slot, Actor npc)
     Else
         Float waitHours = StorageUtil.GetFloatValue(npc, "Intel_WaitHours")
         If waitHours <= 0.0
-            If Core.IntelEngine_DefaultWaitHours != None
-                waitHours = Core.IntelEngine_DefaultWaitHours.GetValue()
-            EndIf
-            If waitHours <= 0.0
-                waitHours = DEFAULT_WAIT_HOURS
-            EndIf
+            waitHours = Core.GetDefaultWaitHours()
         EndIf
         Core.SetSlotDeadline(slot, Utility.GetCurrentGameTime() + (waitHours / 24.0))
     EndIf
@@ -670,7 +659,10 @@ Function CheckWaiting(Int slot, Actor npc)
         If playerNearDest
             ; Player is near the destination — NPC should walk toward them
             ; (skip for stay-at-dest — NPC stays put, playerNearby handles arrival)
-            If !IsStayAtDestination(Core.SlotTargetNames[slot])
+            ; GUARD: Never approach across cell boundaries (loading screens).
+            ; NPC stays put until the player enters their cell — playerNearby handles that.
+            Bool sameCell = npc.GetParentCell() == player.GetParentCell()
+            If sameCell && !IsStayAtDestination(Core.SlotTargetNames[slot])
                 If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
                     ; Only start approach if NPC is visible — avoids ghost notifications
                     If npc.Is3DLoaded()
