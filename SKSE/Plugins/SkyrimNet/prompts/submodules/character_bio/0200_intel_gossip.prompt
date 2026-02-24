@@ -1,10 +1,6 @@
 {% if render_mode == "full" or render_mode == "static" %}
 {% set first_person = (render_mode == "transform" or render_mode == "full" or render_mode == "thoughts") %}
 {% if actorUUID and isValidActor(actorUUID) %}
-{% set gossipRendered = papyrus_util("GetStringValue", actorUUID, "Intel_GossipRendered", "") %}
-{% if gossipRendered != "" and first_person %}
-{{ gossipRendered }}
-{% else %}
 {% set gossipHeard = papyrus_util("GetStringList", actorUUID, "Intel_GossipHeard") %}
 {% set gossipHeardFrom = papyrus_util("GetStringList", actorUUID, "Intel_GossipHeardFrom") %}
 {% set gossipHeardTimes = papyrus_util("GetFloatList", actorUUID, "Intel_GossipHeardTimes") %}
@@ -43,7 +39,6 @@
 {% endfor %}
 {% endif %}
 
-{% endif %}
 {% endif %}
 {% endif %}
 {% endif %}

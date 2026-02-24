@@ -64,6 +64,7 @@ Int OID_StoryEngineCooldown
 Int OID_StoryForceRestart
 Int OID_StoryLongAbsence
 Int OID_StoryMaxTravel
+Int OID_AllowStuckTeleport
 Int OID_QuestExpiryDays
 Int OID_NPCTickEnabled
 Int OID_NPCTickInterval
@@ -335,6 +336,12 @@ Function ShowSettingsPage()
     OID_StoryLongAbsence = AddSliderOption("Long Absence (days)", longAbsence, "{0}")
     OID_StoryMaxTravel = AddSliderOption("Max Travel Time (days)", maxTravel, "{2}")
 
+    Bool allowTeleport = true
+    If Core != None && Core.StoryEngine != None
+        allowTeleport = Core.StoryEngine.AllowStuckTeleport
+    EndIf
+    OID_AllowStuckTeleport = AddToggleOption("Teleport on stuck/timeout", allowTeleport)
+
     Float questExpiry = 1.0
     If Core != None && Core.StoryEngine != None
         questExpiry = Core.StoryEngine.QUEST_EXPIRY_DAYS
@@ -488,6 +495,9 @@ Event OnOptionSelect(Int optionId)
         ElseIf optionId == OID_TypeNPCGossip
             Core.StoryEngine.TypeNPCGossipEnabled = !Core.StoryEngine.TypeNPCGossipEnabled
             SetToggleOptionValue(OID_TypeNPCGossip, Core.StoryEngine.TypeNPCGossipEnabled)
+        ElseIf optionId == OID_AllowStuckTeleport
+            Core.StoryEngine.AllowStuckTeleport = !Core.StoryEngine.AllowStuckTeleport
+            SetToggleOptionValue(OID_AllowStuckTeleport, Core.StoryEngine.AllowStuckTeleport)
         EndIf
 
     EndIf
@@ -680,6 +690,8 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("Minimum game days since your last interaction with an NPC before the Story Engine considers them as a candidate.")
     ElseIf optionId == OID_StoryMaxTravel
         SetInfoText("Maximum game days an NPC will travel before being teleported to the target. Lower = faster delivery, higher = more realistic.")
+    ElseIf optionId == OID_AllowStuckTeleport
+        SetInfoText("When enabled, NPCs stuck during travel or exceeding the max travel time are teleported to the target. When disabled, the NPC gives up instead.")
     ElseIf optionId == OID_QuestExpiryDays
         SetInfoText("How many in-game days before an unfinished dynamic quest auto-expires. The quest giver remembers you never showed up. Default 1.")
     ElseIf optionId == OID_TypeSeekPlayer

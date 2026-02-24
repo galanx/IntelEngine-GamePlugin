@@ -44,6 +44,7 @@ Float Property SNEAK_TIMEOUT_SECONDS = 300.0 AutoReadOnly
 Float Property MaxTravelDaysConfig = 1.0 Auto Hidden
 Float Property LongAbsenceDaysConfig = 3.0 Auto Hidden
 String Property ExcludedTypesConfig = "" Auto Hidden
+Bool Property AllowStuckTeleport = true Auto Hidden
 
 ; === Per-type toggles (MCM) ===
 Bool Property TypeSeekPlayerEnabled = true Auto Hidden
@@ -361,12 +362,11 @@ Function TickScheduler()
                 EndIf
 
                 PendingStoryType = "dm_analysis"
-                String recentLog = GetRecentStoryEventsLog()
 
                 ; Build exclude list from per-type toggles + environment
                 String excludeList = BuildExcludeList(player)
 
-                String contextJson = IntelEngine.BuildStoryDMRequestJson(dmContext, recentLog, excludeList)
+                String contextJson = IntelEngine.BuildStoryDMRequestJson(dmContext, excludeList)
                 SendStoryLLMRequest("intel_story_dm", "OnDungeonMasterResponse", contextJson)
             EndIf
         EndIf
@@ -455,8 +455,7 @@ Function TickNPCInteractions()
         return
     EndIf
 
-    String recentLog = GetRecentStoryEventsLog()
-    String contextJson = IntelEngine.BuildNPCInteractionRequestJson(npcContext, recentLog)
+    String contextJson = IntelEngine.BuildNPCInteractionRequestJson(npcContext)
     SendStoryLLMRequest("intel_story_npc_dm", "OnNPCInteractionResponse", contextJson)
 EndFunction
 
@@ -803,7 +802,7 @@ EndFunction
 ; =============================================================================
 
 Function SendStoryLLMRequest(String promptName, String callbackName, String contextJson)
-    Int result = SkyrimNetApi.SendCustomPromptToLLM(promptName, "", contextJson, \
+    Int result = SkyrimNetApi.SendCustomPromptToLLM(promptName, "intel_story_dm", contextJson, \
         Self, "IntelEngine_StoryEngine", callbackName)
     If result < 0
         Debug.Trace("[IntelEngine] StoryEngine: LLM call failed (" + promptName + ") code " + result)
@@ -987,11 +986,14 @@ EndFunction
 ; =============================================================================
 
 Function DispatchToTarget(Actor npc, Actor target, String narration, String slotTaskType)
+    Actor player = Game.GetPlayer()
+
+
     Int slot = Core.FindFreeAgentSlot()
     If slot < 0
         Debug.Trace("[IntelEngine] StoryEngine: No free slots for dispatch")
         ; For NPC targets, log event (facts already injected by caller)
-        If target != Game.GetPlayer()
+        If target != player
             AddRecentStoryEvent(ActiveStoryType + ": " + BuildInteractionSummary(npc, narration, target))
         EndIf
         ; Reset state set by caller before DispatchToTarget was called
@@ -1001,7 +1003,7 @@ Function DispatchToTarget(Actor npc, Actor target, String narration, String slot
 
     ; Determine slot target name
     String targetName = target.GetDisplayName()
-    If target != Game.GetPlayer()
+    If target != player
         ActiveSecondNPC = target
     EndIf
 
@@ -1021,7 +1023,7 @@ Function DispatchToTarget(Actor npc, Actor target, String narration, String slot
     ; Cap off-screen estimate for player-targeted stories to prevent stranding.
     ; NPC may physically walk to the area faster than the distance estimate, then get
     ; stuck in a different cell when the player moves. 15 game minutes max keeps it snappy.
-    If target == Game.GetPlayer()
+    If target == player
         Float MAX_STORY_OFFSCREEN_HOURS = 0.25
         Float maxWait = MAX_STORY_OFFSCREEN_HOURS / 24.0
         Float now = Utility.GetCurrentGameTime()
@@ -1480,6 +1482,19 @@ Function CheckStoryNPCArrival()
         return
     EndIf
 
+    ; Abort civilian dispatch if player entered a dangerous location during travel
+    If arrivalTarget == player && IntelEngine.IsPlayerInDangerousLocation() && IntelEngine.IsCivilianClass(ActiveStoryNPC)
+        Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- civilian won't enter dangerous location")
+        Core.SendTaskNarration(ActiveStoryNPC, "turned back after learning that " + player.GetDisplayName() + " had ventured into a dangerous place", player)
+        Int abortSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+        If abortSlot >= 0
+            Core.ClearSlot(abortSlot)
+        EndIf
+        Core.RemoveAllPackages(ActiveStoryNPC, false)
+        CleanupStoryDispatch()
+        return
+    EndIf
+
     Float dist = ActiveStoryNPC.GetDistance(arrivalTarget)
 
     ; Arrived when within standard arrival distance
@@ -1491,8 +1506,8 @@ Function CheckStoryNPCArrival()
     ; Same interior cell shortcut: only count as arrived if also within distance.
     ; Large interiors like Dragonsreach can have NPCs 3000+ units apart in the same cell.
     Cell targetCell = arrivalTarget.GetParentCell()
-    Cell npcCell = ActiveStoryNPC.GetParentCell()
-    If npcCell != None && targetCell != None && npcCell == targetCell
+    Cell npcCell2 = ActiveStoryNPC.GetParentCell()
+    If npcCell2 != None && targetCell != None && npcCell2 == targetCell
         If targetCell.IsInterior() && dist <= Core.ARRIVAL_DISTANCE && dist > 0.0
             OnStoryNPCArrived()
             return
@@ -1504,10 +1519,24 @@ Function CheckStoryNPCArrival()
         return
     EndIf
 
-    ; Off-screen: NPC not loaded ? leapfrog won't work, use time-based arrival
+    ; Off-screen: NPC not loaded — leapfrog won't work, use time-based arrival
     If !ActiveStoryNPC.Is3DLoaded()
-        If Core.HandleOffScreenTravel(slot, ActiveStoryNPC, arrivalTarget as ObjectReference)
-            ; Off-screen arrival triggered ? teleport near target to become loaded
+        ; Don't teleport civilians into dangerous locations
+        If arrivalTarget == player && IntelEngine.IsPlayerInDangerousLocation() && IntelEngine.IsCivilianClass(ActiveStoryNPC)
+            Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- civilian won't enter dangerous location (off-screen)")
+            Core.SendTaskNarration(ActiveStoryNPC, "turned back after learning that " + player.GetDisplayName() + " had ventured into a dangerous place", player)
+            Int abortSlot2 = Core.FindSlotByAgent(ActiveStoryNPC)
+            If abortSlot2 >= 0
+                Core.ClearSlot(abortSlot2)
+            EndIf
+            Core.RemoveAllPackages(ActiveStoryNPC, false)
+            CleanupStoryDispatch()
+            return
+        EndIf
+        ; Check if estimated travel time has elapsed (without teleporting yet)
+        Int offscreenStatus = IntelEngine.CheckOffScreenProgress(slot, ActiveStoryNPC, Utility.GetCurrentGameTime())
+        If offscreenStatus == 1
+            Core.DebugMsg(ActiveStoryNPC.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
             ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
         EndIf
         return
@@ -1518,14 +1547,23 @@ Function CheckStoryNPCArrival()
     If stuckStatus == 1
         Core.SoftStuckRecovery(ActiveStoryNPC, slot, arrivalTarget as ObjectReference)
     ElseIf stuckStatus >= 3
-        ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+        If AllowStuckTeleport
+            ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+        Else
+            AbortStoryTravel("stuck, teleport disabled")
+        EndIf
+        return
     EndIf
 
     ; Timeout safety net
     Float taskStart = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_TaskStartTime", 0.0)
     If taskStart > 0.0 && (Utility.GetCurrentGameTime() - taskStart) > MaxTravelDaysConfig
         Debug.Trace("[IntelEngine] StoryEngine: Travel timeout for " + ActiveStoryNPC.GetDisplayName())
-        ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+        If AllowStuckTeleport
+            ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+        Else
+            AbortStoryTravel("travel timeout, teleport disabled")
+        EndIf
     EndIf
 EndFunction
 
@@ -2420,6 +2458,17 @@ EndFunction
 ; CLEANUP
 ; =============================================================================
 
+Function AbortStoryTravel(String reason)
+    {Abort active story travel: clear slot, remove packages, full cleanup.}
+    Core.DebugMsg("Story: " + ActiveStoryNPC.GetDisplayName() + " " + reason + " — aborting")
+    Int abortSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+    If abortSlot >= 0
+        Core.ClearSlot(abortSlot)
+    EndIf
+    Core.RemoveAllPackages(ActiveStoryNPC, false)
+    CleanupStoryDispatch()
+EndFunction
+
 Function CleanupStoryDispatch()
     ; If quest dispatch is being cleaned up, also reset quest state
     If ActiveStoryType == "quest" || ActiveStoryType == "quest_guide"
@@ -2504,23 +2553,6 @@ Function AddRecentStoryEvent(String summary)
     EndWhile
 EndFunction
 
-String Function GetRecentStoryEventsLog()
-    Actor player = Game.GetPlayer()
-    Int count = StorageUtil.StringListCount(player, "Intel_RecentStoryEvents")
-    If count == 0
-        return "None yet."
-    EndIf
-    String log = ""
-    Int i = 0
-    While i < count
-        If log != ""
-            log += ", "
-        EndIf
-        log += StorageUtil.StringListGet(player, "Intel_RecentStoryEvents", i)
-        i += 1
-    EndWhile
-    return log
-EndFunction
 
 ; =============================================================================
 ; STRING HELPERS
