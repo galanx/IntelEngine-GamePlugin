@@ -1,0 +1,77 @@
+plugin:
+  name: IntelEngine
+  version: "1.0"
+  description: "NPC task & story automation engine"
+  icon: "\U0001F9E0"
+
+variants:
+  - name: intel_story_dm
+    description: "Story Dungeon Master decisions — uses base OpenRouter config unless overridden below"
+
+schema:
+  fields:
+    # ── Story Engine ──
+    - name: "Faction Blocklist"
+      path: "story.faction_blocklist"
+      type: "string"
+      description: "Comma-separated faction EditorIDs to exclude from story candidates. Append :rank to filter by max rank (e.g., PrisonerFaction,ImperialFaction:1 blocks all prisoners and Imperials rank 0-1)"
+      defaultValue: ""
+      category: "Story Engine"
+
+    - name: "Max Story Candidates"
+      path: "story.max_candidates"
+      type: "int"
+      description: "Maximum NPCs in the DM candidate pool"
+      defaultValue: 15
+      min: 5
+      max: 30
+      category: "Story Engine"
+
+    # ── LLM Overrides (leave empty to use base OpenRouter config) ──
+    - name: "API Endpoint"
+      path: "llm.endpoint"
+      type: "string"
+      description: "Custom API endpoint URL (e.g., http://localhost:5000/v1). Leave empty to use the base OpenRouter endpoint."
+      defaultValue: ""
+      category: "LLM Overrides"
+
+    - name: "API Key"
+      path: "llm.api_key"
+      type: "string"
+      description: "API key for the custom endpoint. Leave empty to use the base OpenRouter API key."
+      defaultValue: ""
+      category: "LLM Overrides"
+
+    - name: "Model Override"
+      path: "llm.model_name"
+      type: "string"
+      description: "Override model name for story DM. Leave empty to use the same model as dialogue."
+      defaultValue: ""
+      category: "LLM Overrides"
+
+    - name: "Temperature Override"
+      path: "llm.temperature"
+      type: "float"
+      description: "Override sampling temperature. Set to 0 to use the base config value."
+      defaultValue: 0
+      min: 0.0
+      max: 2.0
+      category: "LLM Overrides"
+
+    - name: "Max Tokens Override"
+      path: "llm.max_tokens"
+      type: "int"
+      description: "Override max response tokens. Set to 0 to use the base config value."
+      defaultValue: 0
+      min: 0
+      max: 4096
+      category: "LLM Overrides"
+
+    - name: "Timeout Override"
+      path: "llm.timeout"
+      type: "int"
+      description: "Override request timeout in seconds. Set to 0 to use the base config value."
+      defaultValue: 0
+      min: 0
+      max: 120
+      category: "LLM Overrides"

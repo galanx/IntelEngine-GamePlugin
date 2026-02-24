@@ -23,13 +23,6 @@ Your ENTIRE response must be a single JSON object — nothing before it, nothing
 
 {{ npcPairPool }}
 
-## Recent Events (avoid repeating)
-{% if recentStoryEvents and recentStoryEvents != "" %}
-{{ recentStoryEvents }}
-{% else %}
-None yet.
-{% endif %}
-
 ## Interaction Types
 
 ### npc_interaction
@@ -51,7 +44,7 @@ One NPC shares a rumor about a third party with another.
 2. **Ground narration in real memories** — do not fabricate history or events.
 3. **Late night needs justification** — most NPCs sleep. Only innkeepers, guards, and night-owls interact late.
 4. **Prioritize pairs with shared history**, but fresh encounters between NPCs who share a location are also good — especially if their roles create natural friction or camaraderie.
-5. **Anti-repetition** — your choice MUST differ from the recent events listed above.
+5. **Ground in what they know** — each NPC's memories and gossip are their personal knowledge. Build interactions from what they've actually experienced, not from events they had no part in.
 6. **Past tense narration ONLY**, verb phrase without subject, under 200 characters.
 7. **Player nearby** — if "player nearby: yes", the interaction will be visible. Make it interesting to witness. If "player nearby: no", it happens in the background and will be remembered but not seen.
 8. **Followers scheming** — NPCs marked "(follower)" travel with the player. When two followers interact about the player while the player is nearby, narrate it as whispered and conspiratorial ("leaned in and whispered to...", "glanced at the player, then quietly told...").

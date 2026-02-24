@@ -24,13 +24,6 @@ Your ENTIRE response must be a single JSON object — nothing before it, nothing
 
 {{ candidatePool }}
 
-## Recent Story Events (DO NOT REPEAT)
-{% if recentStoryEvents and recentStoryEvents != "" %}
-{{ recentStoryEvents }}
-{% else %}
-None yet.
-{% endif %}
-
 ## Available Story Types
 
 {% if show_seek_player == "1" %}
@@ -122,7 +115,7 @@ NPC asks the player to kill enemies at a specific location. The mod ONLY support
 5. **Romance and personal matters** — SAFE locations only. No love confessions in dungeons.
 6. **DANGEROUS locations** — only combat-capable classes with strong motive should approach. CIVILIAN NPCs NEVER enter danger zones for ANY reason.
 7. **Past tense narration only** — describe what the NPC decided to do, not what they will do. Under 200 characters.
-8. **Anti-repetition** — your choice MUST differ meaningfully from the recent story events listed above. Different NPC, different type, different motivation.
+8. **Ground stories in what the NPC knows** — each NPC's memories, events, and gossip are THEIR knowledge. Don't dispatch an NPC based on events they weren't involved in. Pick a candidate whose personal history naturally leads to action.
 9. **Narration is a verb phrase WITHOUT subject prefix** — the narration fires when the NPC is already face-to-face with {{ playerName }}. For EVERY type (including stalker), write as if the encounter is HAPPENING NOW: seeker has arrived, stalker has been caught, ambusher is confronting. NEVER narrate as if the NPC is still en route, still hidden, or unaware of {{ playerName }}'s presence. Include WHO and WHY. Good: "tracked {{ playerName }} down after hearing about the dragon attack". Bad: "followed through the darkness hoping to stay hidden" (reads as still hiding while standing face-to-face).
 10. **Type variety** — if "Story Type Picks This Session" shows counts, lean toward underrepresented types for variety. But NEVER force a type that doesn't fit the story. If no type makes narrative sense right now, reject everything — returning should_act:false is always valid.
 11. **No location references in narrations** — NEVER mention specific locations (city names, landmark names, building names) in the narration text. The NPC may take hours to reach {{ playerName }}, who will likely be somewhere completely different by then. Narrate the NPC's MOTIVE and EMOTION, not where the encounter happens. Good: "was caught following {{ playerName }} out of jealousy". Bad: "was caught stalking {{ playerName }} through the Whiterun market". The only exception is "destination" and "questLocation" fields, which are separate structured data.

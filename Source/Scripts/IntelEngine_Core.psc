@@ -1611,7 +1611,7 @@ Function RunDialogueSafetyNet()
 
     DebugMsg("SafetyNet: keywords detected for " + npc.GetDisplayName() + ", firing LLM verification")
 
-    Int result = SkyrimNetApi.SendCustomPromptToLLM("intel_schedule_safety_net", "", contextJson, \
+    Int result = SkyrimNetApi.SendCustomPromptToLLM("intel_schedule_safety_net", "intel_story_dm", contextJson, \
         Self as Quest, "IntelEngine_Core", "OnScheduleSafetyNetResponse")
     If result < 0
         DebugMsg("SafetyNet: LLM call failed, code " + result)
