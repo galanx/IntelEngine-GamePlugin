@@ -2034,18 +2034,17 @@ Function OnArrivedToDeliver(Int slot, Actor agent, Actor target)
 
     StorageUtil.SetStringValue(agent, "Intel_Result", "delivered")
 
-    ; Report-back only when player was off-screen — if the player witnessed the
-    ; delivery in person there's nothing to report.
-    If !playerPresent && StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack") == 1
-        ; Travel back to player to report
+    If playerPresent
+        ; Player witnessed the delivery — nothing to report. Wait for the scene
+        ; to play out before clearing so the narration isn't cut short.
+        Utility.Wait(3.0)
+        Core.ClearSlotRestoreFollower(slot, agent)
+        StorageUtil.SetFloatValue(agent, "Intel_TaskCooldown", Utility.GetCurrentRealTime())
+    Else
+        ; Player absent — follower must walk back naturally.
+        ; Instant ClearSlotRestoreFollower would trigger follower-framework teleport.
         Core.NotifyPlayer(agentName + " delivered a message to " + targetName + " and is heading back")
         BeginDeliveryReturn(slot, agent)
-    Else
-        ; Player saw it, or report-back disabled — done
-        If !playerPresent
-            Core.NotifyPlayer(agentName + " delivered a message to " + targetName)
-        EndIf
-        Core.ClearSlotRestoreFollower(slot, agent)
     EndIf
 EndFunction
 
@@ -2099,7 +2098,7 @@ Function OnReturnedFromDelivery(Int slot, Actor agent)
 
     Core.DebugMsg(agentName + " returned from delivering message to " + targetName)
 
-    If playerPresent
+    If playerPresent && StorageUtil.GetIntValue(player, "Intel_DeliveryReportBack") == 1
         ; Stop travel and sandbox near player so agent doesn't walk away
         Core.RemoveAllPackages(agent, false)
         PO3_SKSEFunctions.SetLinkedRef(agent, player as ObjectReference, Core.IntelEngine_TravelTarget)
@@ -2116,6 +2115,7 @@ Function OnReturnedFromDelivery(Int slot, Actor agent)
     Core.NotifyPlayer(agentName + " returned from delivering message to " + targetName)
 
     Core.ClearSlotRestoreFollower(slot, agent)
+    StorageUtil.SetFloatValue(agent, "Intel_TaskCooldown", Utility.GetCurrentRealTime())
 EndFunction
 
 ; =============================================================================

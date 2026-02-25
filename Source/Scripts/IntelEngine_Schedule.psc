@@ -78,14 +78,9 @@ Function RestartMonitoring()
         InitializeScheduleArrays()
     EndIf
 
-    ; Re-register the game-time update loop
-    If ScheduledCount > 0
-        RegisterForSingleUpdateGameTime(0.5)
-        Core.DebugMsg("Schedule monitoring restarted (" + ScheduledCount + " tasks pending)")
-    Else
-        RegisterForSingleUpdateGameTime(1.0)
-        Core.DebugMsg("Schedule monitoring restarted (idle)")
-    EndIf
+    ; Re-register the game-time update loop — uses dispatch-aware interval
+    Core.DebugMsg("Schedule monitoring restarted (" + ScheduledCount + " tasks pending)")
+    RegisterForNextDispatch()
 EndFunction
 
 Function InitializeScheduleArrays()
@@ -138,24 +133,38 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     EndIf
 
     ; Calculate distance-based departure buffer (C++ estimates travel hours)
+    ; NOTE: CalculateDeadlineFromDistance uses straight-line GetPosition() distance.
+    ; When the NPC is in an interior cell, coordinates are in a different space from
+    ; exterior targets, producing wildly inflated estimates (e.g., 6h for a 2-min walk).
+    ; Cap the buffer so the NPC departs no earlier than halfway to the meeting time,
+    ; and never later than the meeting itself.
     Float currentGameTime = Utility.GetCurrentGameTime()
+    Float hoursUntilMeeting = (meetingGameTime - currentGameTime) * 24.0
     ObjectReference destRef = IntelEngine.ResolveAnyDestination(akNPC, destination)
+    Float travelHoursEstimate = DEPARTURE_BUFFER_HOURS
     If destRef != None
         Float travelDeadline = IntelEngine.CalculateDeadlineFromDistance(akNPC, destRef, false, 1.0, 12.0)
-        Float travelHoursEstimate = (travelDeadline - currentGameTime) * 24.0
-        StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledDepartureHours", travelHoursEstimate)
-        Core.DebugMsg("Departure buffer for " + akNPC.GetDisplayName() + ": " + travelHoursEstimate + "h (distance-based)")
-    Else
-        StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledDepartureHours", DEPARTURE_BUFFER_HOURS)
-        Core.DebugMsg("Departure buffer for " + akNPC.GetDisplayName() + ": " + DEPARTURE_BUFFER_HOURS + "h (fallback, dest not resolved)")
+        travelHoursEstimate = (travelDeadline - currentGameTime) * 24.0
     EndIf
+    ; Cap: don't depart more than 75% of the time until meeting (leaves scheduling room)
+    ; and ensure at least DEPARTURE_BUFFER_HOURS minimum if there's enough time
+    Float maxBuffer = hoursUntilMeeting * 0.75
+    If maxBuffer < DEPARTURE_BUFFER_HOURS && hoursUntilMeeting > DEPARTURE_BUFFER_HOURS
+        maxBuffer = DEPARTURE_BUFFER_HOURS
+    EndIf
+    If travelHoursEstimate > maxBuffer
+        Core.DebugMsg("Departure buffer capped: " + travelHoursEstimate + "h -> " + maxBuffer + "h (meeting in " + hoursUntilMeeting + "h)")
+        travelHoursEstimate = maxBuffer
+    EndIf
+    StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledDepartureHours", travelHoursEstimate)
+    Core.DebugMsg("Departure buffer for " + akNPC.GetDisplayName() + ": " + travelHoursEstimate + "h (meeting in " + hoursUntilMeeting + "h)")
 
     Float hoursUntil = (meetingGameTime - currentGameTime) * 24.0
     String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will meet you at " + destination + " " + timeDesc)
     Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", in " + hoursUntil + "h, condition='" + timeCondition + "')")
 
-    RegisterForSingleUpdateGameTime(0.5)
+    RegisterForNextDispatch()
     Return true
 EndFunction
 
@@ -190,7 +199,7 @@ Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will fetch " + targetName + " " + timeDesc)
     Core.DebugMsg("Scheduled fetch: " + akNPC.GetDisplayName() + " ? fetch " + targetName + " at game time " + ScheduledTimes[slot])
 
-    RegisterForSingleUpdateGameTime(0.5)
+    RegisterForNextDispatch()
     Return true
 EndFunction
 
@@ -229,7 +238,7 @@ Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will deliver message to " + targetName + " " + timeDesc)
     Core.DebugMsg("Scheduled delivery: " + akNPC.GetDisplayName() + " ? message to " + targetName + " at game time " + ScheduledTimes[slot])
 
-    RegisterForSingleUpdateGameTime(0.5)
+    RegisterForNextDispatch()
     Return true
 EndFunction
 
@@ -528,21 +537,7 @@ EndFunction
 ; =============================================================================
 
 Event OnUpdateGameTime()
-    Float currentGameTime = Utility.GetCurrentGameTime()
-
-    Int i = 0
-    While i < MAX_SCHEDULED
-        If ScheduledAgents[i] != None && StorageUtil.GetIntValue(ScheduledAgents[i], "Intel_ScheduledState", 0) == 0
-            Float dispatchTime = GetSlotDispatchTime(i)
-
-            If currentGameTime >= dispatchTime
-                Float hoursEarly = (ScheduledTimes[i] - currentGameTime) * 24.0
-                Core.DebugMsg("Schedule trigger: slot " + i + " at game time " + currentGameTime + " (due " + ScheduledTimes[i] + ", " + hoursEarly + "h early)")
-                ExecuteScheduledTask(i)
-            EndIf
-        EndIf
-        i += 1
-    EndWhile
+    CheckAndDispatchPendingTasks()
 
     ; Heartbeat: ensure monitoring loops are alive.
     ; Papyrus VM stack dumps (from MCM browsing, mod overload, etc.) can kill
@@ -555,32 +550,17 @@ Event OnUpdateGameTime()
         NPCTasks.EnsureMonitoringAlive()
     EndIf
 
-    ; Continue checking ? sleep until next task is due (or 1 game hour if nothing pending)
-    If ScheduledCount > 0
-        ; Find soonest dispatch time among pending tasks
-        Float soonest = currentGameTime + (1.0 / 24.0)  ; default: 1 game hour
-        Int j = 0
-        While j < MAX_SCHEDULED
-            If ScheduledAgents[j] != None && StorageUtil.GetIntValue(ScheduledAgents[j], "Intel_ScheduledState", 0) == 0
-                Float dt = GetSlotDispatchTime(j)
-                If dt < soonest
-                    soonest = dt
-                EndIf
-            EndIf
-            j += 1
-        EndWhile
-        ; Sleep until the soonest task is due, minimum 5 game minutes to avoid busy-looping
-        Float sleepHours = (soonest - currentGameTime) * 24.0
-        If sleepHours < 0.083
-            sleepHours = 0.083  ; ~5 game minutes minimum
-        ElseIf sleepHours > 1.0
-            sleepHours = 1.0  ; cap at 1 game hour
-        EndIf
-        Core.DebugMsg("Schedule loop: " + ScheduledCount + " pending, gameTime=" + currentGameTime + ", next check in " + sleepHours + "h")
-        RegisterForSingleUpdateGameTime(sleepHours)
-    Else
-        RegisterForSingleUpdateGameTime(1.0)  ; Check every game hour otherwise
-    EndIf
+    ; Continue checking — sleep until next task is due (or 1 game hour if nothing pending)
+    RegisterForNextDispatch()
+EndEvent
+
+; Real-time fallback: RegisterForSingleUpdateGameTime is unreliable for short
+; intervals (< 1 game hour) during cell transitions or heavy script load.
+; When a dispatch is imminent, RegisterForNextDispatch starts a real-time timer
+; that fires here as a reliable backup.
+Event OnUpdate()
+    CheckAndDispatchPendingTasks()
+    RegisterForNextDispatch()
 EndEvent
 
 Function ExecuteScheduledTask(Int slot)
@@ -722,4 +702,72 @@ Float Function GetSlotDispatchTime(Int slot)
         dispatchTime = ScheduledTimes[slot] - (departHours / 24.0)
     EndIf
     Return dispatchTime
+EndFunction
+
+Function CheckAndDispatchPendingTasks()
+    {Check all pending schedule slots and dispatch any that are due.}
+    Float currentGameTime = Utility.GetCurrentGameTime()
+
+    Int i = 0
+    While i < MAX_SCHEDULED
+        If ScheduledAgents[i] != None && StorageUtil.GetIntValue(ScheduledAgents[i], "Intel_ScheduledState", 0) == 0
+            Float dispatchTime = GetSlotDispatchTime(i)
+
+            If currentGameTime >= dispatchTime
+                Float hoursEarly = (ScheduledTimes[i] - currentGameTime) * 24.0
+                Core.DebugMsg("Schedule trigger: slot " + i + " at game time " + currentGameTime + " (due " + ScheduledTimes[i] + ", " + hoursEarly + "h early)")
+                ExecuteScheduledTask(i)
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+EndFunction
+
+Function RegisterForNextDispatch()
+    {Compute the sleep interval until the soonest pending dispatch and register.
+    Uses real-time timer (OnUpdate) when dispatch is imminent (< 1 game hour),
+    since RegisterForSingleUpdateGameTime is unreliable for short intervals.
+    Always keeps a game-time heartbeat running for long-term scheduling.}
+    Float currentGameTime = Utility.GetCurrentGameTime()
+
+    If ScheduledCount > 0
+        ; Find soonest dispatch time among pending tasks
+        Float soonest = currentGameTime + (1.0 / 24.0)  ; default: 1 game hour
+        Bool hasPending = false
+        Int j = 0
+        While j < MAX_SCHEDULED
+            If ScheduledAgents[j] != None && StorageUtil.GetIntValue(ScheduledAgents[j], "Intel_ScheduledState", 0) == 0
+                Float dt = GetSlotDispatchTime(j)
+                If dt < soonest
+                    soonest = dt
+                EndIf
+                hasPending = true
+            EndIf
+            j += 1
+        EndWhile
+
+        If hasPending
+            Float sleepHours = (soonest - currentGameTime) * 24.0
+            If sleepHours < 1.0
+                ; Imminent dispatch — use real-time timer (more reliable than game-time for short waits)
+                ; Convert game hours to real seconds: gameHours * 3600 / timeScale
+                ; Default timeScale=20, so 0.5 game hours = 90 real seconds
+                ; Use a conservative 15s poll to catch it reliably
+                RegisterForSingleUpdate(15.0)
+                Core.DebugMsg("Schedule loop: " + ScheduledCount + " pending, gameTime=" + currentGameTime + ", dispatch in " + sleepHours + "h (real-time poll)")
+            Else
+                ; Far-off dispatch — use game-time timer (efficient, no real-time cost)
+                If sleepHours > 1.0
+                    sleepHours = 1.0
+                EndIf
+                RegisterForSingleUpdateGameTime(sleepHours)
+                Core.DebugMsg("Schedule loop: " + ScheduledCount + " pending, gameTime=" + currentGameTime + ", next check in " + sleepHours + "h")
+            EndIf
+        Else
+            ; All tasks are dispatched (state != 0), just heartbeat
+            RegisterForSingleUpdateGameTime(1.0)
+        EndIf
+    Else
+        RegisterForSingleUpdateGameTime(1.0)
+    EndIf
 EndFunction

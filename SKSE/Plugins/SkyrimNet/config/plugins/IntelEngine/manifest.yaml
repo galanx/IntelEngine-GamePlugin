@@ -18,6 +18,13 @@ schema:
       defaultValue: ""
       category: "Story Engine"
 
+    - name: "Location Blocklist"
+      path: "story.location_blocklist"
+      type: "string"
+      description: "Comma-separated location names where NPC dispatch is blocked (e.g., 'Bleak Falls Barrow,Dustman's Cairn'). Case-insensitive. Blocks new dispatches and cancels in-progress ones."
+      defaultValue: ""
+      category: "Story Engine"
+
     - name: "Max Story Candidates"
       path: "story.max_candidates"
       type: "int"
