@@ -329,6 +329,11 @@ ObjectReference Function GetEditorLocationRef(Actor akActor) Global Native
 ; USE THIS instead of FindNPCByName for story dispatch to avoid name ambiguity.
 Actor Function ResolveStoryCandidate(String name) Global Native
 
+; Find a suitable messenger to deliver a message on behalf of sender.
+; Cascade: household member → social associate → same-hold guard → any civilian.
+; Returns None if no messenger found (caller decides self-delivery vs reject).
+Actor Function FindMessengerForSender(Actor sender) Global Native
+
 ; Get a random NPC eligible for Story Engine dispatch.
 ; Filters: alive, not disabled, not in combat, not in player's cell,
 ; not on an active IntelEngine task, not on cooldown.
@@ -365,6 +370,14 @@ ObjectReference Function GetPlayerHomeInteriorDoor() Global Native
 ; Check if an NPC has a civilian class (farmer, merchant, innkeeper, etc.).
 ; Civilians should not enter dangerous locations.
 Bool Function IsCivilianClass(Actor akActor) Global Native
+
+; Set danger zone dispatch policy (synced from MCM).
+; blockCivilians: exclude CIVILIAN archetype NPCs when player is in danger zone.
+; blockAll: exclude ALL NPCs when player is in danger zone.
+Function SetDangerZonePolicy(Bool blockCivilians, Bool blockAll) Global Native
+
+; Check if the player is in a location on the blocklist (plugin config, 30s cache).
+Bool Function IsPlayerInBlockedLocation() Global Native
 
 ; Check if a JSON LLM response contains "should_act":true.
 ; Faster than Papyrus string parsing. Used by Story Engine response handlers.

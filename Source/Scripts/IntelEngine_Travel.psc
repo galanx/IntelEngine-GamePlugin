@@ -568,8 +568,30 @@ Function OnArrival(Int slot, Actor npc)
         Core.DebugMsg(npc.GetDisplayName() + " arrived at " + destination + " (waiting)")
     EndIf
 
-    ; If player is already in the same cell, handle immediately
+    ; If NPC arrived at an exterior door but the player is inside that building,
+    ; unlock the door and redirect the NPC toward the player so they walk through
+    ; the door naturally (no teleport — preserves immersion and approach flow).
     Actor player = Game.GetPlayer()
+    Cell playerCell = player.GetParentCell()
+    If playerCell != None && playerCell.IsInterior() && npc.GetParentCell() != playerCell
+        ObjectReference destRef = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+        If destRef != None
+            ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destRef)
+            If doorDest != None && doorDest.GetParentCell() == playerCell
+                ; Unlock the door so the NPC can walk through it
+                IntelEngine.SetHomeDoorAccessForCell(playerCell.GetFormID(), true)
+                StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", playerCell.GetFormID())
+                ; Redirect sandbox/travel anchor to player — NPC will pathfind through the door
+                PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
+                Core.RemoveAllPackages(npc, false)
+                ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+                npc.EvaluatePackage()
+                Core.DebugMsg(npc.GetDisplayName() + " redirected through door into " + destination + " (player is inside)")
+            EndIf
+        EndIf
+    EndIf
+
+    ; If player is already in the same cell, handle immediately
     If npc.GetParentCell() == player.GetParentCell()
         If npc.Is3DLoaded() && player.Is3DLoaded() && npc.GetDistance(player) < 1000.0
             If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
@@ -651,6 +673,26 @@ Function CheckWaiting(Int slot, Actor npc)
                     Cell destCell = destMarker.GetParentCell()
                     If destCell != None && destCell.IsInterior()
                         playerNearDest = true
+                    EndIf
+                EndIf
+            Else
+                ; Player might be inside a building whose exterior door is the destination.
+                ; NPC is outside at the exterior door, player is inside.
+                ; Unlock door and redirect NPC to walk through naturally.
+                Cell pCell = player.GetParentCell()
+                If pCell != None && pCell.IsInterior() && npc.GetParentCell() != pCell
+                    ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destMarker)
+                    If doorDest != None && doorDest.GetParentCell() == pCell
+                        IntelEngine.SetHomeDoorAccessForCell(pCell.GetFormID(), true)
+                        StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", pCell.GetFormID())
+                        ; Redirect toward player — NPC will pathfind through unlocked door
+                        PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
+                        Core.RemoveAllPackages(npc, false)
+                        ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+                        npc.EvaluatePackage()
+                        Core.DebugMsg(npc.GetDisplayName() + " redirected through door into " + Core.SlotTargetNames[slot] + " (player entered building)")
+                        ; Don't set playerNearDest — NPC is still outside walking through door.
+                        ; CheckWaiting will detect proximity once NPC enters the cell.
                     EndIf
                 EndIf
             EndIf

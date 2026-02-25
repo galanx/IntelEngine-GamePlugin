@@ -78,16 +78,14 @@ Romantic or jealous NPC secretly follows the player.
 
 {% if show_message == "1" %}
 ### message
-NPC delivers a verbal message on behalf of a sender.
-- "npc" = the MESSENGER who physically walks to the player (must be from candidate pool).
-- "sender" = who the message is FROM. Can be anyone: Jarl, merchant, lover, rival, friend. Leave empty if npc IS the sender.
+NPC wants to send a verbal message to {{ playerName }}. The system will automatically find a suitable messenger (household member, associate, guard, or courier).
+- "npc" = the SENDER — who the message is FROM (must be from candidate pool). Pick the NPC whose story motivates sending a message.
+- "sender" = leave EMPTY (messenger selection is automatic).
 - "msgContent" = the message itself (1-2 sentences, what the sender wants to communicate).
 - "destination" = meeting location if the message is an invitation (empty if no meeting).
 - "meetTime" = when the meeting happens: "dawn", "morning", "afternoon", "evening", "sunset", "night", "midnight" (empty if no meeting).
 - NEVER use "night" or "midnight" for meetings at palaces, courts, or shops — the player will be trespassing. Use "morning", "afternoon", or "evening" instead.
-- If the sender should NOT travel (Jarl, elderly), pick a DIFFERENT NPC as messenger.
-- If the sender CAN travel, they can be their own messenger (leave "sender" empty).
-- Any NPC can send couriers — a farmer can send a guard, a bard can send a friend.
+- The narration should explain WHY the sender wants to reach {{ playerName }} (past-tense, no subject prefix).
 {% endif %}
 
 {% if show_quest == "1" %}
@@ -145,7 +143,7 @@ ambush: {{ "{" }}"should_act":true,"type":"ambush","npc":"Name","narration":"tra
 stalker: {{ "{" }}"should_act":true,"type":"stalker","npc":"Name","narration":"was caught following {{ playerName }} out of jealousy after seeing Lydia with them","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"","meetTime":"","questLocation":"","enemyType":""}
 {% endif %}
 {% if show_message == "1" %}
-message: {{ "{" }}"should_act":true,"type":"message","npc":"MessengerName","narration":"arrived bearing an urgent message","npc2":"","destination":"The Bee and Barb","subject":"","gossip":"","fact1":"","fact2":"","sender":"SenderName","msgContent":"I need to speak with you about a private matter","meetTime":"evening","questLocation":"","enemyType":""}
+message: {{ "{" }}"should_act":true,"type":"message","npc":"SenderName","narration":"wanted to warn about the recent bandit attacks","npc2":"","destination":"The Bee and Barb","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"I need to speak with you about a private matter","meetTime":"evening","questLocation":"","enemyType":""}
 {% endif %}
 {% if show_quest == "1" %}
 quest: {{ "{" }}"should_act":true,"type":"quest","npc":"QuestGiverOrCourier","narration":"begged for help dealing with the undead","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"Draugr have been crawling out of the barrow at night","meetTime":"","questLocation":"Shroud Hearth Barrow","enemyType":"draugr"}
