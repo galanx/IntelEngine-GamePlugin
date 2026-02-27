@@ -25,15 +25,6 @@ schema:
       defaultValue: ""
       category: "Story Engine"
 
-    - name: "Max Story Candidates"
-      path: "story.max_candidates"
-      type: "int"
-      description: "Maximum NPCs in the DM candidate pool"
-      defaultValue: 15
-      min: 5
-      max: 30
-      category: "Story Engine"
-
     # ── LLM Overrides (leave empty to use base OpenRouter config) ──
     - name: "API Endpoint"
       path: "llm.endpoint"

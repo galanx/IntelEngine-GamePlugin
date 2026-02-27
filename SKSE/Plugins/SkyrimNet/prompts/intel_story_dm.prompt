@@ -76,7 +76,7 @@ Romantic or jealous NPC secretly follows the player.
   Bad: "was caught stalking {{ playerName }} through the Whiterun market" (location will be wrong by the time NPC arrives)
 {% endif %}
 
-{% if show_message == "1" %}
+{% if show_message == "1" %}6
 ### message
 NPC wants to send a verbal message to {{ playerName }}. The system will automatically find a suitable messenger (household member, associate, guard, or courier).
 - "npc" = the SENDER — who the message is FROM (must be from candidate pool). Pick the NPC whose story motivates sending a message.
@@ -85,6 +85,7 @@ NPC wants to send a verbal message to {{ playerName }}. The system will automati
 - "destination" = meeting location if the message is an invitation (empty if no meeting).
 - "meetTime" = when the meeting happens: "dawn", "morning", "afternoon", "evening", "sunset", "night", "midnight" (empty if no meeting).
 - NEVER use "night" or "midnight" for meetings at palaces, courts, or shops — the player will be trespassing. Use "morning", "afternoon", or "evening" instead.
+- **msgContent and meetTime MUST be consistent.** If meetTime is set, msgContent should reference the meeting time (e.g., "come to Dragonsreach this evening"). NEVER say "immediately", "right now", or "urgent" in msgContent while setting a future meetTime — the player sees both and they must agree. If the sender truly needs the player urgently, leave meetTime and destination EMPTY (it becomes a plain message, not a meeting invitation).
 - The narration should explain WHY the sender wants to reach {{ playerName }} (past-tense, no subject prefix).
 {% endif %}
 
@@ -107,16 +108,17 @@ NPC asks the player to kill enemies at a specific location. The mod ONLY support
 
 ## Rules
 1. **REJECT ALL if nothing fits** — return should_act:false if no candidate has a compelling, memory-grounded reason to act right now. Quality over quantity.
-2. **Match type to character** — a priest stays at their temple, a guard patrols their hold, a merchant minds their shop. Only dispatch someone if their role and personality would realistically lead them to act. CIVILIAN class NPCs stay near cities. Combat-capable classes can travel freely.
-3. **Memories are your ONLY source of truth** — every claim in your narration must trace to the candidate pool data above. NEVER invent history, relationships, or events not shown.
-4. **Time and distance matter** — midnight visits need urgent motivation. Early morning suggests routine. Evening allows social encounters. An NPC far from the player should only make the journey if their motivation is strong enough to justify the distance.
-5. **Romance and personal matters** — SAFE locations only. No love confessions in dungeons.
-6. **DANGEROUS locations** — only combat-capable classes with strong motive should approach. CIVILIAN NPCs NEVER enter danger zones for ANY reason.
-7. **Past tense narration only** — describe what the NPC decided to do, not what they will do. Under 200 characters.
-8. **Ground stories in what the NPC knows** — each NPC's memories, events, and gossip are THEIR knowledge. Don't dispatch an NPC based on events they weren't involved in. Pick a candidate whose personal history naturally leads to action.
-9. **Narration is a verb phrase WITHOUT subject prefix** — the narration fires when the NPC is already face-to-face with {{ playerName }}. For EVERY type (including stalker), write as if the encounter is HAPPENING NOW: seeker has arrived, stalker has been caught, ambusher is confronting. NEVER narrate as if the NPC is still en route, still hidden, or unaware of {{ playerName }}'s presence. Include WHO and WHY. Good: "tracked {{ playerName }} down after hearing about the dragon attack". Bad: "followed through the darkness hoping to stay hidden" (reads as still hiding while standing face-to-face).
-10. **Type variety** — if "Story Type Picks This Session" shows counts, lean toward underrepresented types for variety. But NEVER force a type that doesn't fit the story. If no type makes narrative sense right now, reject everything — returning should_act:false is always valid.
-11. **No location references in narrations** — NEVER mention specific locations (city names, landmark names, building names) in the narration text. The NPC may take hours to reach {{ playerName }}, who will likely be somewhere completely different by then. Narrate the NPC's MOTIVE and EMOTION, not where the encounter happens. Good: "was caught following {{ playerName }} out of jealousy". Bad: "was caught stalking {{ playerName }} through the Whiterun market". The only exception is "destination" and "questLocation" fields, which are separate structured data.
+2. **Respect per-candidate eligible types** — each candidate has an "Eligible:" line listing the story types they can participate in. You MUST only assign a candidate a type from their eligible list. If a type is not in their Eligible list, that candidate CANNOT be used for it. This is a HARD constraint — no exceptions.
+3. **Match type to character** — a priest stays at their temple, a guard patrols their hold, a merchant minds their shop. Only dispatch someone if their role and personality would realistically lead them to act. CIVILIAN class NPCs stay near cities. Combat-capable classes can travel freely.
+4. **Memories are your ONLY source of truth** — every claim in your narration must trace to the candidate pool data above. NEVER invent history, relationships, or events not shown.
+5. **Time and distance matter** — midnight visits need urgent motivation. Early morning suggests routine. Evening allows social encounters. An NPC far from the player should only make the journey if their motivation is strong enough to justify the distance.
+6. **Romance and personal matters** — SAFE locations only. No love confessions in dungeons.
+7. **DANGEROUS locations** — only combat-capable classes with strong motive should approach. CIVILIAN NPCs NEVER enter danger zones for ANY reason.
+8. **Past tense narration only** — describe what the NPC decided to do, not what they will do. Under 200 characters.
+9. **Ground stories in what the NPC knows** — each NPC's memories, events, and gossip are THEIR knowledge. Don't dispatch an NPC based on events they weren't involved in. Pick a candidate whose personal history naturally leads to action.
+10. **Narration is a verb phrase WITHOUT subject prefix** — the narration fires when the NPC is already face-to-face with {{ playerName }}. For EVERY type (including stalker), write as if the encounter is HAPPENING NOW: seeker has arrived, stalker has been caught, ambusher is confronting. NEVER narrate as if the NPC is still en route, still hidden, or unaware of {{ playerName }}'s presence. Include WHO and WHY. Good: "tracked {{ playerName }} down after hearing about the dragon attack". Bad: "followed through the darkness hoping to stay hidden" (reads as still hiding while standing face-to-face).
+11. **Type variety** — if "Story Type Picks This Session" shows counts, lean toward underrepresented types for variety. But NEVER force a type that doesn't fit the story. If no type makes narrative sense right now, reject everything — returning should_act:false is always valid.
+12. **No location references in narrations** — NEVER mention specific locations (city names, landmark names, building names) in the narration text. The NPC may take hours to reach {{ playerName }}, who will likely be somewhere completely different by then. Narrate the NPC's MOTIVE and EMOTION, not where the encounter happens. Good: "was caught following {{ playerName }} out of jealousy". Bad: "was caught stalking {{ playerName }} through the Whiterun market". The only exception is "destination" and "questLocation" fields, which are separate structured data.
 
 [ user ]
 Study the candidate pool above. For each NPC, consider: given their personality, role, and recent experiences, is there a natural next chapter in their story that involves {{ playerName }}? Pick the single most compelling one, or reject if nothing is strong enough.

@@ -1603,6 +1603,18 @@ Function RunDialogueSafetyNet()
         Return
     EndIf
 
+    ; Core slot check: skip if NPC already has an active task matching the keyword hint.
+    ; keywordHint 2 = fetch, 3 = delivery.  An NPC already executing fetch_npc doesn't
+    ; need the safety net to schedule a duplicate fetch.
+    Int coreSlot = FindSlotByAgent(npc)
+    If coreSlot >= 0
+        String activeType = SlotTaskTypes[coreSlot]
+        If (keywordHint == 2 && activeType == "fetch_npc") || \
+           (keywordHint == 3 && activeType == "deliver_message")
+            Return
+        EndIf
+    EndIf
+
     ; C++ builds the entire context JSON (proper escaping, no Papyrus casing bugs)
     String contextJson = IntelEngine.BuildSafetyNetContextJson(npc, keywordHint)
     If contextJson == ""
@@ -1627,10 +1639,6 @@ Function OnScheduleSafetyNetResponse(String response, Int success)
     EndIf
 
     ; Re-check schedule slots (may have been filled while LLM was processing)
-    ; NOTE: Core slots (FindSlotByAgent) are intentionally NOT checked here.
-    ; NPCs in active story dispatches (seek_player, etc.) often discuss scheduling
-    ; during their arrival dialogue. The schedule fires in the future, after the
-    ; Core slot is released. Blocking here would silently discard valid schedules.
     If Schedule.FindScheduleSlotByAgent(npc) >= 0
         DebugMsg("SafetyNet response: " + npc.GetDisplayName() + " already has a schedule slot, skipping")
         Return
@@ -1642,6 +1650,19 @@ Function OnScheduleSafetyNetResponse(String response, Int success)
         String timeCondition = IntelEngine.StoryResponseGetField(response, "timeCondition")
         String targetName = IntelEngine.StoryResponseGetField(response, "targetName")
         String msgContent = IntelEngine.StoryResponseGetField(response, "msgContent")
+
+        ; Type-aware Core slot check: an NPC already executing fetch_npc doesn't
+        ; need a scheduled duplicate fetch. Story dispatches (seek_player, etc.)
+        ; can still schedule future tasks because their Core task type won't match.
+        Int coreSlot = FindSlotByAgent(npc)
+        If coreSlot >= 0
+            String activeType = SlotTaskTypes[coreSlot]
+            If (actionType == "fetch" && activeType == "fetch_npc") || \
+               (actionType == "delivery" && activeType == "deliver_message")
+                DebugMsg("SafetyNet response: " + npc.GetDisplayName() + " already executing " + activeType + ", skipping duplicate " + actionType)
+                Return
+            EndIf
+        EndIf
 
         DebugMsg("SafetyNet confirmed: type=" + actionType + " dest=" + destination + " time=" + timeCondition)
 

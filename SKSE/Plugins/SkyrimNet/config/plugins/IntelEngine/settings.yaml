@@ -1,7 +1,6 @@
 story:
   faction_blocklist: ""
   location_blocklist: ""
-  max_candidates: 15
 llm:
   endpoint: ""
   api_key: ""
