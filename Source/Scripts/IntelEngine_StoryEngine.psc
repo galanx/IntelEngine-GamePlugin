@@ -416,6 +416,12 @@ String Function BuildExcludeList(Actor player)
         result = AppendExclude(result, "road_encounter")
     EndIf
 
+    ; Auto-exclude informant in danger zones (gossip isn't worth risking your life)
+    If IntelEngine.IsPlayerInDangerousLocation()
+        result = AppendExclude(result, "informant")
+    EndIf
+
+    Core.DebugMsg("BuildExcludeList: [" + result + "] (ambush=" + TypeAmbushEnabled + " message=" + TypeMessageEnabled + " quest=" + TypeQuestEnabled + ")")
     return result
 EndFunction
 
@@ -886,6 +892,24 @@ Function OnDungeonMasterResponse(String response, Int success)
     EndIf
 
     Core.DebugMsg("Story DM [" + storyType + "]: " + npc.GetDisplayName() + " -- " + narration)
+
+    ; Safety net: reject types disabled in MCM (LLM may ignore hidden prompt sections)
+    If (storyType == "seek_player" && !TypeSeekPlayerEnabled) || \
+       (storyType == "informant" && !TypeInformantEnabled) || \
+       (storyType == "road_encounter" && !TypeRoadEncounterEnabled) || \
+       (storyType == "ambush" && !TypeAmbushEnabled) || \
+       (storyType == "stalker" && !TypeStalkerEnabled) || \
+       (storyType == "message" && !TypeMessageEnabled) || \
+       (storyType == "quest" && !TypeQuestEnabled)
+        Core.DebugMsg("Story DM: rejecting " + storyType + " -- disabled in MCM")
+        return
+    EndIf
+
+    ; Safety net: Jarls NEVER travel personally. Only message and quest (courier) allowed.
+    If IntelEngine.IsJarl(npc) && storyType != "message" && storyType != "quest"
+        Core.DebugMsg("Story DM: rejecting " + storyType + " for Jarl " + npc.GetDisplayName() + " -- Jarls don't travel personally")
+        return
+    EndIf
 
     ; Pre-validate type-specific required fields BEFORE sending persistent memory.
     ; If we narrate first and then the handler rejects, the NPC talks about
@@ -1541,13 +1565,34 @@ Function CheckStoryNPCArrival()
         return
     EndIf
 
-    ; Abort dispatch if player entered a dangerous location during travel (MCM-controlled)
+    ; Abort dispatch if player entered a dangerous location during travel
     If arrivalTarget == player && IntelEngine.IsPlayerInDangerousLocation()
+        ; Type-specific: informant always aborts in danger (gossip not worth dying for)
+        If ActiveStoryType == "informant"
+            Core.DebugMsg("Story: aborting informant for " + ActiveStoryNPC.GetDisplayName() + " -- danger zone (type rule)")
+            Core.SendTaskNarration(ActiveStoryNPC, "thought better of chasing " + player.GetDisplayName() + " into danger just for gossip and turned back", player)
+            AbortStoryTravel("informant in danger zone")
+            return
+        EndIf
+        ; MCM-controlled: block civilians or all NPCs
         If BlockAllInDanger || (BlockCiviliansInDanger && IntelEngine.IsCivilianClass(ActiveStoryNPC))
             Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- danger zone policy")
             Core.SendTaskNarration(ActiveStoryNPC, "turned back after learning that " + player.GetDisplayName() + " had ventured into a dangerous place", player)
             AbortStoryTravel("danger zone policy")
             return
+        EndIf
+    EndIf
+
+    ; Abort exterior-only types if player entered an interior during travel
+    If arrivalTarget == player
+        Cell pCell = player.GetParentCell()
+        If pCell != None && pCell.IsInterior()
+            If ActiveStoryType == "road_encounter" || ActiveStoryType == "stalker" || ActiveStoryType == "ambush"
+                Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- player entered interior")
+                Core.SendTaskNarration(ActiveStoryNPC, "lost track of " + player.GetDisplayName() + " after they went inside and gave up", player)
+                AbortStoryTravel("exterior type in interior")
+                return
+            EndIf
         EndIf
     EndIf
 
@@ -1577,13 +1622,31 @@ Function CheckStoryNPCArrival()
 
     ; Off-screen: NPC not loaded — leapfrog won't work, use time-based arrival
     If !ActiveStoryNPC.Is3DLoaded()
-        ; Abort dispatch if player entered a dangerous location (MCM-controlled)
+        ; Abort dispatch if player entered a dangerous location
         If arrivalTarget == player && IntelEngine.IsPlayerInDangerousLocation()
+            If ActiveStoryType == "informant"
+                Core.DebugMsg("Story: aborting informant for " + ActiveStoryNPC.GetDisplayName() + " -- danger zone (off-screen, type rule)")
+                Core.SendTaskNarration(ActiveStoryNPC, "thought better of chasing " + player.GetDisplayName() + " into danger just for gossip and turned back", player)
+                AbortStoryTravel("informant in danger zone (off-screen)")
+                return
+            EndIf
             If BlockAllInDanger || (BlockCiviliansInDanger && IntelEngine.IsCivilianClass(ActiveStoryNPC))
                 Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- danger zone policy (off-screen)")
                 Core.SendTaskNarration(ActiveStoryNPC, "turned back after learning that " + player.GetDisplayName() + " had ventured into a dangerous place", player)
                 AbortStoryTravel("danger zone policy (off-screen)")
                 return
+            EndIf
+        EndIf
+        ; Abort exterior-only types if player entered interior (off-screen)
+        If arrivalTarget == player
+            Cell offPCell = player.GetParentCell()
+            If offPCell != None && offPCell.IsInterior()
+                If ActiveStoryType == "road_encounter" || ActiveStoryType == "stalker" || ActiveStoryType == "ambush"
+                    Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- player entered interior (off-screen)")
+                    Core.SendTaskNarration(ActiveStoryNPC, "lost track of " + player.GetDisplayName() + " after they went inside and gave up", player)
+                    AbortStoryTravel("exterior type in interior (off-screen)")
+                    return
+                EndIf
             EndIf
         EndIf
         ; Check if estimated travel time has elapsed (without teleporting yet)
@@ -1754,6 +1817,18 @@ Function OnMessageArrived()
         fullNarration = ActiveNarration
     EndIf
     Core.SendTaskNarration(ActiveStoryNPC, fullNarration, Game.GetPlayer())
+
+    ; Safety net: if msgContent conveys urgency but meetTime is set, the LLM
+    ; contradicted itself (e.g., "needs you immediately" + meetTime="afternoon").
+    ; Drop the meeting — treat as plain message so narration and schedule don't clash.
+    If msgDest != "" && meetTime != ""
+        String lowerMsg = IntelEngine.StringToLower(msgContent)
+        If StringUtil.Find(lowerMsg, "immediate") >= 0 || StringUtil.Find(lowerMsg, "right now") >= 0 || StringUtil.Find(lowerMsg, "at once") >= 0 || StringUtil.Find(lowerMsg, "right away") >= 0 || StringUtil.Find(lowerMsg, "urgently") >= 0
+            Core.DebugMsg("Story message: urgency in msgContent conflicts with meetTime '" + meetTime + "' -- dropping meeting, treating as plain message")
+            msgDest = ""
+            meetTime = ""
+        EndIf
+    EndIf
 
     ; Schedule meeting on SENDER if destination provided
     If msgDest != "" && Schedule != None
@@ -1975,6 +2050,12 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
     String questLocationStr = ExtractJsonField(response, "questLocation")
     String enemyType = ExtractJsonField(response, "enemyType")
 
+    ; Jarls never travel personally — reject DIRECT mode (sender empty = npc IS the quest giver)
+    If IntelEngine.IsJarl(npc) && (senderName == "" || senderName == npc.GetDisplayName())
+        Core.DebugMsg("Story DM: quest rejected -- Jarl " + npc.GetDisplayName() + " cannot deliver quest personally (needs courier)")
+        return
+    EndIf
+
     If questLocationStr == "" || enemyType == ""
         Core.DebugMsg("Story DM: quest missing questLocation or enemyType")
         return
@@ -2100,6 +2181,10 @@ Function OnQuestNPCArrived()
         ElseIf choice == "Not interested"
             ; Cancel quest entirely
             Core.SendTaskNarration(ActiveStoryNPC, "was told that " + Game.GetPlayer().GetDisplayName() + " wasn't interested in helping", Game.GetPlayer())
+            ; Notify quest giver (if different from courier) that player refused
+            If QuestGiver != None && QuestGiver != ActiveStoryNPC
+                Core.InjectFact(QuestGiver, "learned that " + Game.GetPlayer().GetDisplayName() + " refused to help with the " + QuestEnemyType + " threat at " + QuestLocationName)
+            EndIf
             RemoveQuestMarker()
             CleanupQuest()
             FinishArrivalWithLinger(ActiveStoryNPC, Game.GetPlayer() as ObjectReference)
@@ -2309,6 +2394,14 @@ Function CheckQuestProximity()
         return
     EndIf
 
+    ; Don't spawn enemies while the quest courier is still traveling to the player.
+    ; ActiveStoryType == "quest" means the courier hasn't arrived and prompted yet.
+    ; Without this, if the player is already at the quest location when the DM
+    ; dispatches a quest, enemies spawn before the courier even reaches them.
+    If ActiveStoryType == "quest"
+        return
+    EndIf
+
     If !QuestEnemiesSpawned
         Bool atQuestArea = false
         If QuestLocation.Is3DLoaded()
@@ -2430,6 +2523,9 @@ Function CheckQuestExpiry()
 EndFunction
 
 Function CleanupQuest()
+    ; Always remove the map marker/objective (idempotent — safe if never placed)
+    RemoveQuestMarker()
+
     String eventText = "quest: " + QuestEnemyType + " at " + QuestLocationName
     StorageUtil.FormListClear(Game.GetPlayer(), "Intel_QuestSpawnedNPCs")
 
@@ -2539,6 +2635,10 @@ Function CleanupStoryDispatch()
     ; If quest dispatch is being cleaned up, also reset quest state
     If ActiveStoryType == "quest" || ActiveStoryType == "quest_guide"
         If QuestActive
+            ; Notify quest giver that the quest fell through (courier aborted, stuck, etc.)
+            If QuestGiver != None && QuestEnemyType != "" && QuestLocationName != ""
+                Core.InjectFact(QuestGiver, "never heard back about the " + QuestEnemyType + " threat at " + QuestLocationName + " — the request seems to have fallen through")
+            EndIf
             CleanupQuest()
         EndIf
     EndIf

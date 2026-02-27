@@ -118,6 +118,19 @@ EndEvent
 Event OnPageReset(String page)
     SetCursorFillMode(TOP_TO_BOTTOM)
 
+    ; Clear schedule cancel OIDs when NOT on the scheduled page.
+    ; SkyUI reuses OID numbers across pages, so stale cancel OIDs
+    ; stored in StorageUtil can collide with toggles on other pages
+    ; (e.g. OID_TypeMessage on Settings == cancel OID from Scheduled).
+    If page != "Scheduled Tasks" && page != "Scheduled Meetings"
+        Form mcmForm = Self as Form
+        Int ci = 0
+        While ci < 10
+            StorageUtil.UnsetIntValue(mcmForm, "MCM_CancelOID_" + ci)
+            ci += 1
+        EndWhile
+    EndIf
+
     If page == "" || page == "Active Tasks"
         ShowStatusPage()
     ElseIf page == "Scheduled Tasks" || page == "Scheduled Meetings"

@@ -371,6 +371,9 @@ ObjectReference Function GetPlayerHomeInteriorDoor() Global Native
 ; Civilians should not enter dangerous locations.
 Bool Function IsCivilianClass(Actor akActor) Global Native
 
+; Check if an NPC is a Jarl (has JobJarlFaction).
+Bool Function IsJarl(Actor akActor) Global Native
+
 ; Set danger zone dispatch policy (synced from MCM).
 ; blockCivilians: exclude CIVILIAN archetype NPCs when player is in danger zone.
 ; blockAll: exclude ALL NPCs when player is in danger zone.
@@ -460,6 +463,10 @@ String Function IsMemoryDBConnected() Global Native
 ; Returns: 0=nothing, 1=meeting, 2=fetch, 3=delivery keywords detected.
 ; Call GetSafetyNetNPC() to retrieve the NPC after a positive result.
 Int Function RunSafetyNetCheck() Global Native
+
+; Signal that new dialogue occurred — re-enables safety net polling.
+; Call after any player-NPC conversation ends.
+Function NotifyNewDialogue() Global Native
 
 ; Returns the NPC from the last positive RunSafetyNetCheck() call.
 Actor Function GetSafetyNetNPC() Global Native
