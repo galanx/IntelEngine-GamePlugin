@@ -69,6 +69,10 @@ Int OID_DangerAllowAll
 Int OID_DangerBlockCivilians
 Int OID_DangerFollowersOnly
 Int OID_DangerBlockAll
+Int OID_HomeAllowAll
+Int OID_HomeBlockCivilians
+Int OID_HomeFollowersOnly
+Int OID_HomeBlockAll
 Int OID_QuestExpiryDays
 Int OID_NPCTickEnabled
 Int OID_NPCTickInterval
@@ -327,30 +331,18 @@ Function ShowSettingsPage()
     OID_DangerBlockAll = AddToggleOption("Block all NPCs", dangerPolicy == 3)
 
     AddEmptyOption()
-    AddHeaderOption("Story Tuning")
+    AddHeaderOption("Player Home Visits")
 
-    Float longAbsence = 3.0
-    Float maxTravel = 1.0
+    Int homePolicy = 0
     If Core != None && Core.StoryEngine != None
-        longAbsence = Core.StoryEngine.LongAbsenceDaysConfig
-        maxTravel = Core.StoryEngine.MaxTravelDaysConfig
+        homePolicy = Core.StoryEngine.PlayerHomePolicy
     EndIf
-    OID_StoryLongAbsence = AddSliderOption("Long Absence (days)", longAbsence, "{0}")
-    OID_StoryMaxTravel = AddSliderOption("Max Travel Time (days)", maxTravel, "{2}")
+    OID_HomeAllowAll = AddToggleOption("Allow all NPCs", homePolicy == 0)
+    OID_HomeBlockCivilians = AddToggleOption("Block civilians only", homePolicy == 1)
+    OID_HomeFollowersOnly = AddToggleOption("Allow followers only", homePolicy == 2)
+    OID_HomeBlockAll = AddToggleOption("Block all NPCs", homePolicy == 3)
 
-    Bool allowTeleport = true
-    If Core != None && Core.StoryEngine != None
-        allowTeleport = Core.StoryEngine.AllowStuckTeleport
-    EndIf
-    OID_AllowStuckTeleport = AddToggleOption("Teleport on stuck/timeout", allowTeleport)
-
-    Float questExpiry = 1.0
-    If Core != None && Core.StoryEngine != None
-        questExpiry = Core.StoryEngine.QUEST_EXPIRY_DAYS
-    EndIf
-    OID_QuestExpiryDays = AddSliderOption("Quest Timeout (days)", questExpiry, "{0}")
-
-    ; ---- Right column: Story Types + NPC Social ----
+    ; ---- Right column: Story Types + NPC Social + Tuning ----
     SetCursorPosition(1)
 
     AddHeaderOption("Story Types (DM)")
@@ -407,6 +399,30 @@ Function ShowSettingsPage()
     EndIf
     OID_NPCSocialCooldown = AddSliderOption("NPC Social Cooldown (hours)", npcSocialCooldown, "{0}")
 
+    AddEmptyOption()
+    AddHeaderOption("Story Tuning")
+
+    Float longAbsence = 3.0
+    Float maxTravel = 1.0
+    If Core != None && Core.StoryEngine != None
+        longAbsence = Core.StoryEngine.LongAbsenceDaysConfig
+        maxTravel = Core.StoryEngine.MaxTravelDaysConfig
+    EndIf
+    OID_StoryLongAbsence = AddSliderOption("Long Absence (days)", longAbsence, "{0}")
+    OID_StoryMaxTravel = AddSliderOption("Max Travel Time (days)", maxTravel, "{2}")
+
+    Bool allowTeleport = true
+    If Core != None && Core.StoryEngine != None
+        allowTeleport = Core.StoryEngine.AllowStuckTeleport
+    EndIf
+    OID_AllowStuckTeleport = AddToggleOption("Teleport on stuck/timeout", allowTeleport)
+
+    Float questExpiry = 1.0
+    If Core != None && Core.StoryEngine != None
+        questExpiry = Core.StoryEngine.QUEST_EXPIRY_DAYS
+    EndIf
+    OID_QuestExpiryDays = AddSliderOption("Quest Timeout (days)", questExpiry, "{0}")
+
 EndFunction
 
 ; =============================================================================
@@ -456,6 +472,27 @@ Event OnOptionSelect(Int optionId)
             SetToggleOptionValue(OID_DangerBlockCivilians, newPolicy == 1)
             SetToggleOptionValue(OID_DangerFollowersOnly, newPolicy == 2)
             SetToggleOptionValue(OID_DangerBlockAll, newPolicy == 3)
+        EndIf
+
+    ElseIf optionId == OID_HomeAllowAll || optionId == OID_HomeBlockCivilians || \
+           optionId == OID_HomeFollowersOnly || optionId == OID_HomeBlockAll
+        If Core != None && Core.StoryEngine != None
+            Int newPolicy = 0
+            If optionId == OID_HomeAllowAll
+                newPolicy = 0
+            ElseIf optionId == OID_HomeBlockCivilians
+                newPolicy = 1
+            ElseIf optionId == OID_HomeFollowersOnly
+                newPolicy = 2
+            ElseIf optionId == OID_HomeBlockAll
+                newPolicy = 3
+            EndIf
+            Core.StoryEngine.PlayerHomePolicy = newPolicy
+            IntelEngine.SetPlayerHomePolicy(newPolicy)
+            SetToggleOptionValue(OID_HomeAllowAll, newPolicy == 0)
+            SetToggleOptionValue(OID_HomeBlockCivilians, newPolicy == 1)
+            SetToggleOptionValue(OID_HomeFollowersOnly, newPolicy == 2)
+            SetToggleOptionValue(OID_HomeBlockAll, newPolicy == 3)
         EndIf
 
     ElseIf optionId == OID_CancelAllSchedules
@@ -752,6 +789,14 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("Only NPCs who can be recruited as followers (PotentialFollowerFaction) can visit you in dangerous locations.")
     ElseIf optionId == OID_DangerBlockAll
         SetInfoText("Nobody visits you in dangerous locations (dungeons, caves, etc).")
+    ElseIf optionId == OID_HomeAllowAll
+        SetInfoText("No home visit filtering. All NPC types can visit you when you're at home.")
+    ElseIf optionId == OID_HomeBlockCivilians
+        SetInfoText("Farmers, merchants and other civilians won't bother you at home. Warriors and mages can still visit.")
+    ElseIf optionId == OID_HomeFollowersOnly
+        SetInfoText("Only NPCs who can be recruited as followers (PotentialFollowerFaction) can visit you at home.")
+    ElseIf optionId == OID_HomeBlockAll
+        SetInfoText("Nobody visits you when you're at home.")
     ElseIf optionId == OID_QuestExpiryDays
         SetInfoText("How many in-game days before an unfinished dynamic quest auto-expires. The quest giver remembers you never showed up. Default 1.")
     ElseIf optionId == OID_TypeSeekPlayer

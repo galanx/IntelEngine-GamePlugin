@@ -374,9 +374,11 @@ Bool Function IsCivilianClass(Actor akActor) Global Native
 ; Check if an NPC is a Jarl (has JobJarlFaction).
 Bool Function IsJarl(Actor akActor) Global Native
 
-; Set danger zone dispatch policy (synced from MCM).
 ; Set danger zone dispatch policy (0=allow all, 1=block civilians, 2=followers only, 3=block all).
 Function SetDangerZonePolicy(Int policy) Global Native
+
+; Set player home visit policy (0=allow all, 1=block civilians, 2=followers only, 3=block all).
+Function SetPlayerHomePolicy(Int policy) Global Native
 
 ; Check if actor is in PotentialFollowerFaction (can be recruited as follower).
 Bool Function IsPotentialFollower(Actor akActor) Global Native
