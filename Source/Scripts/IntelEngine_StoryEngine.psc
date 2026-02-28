@@ -47,6 +47,8 @@ String Property ExcludedTypesConfig = "" Auto Hidden
 Bool Property AllowStuckTeleport = true Auto Hidden
 Int Property DangerZonePolicy = 1 Auto Hidden
 ; 0 = allow all, 1 = block civilians, 2 = followers only, 3 = block all
+Int Property PlayerHomePolicy = 0 Auto Hidden
+; 0 = allow all, 1 = block civilians, 2 = followers only, 3 = block all
 
 ; Legacy (save migration only — removed from MCM, read once on load then ignored)
 Bool Property BlockCiviliansInDanger = true Auto Hidden
@@ -353,6 +355,7 @@ Function TickScheduler()
 
     ; Sync danger zone policy to C++
     IntelEngine.SetDangerZonePolicy(DangerZonePolicy)
+    IntelEngine.SetPlayerHomePolicy(PlayerHomePolicy)
 
     ; NPC-to-NPC tick (independent of player-centric state, self-gates via interval timer)
     TickNPCInteractions()
@@ -1599,6 +1602,18 @@ Function CheckStoryNPCArrival()
         EndIf
     EndIf
 
+    ; MCM-controlled player home visit policy
+    If arrivalTarget == player && IntelEngine.IsPlayerInOwnHome()
+        If PlayerHomePolicy == 3 || \
+           (PlayerHomePolicy == 2 && !IntelEngine.IsPotentialFollower(ActiveStoryNPC)) || \
+           (PlayerHomePolicy == 1 && IntelEngine.IsCivilianClass(ActiveStoryNPC))
+            Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- player home policy (" + PlayerHomePolicy + ")")
+            Core.SendTaskNarration(ActiveStoryNPC, "decided not to bother " + player.GetDisplayName() + " at home and turned back", player)
+            AbortStoryTravel("player home policy")
+            return
+        EndIf
+    EndIf
+
     ; Abort exterior-only types if player entered an interior during travel
     If arrivalTarget == player
         Cell pCell = player.GetParentCell()
@@ -1652,6 +1667,17 @@ Function CheckStoryNPCArrival()
                 Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- danger zone policy (off-screen, " + DangerZonePolicy + ")")
                 Core.SendTaskNarration(ActiveStoryNPC, "turned back after learning that " + player.GetDisplayName() + " had ventured into a dangerous place", player)
                 AbortStoryTravel("danger zone policy (off-screen)")
+                return
+            EndIf
+        EndIf
+        ; MCM-controlled player home visit policy (off-screen)
+        If arrivalTarget == player && IntelEngine.IsPlayerInOwnHome()
+            If PlayerHomePolicy == 3 || \
+               (PlayerHomePolicy == 2 && !IntelEngine.IsPotentialFollower(ActiveStoryNPC)) || \
+               (PlayerHomePolicy == 1 && IntelEngine.IsCivilianClass(ActiveStoryNPC))
+                Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- player home policy (off-screen, " + PlayerHomePolicy + ")")
+                Core.SendTaskNarration(ActiveStoryNPC, "decided not to bother " + player.GetDisplayName() + " at home and turned back", player)
+                AbortStoryTravel("player home policy (off-screen)")
                 return
             EndIf
         EndIf
