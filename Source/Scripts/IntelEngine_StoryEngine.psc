@@ -45,6 +45,10 @@ Float Property MaxTravelDaysConfig = 1.0 Auto Hidden
 Float Property LongAbsenceDaysConfig = 3.0 Auto Hidden
 String Property ExcludedTypesConfig = "" Auto Hidden
 Bool Property AllowStuckTeleport = true Auto Hidden
+Int Property DangerZonePolicy = 1 Auto Hidden
+; 0 = allow all, 1 = block civilians, 2 = followers only, 3 = block all
+
+; Legacy (save migration only — removed from MCM, read once on load then ignored)
 Bool Property BlockCiviliansInDanger = true Auto Hidden
 Bool Property BlockAllInDanger = false Auto Hidden
 
@@ -337,8 +341,18 @@ Function TickScheduler()
         return
     EndIf
 
-    ; Sync danger zone policy to C++ (cheap no-op if unchanged)
-    IntelEngine.SetDangerZonePolicy(BlockCiviliansInDanger, BlockAllInDanger)
+    ; Save migration: old saves have separate Bool properties, migrate to Int policy
+    If DangerZonePolicy == 0 && (BlockCiviliansInDanger || BlockAllInDanger)
+        If BlockAllInDanger
+            DangerZonePolicy = 3
+        ElseIf BlockCiviliansInDanger
+            DangerZonePolicy = 1
+        EndIf
+        Core.DebugMsg("Story: migrated danger zone policy to " + DangerZonePolicy)
+    EndIf
+
+    ; Sync danger zone policy to C++
+    IntelEngine.SetDangerZonePolicy(DangerZonePolicy)
 
     ; NPC-to-NPC tick (independent of player-centric state, self-gates via interval timer)
     TickNPCInteractions()
@@ -1574,9 +1588,11 @@ Function CheckStoryNPCArrival()
             AbortStoryTravel("informant in danger zone")
             return
         EndIf
-        ; MCM-controlled: block civilians or all NPCs
-        If BlockAllInDanger || (BlockCiviliansInDanger && IntelEngine.IsCivilianClass(ActiveStoryNPC))
-            Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- danger zone policy")
+        ; MCM-controlled danger zone policy
+        If DangerZonePolicy == 3 || \
+           (DangerZonePolicy == 2 && !IntelEngine.IsPotentialFollower(ActiveStoryNPC)) || \
+           (DangerZonePolicy == 1 && IntelEngine.IsCivilianClass(ActiveStoryNPC))
+            Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- danger zone policy (" + DangerZonePolicy + ")")
             Core.SendTaskNarration(ActiveStoryNPC, "turned back after learning that " + player.GetDisplayName() + " had ventured into a dangerous place", player)
             AbortStoryTravel("danger zone policy")
             return
@@ -1630,8 +1646,10 @@ Function CheckStoryNPCArrival()
                 AbortStoryTravel("informant in danger zone (off-screen)")
                 return
             EndIf
-            If BlockAllInDanger || (BlockCiviliansInDanger && IntelEngine.IsCivilianClass(ActiveStoryNPC))
-                Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- danger zone policy (off-screen)")
+            If DangerZonePolicy == 3 || \
+               (DangerZonePolicy == 2 && !IntelEngine.IsPotentialFollower(ActiveStoryNPC)) || \
+               (DangerZonePolicy == 1 && IntelEngine.IsCivilianClass(ActiveStoryNPC))
+                Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- danger zone policy (off-screen, " + DangerZonePolicy + ")")
                 Core.SendTaskNarration(ActiveStoryNPC, "turned back after learning that " + player.GetDisplayName() + " had ventured into a dangerous place", player)
                 AbortStoryTravel("danger zone policy (off-screen)")
                 return

@@ -65,8 +65,10 @@ Int OID_StoryForceRestart
 Int OID_StoryLongAbsence
 Int OID_StoryMaxTravel
 Int OID_AllowStuckTeleport
-Int OID_BlockCiviliansInDanger
-Int OID_BlockAllInDanger
+Int OID_DangerAllowAll
+Int OID_DangerBlockCivilians
+Int OID_DangerFollowersOnly
+Int OID_DangerBlockAll
 Int OID_QuestExpiryDays
 Int OID_NPCTickEnabled
 Int OID_NPCTickInterval
@@ -313,6 +315,44 @@ Function ShowSettingsPage()
     OID_StoryEngineCooldown = AddSliderOption("Story NPC Cooldown (hours)", storyCooldown, "{0}")
 
     AddEmptyOption()
+    AddHeaderOption("Danger Zone Visits")
+
+    Int dangerPolicy = 1
+    If Core != None && Core.StoryEngine != None
+        dangerPolicy = Core.StoryEngine.DangerZonePolicy
+    EndIf
+    OID_DangerAllowAll = AddToggleOption("Allow all NPCs", dangerPolicy == 0)
+    OID_DangerBlockCivilians = AddToggleOption("Block civilians only", dangerPolicy == 1)
+    OID_DangerFollowersOnly = AddToggleOption("Allow followers only", dangerPolicy == 2)
+    OID_DangerBlockAll = AddToggleOption("Block all NPCs", dangerPolicy == 3)
+
+    AddEmptyOption()
+    AddHeaderOption("Story Tuning")
+
+    Float longAbsence = 3.0
+    Float maxTravel = 1.0
+    If Core != None && Core.StoryEngine != None
+        longAbsence = Core.StoryEngine.LongAbsenceDaysConfig
+        maxTravel = Core.StoryEngine.MaxTravelDaysConfig
+    EndIf
+    OID_StoryLongAbsence = AddSliderOption("Long Absence (days)", longAbsence, "{0}")
+    OID_StoryMaxTravel = AddSliderOption("Max Travel Time (days)", maxTravel, "{2}")
+
+    Bool allowTeleport = true
+    If Core != None && Core.StoryEngine != None
+        allowTeleport = Core.StoryEngine.AllowStuckTeleport
+    EndIf
+    OID_AllowStuckTeleport = AddToggleOption("Teleport on stuck/timeout", allowTeleport)
+
+    Float questExpiry = 1.0
+    If Core != None && Core.StoryEngine != None
+        questExpiry = Core.StoryEngine.QUEST_EXPIRY_DAYS
+    EndIf
+    OID_QuestExpiryDays = AddSliderOption("Quest Timeout (days)", questExpiry, "{0}")
+
+    ; ---- Right column: Story Types + NPC Social ----
+    SetCursorPosition(1)
+
     AddHeaderOption("Story Types (DM)")
 
     Bool tSeek = true
@@ -338,39 +378,6 @@ Function ShowSettingsPage()
     OID_TypeStalker = AddToggleOption("Stalker", tStalker)
     OID_TypeMessage = AddToggleOption("Message", tMessage)
     OID_TypeQuest = AddToggleOption("Quest", tQuest)
-
-    AddEmptyOption()
-    AddHeaderOption("Story Tuning")
-
-    Float longAbsence = 3.0
-    Float maxTravel = 1.0
-    If Core != None && Core.StoryEngine != None
-        longAbsence = Core.StoryEngine.LongAbsenceDaysConfig
-        maxTravel = Core.StoryEngine.MaxTravelDaysConfig
-    EndIf
-    OID_StoryLongAbsence = AddSliderOption("Long Absence (days)", longAbsence, "{0}")
-    OID_StoryMaxTravel = AddSliderOption("Max Travel Time (days)", maxTravel, "{2}")
-
-    Bool allowTeleport = true
-    If Core != None && Core.StoryEngine != None
-        allowTeleport = Core.StoryEngine.AllowStuckTeleport
-    EndIf
-    OID_AllowStuckTeleport = AddToggleOption("Teleport on stuck/timeout", allowTeleport)
-
-    Bool blockCiv = true
-    Bool blockAll = false
-    If Core != None && Core.StoryEngine != None
-        blockCiv = Core.StoryEngine.BlockCiviliansInDanger
-        blockAll = Core.StoryEngine.BlockAllInDanger
-    EndIf
-    OID_BlockCiviliansInDanger = AddToggleOption("Block civilian visits in danger zones", blockCiv)
-    OID_BlockAllInDanger = AddToggleOption("Block all visits in danger zones", blockAll)
-
-    Float questExpiry = 1.0
-    If Core != None && Core.StoryEngine != None
-        questExpiry = Core.StoryEngine.QUEST_EXPIRY_DAYS
-    EndIf
-    OID_QuestExpiryDays = AddSliderOption("Quest Timeout (days)", questExpiry, "{0}")
 
     AddEmptyOption()
     AddHeaderOption("NPC Social Life")
@@ -429,6 +436,27 @@ Event OnOptionSelect(Int optionId)
         ClearSlotWithConfirm(3)
     ElseIf optionId == OID_ClearSlot4
         ClearSlotWithConfirm(4)
+
+    ElseIf optionId == OID_DangerAllowAll || optionId == OID_DangerBlockCivilians || \
+           optionId == OID_DangerFollowersOnly || optionId == OID_DangerBlockAll
+        If Core != None && Core.StoryEngine != None
+            Int newPolicy = 1
+            If optionId == OID_DangerAllowAll
+                newPolicy = 0
+            ElseIf optionId == OID_DangerBlockCivilians
+                newPolicy = 1
+            ElseIf optionId == OID_DangerFollowersOnly
+                newPolicy = 2
+            ElseIf optionId == OID_DangerBlockAll
+                newPolicy = 3
+            EndIf
+            Core.StoryEngine.DangerZonePolicy = newPolicy
+            IntelEngine.SetDangerZonePolicy(newPolicy)
+            SetToggleOptionValue(OID_DangerAllowAll, newPolicy == 0)
+            SetToggleOptionValue(OID_DangerBlockCivilians, newPolicy == 1)
+            SetToggleOptionValue(OID_DangerFollowersOnly, newPolicy == 2)
+            SetToggleOptionValue(OID_DangerBlockAll, newPolicy == 3)
+        EndIf
 
     ElseIf optionId == OID_CancelAllSchedules
         Bool confirm = ShowMessage("Cancel all scheduled meetings?", true, "Yes", "No")
@@ -522,14 +550,6 @@ Event OnOptionSelect(Int optionId)
         ElseIf optionId == OID_AllowStuckTeleport
             Core.StoryEngine.AllowStuckTeleport = !Core.StoryEngine.AllowStuckTeleport
             SetToggleOptionValue(OID_AllowStuckTeleport, Core.StoryEngine.AllowStuckTeleport)
-        ElseIf optionId == OID_BlockCiviliansInDanger
-            Core.StoryEngine.BlockCiviliansInDanger = !Core.StoryEngine.BlockCiviliansInDanger
-            SetToggleOptionValue(OID_BlockCiviliansInDanger, Core.StoryEngine.BlockCiviliansInDanger)
-            IntelEngine.SetDangerZonePolicy(Core.StoryEngine.BlockCiviliansInDanger, Core.StoryEngine.BlockAllInDanger)
-        ElseIf optionId == OID_BlockAllInDanger
-            Core.StoryEngine.BlockAllInDanger = !Core.StoryEngine.BlockAllInDanger
-            SetToggleOptionValue(OID_BlockAllInDanger, Core.StoryEngine.BlockAllInDanger)
-            IntelEngine.SetDangerZonePolicy(Core.StoryEngine.BlockCiviliansInDanger, Core.StoryEngine.BlockAllInDanger)
         EndIf
 
     EndIf
@@ -685,10 +705,10 @@ Event OnOptionSliderAccept(Int optionId, Float sliderValue)
     EndIf
 EndEvent
 
-Event OnOptionInputOpen(Int optionId)
+Event OnOptionMenuOpen(Int optionId)
 EndEvent
 
-Event OnOptionInputAccept(Int optionId, String inputValue)
+Event OnOptionMenuAccept(Int optionId, Int index)
 EndEvent
 
 Event OnOptionHighlight(Int optionId)
@@ -724,10 +744,14 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("Maximum game days an NPC will travel before being teleported to the target. Lower = faster delivery, higher = more realistic.")
     ElseIf optionId == OID_AllowStuckTeleport
         SetInfoText("When enabled, NPCs stuck during travel or exceeding the max travel time are teleported to the target. When disabled, the NPC gives up instead.")
-    ElseIf optionId == OID_BlockCiviliansInDanger
-        SetInfoText("Prevent civilian NPCs (merchants, farmers, etc.) from being dispatched to visit you while you're in a dangerous location like a dungeon or cave.")
-    ElseIf optionId == OID_BlockAllInDanger
-        SetInfoText("Prevent ALL NPCs from being dispatched to visit you while you're in a dangerous location. Overrides the civilian-only setting.")
+    ElseIf optionId == OID_DangerAllowAll
+        SetInfoText("No danger zone filtering. All NPC types can visit you in dungeons and caves.")
+    ElseIf optionId == OID_DangerBlockCivilians
+        SetInfoText("Farmers, merchants and other civilians stay away from dangerous locations. Warriors and mages can still visit.")
+    ElseIf optionId == OID_DangerFollowersOnly
+        SetInfoText("Only NPCs who can be recruited as followers (PotentialFollowerFaction) can visit you in dangerous locations.")
+    ElseIf optionId == OID_DangerBlockAll
+        SetInfoText("Nobody visits you in dangerous locations (dungeons, caves, etc).")
     ElseIf optionId == OID_QuestExpiryDays
         SetInfoText("How many in-game days before an unfinished dynamic quest auto-expires. The quest giver remembers you never showed up. Default 1.")
     ElseIf optionId == OID_TypeSeekPlayer

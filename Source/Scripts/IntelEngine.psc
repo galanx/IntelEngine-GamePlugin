@@ -375,9 +375,11 @@ Bool Function IsCivilianClass(Actor akActor) Global Native
 Bool Function IsJarl(Actor akActor) Global Native
 
 ; Set danger zone dispatch policy (synced from MCM).
-; blockCivilians: exclude CIVILIAN archetype NPCs when player is in danger zone.
-; blockAll: exclude ALL NPCs when player is in danger zone.
-Function SetDangerZonePolicy(Bool blockCivilians, Bool blockAll) Global Native
+; Set danger zone dispatch policy (0=allow all, 1=block civilians, 2=followers only, 3=block all).
+Function SetDangerZonePolicy(Int policy) Global Native
+
+; Check if actor is in PotentialFollowerFaction (can be recruited as follower).
+Bool Function IsPotentialFollower(Actor akActor) Global Native
 
 ; Check if the player is in a location on the blocklist (plugin config, 30s cache).
 Bool Function IsPlayerInBlockedLocation() Global Native
