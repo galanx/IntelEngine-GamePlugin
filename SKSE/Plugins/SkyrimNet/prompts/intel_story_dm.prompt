@@ -76,7 +76,7 @@ Romantic or jealous NPC secretly follows the player.
   Bad: "was caught stalking {{ playerName }} through the Whiterun market" (location will be wrong by the time NPC arrives)
 {% endif %}
 
-{% if show_message == "1" %}6
+{% if show_message == "1" %}
 ### message
 NPC wants to send a verbal message to {{ playerName }}. The system will automatically find a suitable messenger (household member, associate, guard, or courier).
 - "npc" = the SENDER — who the message is FROM (must be from candidate pool). Pick the NPC whose story motivates sending a message.
@@ -91,18 +91,48 @@ NPC wants to send a verbal message to {{ playerName }}. The system will automati
 
 {% if show_quest == "1" %}
 ### quest
-NPC asks the player to kill enemies at a specific location. The mod ONLY supports spawning and killing enemies — nothing else.
-- **DO NOT** create fetch quests ("find my father's sword"), investigations, escorts, deliveries, or any non-combat objectives. These are NOT supported. The ONLY mechanic is: go to location, kill spawned enemies, return.
+NPC asks the player for help at a specific location. Three sub-types available — pick whichever fits the narrative best.
 - Two delivery modes (DM decides which fits the narrative):
-  A) COURIER: "npc" = messenger, "sender" = quest giver. Use when quest giver shouldn't travel.
-  B) DIRECT: "npc" = quest giver, "sender" = "" (empty). NPC approaches player personally. More immersive — use when the quest giver is a common person (farmer, merchant, pilgrim).
-- "msgContent" = why enemies need killing (1-2 sentences about the threat). Frame as a plea for help against creatures/bandits.
-- "questLocation" = a REAL named Skyrim location. Prefer outdoor/clearable locations. Use your full knowledge of Skyrim geography — don't repeat the same locations.
-- "enemyType" = one of: "bandit", "draugr", "dragon".
+  A) COURIER: "npc" = messenger, "sender" = quest giver. MANDATORY for high-status NPCs: Jarls, stewards, court wizards, housecarls, Companions leaders, College officials, faction leaders. These NPCs NEVER leave their post — they send someone else.
+  B) DIRECT: "npc" = quest giver, "sender" = "" (empty). NPC approaches player personally. ONLY for common people who would realistically travel: farmers, merchants, travelers, miners, bards, hunters, priests.
+- "msgContent" = why they need help (1-2 sentences about the threat/situation).
+- "questLocation" = a REAL named Skyrim location. Use your full knowledge of Skyrim geography — don't repeat the same locations.
+- "enemyType" = one of: "bandit", "draugr", "dragon". ALL sub-types require enemies.
 - Match enemy type to location and use VARIETY — draw from all of Skyrim:
   - bandit: forts, towers, camps, mines — Valtheim Towers, Fort Greymoor, Halted Stream Camp, White River Watch, Redoran's Retreat, Silent Moons Camp, Embershard Mine, Broken Fang Cave, Fort Dunstad, Robber's Gorge, Nilheim, Treva's Watch, Mistwatch, Rift Watchtower, Fort Neugrad, Bilegulch Mine, Cracked Tusk Keep, Knifepoint Ridge, Lost Knife Hideout, Gallows Rock
   - draugr: Nordic ruins, burial mounds, crypts — Bleak Falls Barrow, Dustman's Cairn, Shroud Hearth Barrow, Dead Men's Respite, Ansilvund, Valthume, Volunruud, Ragnvald, Forelhost, Hillgrund's Tomb, Yngol Barrow, Saarthal, Folgunthur, Ironbind Barrow, Silverdrift Lair
   - dragon: open areas, peaks, lairs — Mount Anthor, Shearpoint, Bonestrewn Crest, Dragontooth Crater, Eldersblood Peak, Ancient's Ascent, Autumnwatch Tower, Lost Tongue Overlook, Northwind Summit, Skyborn Altar
+
+#### Quest Sub-Types (set "questSubType" field)
+
+{% if show_quest_combat == "1" %}
+**combat** (default) — Kill enemies at a location.
+- "questSubType": "combat"
+- Classic bounty-style quest. Frame msgContent as a plea for help against creatures/bandits.
+{% endif %}
+{% if show_quest_rescue == "1" %}
+**rescue** — Rescue a captive NPC from bandits.
+- "questSubType": "rescue"
+- "victimName": the EXACT name of a real NPC. The system resolves via FindNPCByName — if not found, quest is REJECTED. The victim MUST be a DIFFERENT NPC from the quest giver/courier — a person cannot report their own kidnapping.
+- **Who can be a victim:** Any common NPC — from the candidate pool, the quest giver's "Household" list, or any other known NPC. Household members are excellent victims: a missing spouse, child, or housemate gives the quest giver a personal, urgent motive. Followers and associates can also be victims. Use VARIETY — check "Recent rescue victims" in the quest history and pick someone different.
+- "enemyType": MUST be "bandit" — ONLY bandits kidnap people. Draugr are mindless undead that never leave their tombs. Dragons burn, they don't capture.
+- VICTIM RESTRICTIONS — the victim must be a common person who could realistically be captured: merchants, farmers, travelers, miners, bards, priests, household members. NEVER use: Jarls, Thanes, court wizards, Companions leaders, College archmages, faction leaders, heavily guarded NPCs, or any NPC whose disappearance would cause immediate political/military response. A Jarl has guards — bandits cannot kidnap them.
+- Locations MUST be bandit-appropriate wilderness locations: forts, camps, caves, mines (see bandit location list above). NEVER use cities, towns, palaces, or inhabited settlements as quest locations.
+- The victim NPC will be physically teleported to the location and restrained. Enemies guard them. Killing all enemies frees the victim.
+- Frame msgContent as desperate plea: "Bandits took [victim] — please help!" The NPC must have a reason to know about the kidnapping (family, friend, witness, household).
+{% endif %}
+{% if show_quest_find_item == "1" %}
+**find_item** — Find a valuable item guarded by a boss enemy and regular guards.
+- "questSubType": "find_item"
+- "itemName": the EXACT display name of a real in-game item (weapon, armor, spell tome, artifact). The system validates against the loaded item index. If not found, a random valuable item is used as fallback. Use VARIETY — check "Recent find_item targets" in the quest history and pick something different. Draw from the full range: "Ebony Blade", "Dwarven Crossbow", "Glass Sword", "Daedric Bow", "Spell Tome: Fireball", "Ebony Mail", "Elven Mace", "Orcish Battleaxe", "Glass Mace", "Ebony Greatsword", "Spell Tome: Chain Lightning", "Dwarven Warhammer", "Elven Bow", "Glass War Axe", etc.
+- "itemDesc": brief narrative description (for dialogue context), e.g., "a legendary elven blade", "a powerful spell tome", "an ancient dwarven artifact".
+- A boss-tier enemy ALWAYS spawns next to the treasure. Regular enemies also guard the area. Match enemy strength to item value:
+  - Uncommon items (steel, elven): bandits (boss: bandit chief)
+  - Rare items (glass, ebony, dwarven): draugr in ruins (boss: draugr warlock)
+  - Legendary/daedric items or powerful spells: dragon guardians
+- The quest completes when the player retrieves the specific item — killing enemies is optional, but the boss guards the treasure closely.
+- Frame msgContent as rumor or discovery: "I've heard tales of a powerful weapon hidden in the ruins."
+{% endif %}
 - Quest giver gets memory of asking for help.
 {% endif %}
 
@@ -118,7 +148,8 @@ NPC asks the player to kill enemies at a specific location. The mod ONLY support
 9. **Ground stories in what the NPC knows** — each NPC's memories, events, and gossip are THEIR knowledge. Don't dispatch an NPC based on events they weren't involved in. Pick a candidate whose personal history naturally leads to action.
 10. **Narration is a verb phrase WITHOUT subject prefix** — the narration fires when the NPC is already face-to-face with {{ playerName }}. For EVERY type (including stalker), write as if the encounter is HAPPENING NOW: seeker has arrived, stalker has been caught, ambusher is confronting. NEVER narrate as if the NPC is still en route, still hidden, or unaware of {{ playerName }}'s presence. Include WHO and WHY. Good: "tracked {{ playerName }} down after hearing about the dragon attack". Bad: "followed through the darkness hoping to stay hidden" (reads as still hiding while standing face-to-face).
 11. **Type variety** — if "Story Type Picks This Session" shows counts, lean toward underrepresented types for variety. But NEVER force a type that doesn't fit the story. If no type makes narrative sense right now, reject everything — returning should_act:false is always valid.
-12. **No location references in narrations** — NEVER mention specific locations (city names, landmark names, building names) in the narration text. The NPC may take hours to reach {{ playerName }}, who will likely be somewhere completely different by then. Narrate the NPC's MOTIVE and EMOTION, not where the encounter happens. Good: "was caught following {{ playerName }} out of jealousy". Bad: "was caught stalking {{ playerName }} through the Whiterun market". The only exception is "destination" and "questLocation" fields, which are separate structured data.
+12. **Quest variety** — if "Recent Quest History" shows recent find_item targets or rescue victims, pick DIFFERENT items and victims. Repetition breaks immersion. Household members listed under each candidate are valid rescue victims — use them for variety and personal stakes.
+13. **No location references in narrations** — NEVER mention specific locations (city names, landmark names, building names) in the narration text. The NPC may take hours to reach {{ playerName }}, who will likely be somewhere completely different by then. Narrate the NPC's MOTIVE and EMOTION, not where the encounter happens. Good: "was caught following {{ playerName }} out of jealousy". Bad: "was caught stalking {{ playerName }} through the Whiterun market". The only exception is "destination" and "questLocation" fields, which are separate structured data.
 
 [ user ]
 Study the candidate pool above. For each NPC, consider: given their personality, role, and recent experiences, is there a natural next chapter in their story that involves {{ playerName }}? Pick the single most compelling one, or reject if nothing is strong enough.
@@ -130,25 +161,33 @@ If nothing compelling: {{ "{" }}"should_act":false}
 Otherwise use the matching format (include ALL fields, use "" for unused ones):
 
 {% if show_seek_player == "1" %}
-seek_player: {{ "{" }}"should_act":true,"type":"seek_player","npc":"Name","narration":"tracked {{ playerName }} down after hearing about the dragon attack at the watchtower","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"","meetTime":"","questLocation":"","enemyType":""}
+seek_player: {{ "{" }}"should_act":true,"type":"seek_player","npc":"Name","narration":"tracked {{ playerName }} down after hearing about the dragon attack at the watchtower","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"","meetTime":"","questLocation":"","enemyType":"","questSubType":"","victimName":"","itemName":"","itemDesc":""}
 {% endif %}
 {% if show_informant == "1" %}
-informant: {{ "{" }}"should_act":true,"type":"informant","npc":"Name","narration":"overheard Sven boasting about Camilla and rushed over with the news","npc2":"","destination":"","subject":"SubjectName","gossip":"was seen arguing with...","fact1":"","fact2":"","sender":"","msgContent":"","meetTime":"","questLocation":"","enemyType":""}
+informant: {{ "{" }}"should_act":true,"type":"informant","npc":"Name","narration":"overheard Sven boasting about Camilla and rushed over with the news","npc2":"","destination":"","subject":"SubjectName","gossip":"was seen arguing with...","fact1":"","fact2":"","sender":"","msgContent":"","meetTime":"","questLocation":"","enemyType":"","questSubType":"","victimName":"","itemName":"","itemDesc":""}
 {% endif %}
 {% if show_road_encounter == "1" %}
-road_encounter: {{ "{" }}"should_act":true,"type":"road_encounter","npc":"Name","narration":"set out to trade pelts at the market","npc2":"","destination":"Falkreath","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"","meetTime":"","questLocation":"","enemyType":""}
+road_encounter: {{ "{" }}"should_act":true,"type":"road_encounter","npc":"Name","narration":"set out to trade pelts at the market","npc2":"","destination":"Falkreath","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"","meetTime":"","questLocation":"","enemyType":"","questSubType":"","victimName":"","itemName":"","itemDesc":""}
 {% endif %}
 {% if show_ambush == "1" %}
-ambush: {{ "{" }}"should_act":true,"type":"ambush","npc":"Name","narration":"tracked the road for hours, nursing a grudge over the stolen bounty","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"HirerName","msgContent":"","meetTime":"","questLocation":"","enemyType":""}
+ambush: {{ "{" }}"should_act":true,"type":"ambush","npc":"Name","narration":"tracked the road for hours, nursing a grudge over the stolen bounty","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"HirerName","msgContent":"","meetTime":"","questLocation":"","enemyType":"","questSubType":"","victimName":"","itemName":"","itemDesc":""}
 {% endif %}
 {% if show_stalker == "1" %}
-stalker: {{ "{" }}"should_act":true,"type":"stalker","npc":"Name","narration":"was caught following {{ playerName }} out of jealousy after seeing Lydia with them","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"","meetTime":"","questLocation":"","enemyType":""}
+stalker: {{ "{" }}"should_act":true,"type":"stalker","npc":"Name","narration":"was caught following {{ playerName }} out of jealousy after seeing Lydia with them","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"","meetTime":"","questLocation":"","enemyType":"","questSubType":"","victimName":"","itemName":"","itemDesc":""}
 {% endif %}
 {% if show_message == "1" %}
-message: {{ "{" }}"should_act":true,"type":"message","npc":"SenderName","narration":"wanted to warn about the recent bandit attacks","npc2":"","destination":"The Bee and Barb","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"I need to speak with you about a private matter","meetTime":"evening","questLocation":"","enemyType":""}
+message: {{ "{" }}"should_act":true,"type":"message","npc":"SenderName","narration":"wanted to warn about the recent bandit attacks","npc2":"","destination":"The Bee and Barb","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"I need to speak with you about a private matter","meetTime":"evening","questLocation":"","enemyType":"","questSubType":"","victimName":"","itemName":"","itemDesc":""}
 {% endif %}
 {% if show_quest == "1" %}
-quest: {{ "{" }}"should_act":true,"type":"quest","npc":"QuestGiverOrCourier","narration":"begged for help dealing with the undead","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"Draugr have been crawling out of the barrow at night","meetTime":"","questLocation":"Shroud Hearth Barrow","enemyType":"draugr"}
+{% if show_quest_combat == "1" %}
+quest/combat: {{ "{" }}"should_act":true,"type":"quest","npc":"QuestGiverOrCourier","narration":"begged for help dealing with the undead","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"Draugr have been crawling out of the barrow at night","meetTime":"","questLocation":"Shroud Hearth Barrow","enemyType":"draugr","questSubType":"combat","victimName":"","itemName":"","itemDesc":""}
+{% endif %}
+{% if show_quest_rescue == "1" %}
+quest/rescue: {{ "{" }}"should_act":true,"type":"quest","npc":"CourierOrQuestGiver","narration":"pleaded desperately for help finding a kidnapped friend","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"QuestGiverName","msgContent":"Bandits took Camilla! They dragged her toward the fort!","meetTime":"","questLocation":"Fort Greymoor","enemyType":"bandit","questSubType":"rescue","victimName":"Camilla Valerius","itemName":"","itemDesc":""}
+{% endif %}
+{% if show_quest_find_item == "1" %}
+quest/find_item: {{ "{" }}"should_act":true,"type":"quest","npc":"QuestGiverOrCourier","narration":"spoke of rumors about a powerful weapon hidden in ancient ruins","npc2":"","destination":"","subject":"","gossip":"","fact1":"","fact2":"","sender":"","msgContent":"I've heard tales of a legendary blade sealed within the barrow, guarded by the restless dead","meetTime":"","questLocation":"Ansilvund","enemyType":"draugr","questSubType":"find_item","victimName":"","itemName":"Glass Sword","itemDesc":"a legendary glass blade"}
+{% endif %}
 {% endif %}
 {% else %}
 [ system ]

@@ -435,6 +435,40 @@ Int[] Function GetDMCandidatePoolFormIDs() Global Native
 ; Returns: array of spawned Actor references.
 Actor[] Function SpawnQuestEnemies(ObjectReference location, String enemyType) Global Native
 
+; Spawn a chest containing a specific named item at a location.
+; itemName: exact item name (resolved via ItemIndex fuzzy match).
+; Returns: the spawned chest ObjectReference, or None if item not found.
+ObjectReference Function SpawnQuestChest(ObjectReference location, String itemName) Global Native
+
+; Validate that an item name exists in the ItemIndex.
+; Returns true if a matching item is found (exact or fuzzy).
+Bool Function ValidateQuestItem(String itemName) Global Native
+
+; Get a random valuable item name from the ItemIndex.
+; minGoldValue: minimum gold value threshold (e.g. 500).
+; Returns: item display name, or "" if no items qualify.
+String Function GetRandomQuestItemName(Int minGoldValue = 500) Global Native
+
+; Spawn a boss-tier enemy near a location.
+; enemyType: "bandit" (LvlBanditBoss), "draugr" (LvlDraugrWarlockMale), or "dragon" (EncDragon01Fire).
+; Returns: the spawned boss Actor, or None on failure.
+Actor Function SpawnQuestBoss(ObjectReference location, String enemyType) Global Native
+
+; Find a deeper spawn point in the current interior cell.
+; Scans for dungeon landmarks (word walls, boss chests, coffins, shrines),
+; then falls back to door traversal. Returns None if no deeper point found.
+ObjectReference Function FindDeeperSpawnPoint(Actor akActor) Global Native
+
+; Check if a specific named item is still inside a container.
+; Used to detect when the player retrieves the quest item from the chest.
+Bool Function IsQuestItemInChest(ObjectReference container, String itemName) Global Native
+
+; Record that a quest item was used (for rotation — avoids repeats).
+Function NotifyQuestItemUsed(String itemName) Global Native
+
+; Record that an NPC was used as a rescue victim (for rotation — avoids repeats).
+Function NotifyRescueVictimUsed(String victimName) Global Native
+
 ; =============================================================================
 ; MEMORYDB FUNCTIONS (SkyrimNet SQLite reader)
 ; =============================================================================
@@ -457,6 +491,10 @@ String Function GetNPCRelationshipSummary(Actor akActor1, Actor akActor2) Global
 ; Check if the MemoryDB is connected to SkyrimNet database.
 ; Returns "true" or "false".
 String Function IsMemoryDBConnected() Global Native
+
+; Get number of player interactions with an NPC from MemoryDB.
+; Returns 0 if they have never interacted.
+Int Function GetPlayerInteractionCount(Actor akNPC) Global Native
 
 ; =============================================================================
 ; DIALOGUE SAFETY NET FUNCTIONS

@@ -13,7 +13,7 @@
 {% set currentTime = get_global_value("GameDaysPassed") %}
 ## Known Facts
 
-{% for _entry in facts %}{% set idx = length(facts) - loop.index1 %}{% set fact = at(facts, idx) %}{% set hoursPassed = (currentTime - at(factTimes, idx)) * 24.0 %}
+{% for _entry in facts %}{% set idx = loop.index1 - 1 %}{% set fact = at(facts, idx) %}{% set hoursPassed = (currentTime - at(factTimes, idx)) * 24.0 %}
 - {{ decnpc(actorUUID).name }} {{ fact }} ({% if hoursPassed < 1.0 %}just now{% elif hoursPassed < 3.0 %}a short while ago{% elif hoursPassed < 12.0 %}earlier today{% elif hoursPassed < 24.0 %}yesterday{% elif hoursPassed < 48.0 %}a day ago{% elif hoursPassed < 72.0 %}a couple of days ago{% elif hoursPassed < 120.0 %}a few days ago{% elif hoursPassed < 168.0 %}several days ago{% else %}some time ago{% endif %})
 {% endfor %}
 {% endif %}

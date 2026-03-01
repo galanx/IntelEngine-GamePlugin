@@ -103,6 +103,22 @@ Float Property ENCOUNTER_RESUME_DISTANCE = 1500.0 AutoReadOnly
 Float Property TELEPORT_OFFSET_INTERIOR = 500.0 AutoReadOnly
 Float Property TELEPORT_OFFSET_EXTERIOR = 3500.0 AutoReadOnly
 
+; === Quest Sub-Type State ===
+String Property QuestSubType = "" Auto Hidden              ; "combat", "rescue", "find_item"
+Actor Property QuestVictimNPC = None Auto Hidden           ; Real named NPC (rescue)
+ObjectReference Property QuestItemChest = None Auto Hidden ; Spawned chest (find_item)
+String Property QuestVictimName = "" Auto Hidden           ; Display name for narration
+String Property QuestItemDesc = "" Auto Hidden             ; LLM-provided item description
+String Property QuestItemName = "" Auto Hidden             ; Resolved actual item name (from ItemIndex)
+Bool Property QuestVictimFreed = false Auto Hidden         ; Has victim been unrestrained
+Actor Property QuestBossNPC = None Auto Hidden             ; Boss enemy near treasure (find_item)
+
+; === Quest Sub-Type MCM Toggles (all enabled by default) ===
+Bool Property QuestSubTypeCombatEnabled = true Auto Hidden
+Bool Property QuestSubTypeRescueEnabled = true Auto Hidden
+Bool Property QuestSubTypeFindItemEnabled = true Auto Hidden
+Bool Property QuestAllowVictimDeath = false Auto Hidden
+
 ; CK Property -- quest objective alias (points compass at quest location)
 ReferenceAlias Property QuestTargetAlias Auto
 Int Property QUEST_OBJECTIVE_ID = 0 AutoReadOnly
@@ -201,6 +217,13 @@ Function RestartMonitoring()
         EndIf
     EndIf
 
+    ; Rescue victim safety: if victim ref was lost on load, auto-expire quest
+    If QuestActive && QuestSubType == "rescue" && QuestVictimNPC == None
+        Core.DebugMsg("Story: quest/rescue victim lost on load, expiring quest")
+        RemoveQuestMarker()
+        CleanupQuest()
+    EndIf
+
     ; Release orphaned linger NPCs on load.
     ; Package overrides (PO3 cosave) survive save/load but linked refs don't,
     ; so lingering NPCs would be stuck sandboxing in place forever.
@@ -273,6 +296,8 @@ Event OnUpdateGameTime()
 
     ; Safety net: clean up lingering NPCs even if real-time timer died
     CheckStoryLingerCleanup()
+    ; Check rescued NPC deaths on game-time tick (no need for real-time polling)
+    CheckRescuedNPCDeaths()
     ; Re-kick real-time monitoring if linger NPCs still exist
     If HasLingerNPCs()
         RegisterForSingleUpdate(MONITOR_INTERVAL)
@@ -366,6 +391,9 @@ Function TickScheduler()
     ; Safety net: return stranded fake encounter NPCs
     CleanupStrandedEncounters()
 
+    ; Monitor rescued NPCs for death (game-time is sufficient — no urgency)
+    CheckRescuedNPCDeaths()
+
     ; --- Player-centric tick ---
     If !IsActive
         Actor player = Game.GetPlayer()
@@ -423,6 +451,19 @@ String Function BuildExcludeList(Actor player)
     EndIf
     If !TypeQuestEnabled
         result = AppendExclude(result, "quest")
+    EndIf
+
+    ; Quest sub-type excludes (only if quest itself is enabled)
+    If TypeQuestEnabled
+        If !QuestSubTypeCombatEnabled
+            result = AppendExclude(result, "quest_combat")
+        EndIf
+        If !QuestSubTypeRescueEnabled
+            result = AppendExclude(result, "quest_rescue")
+        EndIf
+        If !QuestSubTypeFindItemEnabled
+            result = AppendExclude(result, "quest_find_item")
+        EndIf
     EndIf
 
     ; Auto-exclude types invalid in interiors
@@ -936,9 +977,37 @@ Function OnDungeonMasterResponse(String response, Int success)
             Core.DebugMsg("Story DM: quest rejected -- one already active")
             return
         EndIf
-        If ExtractJsonField(response, "questLocation") == "" || ExtractJsonField(response, "enemyType") == ""
-            Core.DebugMsg("Story DM: quest rejected -- missing questLocation or enemyType")
+        String preSubType = ExtractJsonField(response, "questSubType")
+        If preSubType == ""
+            preSubType = "combat"
+        EndIf
+        ; Check MCM sub-type toggles
+        If preSubType == "combat" && !QuestSubTypeCombatEnabled
+            Core.DebugMsg("Story DM: quest/combat rejected -- disabled in MCM")
             return
+        ElseIf preSubType == "rescue" && !QuestSubTypeRescueEnabled
+            Core.DebugMsg("Story DM: quest/rescue rejected -- disabled in MCM")
+            return
+        ElseIf preSubType == "find_item" && !QuestSubTypeFindItemEnabled
+            Core.DebugMsg("Story DM: quest/find_item rejected -- disabled in MCM")
+            return
+        EndIf
+        ; Validate required fields per sub-type
+        If preSubType == "rescue"
+            If ExtractJsonField(response, "questLocation") == "" || ExtractJsonField(response, "enemyType") == "" || ExtractJsonField(response, "victimName") == ""
+                Core.DebugMsg("Story DM: quest/rescue rejected -- missing questLocation, enemyType, or victimName")
+                return
+            EndIf
+        ElseIf preSubType == "find_item"
+            If ExtractJsonField(response, "questLocation") == "" || ExtractJsonField(response, "enemyType") == ""
+                Core.DebugMsg("Story DM: quest/find_item rejected -- missing questLocation or enemyType")
+                return
+            EndIf
+        Else
+            If ExtractJsonField(response, "questLocation") == "" || ExtractJsonField(response, "enemyType") == ""
+                Core.DebugMsg("Story DM: quest rejected -- missing questLocation or enemyType")
+                return
+            EndIf
         EndIf
     ElseIf storyType == "message"
         If ExtractJsonField(response, "msgContent") == ""
@@ -1339,18 +1408,120 @@ Function CheckStoryLingerCleanup()
         Actor npc = StorageUtil.FormListGet(player, "Intel_StoryLingerActors", i) as Actor
 
         If npc == None || npc.IsDead() || npc.IsDisabled()
+            ; For rescued NPCs, death fact injection is handled by CheckRescuedNPCDeaths
+            ; via Intel_RecentlyRescuedNPCs — rescue metadata preserved for that purpose.
+            If npc != None
+                StorageUtil.UnsetStringValue(npc, "Intel_RescueNarration")
+            EndIf
             StorageUtil.FormListRemoveAt(player, "Intel_StoryLingerActors", i)
         Else
+            ; Deferred rescue narration: fire when victim reaches the player
+            String pendingNarration = StorageUtil.GetStringValue(npc, "Intel_RescueNarration", "")
+            If pendingNarration != ""
+                Float dist = IntelEngine.GetDistance3D(npc, player)
+                If dist < 400.0
+                    npc.SetLookAt(player)
+                    Core.SendTaskNarration(npc, pendingNarration, player)
+                    StorageUtil.UnsetStringValue(npc, "Intel_RescueNarration")
+                    Core.DebugMsg("Story [quest/rescue]: " + npc.GetDisplayName() + " reached player, narrating")
+                EndIf
+            EndIf
+
             ; Real-time timeout (story-specific safety valve)
             Float lingerStart = StorageUtil.GetFloatValue(npc, "Intel_StoryLingerStart", 0.0)
             Float elapsed = Utility.GetCurrentRealTime() - lingerStart
             Bool timedOut = lingerStart > 0.0 && elapsed > LINGER_TIMEOUT_SECONDS
-            Bool shouldRelease = Core.ShouldReleaseLinger(npc)
+            ; Grace period: don't check distance for the first 30 seconds so
+            ; NPCs that start far away (e.g. rescued victims) can pathfind to the player
+            Bool shouldRelease = elapsed > 30.0 && Core.ShouldReleaseLinger(npc)
 
             If timedOut || shouldRelease
+                ; Clean up narration (already fired or timed out)
+                StorageUtil.UnsetStringValue(npc, "Intel_RescueNarration")
+                ; NOTE: Intel_RescueQuestGiver and Intel_RescuePlayerName are NOT cleaned here.
+                ; They persist on Intel_RecentlyRescuedNPCs so CheckRescuedNPCDeaths can detect
+                ; post-linger kills and inject facts to the quest giver.
                 Core.ReleaseLinger(npc)
                 StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerStart")
                 StorageUtil.FormListRemoveAt(player, "Intel_StoryLingerActors", i)
+            EndIf
+        EndIf
+        i -= 1
+    EndWhile
+EndFunction
+
+Function CheckRescuedNPCDeaths()
+    {Monitor recently rescued NPCs for death — persists beyond linger release.
+    Uses GetKiller() for attribution and nearby friendly NPCs for witness detection.
+    If player killed with no witnesses: suspect language. With witnesses or other killer: factual.}
+    Actor player = Game.GetPlayer()
+    Int count = StorageUtil.FormListCount(player, "Intel_RecentlyRescuedNPCs")
+    If count == 0
+        return
+    EndIf
+
+    Int i = count - 1
+    While i >= 0
+        Actor npc = StorageUtil.FormListGet(player, "Intel_RecentlyRescuedNPCs", i) as Actor
+        If npc == None || npc.IsDisabled()
+            ; NPC unloaded or gone — clean up silently
+            If npc != None
+                StorageUtil.UnsetFormValue(npc, "Intel_RescueQuestGiver")
+                StorageUtil.UnsetStringValue(npc, "Intel_RescuePlayerName")
+                StorageUtil.UnsetFloatValue(npc, "Intel_RescueTime")
+            EndIf
+            StorageUtil.FormListRemoveAt(player, "Intel_RecentlyRescuedNPCs", i)
+        ElseIf npc.IsDead()
+            Actor rescueGiver = StorageUtil.GetFormValue(npc, "Intel_RescueQuestGiver") as Actor
+            If rescueGiver != None
+                String victimName = npc.GetDisplayName()
+                Actor killer = npc.GetKiller()
+
+                If killer == player
+                    ; Player killed them — check for witnesses (friendly NPCs nearby)
+                    Bool hasWitness = false
+                    Actor[] nearbyNPCs = MiscUtil.ScanCellNPCs(npc, 3000.0)
+                    Int j = 0
+                    While j < nearbyNPCs.Length
+                        Actor witness = nearbyNPCs[j]
+                        If witness != player && witness != npc && !witness.IsHostileToActor(player)
+                            hasWitness = true
+                            j = nearbyNPCs.Length ; break
+                        EndIf
+                        j += 1
+                    EndWhile
+
+                    If hasWitness
+                        ; Witnessed — quest giver learns the truth
+                        String rPlayerName = StorageUtil.GetStringValue(npc, "Intel_RescuePlayerName", "the rescuer")
+                        Core.InjectFact(rescueGiver, "learned that " + victimName + " was killed by " + rPlayerName + " shortly after being rescued")
+                    Else
+                        ; No witnesses — quest giver only hears rumors, player is a suspect
+                        Core.InjectFact(rescueGiver, "heard that " + victimName + " died under suspicious circumstances shortly after being rescued")
+                    EndIf
+                ElseIf killer != None
+                    ; Killed by someone else (bandit, animal, etc.)
+                    String killerName = killer.GetDisplayName()
+                    Core.InjectFact(rescueGiver, "learned that " + victimName + " was killed by " + killerName + " shortly after being rescued")
+                Else
+                    ; Unknown killer (engine didn't track it)
+                    Core.InjectFact(rescueGiver, "learned that " + victimName + " died shortly after being rescued")
+                EndIf
+                Core.DebugMsg("Story [quest/rescue]: " + victimName + " killed post-rescue (killer=" + killer + ") — fact injected to " + rescueGiver.GetDisplayName())
+            EndIf
+            ; Clean up all rescue metadata
+            StorageUtil.UnsetFormValue(npc, "Intel_RescueQuestGiver")
+            StorageUtil.UnsetStringValue(npc, "Intel_RescuePlayerName")
+            StorageUtil.UnsetFloatValue(npc, "Intel_RescueTime")
+            StorageUtil.FormListRemoveAt(player, "Intel_RecentlyRescuedNPCs", i)
+        Else
+            ; Alive — expire tracking after 1 game day (NPC survived long enough)
+            Float rescueTime = StorageUtil.GetFloatValue(npc, "Intel_RescueTime", 0.0)
+            If rescueTime > 0.0 && (Utility.GetCurrentGameTime() - rescueTime) > 1.0
+                StorageUtil.UnsetFormValue(npc, "Intel_RescueQuestGiver")
+                StorageUtil.UnsetStringValue(npc, "Intel_RescuePlayerName")
+                StorageUtil.UnsetFloatValue(npc, "Intel_RescueTime")
+                StorageUtil.FormListRemoveAt(player, "Intel_RecentlyRescuedNPCs", i)
             EndIf
         EndIf
         i -= 1
@@ -2094,6 +2265,15 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
     String questLocationStr = ExtractJsonField(response, "questLocation")
     String enemyType = ExtractJsonField(response, "enemyType")
 
+    ; Extract sub-type fields (default to "combat" for backward compatibility)
+    String questSubTypeStr = ExtractJsonField(response, "questSubType")
+    String victimName = ExtractJsonField(response, "victimName")
+    String itemDesc = ExtractJsonField(response, "itemDesc")
+    String itemName = ExtractJsonField(response, "itemName")
+    If questSubTypeStr == ""
+        questSubTypeStr = "combat"
+    EndIf
+
     ; Jarls never travel personally — reject DIRECT mode (sender empty = npc IS the quest giver)
     If IntelEngine.IsJarl(npc) && (senderName == "" || senderName == npc.GetDisplayName())
         Core.DebugMsg("Story DM: quest rejected -- Jarl " + npc.GetDisplayName() + " cannot deliver quest personally (needs courier)")
@@ -2103,6 +2283,41 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
     If questLocationStr == "" || enemyType == ""
         Core.DebugMsg("Story DM: quest missing questLocation or enemyType")
         return
+    EndIf
+
+    ; Validate rescue victim
+    Actor victimActor = None
+    If questSubTypeStr == "rescue" && victimName != ""
+        victimActor = IntelEngine.FindNPCByName(victimName)
+        If victimActor == None || victimActor.IsDead() || victimActor.IsDisabled()
+            Core.DebugMsg("Story DM: quest/rescue victim '" + victimName + "' not found or invalid, rejecting")
+            return
+        EndIf
+        ; Victim cannot be the quest giver or the courier
+        If victimActor == npc
+            Core.DebugMsg("Story DM: quest/rescue rejected -- victim '" + victimName + "' is the courier NPC")
+            return
+        EndIf
+        If senderName != "" && victimName == senderName
+            Core.DebugMsg("Story DM: quest/rescue rejected -- victim '" + victimName + "' is the quest giver")
+            return
+        EndIf
+    ElseIf questSubTypeStr == "rescue" && victimName == ""
+        Core.DebugMsg("Story DM: quest/rescue rejected -- no victimName")
+        return
+    EndIf
+
+    ; Validate find_item item name
+    If questSubTypeStr == "find_item"
+        If itemName == "" || !IntelEngine.ValidateQuestItem(itemName)
+            ; Try fallback: get a random valuable item
+            itemName = IntelEngine.GetRandomQuestItemName(500)
+            If itemName == ""
+                Core.DebugMsg("Story DM: quest/find_item rejected -- no valid item found")
+                return
+            EndIf
+            Core.DebugMsg("Story DM: quest/find_item -- LLM item not found, using fallback: " + itemName)
+        EndIf
     EndIf
 
     ObjectReference questDest = IntelEngine.ResolveAnyDestination(npc, questLocationStr)
@@ -2134,6 +2349,11 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
         Core.InjectFact(npc, "was sent to deliver a plea for help from " + questGiverActor.GetDisplayName() + " about " + enemyType + " trouble near " + questLocationStr)
     EndIf
 
+    ; Sub-type specific fact injection
+    If questSubTypeStr == "rescue" && victimActor != None
+        Core.InjectFact(victimActor, "was captured by " + enemyType + " near " + questLocationStr + " and held against my will")
+    EndIf
+
     ; Set up quest state
     QuestActive = true
     QuestGiver = questGiverActor
@@ -2145,6 +2365,23 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
     QuestGuideWaiting = false
     QuestStartTime = Utility.GetCurrentGameTime()
     QuestSpawnCount = 0
+
+    ; Set sub-type state
+    QuestSubType = questSubTypeStr
+    QuestVictimNPC = victimActor
+    QuestVictimName = victimName
+    QuestItemDesc = itemDesc
+    QuestItemName = itemName
+    QuestVictimFreed = false
+    QuestItemChest = None
+
+    ; Track used items/victims for rotation (avoids repeats across quests)
+    If questSubTypeStr == "find_item" && itemName != ""
+        IntelEngine.NotifyQuestItemUsed(itemName)
+    EndIf
+    If questSubTypeStr == "rescue" && victimName != ""
+        IntelEngine.NotifyRescueVictimUsed(victimName)
+    EndIf
 
     StorageUtil.SetStringValue(npc, "Intel_MessageSender", senderName)
     StorageUtil.SetStringValue(npc, "Intel_MessageContent", msgContent)
@@ -2175,74 +2412,80 @@ Function OnQuestNPCArrived()
 
     Bool isDirect = (senderName == "" || senderName == ActiveStoryNPC.GetDisplayName())
 
-    If isDirect
-        ; Direct approach: offer to guide (unless NPC is a follower — SkyrimNet's
-        ; FollowPlayer package conflicts with our travel package, making them
-        ; follow the player instead of leading to the destination)
-        ; Prevent re-entry: Utility.Wait is latent (yields thread), so OnUpdate
-        ; keeps firing during the wait. IsActive=false stops CheckStoryNPCArrival
-        ; from calling OnQuestNPCArrived again. BeginQuestGuide/FinishArrivalWithLinger
-        ; handle restoring IsActive as needed.
-        IsActive = false
-        ; Delay before quest prompt so NPC has time to talk
-        Utility.Wait(15.0)
-        ; Bail out if NPC became invalid during the wait
-        If ActiveStoryNPC == None || ActiveStoryNPC.IsDead() || ActiveStoryNPC.IsInCombat()
-            CleanupQuest()
-            CleanupStoryDispatch()
-            return
-        EndIf
-        ; Bail out if slot was externally cleared (console, MCM)
-        If Core.FindSlotByAgent(ActiveStoryNPC) < 0
-            CleanupQuest()
-            CleanupStoryDispatch()
-            return
-        EndIf
-        String choice = ""
-        If ActiveStoryNPC.IsPlayerTeammate()
-            choice = SkyMessage.Show(ActiveStoryNPC.GetDisplayName() + " tells you about trouble near " + questLoc + ".", "I'll check it out", "Not interested")
-            If choice == "Not interested"
-                ; Fall through to cancel below
-            Else
-                ; "I'll check it out" — same as "I'll go alone"
-                PlaceQuestMarker()
-                Core.SendTaskNarration(ActiveStoryNPC, "was told that " + Game.GetPlayer().GetDisplayName() + " would handle it", Game.GetPlayer())
-                Core.NotifyPlayer("Quest: " + msgContent + " [" + questLoc + "]")
-                AddRecentStoryEvent("quest: " + QuestEnemyType + " at " + questLoc)
-                ; Clear type so CleanupStoryDispatch doesn't wipe quest state
-                ActiveStoryType = ""
-                FinishArrivalWithLinger(ActiveStoryNPC, Game.GetPlayer() as ObjectReference)
-                return
-            EndIf
-        Else
-            choice = SkyMessage.Show(ActiveStoryNPC.GetDisplayName() + " offers to guide you to " + questLoc + ".", "Lead the way", "I'll go alone", "Not interested")
-        EndIf
-        If choice == "Lead the way"
-            PlaceQuestMarker()
-            AddRecentStoryEvent("quest: " + ActiveStoryNPC.GetDisplayName() + " guiding to " + questLoc)
-            BeginQuestGuide(ActiveStoryNPC)
-            return
-        ElseIf choice == "Not interested"
-            ; Cancel quest entirely
-            Core.SendTaskNarration(ActiveStoryNPC, "was told that " + Game.GetPlayer().GetDisplayName() + " wasn't interested in helping", Game.GetPlayer())
-            ; Notify quest giver (if different from courier) that player refused
-            If QuestGiver != None && QuestGiver != ActiveStoryNPC
-                Core.InjectFact(QuestGiver, "learned that " + Game.GetPlayer().GetDisplayName() + " refused to help with the " + QuestEnemyType + " threat at " + QuestLocationName)
-            EndIf
-            RemoveQuestMarker()
-            CleanupQuest()
-            FinishArrivalWithLinger(ActiveStoryNPC, Game.GetPlayer() as ObjectReference)
-            return
-        EndIf
-        ; "I'll go alone" -- narrate, player goes with map marker
-        Core.SendTaskNarration(ActiveStoryNPC, "was told that " + Game.GetPlayer().GetDisplayName() + " would handle it alone", Game.GetPlayer())
-        Core.NotifyPlayer("Quest: " + msgContent + " [" + questLoc + "]")
+    ; Both direct and courier paths show the quest dialog. The only difference:
+    ; direct NPCs can offer to guide (they know the way), couriers cannot.
+    ; Prevent re-entry: Utility.Wait is latent (yields thread), so OnUpdate
+    ; keeps firing during the wait. IsActive=false stops CheckStoryNPCArrival
+    ; from calling OnQuestNPCArrived again. BeginQuestGuide/FinishArrivalWithLinger
+    ; handle restoring IsActive as needed.
+    IsActive = false
+    ; Pin the NPC in place with a high-priority sandbox so SkyrimNet's TalkToPlayer
+    ; (priority 1) can't override and walk them away during the wait.
+    ; Uses PRIORITY_TRAVEL (100) to beat TalkToPlayer without nuking SkyrimNet packages.
+    PO3_SKSEFunctions.SetLinkedRef(ActiveStoryNPC, ActiveStoryNPC as ObjectReference, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(ActiveStoryNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
+    ActiveStoryNPC.EvaluatePackage()
+    ; Delay before quest prompt so NPC has time to talk
+    Utility.Wait(15.0)
+    ; Bail out if NPC became invalid during the wait
+    If ActiveStoryNPC == None || ActiveStoryNPC.IsDead() || ActiveStoryNPC.IsInCombat()
+        CleanupQuest()
+        CleanupStoryDispatch()
+        return
+    EndIf
+    ; Bail out if slot was externally cleared (console, MCM)
+    If Core.FindSlotByAgent(ActiveStoryNPC) < 0
+        CleanupQuest()
+        CleanupStoryDispatch()
+        return
+    EndIf
+    ; Remove the pinning sandbox before showing dialog (travel/linger packages get applied after)
+    ActorUtil.RemovePackageOverride(ActiveStoryNPC, Core.SandboxNearPlayerPackage)
+    ; Build sub-type-specific prompt text
+    String questPromptText = ""
+    If QuestSubType == "rescue"
+        questPromptText = ActiveStoryNPC.GetDisplayName() + " pleads for help rescuing " + QuestVictimName + " near " + questLoc + "."
+    ElseIf QuestSubType == "find_item"
+        questPromptText = ActiveStoryNPC.GetDisplayName() + " tells you about " + QuestItemDesc + " near " + questLoc + "."
     Else
-        ; Courier mode
-        Core.NotifyPlayer("Quest: " + msgContent + " [" + questLoc + "]")
+        questPromptText = ActiveStoryNPC.GetDisplayName() + " tells you about trouble near " + questLoc + "."
     EndIf
 
-    ; Place marker. Covers "I'll go alone" + courier paths.
+    String choice = ""
+    ; Couriers and followers can't guide (couriers don't know the way,
+    ; followers' FollowPlayer package conflicts with travel package)
+    Bool canGuide = isDirect && !ActiveStoryNPC.IsPlayerTeammate()
+    If canGuide
+        choice = SkyMessage.Show(questPromptText, "Lead the way", "I'll go alone", "Not interested")
+    Else
+        choice = SkyMessage.Show(questPromptText, "I'll check it out", "Not interested")
+        ; Map "I'll check it out" to the "I'll go alone" path
+        If choice == "I'll check it out"
+            choice = "I'll go alone"
+        EndIf
+    EndIf
+    If choice == "Lead the way"
+        PlaceQuestMarker()
+        AddRecentStoryEvent("quest: " + ActiveStoryNPC.GetDisplayName() + " guiding to " + questLoc)
+        BeginQuestGuide(ActiveStoryNPC)
+        return
+    ElseIf choice == "Not interested"
+        ; Cancel quest entirely
+        Core.SendTaskNarration(ActiveStoryNPC, "was told that " + Game.GetPlayer().GetDisplayName() + " wasn't interested in helping", Game.GetPlayer())
+        ; Notify quest giver (if different from courier) that player refused
+        If QuestGiver != None && QuestGiver != ActiveStoryNPC
+            Core.InjectFact(QuestGiver, "learned that " + Game.GetPlayer().GetDisplayName() + " refused to help with the " + QuestEnemyType + " threat at " + QuestLocationName)
+        EndIf
+        RemoveQuestMarker()
+        CleanupQuest()
+        FinishArrivalWithLinger(ActiveStoryNPC, Game.GetPlayer() as ObjectReference)
+        return
+    EndIf
+    ; "I'll go alone" / "I'll check it out" — narrate, player goes with map marker
+    Core.SendTaskNarration(ActiveStoryNPC, "was told that " + Game.GetPlayer().GetDisplayName() + " would handle it", Game.GetPlayer())
+    Core.NotifyPlayer("Quest: " + msgContent + " [" + questLoc + "]")
+
+    ; Place marker
     PlaceQuestMarker()
     AddRecentStoryEvent("quest: " + QuestEnemyType + " at " + questLoc)
 
@@ -2447,14 +2690,30 @@ Function CheckQuestProximity()
     EndIf
 
     If !QuestEnemiesSpawned
+        ; Never spawn quest enemies while the player is in a safe interior (inn, shop, home).
+        ; Is3DLoaded() on exterior markers can return true from inside a nearby building,
+        ; which would spawn bandits in The Bannered Mare when the quest is at Nilheim.
+        Actor player = Game.GetPlayer()
+        If player.IsInInterior() && !IntelEngine.IsPlayerInDangerousLocation()
+            return
+        EndIf
+
         Bool atQuestArea = false
+        ; Is3DLoaded() fires when the marker's 3D mesh is loaded — this includes
+        ; nearby-but-different locations (e.g., Nilheim visible from Ivarstead).
+        ; Add a distance gate: player must be within 4000 units (~58m) of the marker.
+        ; This prevents spawning enemies at a distant visible location while the
+        ; player is still at a town/inn across the river.
         If QuestLocation.Is3DLoaded()
-            atQuestArea = true
+            Float dist = IntelEngine.GetDistance3D(player, QuestLocation)
+            If dist < 4000.0
+                atQuestArea = true
+            EndIf
         EndIf
         ; Fallback: player is in the same cell as the quest location marker
         If !atQuestArea
             Cell questCell = QuestLocation.GetParentCell()
-            Cell playerCell = Game.GetPlayer().GetParentCell()
+            Cell playerCell = player.GetParentCell()
             If questCell != None && playerCell != None && questCell == playerCell
                 atQuestArea = true
                 Core.DebugMsg("Story [quest]: same-cell spawn fallback triggered")
@@ -2464,7 +2723,7 @@ Function CheckQuestProximity()
         ; Handles interior dungeons where QuestLocation is an exterior MapMarkerREF
         If !atQuestArea
             Location questLoc = QuestLocation.GetCurrentLocation()
-            If questLoc != None && Game.GetPlayer().IsInLocation(questLoc)
+            If questLoc != None && player.IsInLocation(questLoc)
                 atQuestArea = true
                 Core.DebugMsg("Story [quest]: BGSLocation spawn fallback triggered")
             EndIf
@@ -2473,8 +2732,28 @@ Function CheckQuestProximity()
             SpawnQuestEnemies()
         EndIf
     Else
-        If AreAllQuestEnemiesDead()
-            OnQuestComplete()
+        If QuestSubType == "find_item"
+            ; Find item: complete when player takes the specific quest item (enemies optional)
+            If QuestItemChest != None && QuestItemName != "" && !IntelEngine.IsQuestItemInChest(QuestItemChest, QuestItemName)
+                Core.DebugMsg("Story [quest/find_item]: quest item '" + QuestItemName + "' retrieved from chest")
+                OnQuestComplete()
+            EndIf
+        ElseIf QuestSubType == "rescue"
+            ; Check victim death immediately — don't wait for enemies to die
+            If QuestVictimNPC != None && QuestVictimNPC.IsDead()
+                Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimName + " died — quest failed")
+                OnQuestFailed()
+            ElseIf AreAllQuestEnemiesDead() && IsAreaClearOfHostiles()
+                If !QuestVictimFreed
+                    FreeQuestVictim()
+                EndIf
+                OnQuestComplete()
+            EndIf
+        Else
+            ; Combat: enemies dead → complete
+            If AreAllQuestEnemiesDead()
+                OnQuestComplete()
+            EndIf
         EndIf
     EndIf
 EndFunction
@@ -2490,22 +2769,93 @@ Function SpawnQuestEnemies()
     Actor player = Game.GetPlayer()
     ObjectReference spawnAnchor = QuestLocation
     If player.IsInInterior()
-        spawnAnchor = player
-        Core.DebugMsg("Story [quest]: spawning near player (interior)")
+        ; Block rescue/combat spawns in safe interiors (inns, shops, homes).
+        ; Only allow spawning in dangerous interiors (dungeons, caves, crypts, forts).
+        If !IntelEngine.IsPlayerInDangerousLocation()
+            Core.DebugMsg("Story [quest/" + QuestSubType + "]: blocked spawn in safe interior")
+            return
+        EndIf
+        If QuestSubType == "find_item"
+            ; Try to find a deep-dungeon landmark (word wall, boss chest, coffin, shrine)
+            ObjectReference deeperPoint = IntelEngine.FindDeeperSpawnPoint(player)
+            If deeperPoint != None
+                spawnAnchor = deeperPoint
+                Core.DebugMsg("Story [quest/find_item]: spawning at dungeon landmark")
+            Else
+                spawnAnchor = player
+                Core.DebugMsg("Story [quest/find_item]: no landmark found, spawning near player")
+            EndIf
+        Else
+            spawnAnchor = player
+            Core.DebugMsg("Story [quest]: spawning near player (interior)")
+        EndIf
     EndIf
 
-    Actor[] spawnedActors = IntelEngine.SpawnQuestEnemies(spawnAnchor, QuestEnemyType)
-    QuestSpawnCount = spawnedActors.Length
+    ; === Rescue sub-type: teleport victim to quest location ===
+    If QuestSubType == "rescue" && QuestVictimNPC != None
+        ; Strip all packages BEFORE teleport+restrain (packages can override restraint)
+        Core.RemoveAllPackages(QuestVictimNPC, false)
+        QuestVictimNPC.MoveTo(spawnAnchor, 0.0, 0.0, 0.0, false)
+        QuestVictimNPC.SetRestrained(true)
+        QuestVictimNPC.SetDontMove(true)
+        ; Force AI re-evaluation so restraint takes effect immediately
+        QuestVictimNPC.EvaluatePackage()
+        ; Protect victim from death — always make essential for bleedout
+        StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
+        QuestVictimNPC.GetActorBase().SetEssential(true)
+        ; Trigger natural bleedout: damage to 0 HP while essential → engine bleedout animation
+        QuestVictimNPC.SetNoBleedoutRecovery(true)
+        QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+        Core.DebugMsg("Story [quest/rescue]: placed victim " + QuestVictimNPC.GetDisplayName() + " in bleedout")
+    EndIf
 
-    If QuestSpawnCount > 0
+    ; === Find item sub-type: spawn chest with item ===
+    If QuestSubType == "find_item" && QuestItemName != ""
+        ObjectReference chest = IntelEngine.SpawnQuestChest(spawnAnchor, QuestItemName)
+        If chest != None
+            QuestItemChest = chest
+            Core.DebugMsg("Story [quest/find_item]: placed chest with " + QuestItemName + " at " + QuestLocationName)
+            ; Spawn boss near the chest (mandatory for find_item)
+            Actor boss = IntelEngine.SpawnQuestBoss(QuestItemChest, QuestEnemyType)
+            If boss != None
+                QuestBossNPC = boss
+                StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", boss)
+                QuestSpawnCount += 1
+                Core.DebugMsg("Story [quest/find_item]: spawned boss near chest")
+            EndIf
+        Else
+            Core.DebugMsg("Story [quest/find_item]: WARNING - chest spawn failed for " + QuestItemName)
+        EndIf
+    EndIf
+
+    ; === Spawn enemies (all sub-types always have enemies) ===
+    Actor[] spawnedActors = IntelEngine.SpawnQuestEnemies(spawnAnchor, QuestEnemyType)
+    Int regularCount = spawnedActors.Length
+    QuestSpawnCount += regularCount
+
+    If regularCount > 0
         ; Persist Actor refs in StorageUtil FormList (survives save/load)
+        ; Note: boss (if any) was already added to FormList above
         Int i = 0
-        While i < QuestSpawnCount
+        While i < regularCount
             StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", spawnedActors[i])
             i += 1
         EndWhile
         QuestEnemiesSpawned = true
-        Core.DebugMsg("Story [quest]: Spawned " + QuestSpawnCount + " " + QuestEnemyType + " at " + QuestLocationName)
+        Core.DebugMsg("Story [quest/" + QuestSubType + "]: Spawned " + QuestSpawnCount + " " + QuestEnemyType + " at " + QuestLocationName)
+
+        ; Rescue: stop enemies from aggroing the restrained victim
+        If QuestSubType == "rescue" && QuestVictimNPC != None
+            i = 0
+            While i < regularCount
+                spawnedActors[i].StopCombat()
+                i += 1
+            EndWhile
+            If QuestBossNPC != None
+                QuestBossNPC.StopCombat()
+            EndIf
+            Core.DebugMsg("Story [quest/rescue]: cleared enemy aggro on restrained victim")
+        EndIf
     ElseIf QuestSpawnAttempts >= 3
         ; Safety net: after 3 failed spawn attempts, auto-complete so quest doesn't hang forever
         Core.DebugMsg("Story [quest]: spawn failed after 3 attempts, auto-completing")
@@ -2533,18 +2883,125 @@ Bool Function AreAllQuestEnemiesDead()
     return true
 EndFunction
 
+Bool Function IsAreaClearOfHostiles()
+    {Returns false if any living hostile NPC is near the rescue victim.
+    Uses MiscUtil.ScanCellNPCs to scan ALL nearby actors, not just quest-spawned.}
+    If QuestVictimNPC == None
+        return true
+    EndIf
+    Actor player = Game.GetPlayer()
+    Actor[] nearbyNPCs = MiscUtil.ScanCellNPCs(QuestVictimNPC, 3000.0)
+    Int i = 0
+    While i < nearbyNPCs.Length
+        Actor npc = nearbyNPCs[i]
+        If npc != player && npc != QuestVictimNPC && npc.IsHostileToActor(player)
+            return false
+        EndIf
+        i += 1
+    EndWhile
+    return true
+EndFunction
+
+Function FreeQuestVictim()
+    If QuestVictimNPC == None || QuestVictimFreed
+        return
+    EndIf
+    QuestVictimFreed = true
+    QuestVictimNPC.SetRestrained(false)
+    QuestVictimNPC.SetDontMove(false)
+    ; Recover from bleedout: restore health, allow recovery
+    QuestVictimNPC.SetNoBleedoutRecovery(false)
+    QuestVictimNPC.RestoreActorValue("Health", 500.0)
+    Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimNPC.GetDisplayName() + " freed")
+    Core.NotifyPlayer(QuestVictimNPC.GetDisplayName() + " has been freed!")
+EndFunction
+
 Function OnQuestComplete()
-    Core.DebugMsg("Story [quest]: Completed at " + QuestLocationName + "!")
-    Core.NotifyPlayer("Quest completed!")
+    Core.DebugMsg("Story [quest/" + QuestSubType + "]: Completed at " + QuestLocationName + "!")
 
     String playerName = Game.GetPlayer().GetDisplayName()
-    If QuestGiver != None
-        Core.InjectFact(QuestGiver, "learned that " + playerName + " dealt with the " + QuestEnemyType + " threat at " + QuestLocationName)
+
+    If QuestSubType == "rescue"
+        ; Double-check victim is alive — IsDead() can lag behind bleedout/kill-cam
+        If QuestVictimNPC != None && QuestVictimNPC.IsDead()
+            Core.DebugMsg("Story [quest/rescue]: victim died before completion could finalize — redirecting to failed")
+            OnQuestFailed()
+            return
+        EndIf
+        Core.NotifyPlayer("Rescue completed!")
+        If QuestGiver != None
+            Core.InjectFact(QuestGiver, "learned that " + playerName + " rescued " + QuestVictimName + " from " + QuestEnemyType + " at " + QuestLocationName)
+        EndIf
+        If QuestVictimNPC != None
+            ; Check if victim has ever interacted with the player before
+            Int victimInteractions = IntelEngine.GetPlayerInteractionCount(QuestVictimNPC)
+            If victimInteractions == 0
+                ; Stranger rescue — victim doesn't know the rescuer
+                Core.InjectFact(QuestVictimNPC, "was rescued by " + playerName + " from " + QuestEnemyType + " captivity at " + QuestLocationName + ", whom I had never met before and didn't know at the time")
+                StorageUtil.SetStringValue(QuestVictimNPC, "Intel_RescueNarration", "was just freed from " + QuestEnemyType + " captivity by " + playerName + ", someone they had never met before and whose name they don't know")
+            Else
+                ; Known rescuer
+                Core.InjectFact(QuestVictimNPC, "was rescued by " + playerName + " from " + QuestEnemyType + " captivity at " + QuestLocationName)
+                StorageUtil.SetStringValue(QuestVictimNPC, "Intel_RescueNarration", "was just freed from " + QuestEnemyType + " captivity by " + playerName)
+            EndIf
+            ; Restore essential state now (before sandbox)
+            Int wasEssential = StorageUtil.GetIntValue(QuestVictimNPC, "Intel_WasEssential", -1)
+            If wasEssential >= 0
+                QuestVictimNPC.GetActorBase().SetEssential(wasEssential as Bool)
+                StorageUtil.UnsetIntValue(QuestVictimNPC, "Intel_WasEssential")
+            EndIf
+            ; Store rescue metadata for post-rescue death detection.
+            ; CheckRescuedNPCDeaths monitors this list beyond linger release.
+            If QuestGiver != None
+                StorageUtil.SetFormValue(QuestVictimNPC, "Intel_RescueQuestGiver", QuestGiver)
+                StorageUtil.SetStringValue(QuestVictimNPC, "Intel_RescuePlayerName", playerName)
+                StorageUtil.SetFloatValue(QuestVictimNPC, "Intel_RescueTime", Utility.GetCurrentGameTime())
+                ; Track in persistent list — survives linger cleanup
+                Actor trackedPlayer = Game.GetPlayer()
+                If StorageUtil.FormListFind(trackedPlayer, "Intel_RecentlyRescuedNPCs", QuestVictimNPC as Form) < 0
+                    StorageUtil.FormListAdd(trackedPlayer, "Intel_RecentlyRescuedNPCs", QuestVictimNPC as Form)
+                EndIf
+            EndIf
+            ; Pathfind to player — sandbox with linked ref = player.
+            ; Narration deferred until NPC reaches player (CheckStoryLingerCleanup fires it).
+            Core.RemoveAllPackages(QuestVictimNPC, false)
+            PO3_SKSEFunctions.SetLinkedRef(QuestVictimNPC, Game.GetPlayer() as ObjectReference, Core.IntelEngine_TravelTarget)
+            ActorUtil.AddPackageOverride(QuestVictimNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+            Utility.Wait(0.1)
+            QuestVictimNPC.EvaluatePackage()
+            StartStoryLinger(QuestVictimNPC)
+            ; Mark victim as handled — CleanupQuest won't teleport them
+            QuestVictimNPC = None
+        EndIf
+    ElseIf QuestSubType == "find_item"
+        Core.NotifyPlayer("Found " + QuestItemDesc + "!")
+        If QuestGiver != None
+            Core.InjectFact(QuestGiver, "learned that " + playerName + " found " + QuestItemDesc + " at " + QuestLocationName)
+        EndIf
+    Else
+        Core.NotifyPlayer("Quest completed!")
+        If QuestGiver != None
+            Core.InjectFact(QuestGiver, "learned that " + playerName + " dealt with the " + QuestEnemyType + " threat at " + QuestLocationName)
+        EndIf
     EndIf
 
     ; Guide NPC also learns about the outcome (if different from quest giver)
     If QuestGuideNPC != None && QuestGuideNPC != QuestGiver
         Core.InjectFact(QuestGuideNPC, "witnessed " + playerName + " clear the " + QuestEnemyType + " at " + QuestLocationName)
+    EndIf
+
+    RemoveQuestMarker()
+    CleanupQuest()
+EndFunction
+
+Function OnQuestFailed()
+    Core.DebugMsg("Story [quest/" + QuestSubType + "]: Failed at " + QuestLocationName + " — victim died")
+
+    String playerName = Game.GetPlayer().GetDisplayName()
+
+    Core.NotifyPlayer(QuestVictimName + " didn't make it.")
+    If QuestGiver != None
+        Core.InjectFact(QuestGiver, "learned that " + QuestVictimName + " was killed by " + QuestEnemyType + " at " + QuestLocationName + " despite " + playerName + "'s efforts")
     EndIf
 
     RemoveQuestMarker()
@@ -2557,9 +3014,21 @@ Function CheckQuestExpiry()
     EndIf
     Float elapsed = Utility.GetCurrentGameTime() - QuestStartTime
     If elapsed > QUEST_EXPIRY_DAYS
-        Core.DebugMsg("Story [quest]: Expired after " + QUEST_EXPIRY_DAYS + " days")
-        If QuestGiver != None
-            Core.InjectFact(QuestGiver, "grew disappointed that " + Game.GetPlayer().GetDisplayName() + " never dealt with the " + QuestEnemyType + " threat at " + QuestLocationName)
+        Core.DebugMsg("Story [quest/" + QuestSubType + "]: Expired after " + QUEST_EXPIRY_DAYS + " days")
+        String playerName = Game.GetPlayer().GetDisplayName()
+        If QuestSubType == "rescue"
+            If QuestGiver != None
+                Core.InjectFact(QuestGiver, "grew desperate -- " + QuestVictimName + " may be lost, " + playerName + " never came to help")
+            EndIf
+            ; Victim escape fact is handled by CleanupQuest
+        ElseIf QuestSubType == "find_item"
+            If QuestGiver != None
+                Core.InjectFact(QuestGiver, "gave up hope that " + playerName + " would find " + QuestItemDesc + " at " + QuestLocationName)
+            EndIf
+        Else
+            If QuestGiver != None
+                Core.InjectFact(QuestGiver, "grew disappointed that " + playerName + " never dealt with the " + QuestEnemyType + " threat at " + QuestLocationName)
+            EndIf
         EndIf
         RemoveQuestMarker()
         CleanupQuest()
@@ -2570,8 +3039,31 @@ Function CleanupQuest()
     ; Always remove the map marker/objective (idempotent — safe if never placed)
     RemoveQuestMarker()
 
-    String eventText = "quest: " + QuestEnemyType + " at " + QuestLocationName
+    String eventText = "quest/" + QuestSubType + ": " + QuestEnemyType + " at " + QuestLocationName
     StorageUtil.FormListClear(Game.GetPlayer(), "Intel_QuestSpawnedNPCs")
+
+    ; === Courier/quest giver dispatch cleanup ===
+    ; If the courier is still traveling to the player (IsActive + ActiveStoryType == "quest"),
+    ; clear their slot and dispatch so they don't keep searching for a cancelled quest.
+    If IsActive && ActiveStoryNPC != None && ActiveStoryType == "quest"
+        Int courierSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+        If courierSlot >= 0
+            Core.ClearSlot(courierSlot)
+        EndIf
+        Core.RemoveAllPackages(ActiveStoryNPC, false)
+        ; Don't call CleanupStoryDispatch here — it would recurse back into CleanupQuest.
+        ; Instead, manually clear the dispatch state.
+        StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_IsStoryDispatch")
+        StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_StoryNarration")
+        StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageSender")
+        StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageContent")
+        StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_QuestLocation")
+        ActiveStoryNPC = None
+        ActiveNarration = ""
+        ActiveStoryType = ""
+        IsActive = false
+        Core.DebugMsg("Story [quest]: cleared courier dispatch (quest cancelled)")
+    EndIf
 
     If QuestGuideNPC != None
         Int slot = Core.FindSlotByAgent(QuestGuideNPC)
@@ -2579,6 +3071,37 @@ Function CleanupQuest()
             Core.ClearSlot(slot)
         EndIf
         Core.RemoveAllPackages(QuestGuideNPC, false)
+    EndIf
+
+    ; === Rescue victim cleanup ===
+    If QuestVictimNPC != None
+        QuestVictimNPC.SetRestrained(false)
+        QuestVictimNPC.SetDontMove(false)
+        QuestVictimNPC.SetNoBleedoutRecovery(false)
+        QuestVictimNPC.RestoreActorValue("Health", 500.0)
+        StorageUtil.UnsetStringValue(QuestVictimNPC, "Intel_RescueNarration")
+        Core.RemoveAllPackages(QuestVictimNPC, false)
+        ; Restore original essential state
+        Int wasEssential = StorageUtil.GetIntValue(QuestVictimNPC, "Intel_WasEssential", -1)
+        If wasEssential >= 0
+            QuestVictimNPC.GetActorBase().SetEssential(wasEssential as Bool)
+            StorageUtil.UnsetIntValue(QuestVictimNPC, "Intel_WasEssential")
+        EndIf
+        ; If victim was NOT freed by the player, they "escaped"
+        If !QuestVictimFreed
+            Core.InjectFact(QuestVictimNPC, "managed to escape " + QuestEnemyType + " captivity at " + QuestLocationName + " on my own")
+        EndIf
+        QuestVictimNPC.MoveToMyEditorLocation()
+        ; Force AI re-evaluation so NPCs re-engage furniture (e.g., Jarl sits on throne)
+        QuestVictimNPC.EvaluatePackage()
+        QuestVictimNPC = None
+    EndIf
+
+    ; === Find item chest cleanup ===
+    If QuestItemChest != None
+        QuestItemChest.Disable()
+        QuestItemChest.Delete()
+        QuestItemChest = None
     EndIf
 
     QuestActive = false
@@ -2594,6 +3117,14 @@ Function CleanupQuest()
     QuestSpawnCount = 0
     QuestSpawnAttempts = 0
     QuestStartTime = 0.0
+
+    ; Reset sub-type state
+    QuestSubType = ""
+    QuestVictimName = ""
+    QuestItemDesc = ""
+    QuestItemName = ""
+    QuestVictimFreed = false
+    QuestBossNPC = None
 
     AddRecentStoryEvent(eventText)
 EndFunction

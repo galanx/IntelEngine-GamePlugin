@@ -89,6 +89,12 @@ Int OID_TypeQuest
 Int OID_TypeNPCInteraction
 Int OID_TypeNPCGossip
 
+; Quest sub-type toggles
+Int OID_QuestCombat
+Int OID_QuestRescue
+Int OID_QuestFindItem
+Int OID_QuestAllowDeath
+
 ; =============================================================================
 ; SKI_ConfigBase OVERRIDES
 ; =============================================================================
@@ -423,6 +429,23 @@ Function ShowSettingsPage()
     EndIf
     OID_QuestExpiryDays = AddSliderOption("Quest Timeout (days)", questExpiry, "{0}")
 
+    AddEmptyOption()
+    AddHeaderOption("Quest Types")
+    Bool tQuestCombat = true
+    Bool tQuestRescue = true
+    Bool tQuestFindItem = true
+    Bool tQuestAllowDeath = false
+    If Core != None && Core.StoryEngine != None
+        tQuestCombat = Core.StoryEngine.QuestSubTypeCombatEnabled
+        tQuestRescue = Core.StoryEngine.QuestSubTypeRescueEnabled
+        tQuestFindItem = Core.StoryEngine.QuestSubTypeFindItemEnabled
+        tQuestAllowDeath = Core.StoryEngine.QuestAllowVictimDeath
+    EndIf
+    OID_QuestCombat = AddToggleOption("Combat quests", tQuestCombat)
+    OID_QuestRescue = AddToggleOption("Rescue quests", tQuestRescue)
+    OID_QuestFindItem = AddToggleOption("Find item quests", tQuestFindItem)
+    OID_QuestAllowDeath = AddToggleOption("Allow NPC death in rescue", tQuestAllowDeath)
+
 EndFunction
 
 ; =============================================================================
@@ -587,6 +610,18 @@ Event OnOptionSelect(Int optionId)
         ElseIf optionId == OID_AllowStuckTeleport
             Core.StoryEngine.AllowStuckTeleport = !Core.StoryEngine.AllowStuckTeleport
             SetToggleOptionValue(OID_AllowStuckTeleport, Core.StoryEngine.AllowStuckTeleport)
+        ElseIf optionId == OID_QuestCombat
+            Core.StoryEngine.QuestSubTypeCombatEnabled = !Core.StoryEngine.QuestSubTypeCombatEnabled
+            SetToggleOptionValue(OID_QuestCombat, Core.StoryEngine.QuestSubTypeCombatEnabled)
+        ElseIf optionId == OID_QuestRescue
+            Core.StoryEngine.QuestSubTypeRescueEnabled = !Core.StoryEngine.QuestSubTypeRescueEnabled
+            SetToggleOptionValue(OID_QuestRescue, Core.StoryEngine.QuestSubTypeRescueEnabled)
+        ElseIf optionId == OID_QuestFindItem
+            Core.StoryEngine.QuestSubTypeFindItemEnabled = !Core.StoryEngine.QuestSubTypeFindItemEnabled
+            SetToggleOptionValue(OID_QuestFindItem, Core.StoryEngine.QuestSubTypeFindItemEnabled)
+        ElseIf optionId == OID_QuestAllowDeath
+            Core.StoryEngine.QuestAllowVictimDeath = !Core.StoryEngine.QuestAllowVictimDeath
+            SetToggleOptionValue(OID_QuestAllowDeath, Core.StoryEngine.QuestAllowVictimDeath)
         EndIf
 
     EndIf
@@ -825,6 +860,14 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("How often (game hours) the NPC social system checks for NPC-to-NPC interactions.")
     ElseIf optionId == OID_NPCSocialCooldown
         SetInfoText("How long (game hours) before an NPC can be picked for another social interaction. Separate from story cooldown.")
+    ElseIf optionId == OID_QuestCombat
+        SetInfoText("Enable 'clear enemies' quest type. NPC asks you to kill bandits, draugr, or dragons at a location.")
+    ElseIf optionId == OID_QuestRescue
+        SetInfoText("Enable 'rescue captive NPC' quest type. A real NPC is teleported to the location and held captive by enemies.")
+    ElseIf optionId == OID_QuestFindItem
+        SetInfoText("Enable 'find lost item' quest type. A valuable item spawns in a chest guarded by enemies.")
+    ElseIf optionId == OID_QuestAllowDeath
+        SetInfoText("WARNING: If enabled, rescued NPCs can die during combat. This can break main quests if essential NPCs are killed! Keep disabled unless you want maximum realism.")
     EndIf
 EndEvent
 

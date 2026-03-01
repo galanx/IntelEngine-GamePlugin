@@ -703,19 +703,8 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetIntValue(agent, "Intel_OffScreenCycles")
             StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenLastDist")
 
-            ; Re-lock home door if we unlocked one (anti-trespass cleanup)
-            ; Skip if player is still inside — don't trigger trespass while they're there
-            Int unlockedCellId = StorageUtil.GetIntValue(agent, "Intel_UnlockedHomeCellId")
-            If unlockedCellId != 0
-                Cell playerCell = Game.GetPlayer().GetParentCell()
-                If playerCell != None && playerCell.GetFormID() == unlockedCellId
-                    DebugMsg("Keeping cell " + unlockedCellId + " public (player inside)")
-                Else
-                    IntelEngine.SetHomeDoorAccessForCell(unlockedCellId, false)
-                    DebugMsg("Re-locked home door for cell " + unlockedCellId)
-                EndIf
-                StorageUtil.UnsetIntValue(agent, "Intel_UnlockedHomeCellId")
-            EndIf
+            ; Clean up unlock tracking key (vanilla handles re-locking)
+            StorageUtil.UnsetIntValue(agent, "Intel_UnlockedHomeCellId")
 
             ; Clear task cooldown
             StorageUtil.UnsetFloatValue(agent, "Intel_TaskCooldown")
@@ -954,19 +943,8 @@ Function ReleaseLinger(Actor npc)
     npc.EvaluatePackage()
     DebugMsg("Linger release DONE: " + npc.GetDisplayName() + " EvaluatePackage called")
     StorageUtil.UnsetIntValue(npc, "Intel_LingerFarTicks")
-    ; Re-lock building if we unlocked one during linger
-    ; Skip if player is still inside — don't trigger trespass while they're there
-    Int unlockedCellId = StorageUtil.GetIntValue(npc, "Intel_UnlockedHomeCellId")
-    If unlockedCellId != 0
-        Cell playerCell = Game.GetPlayer().GetParentCell()
-        If playerCell != None && playerCell.GetFormID() == unlockedCellId
-            DebugMsg("Keeping cell " + unlockedCellId + " public (player inside, linger release)")
-        Else
-            IntelEngine.SetHomeDoorAccessForCell(unlockedCellId, false)
-            DebugMsg("Building access: re-locked cell " + unlockedCellId + " (linger release)")
-        EndIf
-        StorageUtil.UnsetIntValue(npc, "Intel_UnlockedHomeCellId")
-    EndIf
+    ; Clean up unlock tracking key (vanilla handles re-locking)
+    StorageUtil.UnsetIntValue(npc, "Intel_UnlockedHomeCellId")
 EndFunction
 
 ; =============================================================================
@@ -1121,10 +1099,7 @@ Function EnsureBuildingAccess(Actor npc)
     If existingCellId == cellId
         return
     EndIf
-    ; If a different cell was previously unlocked, re-lock it
-    If existingCellId != 0
-        IntelEngine.SetHomeDoorAccessForCell(existingCellId, false)
-    EndIf
+    ; Previous cell left as-is — vanilla handles re-locking
     ; Unlock the NPC's current building (door + trespass removal)
     IntelEngine.SetHomeDoorAccessForCell(cellId, true)
     StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", cellId)
