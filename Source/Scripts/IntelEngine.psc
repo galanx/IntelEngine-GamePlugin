@@ -496,36 +496,6 @@ String Function IsMemoryDBConnected() Global Native
 ; Returns 0 if they have never interacted.
 Int Function GetPlayerInteractionCount(Actor akNPC) Global Native
 
-; =============================================================================
-; DIALOGUE SAFETY NET FUNCTIONS
-; =============================================================================
-
-; Tick-based safety net check. Queries MemoryDB for new dialogue since last call,
-; runs keyword matching, validates NPC. All logic in C++.
-; Returns: 0=nothing, 1=meeting, 2=fetch, 3=delivery keywords detected.
-; Call GetSafetyNetNPC() to retrieve the NPC after a positive result.
-Int Function RunSafetyNetCheck() Global Native
-
-; Signal that new dialogue occurred — re-enables safety net polling.
-; Call after any player-NPC conversation ends.
-Function NotifyNewDialogue() Global Native
-
-; Returns the NPC from the last positive RunSafetyNetCheck() call.
-Actor Function GetSafetyNetNPC() Global Native
-
-; Get the last NPC the player had a conversation with (from MemoryDB).
-Actor Function GetLastConversationPartner() Global Native
-
-; Get recent dialogue text between player and NPC (from MemoryDB).
-; Returns JSON-escaped conversation text for safe embedding in contextJson.
-String Function GetRecentDialogue(Actor npc, Int maxExchanges = 4) Global Native
-
-; Check if recent dialogue with NPC contains schedule-related keywords.
-; Returns: 0=none, 1=meeting, 2=fetch, 3=delivery.
-Int Function HasScheduleKeywords(Actor npc) Global Native
-
-; Build JSON context for safety net LLM prompt (all values properly escaped in C++).
-String Function BuildSafetyNetContextJson(Actor npc, Int keywordHint) Global Native
 
 ; =============================================================================
 ; BIO SECTION PRE-RENDERING FUNCTIONS
