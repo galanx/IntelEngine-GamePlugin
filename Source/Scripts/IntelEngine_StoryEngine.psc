@@ -317,9 +317,6 @@ Event OnUpdate()
     CheckRoadEncounterProximity()
     CheckStoryLingerCleanup()
 
-    ; Dialogue safety net: run on real-time tick too (not just game-time scheduler).
-    ; C++ check is lightweight ? returns 0 instantly if no new dialogue keywords found.
-    Core.RunDialogueSafetyNet()
 
     ; Quest monitoring (runs independently of IsActive)
     If QuestActive
@@ -385,8 +382,6 @@ Function TickScheduler()
     ; NPC-to-NPC tick (independent of player-centric state, self-gates via interval timer)
     TickNPCInteractions()
 
-    ; Dialogue safety net: catch missed schedule actions (C++ does heavy lifting)
-    Core.RunDialogueSafetyNet()
 
     ; Safety net: return stranded fake encounter NPCs
     CleanupStrandedEncounters()

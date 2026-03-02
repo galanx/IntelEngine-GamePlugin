@@ -78,6 +78,17 @@ Function RestartMonitoring()
         InitializeScheduleArrays()
     EndIf
 
+    ; Re-count from arrays — ScheduledCount can desync on reload
+    Int count = 0
+    Int i = 0
+    While i < MAX_SCHEDULED
+        If ScheduledAgents[i] != None
+            count += 1
+        EndIf
+        i += 1
+    EndWhile
+    ScheduledCount = count
+
     ; Re-register the game-time update loop — uses dispatch-aware interval
     Core.DebugMsg("Schedule monitoring restarted (" + ScheduledCount + " tasks pending)")
     RegisterForNextDispatch()
