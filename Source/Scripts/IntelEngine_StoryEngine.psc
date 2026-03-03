@@ -1864,6 +1864,8 @@ Function CheckStoryNPCArrival()
         If offscreenStatus == 1
             Core.DebugMsg(ActiveStoryNPC.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
             ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+            ; Prevent timeout from re-firing while NPC walks the last stretch
+            StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_TaskStartTime")
         EndIf
         return
     EndIf
@@ -1875,21 +1877,28 @@ Function CheckStoryNPCArrival()
     ElseIf stuckStatus >= 3
         If AllowStuckTeleport
             ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+            ; Prevent timeout from re-firing while NPC walks the last stretch
+            StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_TaskStartTime")
         Else
             AbortStoryTravel("stuck, teleport disabled")
         EndIf
         return
     EndIf
 
-    ; Timeout safety net
+    ; Timeout safety net — NPC exceeded MaxTravelDaysConfig, force-arrive immediately.
+    ; Previous bug: ImmersiveTeleportToTarget placed NPC 3500u behind the player
+    ; (outside 300u arrival radius) without clearing task state, causing infinite
+    ; re-teleport every 3s. Fix: teleport + force-arrive in one step.
     Float taskStart = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_TaskStartTime", 0.0)
     If taskStart > 0.0 && (Utility.GetCurrentGameTime() - taskStart) > MaxTravelDaysConfig
-        Debug.Trace("[IntelEngine] StoryEngine: Travel timeout for " + ActiveStoryNPC.GetDisplayName())
+        Debug.Trace("[IntelEngine] StoryEngine: Travel timeout for " + ActiveStoryNPC.GetDisplayName() + " — force-arriving")
         If AllowStuckTeleport
             ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+            OnStoryNPCArrived()
         Else
             AbortStoryTravel("travel timeout, teleport disabled")
         EndIf
+        return
     EndIf
 EndFunction
 
@@ -2466,14 +2475,15 @@ Function OnQuestNPCArrived()
         return
     ElseIf choice == "Not interested"
         ; Cancel quest entirely
-        Core.SendTaskNarration(ActiveStoryNPC, "was told that " + Game.GetPlayer().GetDisplayName() + " wasn't interested in helping", Game.GetPlayer())
-        ; Notify quest giver (if different from courier) that player refused
-        If QuestGiver != None && QuestGiver != ActiveStoryNPC
+        Actor refusedNPC = ActiveStoryNPC  ; save before CleanupQuest nulls ActiveStoryNPC
+        Core.SendTaskNarration(refusedNPC, "was told that " + Game.GetPlayer().GetDisplayName() + " wasn't interested in helping", Game.GetPlayer())
+        ; Notify quest giver that player refused (works whether giver is courier or separate NPC)
+        If QuestGiver != None
             Core.InjectFact(QuestGiver, "learned that " + Game.GetPlayer().GetDisplayName() + " refused to help with the " + QuestEnemyType + " threat at " + QuestLocationName)
         EndIf
-        RemoveQuestMarker()
+        RemoveQuestMarker()  ; completed=false: hides objective without "quest completed" notification
         CleanupQuest()
-        FinishArrivalWithLinger(ActiveStoryNPC, Game.GetPlayer() as ObjectReference)
+        FinishArrivalWithLinger(refusedNPC, Game.GetPlayer() as ObjectReference)
         return
     EndIf
     ; "I'll go alone" / "I'll check it out" — narrate, player goes with map marker
@@ -2985,7 +2995,7 @@ Function OnQuestComplete()
         Core.InjectFact(QuestGuideNPC, "witnessed " + playerName + " clear the " + QuestEnemyType + " at " + QuestLocationName)
     EndIf
 
-    RemoveQuestMarker()
+    RemoveQuestMarker(true)
     CleanupQuest()
 EndFunction
 
@@ -3176,14 +3186,19 @@ Function PlaceQuestMarker()
     Core.DebugMsg("Story [quest]: Marker placed for " + QuestLocationName + ", questActive=" + IsActive() + ", objDisplayed=" + IsObjectiveDisplayed(QUEST_OBJECTIVE_ID))
 EndFunction
 
-Function RemoveQuestMarker()
+Function RemoveQuestMarker(Bool completed = false)
     If QuestTargetAlias == None
         return
     EndIf
-    SetObjectiveCompleted(QUEST_OBJECTIVE_ID)
+    If completed
+        SetObjectiveCompleted(QUEST_OBJECTIVE_ID)
+        Core.DebugMsg("Story [quest]: Objective completed, quest deactivated")
+    Else
+        SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, false)
+        Core.DebugMsg("Story [quest]: Objective hidden, quest deactivated")
+    EndIf
     SetActive(false)
     QuestTargetAlias.Clear()
-    Core.DebugMsg("Story [quest]: Objective completed, quest deactivated")
 EndFunction
 
 ; =============================================================================
