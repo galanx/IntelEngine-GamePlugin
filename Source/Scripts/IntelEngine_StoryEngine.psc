@@ -218,10 +218,20 @@ Function RestartMonitoring()
     EndIf
 
     ; Rescue victim safety: if victim ref was lost on load, auto-expire quest
-    If QuestActive && QuestSubType == "rescue" && QuestVictimNPC == None
-        Core.DebugMsg("Story: quest/rescue victim lost on load, expiring quest")
-        RemoveQuestMarker()
-        CleanupQuest()
+    If QuestActive && QuestSubType == "rescue"
+        If QuestVictimNPC == None
+            Core.DebugMsg("Story: quest/rescue victim lost on load, expiring quest")
+            RemoveQuestMarker()
+            CleanupQuest()
+        ElseIf !QuestVictimFreed && QuestEnemiesSpawned
+            ; Re-apply restrained state on load (runtime state lost on save/load)
+            QuestVictimNPC.SetRestrained(true)
+            QuestVictimNPC.SetDontMove(true)
+            QuestVictimNPC.SetNoBleedoutRecovery(true)
+            QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+            QuestVictimNPC.EvaluatePackage()
+            Core.DebugMsg("Story: re-applied victim bleedout on load for " + QuestVictimNPC.GetDisplayName())
+        EndIf
     EndIf
 
     ; Release orphaned linger NPCs on load.
@@ -2753,6 +2763,20 @@ Function CheckQuestProximity()
                     FreeQuestVictim()
                 EndIf
                 OnQuestComplete()
+            Else
+                ; Re-apply restrained state if victim's 3D was reloaded (cell exit/re-enter).
+                ; SetRestrained/SetDontMove/SetNoBleedoutRecovery are runtime state that
+                ; doesn't survive 3D unload. Re-damage health to trigger bleedout animation.
+                If !QuestVictimFreed && QuestVictimNPC != None && QuestVictimNPC.Is3DLoaded()
+                    If QuestVictimNPC.GetActorValue("Health") > 1.0
+                        QuestVictimNPC.SetRestrained(true)
+                        QuestVictimNPC.SetDontMove(true)
+                        QuestVictimNPC.SetNoBleedoutRecovery(true)
+                        QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+                        QuestVictimNPC.EvaluatePackage()
+                        Core.DebugMsg("Story [quest/rescue]: re-applied bleedout to " + QuestVictimNPC.GetDisplayName() + " after cell reload")
+                    EndIf
+                EndIf
             EndIf
         Else
             ; Combat: enemies dead → complete
@@ -2938,14 +2962,18 @@ Function OnQuestComplete()
             Core.InjectFact(QuestGiver, "learned that " + playerName + " rescued " + QuestVictimName + " from " + QuestEnemyType + " at " + QuestLocationName)
         EndIf
         If QuestVictimNPC != None
-            ; Check if victim has ever interacted with the player before
-            Int victimInteractions = IntelEngine.GetPlayerInteractionCount(QuestVictimNPC)
-            If victimInteractions == 0
-                ; Stranger rescue — victim doesn't know the rescuer
-                Core.InjectFact(QuestVictimNPC, "was rescued by " + playerName + " from " + QuestEnemyType + " captivity at " + QuestLocationName + ", whom I had never met before and didn't know at the time")
-                StorageUtil.SetStringValue(QuestVictimNPC, "Intel_RescueNarration", "was just freed from " + QuestEnemyType + " captivity by " + playerName + ", someone they had never met before and whose name they don't know")
+            ; Check victim's awareness of the player (0=stranger, 1=seen before, 2=acquainted)
+            Int victimAwareness = IntelEngine.GetPlayerInteractionCount(QuestVictimNPC)
+            If victimAwareness == 0
+                ; True stranger — never been near the player, doesn't know their name
+                Core.InjectFact(QuestVictimNPC, "was rescued from " + QuestEnemyType + " captivity at " + QuestLocationName + " by a stranger whose name I didn't know at the time")
+                StorageUtil.SetStringValue(QuestVictimNPC, "Intel_RescueNarration", "was just freed from " + QuestEnemyType + " captivity by a stranger whose name they don't know")
+            ElseIf victimAwareness == 1
+                ; Seen before — witnessed the player nearby but never directly interacted
+                Core.InjectFact(QuestVictimNPC, "was rescued by " + playerName + " from " + QuestEnemyType + " captivity at " + QuestLocationName + ". I recognized them — I'd seen them around before but we had never actually spoken")
+                StorageUtil.SetStringValue(QuestVictimNPC, "Intel_RescueNarration", "was just freed from " + QuestEnemyType + " captivity by " + playerName + ", someone they recognized from around town but had never spoken to before")
             Else
-                ; Known rescuer
+                ; Acquainted — has direct dialogue history
                 Core.InjectFact(QuestVictimNPC, "was rescued by " + playerName + " from " + QuestEnemyType + " captivity at " + QuestLocationName)
                 StorageUtil.SetStringValue(QuestVictimNPC, "Intel_RescueNarration", "was just freed from " + QuestEnemyType + " captivity by " + playerName)
             EndIf
