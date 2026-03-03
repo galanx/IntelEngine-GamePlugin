@@ -27,11 +27,10 @@ IntelEngine_Core Property Core Auto
 ; STUCK_DISTANCE_THRESHOLD, LINGER_APPROACH_DISTANCE, LINGER_FAR_TICKS_LIMIT,
 ; DEPARTURE_CHECK_CYCLES are defined on Core (single source of truth).
 
-Float Property MAX_TASK_HOURS = 24.0 AutoReadOnly
+Float Property MAX_TASK_HOURS = 7.0 AutoReadOnly
 {Game hours before an off-screen travel task is force-completed. Safety net for
 NPCs whose 3D never loads (player never visits their cell), so position-based
-stuck detection never fires. Travel uses 24h (longer than NPCTasks' 6h) because
-cross-worldspace travel legitimately takes longer.}
+stuck detection never fires.}
 
 Float Property MIN_WAIT_HOURS = 6.0 AutoReadOnly
 Float Property MAX_WAIT_HOURS = 168.0 AutoReadOnly
@@ -537,7 +536,7 @@ Function OnArrival(Int slot, Actor npc)
         ; If NPC arrives late and the deadline already passed, OnWaitTimeout
         ; fires on the next CheckWaiting cycle.
         Float meetingTime = StorageUtil.GetFloatValue(npc, "Intel_MeetingTime", 0.0)
-        Float meetTimeout = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 3.0)
+        Float meetTimeout = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 5.0)
         Core.SetSlotDeadline(slot, meetingTime + (meetTimeout / 24.0))
     ElseIf isSelfMotivated
         ; Self-motivated: short linger at destination, no player expectation
@@ -660,6 +659,13 @@ Function CheckWaiting(Int slot, Actor npc)
     ; Smart approach — if player is near the destination but not right next to NPC,
     ; walk toward them. Self-motivated NPCs stay put (they're here for themselves, not the player).
     Bool isWaitingForPlayer = StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") == 1 || StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
+    If !isWaitingForPlayer
+        ; Log once per NPC so we know if waitForPlayer=0 is the reason approach/narration doesn't fire
+        If StorageUtil.GetIntValue(npc, "Intel_SelfMotivatedLogged") != 1
+            StorageUtil.SetIntValue(npc, "Intel_SelfMotivatedLogged", 1)
+            Core.DebugMsg(npc.GetDisplayName() + " at destination (self-motivated, waitForPlayer=0) — no approach/narration")
+        EndIf
+    EndIf
     If isWaitingForPlayer
         ObjectReference destMarker = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
         Bool playerNearDest = false
@@ -848,10 +854,11 @@ Function OnWaitTimeout(Int slot, Actor npc)
             meetDest = destination
         EndIf
 
-        ; Distinguish: NPC arrived after the timeout window vs player never showed up
+        ; Distinguish: NPC arrived after the timeout window, NPC was late but waited,
+        ; or NPC was on time and player never showed up.
         Float meetingTime = StorageUtil.GetFloatValue(npc, "Intel_MeetingTime", 0.0)
         Float npcArrivalTime = StorageUtil.GetFloatValue(npc, "Intel_MeetingNpcArrivalTime", 0.0)
-        Float meetTimeout = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 3.0)
+        Float meetTimeout = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 5.0)
         Float meetDeadline = meetingTime + (meetTimeout / 24.0)
 
         If npcArrivalTime > meetDeadline
@@ -859,9 +866,22 @@ Function OnWaitTimeout(Int slot, Actor npc)
             Core.StoreMeetingOutcome(npc, "npc_late", meetDest)
             Core.NotifyPlayer(npcName + " arrived too late for the meeting at " + meetDest)
         Else
-            ; NPC was there on time, player never showed
-            Core.StoreMeetingOutcome(npc, "player_no_show", meetDest)
-            Core.NotifyPlayer(npcName + " got tired of waiting for you at " + meetDest)
+            ; NPC arrived within timeout — check if NPC was late to the meeting time itself
+            Float npcLateHours = 0.0
+            If npcArrivalTime > 0.0
+                npcLateHours = (npcArrivalTime - meetingTime) * 24.0
+            EndIf
+
+            If npcLateHours > Core.MeetingGracePeriod
+                ; NPC was late to the meeting time but within timeout window — waited for player
+                StorageUtil.SetFloatValue(npc, "Intel_MeetingLateHours", npcLateHours)
+                Core.StoreMeetingOutcome(npc, "npc_late_player_no_show", meetDest)
+                Core.NotifyPlayer(npcName + " arrived late to " + meetDest + " and eventually gave up waiting for you")
+            Else
+                ; NPC was there on time, player never showed
+                Core.StoreMeetingOutcome(npc, "player_no_show", meetDest)
+                Core.NotifyPlayer(npcName + " got tired of waiting for you at " + meetDest)
+            EndIf
         EndIf
     Else
         Core.NotifyPlayer(npcName + " left " + destination)
@@ -871,12 +891,8 @@ Function OnWaitTimeout(Int slot, Actor npc)
     StorageUtil.SetStringValue(npc, "Intel_Result", "timeout")
 
     ; Clear slot but don't restore follower (they gave up)
+    ; ClearSlot handles schedule cleanup (preserving future schedules)
     Core.ClearSlot(slot, false)
-
-    ; Clear schedule slot — meeting is over (player no-show)
-    If Core.Schedule
-        Core.Schedule.ClearScheduleSlotByAgent(npc)
-    EndIf
 EndFunction
 
 ; =============================================================================
@@ -1284,12 +1300,8 @@ Function CompleteMeeting(Int slot, Actor npc)
     StorageUtil.SetStringValue(npc, "Intel_Result", "player_arrived")
 
     ; Clear the slot and restore follower status
+    ; ClearSlot handles schedule cleanup (preserving future schedules)
     Core.ClearSlotRestoreFollower(slot, npc)
-
-    ; Clear schedule slot — meeting truly complete
-    If Core.Schedule
-        Core.Schedule.ClearScheduleSlotByAgent(npc)
-    EndIf
 EndFunction
 
 ; =============================================================================
