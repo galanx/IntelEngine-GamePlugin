@@ -1757,6 +1757,15 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
         destName = "their destination"
     EndIf
 
+    ; Cancel SkyrimNet's FollowPlayer package on the target — without this,
+    ; the accompany package fights the escort travel package and pulls the
+    ; target back to the player after escort completes.
+    If SkyrimNetApi.HasPackage(target, "FollowPlayer") == 1
+        SkyrimNetApi.UnregisterPackage(target, "FollowPlayer")
+        StorageUtil.SetIntValue(target, "Intel_WasAccompanying", 1)
+        Core.DebugMsg(target.GetDisplayName() + " FollowPlayer package removed for escort")
+    EndIf
+
     ; Both NPCs walk to destination together
     PO3_SKSEFunctions.SetLinkedRef(target, destMarkerRef, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
@@ -1889,11 +1898,12 @@ Function OnEscortComplete(Int slot, Actor agent, Actor target)
 
     Int shouldWaitVal = StorageUtil.GetIntValue(agent, "Intel_EscortShouldWait")
 
-    ; Release target alias
+    ; Release target alias and clean up accompany tracking
     ReferenceAlias targetAlias = Core.GetTargetAlias(slot)
     If targetAlias
         targetAlias.Clear()
     EndIf
+    StorageUtil.UnsetIntValue(target, "Intel_WasAccompanying")
 
     ; Check if player is already at the destination
     Actor player = Game.GetPlayer()

@@ -18,6 +18,8 @@
 I arranged to meet {{ playerName }} at {{ meetDest }}, but they never showed up. I waited and eventually gave up. This was {{ timeAgo }}.
 {% elif meetOutcome == "npc_late" %}
 I was supposed to meet {{ playerName }} at {{ meetDest }}, but I never made it there. I couldn't find my way or got held up. This was {{ timeAgo }}.
+{% elif meetOutcome == "npc_late_player_no_show" %}
+I was supposed to meet {{ playerName }} at {{ meetDest }}, but I was {% if lateHours < 1.5 %}about an hour{% elif lateHours < 3.0 %}a couple of hours{% else %}several hours{% endif %} late myself. When I got there, {{ playerName }} wasn't around. I waited a while but they never showed up. This was {{ timeAgo }}.
 {% elif meetOutcome == "npc_arrived_late" %}
 I met {{ playerName }} at {{ meetDest }}, but I was {% if lateHours < 1.5 %}about an hour{% elif lateHours < 3.0 %}a couple of hours{% else %}several hours{% endif %} late getting there. They were already waiting for me. This was {{ timeAgo }}.
 {% elif meetOutcome == "player_late" %}
@@ -32,6 +34,8 @@ I met {{ playerName }} at {{ meetDest }} as planned. Everything went smoothly. T
 {{ decnpc(actorUUID).name }} arranged to meet {{ playerName }} at {{ meetDest }}, but {{ playerName }} never showed up. {{ decnpc(actorUUID).name }} waited and eventually gave up. This was {{ timeAgo }}.
 {% elif meetOutcome == "npc_late" %}
 {{ decnpc(actorUUID).name }} was supposed to meet {{ playerName }} at {{ meetDest }}, but never made it there. This was {{ timeAgo }}.
+{% elif meetOutcome == "npc_late_player_no_show" %}
+{{ decnpc(actorUUID).name }} was supposed to meet {{ playerName }} at {{ meetDest }}, but was {% if lateHours < 1.5 %}about an hour{% elif lateHours < 3.0 %}a couple of hours{% else %}several hours{% endif %} late. {{ playerName }} wasn't there. {{ decnpc(actorUUID).name }} waited but eventually gave up. This was {{ timeAgo }}.
 {% elif meetOutcome == "npc_arrived_late" %}
 {{ decnpc(actorUUID).name }} met {{ playerName }} at {{ meetDest }}, but was {% if lateHours < 1.5 %}about an hour{% elif lateHours < 3.0 %}a couple of hours{% else %}several hours{% endif %} late. {{ playerName }} was already waiting. This was {{ timeAgo }}.
 {% elif meetOutcome == "player_late" %}

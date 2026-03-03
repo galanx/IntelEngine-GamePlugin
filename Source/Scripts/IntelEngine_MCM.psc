@@ -296,7 +296,7 @@ Function ShowSettingsPage()
     Bool reportBack = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack") as Bool
     OID_DeliveryReportBack = AddToggleOption("Report Back After Delivery", reportBack)
 
-    Float meetTimeout = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 3.0)
+    Float meetTimeout = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 5.0)
     OID_MeetingTimeoutHours = AddSliderOption("Meeting Timeout Hours", meetTimeout, "{1}")
 
     Float gracePeriod = 0.5
@@ -639,8 +639,8 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogRange(6.0, 168.0)
         SetSliderDialogInterval(1.0)
     ElseIf optionId == OID_MeetingTimeoutHours
-        SetSliderDialogStartValue(StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 3.0))
-        SetSliderDialogDefaultValue(3.0)
+        SetSliderDialogStartValue(StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 5.0))
+        SetSliderDialogDefaultValue(5.0)
         SetSliderDialogRange(1.0, 12.0)
         SetSliderDialogInterval(0.5)
     ElseIf optionId == OID_MeetingGracePeriod
@@ -663,7 +663,7 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogInterval(100.0)
     ElseIf optionId == OID_StoryEngineInterval
         SetSliderDialogStartValue(Core.GetStoryEngineInterval())
-        SetSliderDialogDefaultValue(2.0)
+        SetSliderDialogDefaultValue(3.0)
         SetSliderDialogRange(0.5, 12.0)
         SetSliderDialogInterval(0.5)
     ElseIf optionId == OID_StoryEngineCooldown

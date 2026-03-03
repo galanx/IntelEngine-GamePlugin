@@ -199,11 +199,13 @@ Function Maintenance(Bool isFirstLoad = false)
         Actor player = Game.GetPlayer()
         StorageUtil.SetIntValue(player, "Intel_TaskConfirmPrompt", 1)
         StorageUtil.SetIntValue(player, "Intel_DeliveryReportBack", 1)
-        StorageUtil.SetFloatValue(player, "Intel_MeetingTimeoutHours", 3.0)
+        StorageUtil.SetFloatValue(player, "Intel_MeetingTimeoutHours", 5.0)
     EndIf
 
-    ; Initialize arrays if needed
-    If SlotStates == None || SlotStates.Length != MAX_SLOTS
+    ; Initialize arrays if needed (split check — Papyrus doesn't short-circuit ||)
+    If SlotStates == None
+        InitializeSlotArrays()
+    ElseIf SlotStates.Length != MAX_SLOTS
         InitializeSlotArrays()
     EndIf
 
@@ -213,10 +215,6 @@ Function Maintenance(Bool isFirstLoad = false)
     If !isFirstLoad
         RecoverActiveTasks()
     EndIf
-
-    ; Register SkyrimNet tag for action eligibility filtering.
-    ; This allows SkyrimNet to filter out NPCs with active tasks.
-    RegisterSkyrimNetTag()
 
     ; Self-heal script references if CK properties were lost (e.g. after
     ; console stopquest/startquest). All scripts live on the same quest,
@@ -669,15 +667,22 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             IntelEngine.ResetOffScreenSlot(slot)
             StorageUtil.UnsetFloatValue(agent, "Intel_OffscreenArrival")
 
-            ; Clear scheduled meeting flag + schedule slot arrays
-            ; Without clearing the arrays, OnUpdateGameTime can re-dispatch
-            ; the same meeting if Intel_ScheduledState gets reset to 0 here.
+            ; Clear current meeting flag (always — this task is done)
             StorageUtil.UnsetIntValue(agent, "Intel_IsScheduledMeeting")
+
+            ; Only clear schedule arrays + keys if the NPC has no FUTURE schedule.
+            ; A new schedule (e.g., "meet me tomorrow" during linger) must survive.
+            Bool hasFutureSchedule = false
             If Schedule
-                Schedule.ClearScheduleSlotByAgent(agent)
+                hasFutureSchedule = Schedule.HasFutureScheduleForAgent(agent)
+                If !hasFutureSchedule
+                    Schedule.ClearScheduleSlotByAgent(agent)
+                EndIf
             EndIf
-            StorageUtil.UnsetIntValue(agent, "Intel_ScheduledState")
-            StorageUtil.UnsetFloatValue(agent, "Intel_ScheduledDepartureHours")
+            If !hasFutureSchedule
+                StorageUtil.UnsetIntValue(agent, "Intel_ScheduledState")
+                StorageUtil.UnsetFloatValue(agent, "Intel_ScheduledDepartureHours")
+            EndIf
 
             ; Clear meeting tracking data (NOT outcome data — that persists for prompts)
             ; Intel_MeetingPlayerName is kept — outcome prompt (0199) needs it after slot cleanup
@@ -694,6 +699,7 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetIntValue(agent, "Intel_ApproachTick")
             StorageUtil.UnsetIntValue(agent, "Intel_ApproachStuckNarrated")
             StorageUtil.UnsetIntValue(agent, "Intel_TaskStuckNarrated")
+            StorageUtil.UnsetIntValue(agent, "Intel_SelfMotivatedLogged")
 
             ; Clear travel linger flags
             StorageUtil.UnsetIntValue(agent, "Intel_TravelLingering")
@@ -725,6 +731,7 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
         If target
             RemoveIntelPackages(target)
             ClearLinkedRefs(target)
+            StorageUtil.UnsetIntValue(target, "Intel_WasAccompanying")
             target.EvaluatePackage()
         EndIf
         targetAlias.Clear()
@@ -1063,32 +1070,11 @@ EndFunction
 Function InitOffScreenTracking(Int slot, Actor npc, ObjectReference dest)
     {Calculate estimated arrival time from distance and initialize C++ tracker.
     Shared by Travel, NPCTasks, and any future task that involves traveling.
-    Uses CalculateDeadlineFromDistance for consistent speed estimation.
-    For scheduled meetings, caps estimate to meeting time so NPC arrives on time
-    (interior cell coordinates inflate distance estimates otherwise).}
+    Uses CalculateDeadlineFromDistance for consistent speed estimation.}
     If npc == None || dest == None
         Return
     EndIf
     Float estimatedArrival = IntelEngine.CalculateDeadlineFromDistance(npc, dest, false, 0.5, 18.0)
-
-    ; For scheduled meetings: cap off-screen estimate so NPC is placed near the
-    ; destination with enough lead time to pathfind the last ~3000 units naturally.
-    ; Interior-to-exterior GetPosition() distance is wildly inflated, producing
-    ; multi-hour estimates for short walks.
-    ; Buffer of 0.5 game hours gives ~10 min real time for the final approach.
-    If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
-        Float meetingTime = StorageUtil.GetFloatValue(npc, "Intel_MeetingTime", 0.0)
-        Float approachBuffer = 0.5 / 24.0  ; 0.5 game hours in day fraction
-        If meetingTime > 0.0 && estimatedArrival > (meetingTime - approachBuffer)
-            DebugMsg(npc.GetDisplayName() + " off-screen estimate capped for meeting approach (was " + ((estimatedArrival - Utility.GetCurrentGameTime()) * 24.0) + "h)")
-            estimatedArrival = meetingTime - approachBuffer
-            ; Don't cap to the past
-            If estimatedArrival < Utility.GetCurrentGameTime()
-                estimatedArrival = Utility.GetCurrentGameTime()
-            EndIf
-        EndIf
-    EndIf
-
     IntelEngine.InitOffScreenTravel(slot, estimatedArrival, npc)
     StorageUtil.SetFloatValue(npc, "Intel_OffscreenArrival", estimatedArrival)
     DebugMsg(npc.GetDisplayName() + " off-screen tracking: est. arrival in " + ((estimatedArrival - Utility.GetCurrentGameTime()) * 24.0) + "h")
@@ -1139,27 +1125,10 @@ EndFunction
 Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
     {Check if off-screen NPC should be teleported to destination.
     Returns true if teleported (caller should handle arrival).
-    Returns false if still in transit (do nothing).
-    For scheduled meetings: places NPC ~3000 units from destination so they
-    pathfind the last stretch naturally instead of appearing at the door.}
+    Returns false if still in transit (do nothing).}
     Int status = IntelEngine.CheckOffScreenProgress(slot, npc, Utility.GetCurrentGameTime())
     If status == 1
         DebugMsg(npc.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
-
-        ; Scheduled meetings: place NPC nearby but not AT destination.
-        ; They pathfind in naturally — preserves immersion.
-        If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
-            ; Place 3000 units from destination along a random direction
-            Float angle = Utility.RandomFloat(0.0, 6.283)
-            Float offX = 3000.0 * Math.cos(angle)
-            Float offY = 3000.0 * Math.sin(angle)
-            npc.MoveTo(dest, offX, offY, 0.0)
-            Utility.Wait(0.3)
-            npc.EvaluatePackage()
-            DebugMsg(npc.GetDisplayName() + " off-screen: placed ~3000u from " + SlotTargetNames[slot] + " to pathfind in")
-            Return false  ; Not arrived — let travel monitoring handle actual arrival
-        EndIf
-
         npc.MoveTo(dest)
         Utility.Wait(0.3)
         npc.EvaluatePackage()
@@ -1363,20 +1332,6 @@ Function SyncSlotTrackerFromArrays()
         i += 1
     EndWhile
     DebugMsg("C++ SlotTracker synced from Papyrus arrays")
-EndFunction
-
-Function RegisterSkyrimNetTag()
-    {Register the intel_available tag with SkyrimNet for action eligibility filtering.
-    Called on every game load to ensure the tag is available for action evaluation.}
-
-    Int result = SkyrimNetApi.RegisterTag("intel_available", "IntelEngine_Core", "IntelAvailable_Eligibility")
-
-    If result == 0
-        DebugMsg("Registered SkyrimNet tag: intel_available")
-    Else
-        DebugMsg("WARNING: Failed to register SkyrimNet tag intel_available (error " + result + ")")
-    EndIf
-
 EndFunction
 
 ; NOTE: No OnUpdate here. IntelEngine_Travel and IntelEngine_NPCTasks each
@@ -1584,24 +1539,6 @@ Function NotifyPlayer(String msgText)
     Debug.Trace("IntelEngine: " + msgText)
 EndFunction
 
-; =============================================================================
-; SKYRIMNET TAG ELIGIBILITY (for action filtering)
-; =============================================================================
-
-Bool Function IntelAvailable_Eligibility(Actor akActor, String contextJson, String paramsJson) Global
-    {SkyrimNet tag eligibility function for intel_available tag.
-    Returns true if actor can accept new tasks (no active task + no cooldown).
-    Registered via SkyrimNetApi.RegisterTag() during init.
-
-    Parameters:
-    - akActor: The actor being checked for eligibility
-    - contextJson: Context information from SkyrimNet (unused)
-    - paramsJson: Parameters from SkyrimNet (unused)}
-    Return IntelEngine.IsActorAvailable(akActor)
-EndFunction
-
-
-
 
 ; =============================================================================
 ; MCM SETTINGS (StorageUtil-backed, survives ESP redeployment)
@@ -1657,7 +1594,7 @@ Bool Function IsStoryEngineEnabled()
 EndFunction
 
 Float Function GetStoryEngineInterval()
-    return GetSettingFloat("Intel_MCM_StoryInterval", 2.0)
+    return GetSettingFloat("Intel_MCM_StoryInterval", 3.0)
 EndFunction
 
 Float Function GetStoryEngineCooldown()

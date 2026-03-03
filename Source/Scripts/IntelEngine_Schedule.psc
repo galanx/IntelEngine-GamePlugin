@@ -543,6 +543,24 @@ Function ClearScheduleSlotByAgent(Actor npc)
     EndWhile
 EndFunction
 
+Bool Function HasFutureScheduleForAgent(Actor npc)
+    {Returns true if the NPC has a schedule slot with a time in the future.
+    Used by ClearSlot to avoid wiping a newly scheduled meeting when
+    the current task completes.}
+    If npc == None
+        Return false
+    EndIf
+    Float now = Utility.GetCurrentGameTime()
+    Int i = 0
+    While i < MAX_SCHEDULED
+        If ScheduledAgents[i] == npc && ScheduledTimes[i] > now
+            Return true
+        EndIf
+        i += 1
+    EndWhile
+    Return false
+EndFunction
+
 ; =============================================================================
 ; UPDATE LOOP - Check for due schedules
 ; =============================================================================
