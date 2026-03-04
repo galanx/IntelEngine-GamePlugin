@@ -1,4 +1,4 @@
-# IntelEngine v2.0
+# IntelEngine v2.5.0
 ### NPC Autonomy & Player-Driven Task Framework for SkyrimNet
 
 *"Meet me at the Western Watchtower at sunset."*
@@ -286,6 +286,17 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 | Report Back After Delivery | On | On/Off | Messengers narrate delivery completion |
 | Meeting Timeout | 3 hrs | 1-12 | How long NPCs wait at meeting spots |
 
+### Story Tuning
+
+| Setting | Default | Description |
+|---|---|---|
+| Danger Zone Policy | Allow All | Who can be dispatched to dangerous areas (Allow All / Block Civilians / Followers Only / Block All) |
+| Player Home Visit Policy | Allow All | Who can visit when you're at home (same 4 levels) |
+| Story Tick Interval | 3 hrs | How often the Dungeon Master evaluates the world |
+| Travel Timeout | 7 hrs | Max travel time before a story NPC gives up |
+| Meeting Timeout | 5 hrs | Max wait time for scheduled meetings |
+| Quest Sub-Types | All On | Toggle rescue, find item, and combat quests individually |
+
 ---
 
 ## Architecture
@@ -309,6 +320,8 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 
 **SkyrimNet Action YAMLs** — nine AI-selectable actions with eligibility rules, typed parameters, and event strings that feed context back into NPC awareness for future decisions.
 
+**SkyrimNet Plugin Manifest** — IntelEngine registers as a SkyrimNet plugin with its own settings file, allowing separate LLM configuration (model, endpoint, API key, temperature, token limit) for the Story Engine DM. Also exposes faction and location blocklists for fine-grained control over story candidates.
+
 ---
 
 ## Story Engine — The Dungeon Master
@@ -323,7 +336,9 @@ Nine story types, each individually toggleable via MCM:
 - **Ambush** — Hostile NPCs with real grudges stalk and attack you. Stealth or charge variants. Beat them and they yield — talk, kill, or walk away.
 - **Stalker** — Romantically obsessed NPCs secretly follow you until caught. No combat — the emotional confrontation is the payoff.
 - **Message** — Couriers deliver verbal messages from NPCs who can't come themselves, with optional meeting invitations that schedule the sender.
-- **Quest** — NPCs ask you to clear enemies from a location. Guide option (they jog with you) or go alone with a map marker. Bandits, draugr, or dragons.
+- **Quest: Combat** — NPCs ask you to clear enemies from a location. Guide option (they jog with you) or go alone with a map marker. Bandits, draugr, or dragons.
+- **Quest: Rescue** — NPCs plead for help rescuing someone who's been taken. The victim is pre-placed deep inside the dungeon before you enter — restrained in prisoner furniture when available, or found injured in the boss room. The compass guides you through the dungeon to them.
+- **Quest: Find Item** — NPCs send you to retrieve a specific item from a dungeon. A quest chest is placed at the boss room with a guardian enemy. The compass points directly at the chest.
 - **NPC Interaction** — Two NPCs interact independently of you. Arguments, deals, training, whispered conspiracies. Happens whether you're watching or not.
 - **NPC Gossip** — Rumors spread through chains of up to 10 people. Information travels realistically through the world.
 
@@ -362,4 +377,4 @@ IntelEngine is under active development. The following features are planned for 
 
 ---
 
-*IntelEngine turns Skyrim's people from scenery into agents — NPCs who keep appointments, carry your words, fetch who you need, and remember what happened. And with the Dungeon Master, they also act on their own — seeking you out, settling grudges, spreading gossip, and living their own lives whether you're watching or not. The world doesn't wait for you anymore.*
+*IntelEngine turns Skyrim's people from scenery into agents — NPCs who keep appointments, carry your words, fetch who you need, and remember what happened. And with the Dungeon Master, they also act on their own — seeking you out, settling grudges, spreading gossip, sending you on rescue missions deep into dungeons, and living their own lives whether you're watching or not. The world doesn't wait for you anymore.*
