@@ -111,7 +111,15 @@ String Property QuestVictimName = "" Auto Hidden           ; Display name for na
 String Property QuestItemDesc = "" Auto Hidden             ; LLM-provided item description
 String Property QuestItemName = "" Auto Hidden             ; Resolved actual item name (from ItemIndex)
 Bool Property QuestVictimFreed = false Auto Hidden         ; Has victim been unrestrained
+Bool Property QuestDeferredToInterior = false Auto Hidden    ; Dungeon entrance found — defer spawning until player enters
 Actor Property QuestBossNPC = None Auto Hidden             ; Boss enemy near treasure (find_item)
+Bool Property QuestPrePlaced = false Auto Hidden            ; Victim/chest pre-placed at boss room via DungeonIndex
+ObjectReference Property QuestBossAnchor = None Auto Hidden ; Boss room anchor from DungeonIndex
+Bool Property QuestFurnitureScanned = false Auto Hidden     ; Prisoner furniture scan completed
+Bool Property QuestVictimInFurniture = false Auto Hidden    ; Victim is using actual furniture (shackles/stocks) — not bleedout
+Cell Property QuestDungeonLastCell = None Auto Hidden       ; Last tracked cell inside dungeon (depth tracking)
+Int Property QuestDungeonDepth = 0 Auto Hidden              ; Door transitions inside dungeon (0 = entrance)
+Int Property QuestDungeonScanFails = 0 Auto Hidden          ; Failed scan-ahead attempts (fallback after 5)
 
 ; === Quest Sub-Type MCM Toggles (all enabled by default) ===
 Bool Property QuestSubTypeCombatEnabled = true Auto Hidden
@@ -225,12 +233,17 @@ Function RestartMonitoring()
             CleanupQuest()
         ElseIf !QuestVictimFreed && QuestEnemiesSpawned
             ; Re-apply restrained state on load (runtime state lost on save/load)
-            QuestVictimNPC.SetRestrained(true)
-            QuestVictimNPC.SetDontMove(true)
-            QuestVictimNPC.SetNoBleedoutRecovery(true)
-            QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
-            QuestVictimNPC.EvaluatePackage()
-            Core.DebugMsg("Story: re-applied victim bleedout on load for " + QuestVictimNPC.GetDisplayName())
+            If QuestVictimInFurniture
+                ; Furniture victim: just keep DontMove, don't damage health
+                QuestVictimNPC.SetDontMove(true)
+                Core.DebugMsg("Story: re-applied furniture DontMove on load for " + QuestVictimNPC.GetDisplayName())
+            Else
+                ; Bleedout victim: re-apply bleedout only (no SetRestrained/SetDontMove — they override bleedout anim)
+                QuestVictimNPC.SetNoBleedoutRecovery(true)
+                QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+                QuestVictimNPC.EvaluatePackage()
+                Core.DebugMsg("Story: re-applied victim bleedout on load for " + QuestVictimNPC.GetDisplayName())
+            EndIf
         EndIf
     EndIf
 
@@ -2316,6 +2329,11 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
             Core.DebugMsg("Story DM: quest/rescue rejected -- victim '" + victimName + "' is the quest giver")
             return
         EndIf
+        ; Hard cooldown — victim was recently used in a quest or story dispatch
+        If IntelEngine.IsActorOnStoryCooldown(victimActor)
+            Core.DebugMsg("Story DM: quest/rescue rejected -- victim '" + victimName + "' is on story cooldown")
+            return
+        EndIf
     ElseIf questSubTypeStr == "rescue" && victimName == ""
         Core.DebugMsg("Story DM: quest/rescue rejected -- no victimName")
         return
@@ -2389,7 +2407,10 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
     QuestVictimFreed = false
     QuestItemChest = None
 
-    ; Track used items/victims for rotation (avoids repeats across quests)
+    ; Track used items/victims/locations for rotation (avoids repeats across quests)
+    If questLocationStr != ""
+        IntelEngine.NotifyQuestLocationUsed(questLocationStr)
+    EndIf
     If questSubTypeStr == "find_item" && itemName != ""
         IntelEngine.NotifyQuestItemUsed(itemName)
     EndIf
@@ -2479,6 +2500,7 @@ Function OnQuestNPCArrived()
         EndIf
     EndIf
     If choice == "Lead the way"
+        PrePlaceQuestTargets()
         PlaceQuestMarker()
         AddRecentStoryEvent("quest: " + ActiveStoryNPC.GetDisplayName() + " guiding to " + questLoc)
         BeginQuestGuide(ActiveStoryNPC)
@@ -2500,7 +2522,9 @@ Function OnQuestNPCArrived()
     Core.SendTaskNarration(ActiveStoryNPC, "was told that " + Game.GetPlayer().GetDisplayName() + " would handle it", Game.GetPlayer())
     Core.NotifyPlayer("Quest: " + msgContent + " [" + questLoc + "]")
 
-    ; Place marker
+    ; Pre-place victim/chest/enemies at boss room if DungeonIndex has data
+    PrePlaceQuestTargets()
+    ; Place marker (points at victim/chest if pre-placed, else exterior location)
     PlaceQuestMarker()
     AddRecentStoryEvent("quest: " + QuestEnemyType + " at " + questLoc)
 
@@ -2688,6 +2712,60 @@ Function OnQuestGuideArrived()
 EndFunction
 
 ; =============================================================================
+; QUEST PRE-PLACEMENT (vanilla-style: place targets at boss room before player enters)
+; =============================================================================
+
+Function PrePlaceQuestTargets()
+    {Pre-place victim/chest/enemies at dungeon boss room when DungeonIndex has data.
+     Called at quest acceptance (both "I'll go alone" and "Lead the way" paths).
+     Combat quests stay deferred (enemies need to be near player).}
+    If QuestSubType == "combat"
+        return
+    EndIf
+
+    ObjectReference bossAnchor = IntelEngine.GetDungeonBossAnchor(QuestLocationName)
+    If bossAnchor == None
+        Core.DebugMsg("Story [quest/" + QuestSubType + "]: no dungeon boss anchor for '" + QuestLocationName + "' — using deferred spawn")
+        return
+    EndIf
+
+    QuestBossAnchor = bossAnchor
+    Core.DebugMsg("Story [quest/" + QuestSubType + "]: pre-placing at boss anchor in '" + QuestLocationName + "'")
+
+    ; === RESCUE: place victim at boss room ===
+    If QuestSubType == "rescue" && QuestVictimNPC != None
+        Core.RemoveAllPackages(QuestVictimNPC, false)
+        QuestVictimNPC.MoveTo(bossAnchor, Utility.RandomFloat(-150.0, 150.0), Utility.RandomFloat(-150.0, 150.0), 0.0)
+        StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
+        QuestVictimNPC.GetActorBase().SetEssential(true)
+        QuestVictimNPC.SetNoBleedoutRecovery(true)
+        QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+        QuestVictimNPC.EvaluatePackage()
+        IntelEngine.NotifyStoryCooldown(QuestVictimNPC, Utility.GetCurrentGameTime())
+        Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimNPC.GetDisplayName() + " placed at boss room in bleedout")
+    EndIf
+
+    ; === FIND_ITEM: spawn chest near player, then MoveTo boss room ===
+    ; PlaceObjectAtMe needs a loaded cell, so spawn at player (in dialogue — invisible)
+    ; then immediately move to the unloaded boss anchor. Same pattern as victim MoveTo.
+    If QuestSubType == "find_item" && QuestItemName != ""
+        Actor player = Game.GetPlayer()
+        ObjectReference chest = IntelEngine.SpawnQuestChest(player, QuestItemName)
+        If chest != None
+            chest.MoveTo(bossAnchor, Utility.RandomFloat(-100.0, 100.0), Utility.RandomFloat(-100.0, 100.0), 0.0)
+            QuestItemChest = chest
+            Core.DebugMsg("Story [quest/find_item]: chest with " + QuestItemName + " placed at boss room")
+        EndIf
+    EndIf
+
+    ; Enemies are NOT spawned here — they need a loaded cell for AI init.
+    ; They spawn when the boss room cell loads (CheckQuestProximity monitors
+    ; QuestBossAnchor.Is3DLoaded() and spawns directly at the anchor).
+    QuestPrePlaced = true
+    Core.DebugMsg("Story [quest/" + QuestSubType + "]: pre-placed target at boss anchor in '" + QuestLocationName + "', enemies deferred to cell load")
+EndFunction
+
+; =============================================================================
 ; QUEST PROXIMITY + SPAWN + COMPLETION
 ; =============================================================================
 
@@ -2705,27 +2783,109 @@ Function CheckQuestProximity()
     EndIf
 
     If !QuestEnemiesSpawned
+        ; === Pre-placed quests: spawn enemies/chest when boss room cell loads ===
+        ; The boss anchor was set by PrePlaceQuestTargets (victim already MoveTo'd there).
+        ; We wait for Is3DLoaded() so PlaceObjectAtMe works directly at the anchor —
+        ; nothing ever appears near the player.
+        If QuestPrePlaced && QuestBossAnchor != None
+            ; Spawn trigger: boss anchor cell loaded OR player is near the victim.
+            ; The anchor ref might be in a different cell than where the victim ended up
+            ; (e.g., fort tower vs cave interior), so also check victim proximity.
+            Bool bossLoaded = QuestBossAnchor.Is3DLoaded()
+            Bool victimNearby = false
+            If !bossLoaded && QuestSubType == "rescue" && QuestVictimNPC != None && QuestVictimNPC.Is3DLoaded()
+                victimNearby = Game.GetPlayer().GetDistance(QuestVictimNPC) < 2000.0
+            EndIf
+            If bossLoaded || victimNearby
+                If victimNearby && !bossLoaded
+                    Core.DebugMsg("Story [quest]: victim nearby but boss anchor not loaded — safety spawn at victim")
+                Else
+                    Core.DebugMsg("Story [quest]: boss room cell loaded — spawning enemies/chest at anchor")
+                EndIf
+                ; Use victim location as spawn point if anchor isn't loaded
+                ObjectReference spawnPoint = QuestBossAnchor
+                If victimNearby && !bossLoaded && QuestVictimNPC != None
+                    spawnPoint = QuestVictimNPC as ObjectReference
+                EndIf
+                Actor player = Game.GetPlayer()
+
+                ; Chest already placed at dispatch time (PrePlaceQuestTargets) — no need to spawn here
+
+                ; Spawn enemies at spawn point. Disable before move to prevent detection
+                ; system race (crash) and hide visual pop-in from the player.
+                Actor[] enemies = IntelEngine.SpawnQuestEnemies(spawnPoint, QuestEnemyType)
+                Int i = 0
+                While i < enemies.Length
+                    enemies[i].DisableNoWait()
+                    enemies[i].MoveTo(spawnPoint, Utility.RandomFloat(-300.0, 300.0), Utility.RandomFloat(-300.0, 300.0), 0.0)
+                    StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", enemies[i])
+                    i += 1
+                EndWhile
+
+                ; Spawn boss enemy at spawn point (same disable pattern)
+                Actor boss = IntelEngine.SpawnQuestBoss(spawnPoint, QuestEnemyType)
+                If boss != None
+                    boss.DisableNoWait()
+                    boss.MoveTo(spawnPoint, Utility.RandomFloat(-150.0, 150.0), Utility.RandomFloat(-150.0, 150.0), 0.0)
+                    QuestBossNPC = boss
+                    StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", boss)
+                EndIf
+
+                ; Enable all enemies at their final positions (after all moves complete)
+                i = 0
+                While i < enemies.Length
+                    enemies[i].EnableNoWait()
+                    i += 1
+                EndWhile
+                If boss != None
+                    boss.EnableNoWait()
+                EndIf
+
+                QuestSpawnCount = enemies.Length
+                If boss != None
+                    QuestSpawnCount += 1
+                EndIf
+                If QuestSpawnCount > 0
+                    QuestEnemiesSpawned = true
+                    Core.DebugMsg("Story [quest/" + QuestSubType + "]: spawned " + QuestSpawnCount + " " + QuestEnemyType + " at boss room")
+                Else
+                    Core.DebugMsg("Story [quest]: WARNING - no enemies spawned at boss room, falling back to deferred")
+                EndIf
+
+                ; Re-apply bleedout NOW — dispatch-time state doesn't survive unloaded cells.
+                ; Without this, the victim walks normally when their cell first loads.
+                If QuestSubType == "rescue" && QuestVictimNPC != None && !QuestVictimFreed && !QuestVictimInFurniture
+                    QuestVictimNPC.SetNoBleedoutRecovery(true)
+                    QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+                    QuestVictimNPC.EvaluatePackage()
+                    Core.DebugMsg("Story [quest/rescue]: re-applied bleedout on first 3D load")
+                EndIf
+            EndIf
+            return  ; Pre-placed quests don't use the proximity-based spawn path below
+        EndIf
+
         ; Never spawn quest enemies while the player is in a safe interior (inn, shop, home).
         ; Is3DLoaded() on exterior markers can return true from inside a nearby building,
         ; which would spawn bandits in The Bannered Mare when the quest is at Nilheim.
+        ; Exception: if we already deferred to interior (dungeon entrance found), trust that
+        ; the player is entering the quest dungeon — don't skip even if location keywords miss.
         Actor player = Game.GetPlayer()
-        If player.IsInInterior() && !IntelEngine.IsPlayerInDangerousLocation()
+        If player.IsInInterior() && !QuestDeferredToInterior && !IntelEngine.IsPlayerInDangerousLocation()
             return
         EndIf
 
         Bool atQuestArea = false
+        ; --- Layer 1: 3D + distance ---
         ; Is3DLoaded() fires when the marker's 3D mesh is loaded — this includes
         ; nearby-but-different locations (e.g., Nilheim visible from Ivarstead).
         ; Add a distance gate: player must be within 4000 units (~58m) of the marker.
-        ; This prevents spawning enemies at a distant visible location while the
-        ; player is still at a town/inn across the river.
         If QuestLocation.Is3DLoaded()
             Float dist = IntelEngine.GetDistance3D(player, QuestLocation)
             If dist < 4000.0
                 atQuestArea = true
             EndIf
         EndIf
-        ; Fallback: player is in the same cell as the quest location marker
+        ; --- Layer 2: same cell ---
         If !atQuestArea
             Cell questCell = QuestLocation.GetParentCell()
             Cell playerCell = player.GetParentCell()
@@ -2734,7 +2894,7 @@ Function CheckQuestProximity()
                 Core.DebugMsg("Story [quest]: same-cell spawn fallback triggered")
             EndIf
         EndIf
-        ; Fallback: player is in the same BGSLocation (or child) as the quest marker
+        ; --- Layer 3: BGSLocation hierarchy ---
         ; Handles interior dungeons where QuestLocation is an exterior MapMarkerREF
         If !atQuestArea
             Location questLoc = QuestLocation.GetCurrentLocation()
@@ -2743,8 +2903,133 @@ Function CheckQuestProximity()
                 Core.DebugMsg("Story [quest]: BGSLocation spawn fallback triggered")
             EndIf
         EndIf
+        ; --- Layer 4: deferred interior entry ---
+        ; When we previously detected a dungeon entrance near the quest marker and
+        ; deferred spawning, the player is now inside. The exterior marker may be
+        ; unloaded (Layer 1 fails), in a different cell (Layer 2 fails), and BGSLocation
+        ; hierarchy may not link the interior (Layer 3 fails). Since we already deferred
+        ; and the safe interior guard already filtered inns/shops, any interior is the dungeon.
+        If !atQuestArea && QuestDeferredToInterior && player.IsInInterior()
+            atQuestArea = true
+            Core.DebugMsg("Story [quest]: deferred interior entry — player entered dungeon")
+        EndIf
         If atQuestArea
-            SpawnQuestEnemies()
+            If !player.IsInInterior()
+                ; Player is outside near the quest marker.
+                ; Check if there's a dungeon entrance nearby — if so, defer spawning
+                ; so the player explores the dungeon and we spawn deep inside.
+                If !QuestDeferredToInterior
+                    If IntelEngine.HasNearbyDungeonEntrance(QuestLocation)
+                        QuestDeferredToInterior = true
+                        Core.DebugMsg("Story [quest]: dungeon entrance found, deferring spawn until player enters")
+                    Else
+                        ; Pure exterior camp — no dungeon nearby, spawn immediately
+                        SpawnQuestEnemies()
+                    EndIf
+                Else
+                    Core.DebugMsg("Story [quest]: waiting for player to enter dungeon")
+                EndIf
+            Else
+                ; Player is in a dangerous interior. Scan cells AHEAD (through
+                ; doors) for cages, shackles, boss chests — anything that makes
+                ; a good anchor. Place victim + enemies there immediately.
+                ; The anchor is always 1+ door ahead = invisible to player.
+                Cell currentCell = player.GetParentCell()
+                If QuestDungeonLastCell == None
+                    QuestDungeonLastCell = currentCell
+                    QuestDungeonDepth = 0
+                ElseIf currentCell != QuestDungeonLastCell
+                    QuestDungeonLastCell = currentCell
+                    QuestDungeonDepth += 1
+                EndIf
+                Core.DebugMsg("Story [quest]: dungeon depth " + QuestDungeonDepth + ", scanning ahead...")
+
+                ; Scan cells beyond doors for cages/landmarks
+                ObjectReference aheadAnchor = IntelEngine.ScanAheadForAnchor(player)
+                If aheadAnchor != None
+                    ; Found a cage/landmark in the next cell — place everything there
+                    Core.DebugMsg("Story [quest]: anchor found ahead! Placing victim + enemies")
+                    QuestBossAnchor = aheadAnchor
+
+                    ; Place victim at anchor (rescue)
+                    If QuestSubType == "rescue" && QuestVictimNPC != None
+                        Core.RemoveAllPackages(QuestVictimNPC, false)
+                        QuestVictimNPC.MoveTo(aheadAnchor, Utility.RandomFloat(-100.0, 100.0), Utility.RandomFloat(-100.0, 100.0), 0.0)
+                        StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
+                        QuestVictimNPC.GetActorBase().SetEssential(true)
+                        QuestVictimNPC.SetNoBleedoutRecovery(true)
+                        QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+                        QuestVictimNPC.EvaluatePackage()
+                        IntelEngine.NotifyStoryCooldown(QuestVictimNPC, Utility.GetCurrentGameTime())
+                        ; Move marker to victim immediately
+                        If QuestTargetAlias != None
+                            QuestTargetAlias.ForceRefTo(QuestVictimNPC)
+                            SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, false)
+                            Utility.Wait(0.1)
+                            SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, true)
+                        EndIf
+                        Core.DebugMsg("Story [quest/rescue]: victim placed at ahead anchor in bleedout")
+                    EndIf
+
+                    ; Place chest at anchor (find_item)
+                    If QuestSubType == "find_item" && QuestItemName != "" && QuestItemChest == None
+                        ObjectReference chest = IntelEngine.SpawnQuestChest(aheadAnchor, QuestItemName)
+                        If chest != None
+                            QuestItemChest = chest
+                            If QuestTargetAlias != None
+                                QuestTargetAlias.ForceRefTo(QuestItemChest)
+                                SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, false)
+                                Utility.Wait(0.1)
+                                SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, true)
+                            EndIf
+                            Core.DebugMsg("Story [quest/find_item]: chest placed at ahead anchor")
+                        EndIf
+                    EndIf
+
+                    ; Spawn enemies at anchor. Disable before move to prevent detection crash.
+                    Actor[] enemies = IntelEngine.SpawnQuestEnemies(aheadAnchor, QuestEnemyType)
+                    Int idx = 0
+                    While idx < enemies.Length
+                        enemies[idx].DisableNoWait()
+                        enemies[idx].MoveTo(aheadAnchor, Utility.RandomFloat(-300.0, 300.0), Utility.RandomFloat(-300.0, 300.0), 0.0)
+                        StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", enemies[idx])
+                        idx += 1
+                    EndWhile
+                    Actor boss = IntelEngine.SpawnQuestBoss(aheadAnchor, QuestEnemyType)
+                    If boss != None
+                        boss.DisableNoWait()
+                        boss.MoveTo(aheadAnchor, Utility.RandomFloat(-150.0, 150.0), Utility.RandomFloat(-150.0, 150.0), 0.0)
+                        QuestBossNPC = boss
+                        StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", boss)
+                    EndIf
+                    ; Enable all at final positions
+                    idx = 0
+                    While idx < enemies.Length
+                        enemies[idx].EnableNoWait()
+                        idx += 1
+                    EndWhile
+                    If boss != None
+                        boss.EnableNoWait()
+                    EndIf
+                    QuestSpawnCount = enemies.Length
+                    If boss != None
+                        QuestSpawnCount += 1
+                    EndIf
+                    If QuestSpawnCount > 0
+                        QuestEnemiesSpawned = true
+                    EndIf
+                    QuestPrePlaced = true
+                    Core.DebugMsg("Story [quest/" + QuestSubType + "]: placed " + QuestSpawnCount + " enemies at ahead anchor")
+                Else
+                    ; No anchor found this tick — track failed scans
+                    QuestDungeonScanFails += 1
+                    If QuestDungeonDepth >= 3 || QuestDungeonScanFails >= 5
+                        ; Enough attempts — spawn near player as last resort
+                        Core.DebugMsg("Story [quest]: no anchors found (depth=" + QuestDungeonDepth + ", scans=" + QuestDungeonScanFails + ") — using fallback spawn")
+                        SpawnQuestEnemies()
+                    EndIf
+                EndIf
+            EndIf
         EndIf
     Else
         If QuestSubType == "find_item"
@@ -2754,28 +3039,65 @@ Function CheckQuestProximity()
                 OnQuestComplete()
             EndIf
         ElseIf QuestSubType == "rescue"
-            ; Check victim death immediately — don't wait for enemies to die
+            ; === Maintenance: furniture scan (once) + state re-apply (every tick) ===
+            ; Runs before completion checks so victim state is correct when player arrives.
+            If !QuestVictimFreed && QuestVictimNPC != None && QuestVictimNPC.Is3DLoaded()
+                ; One-time furniture scan when victim's cell preloads
+                If QuestPrePlaced && !QuestFurnitureScanned
+                    QuestFurnitureScanned = true
+                    ObjectReference usableFurn = IntelEngine.FindUsablePrisonerFurniture(QuestVictimNPC)
+                    If usableFurn != None
+                        ; Switch from bleedout to furniture: recover health first
+                        QuestVictimNPC.SetNoBleedoutRecovery(false)
+                        QuestVictimNPC.RestoreActorValue("Health", 500.0)
+                        QuestVictimNPC.SetRestrained(false)
+                        QuestVictimNPC.SetDontMove(false)
+                        QuestVictimNPC.MoveTo(usableFurn, 0.0, 0.0, 0.0)
+                        usableFurn.Activate(QuestVictimNPC)
+                        QuestVictimNPC.SetDontMove(true)
+                        QuestVictimInFurniture = true
+                        Core.DebugMsg("Story [quest/rescue]: victim activated usable furniture in boss room")
+                    Else
+                        ObjectReference prisonFurn = IntelEngine.FindPrisonerFurniture(QuestVictimNPC)
+                        If prisonFurn != None
+                            QuestVictimNPC.MoveTo(prisonFurn, 0.0, 0.0, 0.0)
+                            Core.DebugMsg("Story [quest/rescue]: nudged victim to decorative prison prop in boss room")
+                        EndIf
+                        QuestVictimNPC.SetNoBleedoutRecovery(true)
+                        QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+                        QuestVictimNPC.EvaluatePackage()
+                    EndIf
+                EndIf
+                ; Per-tick state re-apply (runtime state can be lost anytime)
+                If QuestVictimInFurniture
+                    QuestVictimNPC.SetDontMove(true)
+                Else
+                    ; Bleedout: only SetNoBleedoutRecovery. No SetRestrained/SetDontMove — they override bleedout anim.
+                    QuestVictimNPC.SetNoBleedoutRecovery(true)
+                    If QuestVictimNPC.GetActorValue("Health") > 1.0
+                        QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+                        QuestVictimNPC.EvaluatePackage()
+                        Core.DebugMsg("Story [quest/rescue]: re-applied bleedout to " + QuestVictimNPC.GetDisplayName())
+                    EndIf
+                EndIf
+            EndIf
+
+            ; === Completion checks ===
             If QuestVictimNPC != None && QuestVictimNPC.IsDead()
                 Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimName + " died — quest failed")
                 OnQuestFailed()
             ElseIf AreAllQuestEnemiesDead() && IsAreaClearOfHostiles()
+                ; Auto-complete: all quest enemies dead + area clear
                 If !QuestVictimFreed
                     FreeQuestVictim()
                 EndIf
                 OnQuestComplete()
-            Else
-                ; Re-apply restrained state if victim's 3D was reloaded (cell exit/re-enter).
-                ; SetRestrained/SetDontMove/SetNoBleedoutRecovery are runtime state that
-                ; doesn't survive 3D unload. Re-damage health to trigger bleedout animation.
-                If !QuestVictimFreed && QuestVictimNPC != None && QuestVictimNPC.Is3DLoaded()
-                    If QuestVictimNPC.GetActorValue("Health") > 1.0
-                        QuestVictimNPC.SetRestrained(true)
-                        QuestVictimNPC.SetDontMove(true)
-                        QuestVictimNPC.SetNoBleedoutRecovery(true)
-                        QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
-                        QuestVictimNPC.EvaluatePackage()
-                        Core.DebugMsg("Story [quest/rescue]: re-applied bleedout to " + QuestVictimNPC.GetDisplayName() + " after cell reload")
-                    EndIf
+            ElseIf !QuestVictimFreed && QuestVictimNPC != None && QuestVictimNPC.Is3DLoaded()
+                ; Manual free: player walks up to victim (200 units) while NOT in combat — fallback if enemies are stuck
+                Actor player = Game.GetPlayer()
+                If !player.IsInCombat() && player.GetDistance(QuestVictimNPC) < 200.0
+                    FreeQuestVictim()
+                    OnQuestComplete()
                 EndIf
             EndIf
         Else
@@ -2794,56 +3116,85 @@ Function SpawnQuestEnemies()
 
     QuestSpawnAttempts += 1
 
-    ; Spawn near player if in interior (QuestLocation is likely an exterior MapMarkerREF)
+    ; Determine spawn anchors. Rescue uses SEPARATE anchors for victim (deep) and
+    ; enemies (near player). Other types use a single anchor for both.
+    ; For exteriors: use the quest location marker directly.
     Actor player = Game.GetPlayer()
-    ObjectReference spawnAnchor = QuestLocation
+    ObjectReference victimAnchor = QuestLocation
+    ObjectReference enemyAnchor = QuestLocation
     If player.IsInInterior()
-        ; Block rescue/combat spawns in safe interiors (inns, shops, homes).
-        ; Only allow spawning in dangerous interiors (dungeons, caves, crypts, forts).
+        ; Block spawns in safe interiors (inns, shops, homes).
         If !IntelEngine.IsPlayerInDangerousLocation()
             Core.DebugMsg("Story [quest/" + QuestSubType + "]: blocked spawn in safe interior")
             return
         EndIf
-        If QuestSubType == "find_item"
-            ; Try to find a deep-dungeon landmark (word wall, boss chest, coffin, shrine)
-            ObjectReference deeperPoint = IntelEngine.FindDeeperSpawnPoint(player)
-            If deeperPoint != None
-                spawnAnchor = deeperPoint
-                Core.DebugMsg("Story [quest/find_item]: spawning at dungeon landmark")
+        If QuestSubType == "rescue"
+            ; Deep scan: follows doors to adjacent cells for prisoner furniture
+            ObjectReference rescuePoint = IntelEngine.FindRescueAnchor(player)
+            If rescuePoint != None
+                victimAnchor = rescuePoint
+                enemyAnchor = player    ; enemies between player and victim
+                Core.DebugMsg("Story [quest/rescue]: victim deep at rescue anchor, enemies near player")
             Else
-                spawnAnchor = player
-                Core.DebugMsg("Story [quest/find_item]: no landmark found, spawning near player")
+                victimAnchor = player
+                enemyAnchor = player
+                Core.DebugMsg("Story [quest/rescue]: no rescue anchor found, spawning near player")
             EndIf
         Else
-            spawnAnchor = player
-            Core.DebugMsg("Story [quest]: spawning near player (interior)")
+            ; find_item / combat: deeper dungeon point or player
+            ObjectReference deeperPoint = IntelEngine.FindDeeperSpawnPoint(player)
+            If deeperPoint != None
+                victimAnchor = deeperPoint
+                enemyAnchor = deeperPoint
+                Core.DebugMsg("Story [quest/" + QuestSubType + "]: spawning at dungeon landmark")
+            Else
+                victimAnchor = player
+                enemyAnchor = player
+                Core.DebugMsg("Story [quest/" + QuestSubType + "]: no landmarks found, spawning near player")
+            EndIf
         EndIf
     EndIf
 
-    ; === Rescue sub-type: teleport victim to quest location ===
+    ; === Rescue sub-type: teleport victim DEEP inside ===
     If QuestSubType == "rescue" && QuestVictimNPC != None
         ; Strip all packages BEFORE teleport+restrain (packages can override restraint)
         Core.RemoveAllPackages(QuestVictimNPC, false)
-        QuestVictimNPC.MoveTo(spawnAnchor, 0.0, 0.0, 0.0, false)
-        QuestVictimNPC.SetRestrained(true)
-        QuestVictimNPC.SetDontMove(true)
-        ; Force AI re-evaluation so restraint takes effect immediately
-        QuestVictimNPC.EvaluatePackage()
+        QuestVictimNPC.MoveTo(victimAnchor, 0.0, 0.0, 0.0, false)
         ; Protect victim from death — always make essential for bleedout
         StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
         QuestVictimNPC.GetActorBase().SetEssential(true)
         ; Trigger natural bleedout: damage to 0 HP while essential → engine bleedout animation
+        ; No SetRestrained/SetDontMove — they override the bleedout kneel animation
         QuestVictimNPC.SetNoBleedoutRecovery(true)
         QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+        QuestVictimNPC.EvaluatePackage()
         Core.DebugMsg("Story [quest/rescue]: placed victim " + QuestVictimNPC.GetDisplayName() + " in bleedout")
+        ; Apply story cooldown to the victim so they can't be re-kidnapped soon
+        IntelEngine.NotifyStoryCooldown(QuestVictimNPC, Utility.GetCurrentGameTime())
+        ; Move quest marker to the victim and refresh display
+        If QuestTargetAlias != None
+            QuestTargetAlias.ForceRefTo(QuestVictimNPC)
+            SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, false)
+            Utility.Wait(0.1)
+            SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, true)
+            Core.DebugMsg("Story [quest/rescue]: quest marker moved to victim")
+        EndIf
     EndIf
 
     ; === Find item sub-type: spawn chest with item ===
     If QuestSubType == "find_item" && QuestItemName != ""
-        ObjectReference chest = IntelEngine.SpawnQuestChest(spawnAnchor, QuestItemName)
+        ObjectReference chest = IntelEngine.SpawnQuestChest(victimAnchor, QuestItemName)
         If chest != None
             QuestItemChest = chest
             Core.DebugMsg("Story [quest/find_item]: placed chest with " + QuestItemName + " at " + QuestLocationName)
+            ; Move quest marker to the chest and refresh display
+            If QuestTargetAlias != None
+                QuestTargetAlias.ForceRefTo(QuestItemChest)
+                SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, false)
+                Utility.Wait(0.1)
+                SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, true)
+                Core.DebugMsg("Story [quest/find_item]: quest marker moved to chest")
+            EndIf
             ; Spawn boss near the chest (mandatory for find_item)
             Actor boss = IntelEngine.SpawnQuestBoss(QuestItemChest, QuestEnemyType)
             If boss != None
@@ -2857,8 +3208,8 @@ Function SpawnQuestEnemies()
         EndIf
     EndIf
 
-    ; === Spawn enemies (all sub-types always have enemies) ===
-    Actor[] spawnedActors = IntelEngine.SpawnQuestEnemies(spawnAnchor, QuestEnemyType)
+    ; === Spawn enemies near PLAYER (guards between player and objective) ===
+    Actor[] spawnedActors = IntelEngine.SpawnQuestEnemies(enemyAnchor, QuestEnemyType)
     Int regularCount = spawnedActors.Length
     QuestSpawnCount += regularCount
 
@@ -2872,19 +3223,6 @@ Function SpawnQuestEnemies()
         EndWhile
         QuestEnemiesSpawned = true
         Core.DebugMsg("Story [quest/" + QuestSubType + "]: Spawned " + QuestSpawnCount + " " + QuestEnemyType + " at " + QuestLocationName)
-
-        ; Rescue: stop enemies from aggroing the restrained victim
-        If QuestSubType == "rescue" && QuestVictimNPC != None
-            i = 0
-            While i < regularCount
-                spawnedActors[i].StopCombat()
-                i += 1
-            EndWhile
-            If QuestBossNPC != None
-                QuestBossNPC.StopCombat()
-            EndIf
-            Core.DebugMsg("Story [quest/rescue]: cleared enemy aggro on restrained victim")
-        EndIf
     ElseIf QuestSpawnAttempts >= 3
         ; Safety net: after 3 failed spawn attempts, auto-complete so quest doesn't hang forever
         Core.DebugMsg("Story [quest]: spawn failed after 3 attempts, auto-completing")
@@ -2936,12 +3274,19 @@ Function FreeQuestVictim()
         return
     EndIf
     QuestVictimFreed = true
-    QuestVictimNPC.SetRestrained(false)
-    QuestVictimNPC.SetDontMove(false)
-    ; Recover from bleedout: restore health, allow recovery
-    QuestVictimNPC.SetNoBleedoutRecovery(false)
+    If QuestVictimInFurniture
+        ; Furniture victim: exit the furniture by moving to self
+        QuestVictimNPC.SetDontMove(false)
+        QuestVictimNPC.MoveTo(QuestVictimNPC)
+        QuestVictimNPC.EvaluatePackage()
+        Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimNPC.GetDisplayName() + " freed from furniture")
+    Else
+        ; Bleedout victim: recover from bleedout
+        QuestVictimNPC.SetNoBleedoutRecovery(false)
+        Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimNPC.GetDisplayName() + " freed from bleedout")
+    EndIf
+    ; Heal victim fully after freeing
     QuestVictimNPC.RestoreActorValue("Health", 500.0)
-    Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimNPC.GetDisplayName() + " freed")
     Core.NotifyPlayer(QuestVictimNPC.GetDisplayName() + " has been freed!")
 EndFunction
 
@@ -3108,6 +3453,9 @@ Function CleanupQuest()
 
     ; === Rescue victim cleanup ===
     If QuestVictimNPC != None
+        If QuestVictimInFurniture
+            QuestVictimNPC.MoveTo(QuestVictimNPC)  ; exit furniture idle
+        EndIf
         QuestVictimNPC.SetRestrained(false)
         QuestVictimNPC.SetDontMove(false)
         QuestVictimNPC.SetNoBleedoutRecovery(false)
@@ -3144,6 +3492,7 @@ Function CleanupQuest()
     QuestGuideWaiting = false
     QuestGuideStartTime = 0.0
     QuestLocation = None
+    QuestDeferredToInterior = false
     QuestEnemyType = ""
     QuestLocationName = ""
     QuestEnemiesSpawned = false
@@ -3158,6 +3507,13 @@ Function CleanupQuest()
     QuestItemName = ""
     QuestVictimFreed = false
     QuestBossNPC = None
+    QuestPrePlaced = false
+    QuestBossAnchor = None
+    QuestFurnitureScanned = false
+    QuestVictimInFurniture = false
+    QuestDungeonLastCell = None
+    QuestDungeonDepth = 0
+    QuestDungeonScanFails = 0
 
     AddRecentStoryEvent(eventText)
 EndFunction
@@ -3195,16 +3551,25 @@ Function PlaceQuestMarker()
         Core.DebugMsg("Story [quest]: WARNING - QuestLocation is None, can't place marker")
         return
     EndIf
-    Core.DebugMsg("Story [quest]: PlaceQuestMarker - alias=" + QuestTargetAlias + ", location=" + QuestLocation + " (" + QuestLocationName + "), questRunning=" + IsRunning() + ", questActive=" + IsActive())
+    Core.DebugMsg("Story [quest]: PlaceQuestMarker - alias=" + QuestTargetAlias + ", location=" + QuestLocation + " (" + QuestLocationName + "), prePlaced=" + QuestPrePlaced + ", questRunning=" + IsRunning() + ", questActive=" + IsActive())
     ; Reset from any previous quest (completed state + display)
     SetObjectiveCompleted(QUEST_OBJECTIVE_ID, false)
     SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, false)
-    ; Point alias at quest location
-    QuestTargetAlias.ForceRefTo(QuestLocation)
+    ; Point alias at quest target — victim/chest if pre-placed (compass points through dungeon),
+    ; otherwise exterior quest location (current fallback behavior)
+    If QuestPrePlaced && QuestSubType == "rescue" && QuestVictimNPC != None
+        QuestTargetAlias.ForceRefTo(QuestVictimNPC)
+        Core.DebugMsg("Story [quest]: marker on victim (pre-placed deep inside)")
+    ElseIf QuestPrePlaced && QuestSubType == "find_item" && QuestItemChest != None
+        QuestTargetAlias.ForceRefTo(QuestItemChest)
+        Core.DebugMsg("Story [quest]: marker on chest (pre-placed deep inside)")
+    Else
+        QuestTargetAlias.ForceRefTo(QuestLocation)
+    EndIf
     ; Wait for engine to process the alias fill before displaying objective
     Utility.Wait(0.5)
     ObjectReference aliasRef = QuestTargetAlias.GetReference()
-    Core.DebugMsg("Story [quest]: After ForceRefTo - aliasRef=" + aliasRef + " (expected=" + QuestLocation + ")")
+    Core.DebugMsg("Story [quest]: After ForceRefTo - aliasRef=" + aliasRef)
     ; Activate quest in tracker so compass/map markers appear
     SetActive(true)
     ; Direct call for immediate display (synchronous)

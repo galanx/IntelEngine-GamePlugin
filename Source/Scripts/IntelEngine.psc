@@ -355,6 +355,9 @@ String Function GetActorUUID(Actor akActor) Global Native
 ; Used by Story Engine to avoid dispatching NPCs into danger zones.
 Bool Function IsPlayerInDangerousLocation() Global Native
 
+; Check if there are doors to dangerous interiors (dungeons, caves, forts) near a quest marker.
+Bool Function HasNearbyDungeonEntrance(ObjectReference akQuestLocation) Global Native
+
 ; Check if the player is in their own home (LocTypePlayerHouse keyword).
 ; Used by Story Engine for knocking prompt.
 Bool Function IsPlayerInOwnHome() Global Native
@@ -422,6 +425,9 @@ String Function BuildNPCInteractionRequestJson(String npcContext) Global Native
 ; gameTime: the Intel_StoryLastPicked timestamp (NOT current time on rejection).
 Function NotifyStoryCooldown(Actor akActor, Float gameTime) Global Native
 
+; Check if an actor is currently on story cooldown (dispatched recently).
+Bool Function IsActorOnStoryCooldown(Actor akActor) Global Native
+
 ; Record that the LLM picked a story type. Used for DM prompt balancing.
 Function NotifyStoryTypePicked(String storyType) Global Native
 
@@ -459,6 +465,28 @@ Actor Function SpawnQuestBoss(ObjectReference location, String enemyType) Global
 ; then falls back to door traversal. Returns None if no deeper point found.
 ObjectReference Function FindDeeperSpawnPoint(Actor akActor) Global Native
 
+; Scan current interior cell for prisoner furniture (shackles, cages, stocks).
+; Returns the highest-priority prisoner furniture ref, or None if none found.
+ObjectReference Function FindPrisonerFurniture(Actor akActor) Global Native
+
+; Scan current interior cell for USABLE prisoner furniture (Furniture form type only).
+; Only returns objects NPCs can actually sit in (shackles, stocks with idle markers).
+; Use for Activate() path — NPC plays bound/restrained idle animation.
+ObjectReference Function FindUsablePrisonerFurniture(Actor akActor) Global Native
+
+; Deep rescue anchor — scans current cell + cells behind doors for prisoner
+; furniture or landmarks. Follows load doors to find cages/shackles deep inside.
+ObjectReference Function FindRescueAnchor(Actor akActor) Global Native
+
+; Get the boss room anchor for a dungeon location (from DungeonIndex).
+; Returns a persistent ref deep inside the dungeon, accessible even when cell is unloaded.
+; Used to pre-place rescue victims and quest chests at the boss room before the player enters.
+ObjectReference Function GetDungeonBossAnchor(String locationName) Global Native
+
+; Scan cells AHEAD of the actor (through doors, not current cell) for prisoner
+; furniture or landmarks. Returns an anchor in the next cell (invisible to player).
+ObjectReference Function ScanAheadForAnchor(Actor akActor) Global Native
+
 ; Check if a specific named item is still inside a container.
 ; Used to detect when the player retrieves the quest item from the chest.
 Bool Function IsQuestItemInChest(ObjectReference container, String itemName) Global Native
@@ -468,6 +496,9 @@ Function NotifyQuestItemUsed(String itemName) Global Native
 
 ; Record that an NPC was used as a rescue victim (for rotation — avoids repeats).
 Function NotifyRescueVictimUsed(String victimName) Global Native
+
+; Record that a quest location was used (for rotation — avoids repeats).
+Function NotifyQuestLocationUsed(String locationName) Global Native
 
 ; =============================================================================
 ; MEMORYDB FUNCTIONS (SkyrimNet SQLite reader)
