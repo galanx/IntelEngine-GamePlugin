@@ -34,6 +34,7 @@ Actor Property ActiveSecondNPC = None Auto Hidden
 String Property ActiveStoryType = "" Auto Hidden
 ; === Constants ===
 Float Property MONITOR_INTERVAL = 3.0 AutoReadOnly
+Float Property IDLE_POLL_INTERVAL = 30.0 AutoReadOnly   ; Real-time backup poll (seconds) for low-timescale games
 Float Property ENCOUNTER_PROXIMITY = 300.0 AutoReadOnly
 Float Property SNEAK_APPROACH_DISTANCE = 2000.0 AutoReadOnly
 Float Property AMBUSH_CONFRONT_DISTANCE = 500.0 AutoReadOnly
@@ -121,6 +122,9 @@ Cell Property QuestDungeonLastCell = None Auto Hidden       ; Last tracked cell 
 Int Property QuestDungeonDepth = 0 Auto Hidden              ; Door transitions inside dungeon (0 = entrance)
 Int Property QuestDungeonScanFails = 0 Auto Hidden          ; Failed scan-ahead attempts (fallback after 5)
 
+; === Tick Timing ===
+Float Property LastStoryTickTime = 0.0 Auto Hidden          ; Game-time (days) of last DM tick — for real-time backup
+
 ; === Quest Sub-Type MCM Toggles (all enabled by default) ===
 Bool Property QuestSubTypeCombatEnabled = true Auto Hidden
 Bool Property QuestSubTypeRescueEnabled = true Auto Hidden
@@ -140,10 +144,14 @@ Function StartScheduler()
     If !Core.IsStoryEngineEnabled()
         return
     EndIf
-    If IsActive
+    If IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive
         RegisterForSingleUpdate(MONITOR_INTERVAL)
     Else
+        ; Game-time timer: fires instantly during Wait/Sleep
         RegisterForSingleUpdateGameTime(Core.GetStoryEngineInterval())
+        ; Real-time backup: ensures tick fires even at low timescales (timescale 2-6).
+        ; Without this, a 3-hour DM interval at timescale 2 = 90 real minutes of silence.
+        RegisterForSingleUpdate(IDLE_POLL_INTERVAL)
     EndIf
 EndFunction
 
@@ -155,6 +163,9 @@ EndFunction
 Function RestartMonitoring()
     ClearPending()
     NPCTickPending = false
+
+    ; Initialize tick timestamp so the real-time backup can fire on first interval
+    LastStoryTickTime = Utility.GetCurrentGameTime()
 
     ; Save migration: new properties default to type-zero on old saves
     If NPCTickIntervalHours == 0.0
@@ -325,6 +336,7 @@ Event OnUpdateGameTime()
     If HasLingerNPCs()
         RegisterForSingleUpdate(MONITOR_INTERVAL)
     EndIf
+    LastStoryTickTime = Utility.GetCurrentGameTime()
     TickScheduler()
 EndEvent
 
@@ -363,10 +375,16 @@ Event OnUpdate()
     If !needsRealTime && (IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive)
         RegisterForSingleUpdate(MONITOR_INTERVAL)
     ElseIf !needsRealTime
-        ; No active dispatches, linger NPCs, or quest -- switch to game-time scheduling.
-        ; Always call StartScheduler even if game-time timer was already registered —
-        ; RegisterForSingleUpdateGameTime replaces the old registration (no double-fire).
-        ; This is a safety net against timer chain death from exceptions.
+        ; Idle mode: real-time backup tick for low-timescale games.
+        ; RegisterForSingleUpdateGameTime fires instantly during Wait/Sleep but can stall
+        ; for 90+ real minutes at timescale 2. This polls every IDLE_POLL_INTERVAL seconds
+        ; and fires TickScheduler when enough game time has elapsed.
+        Float now = Utility.GetCurrentGameTime()
+        Float intervalDays = Core.GetStoryEngineInterval() / 24.0
+        If (now - LastStoryTickTime) >= intervalDays
+            LastStoryTickTime = now
+            TickScheduler()
+        EndIf
         StartScheduler()
     EndIf
 
