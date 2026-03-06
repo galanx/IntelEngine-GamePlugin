@@ -25,6 +25,13 @@ schema:
       defaultValue: ""
       category: "Story Engine"
 
+    - name: "NPC Blocklist"
+      path: "story.npc_blocklist"
+      type: "string"
+      description: "Comma-separated NPC display names to exclude from story candidates (e.g., 'Nazeem,Heimskr'). Case-insensitive. Blocked NPCs will never be picked by the Dungeon Master."
+      defaultValue: ""
+      category: "Story Engine"
+
     # ── LLM Overrides (leave empty to use base OpenRouter config) ──
     - name: "API Endpoint"
       path: "llm.endpoint"

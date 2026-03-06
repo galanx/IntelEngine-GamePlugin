@@ -1,6 +1,7 @@
 story:
   faction_blocklist: ""
   location_blocklist: ""
+  npc_blocklist: ""
 llm:
   endpoint: ""
   api_key: ""
