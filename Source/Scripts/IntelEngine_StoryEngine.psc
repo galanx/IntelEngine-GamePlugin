@@ -2734,12 +2734,9 @@ EndFunction
 ; =============================================================================
 
 Function PrePlaceQuestTargets()
-    {Pre-place victim/chest/enemies at dungeon boss room when DungeonIndex has data.
+    {Pre-place victim/chest/boss at dungeon boss room when DungeonIndex has data.
      Called at quest acceptance (both "I'll go alone" and "Lead the way" paths).
-     Combat quests stay deferred (enemies need to be near player).}
-    If QuestSubType == "combat"
-        return
-    EndIf
+     Regular enemies are deferred to cell load (need loaded cell for AI init).}
 
     ObjectReference bossAnchor = IntelEngine.GetDungeonBossAnchor(QuestLocationName)
     If bossAnchor == None
@@ -2776,7 +2773,22 @@ Function PrePlaceQuestTargets()
         EndIf
     EndIf
 
-    ; Enemies are NOT spawned here — they need a loaded cell for AI init.
+    ; === COMBAT: spawn boss near player, then MoveTo boss room ===
+    ; Same pattern as find_item chest — PlaceObjectAtMe at player, then MoveTo anchor.
+    ; Boss serves as the compass target so the marker leads INSIDE the dungeon.
+    If QuestSubType == "combat"
+        Actor player = Game.GetPlayer()
+        Actor boss = IntelEngine.SpawnQuestBoss(player, QuestEnemyType)
+        If boss != None
+            boss.MoveTo(bossAnchor, Utility.RandomFloat(-150.0, 150.0), Utility.RandomFloat(-150.0, 150.0), 0.0)
+            QuestBossNPC = boss
+            StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", boss)
+            QuestSpawnCount += 1
+            Core.DebugMsg("Story [quest/combat]: boss placed at boss room")
+        EndIf
+    EndIf
+
+    ; Regular enemies are NOT spawned here — they need a loaded cell for AI init.
     ; They spawn when the boss room cell loads (CheckQuestProximity monitors
     ; QuestBossAnchor.Is3DLoaded() and spawns directly at the anchor).
     QuestPrePlaced = true
@@ -2810,20 +2822,26 @@ Function CheckQuestProximity()
             ; The anchor ref might be in a different cell than where the victim ended up
             ; (e.g., fort tower vs cave interior), so also check victim proximity.
             Bool bossLoaded = QuestBossAnchor.Is3DLoaded()
-            Bool victimNearby = false
+            Bool targetNearby = false
             If !bossLoaded && QuestSubType == "rescue" && QuestVictimNPC != None && QuestVictimNPC.Is3DLoaded()
-                victimNearby = Game.GetPlayer().GetDistance(QuestVictimNPC) < 2000.0
+                targetNearby = Game.GetPlayer().GetDistance(QuestVictimNPC) < 2000.0
+            ElseIf !bossLoaded && QuestSubType == "combat" && QuestBossNPC != None && QuestBossNPC.Is3DLoaded()
+                targetNearby = Game.GetPlayer().GetDistance(QuestBossNPC) < 2000.0
             EndIf
-            If bossLoaded || victimNearby
-                If victimNearby && !bossLoaded
-                    Core.DebugMsg("Story [quest]: victim nearby but boss anchor not loaded — safety spawn at victim")
+            If bossLoaded || targetNearby
+                If targetNearby && !bossLoaded
+                    Core.DebugMsg("Story [quest]: pre-placed target nearby but boss anchor not loaded — safety spawn")
                 Else
                     Core.DebugMsg("Story [quest]: boss room cell loaded — spawning enemies/chest at anchor")
                 EndIf
-                ; Use victim location as spawn point if anchor isn't loaded
+                ; Use pre-placed target as spawn point if anchor isn't loaded
                 ObjectReference spawnPoint = QuestBossAnchor
-                If victimNearby && !bossLoaded && QuestVictimNPC != None
-                    spawnPoint = QuestVictimNPC as ObjectReference
+                If targetNearby && !bossLoaded
+                    If QuestSubType == "rescue" && QuestVictimNPC != None
+                        spawnPoint = QuestVictimNPC as ObjectReference
+                    ElseIf QuestSubType == "combat" && QuestBossNPC != None
+                        spawnPoint = QuestBossNPC as ObjectReference
+                    EndIf
                 EndIf
                 Actor player = Game.GetPlayer()
 
@@ -2840,13 +2858,16 @@ Function CheckQuestProximity()
                     i += 1
                 EndWhile
 
-                ; Spawn boss enemy at spawn point (same disable pattern)
-                Actor boss = IntelEngine.SpawnQuestBoss(spawnPoint, QuestEnemyType)
-                If boss != None
-                    boss.DisableNoWait()
-                    boss.MoveTo(spawnPoint, Utility.RandomFloat(-150.0, 150.0), Utility.RandomFloat(-150.0, 150.0), 0.0)
-                    QuestBossNPC = boss
-                    StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", boss)
+                ; Spawn boss if not already pre-placed (combat pre-places boss at dispatch time)
+                Actor boss = None
+                If QuestBossNPC == None
+                    boss = IntelEngine.SpawnQuestBoss(spawnPoint, QuestEnemyType)
+                    If boss != None
+                        boss.DisableNoWait()
+                        boss.MoveTo(spawnPoint, Utility.RandomFloat(-150.0, 150.0), Utility.RandomFloat(-150.0, 150.0), 0.0)
+                        QuestBossNPC = boss
+                        StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", boss)
+                    EndIf
                 EndIf
 
                 ; Enable all enemies at their final positions (after all moves complete)
@@ -2860,7 +2881,7 @@ Function CheckQuestProximity()
                 EndIf
 
                 QuestSpawnCount = enemies.Length
-                If boss != None
+                If QuestBossNPC != None
                     QuestSpawnCount += 1
                 EndIf
                 If QuestSpawnCount > 0
@@ -3226,21 +3247,50 @@ Function SpawnQuestEnemies()
         EndIf
     EndIf
 
-    ; === Spawn enemies near PLAYER (guards between player and objective) ===
+    ; === Spawn enemies at anchor with offset spread (prevent clipping) ===
     Actor[] spawnedActors = IntelEngine.SpawnQuestEnemies(enemyAnchor, QuestEnemyType)
     Int regularCount = spawnedActors.Length
     QuestSpawnCount += regularCount
 
     If regularCount > 0
-        ; Persist Actor refs in StorageUtil FormList (survives save/load)
-        ; Note: boss (if any) was already added to FormList above
+        ; Disable, spread with offsets, then enable (same pattern as pre-placed path)
         Int i = 0
         While i < regularCount
+            spawnedActors[i].DisableNoWait()
+            spawnedActors[i].MoveTo(enemyAnchor, Utility.RandomFloat(-300.0, 300.0), Utility.RandomFloat(-300.0, 300.0), 0.0)
             StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", spawnedActors[i])
             i += 1
         EndWhile
+        i = 0
+        While i < regularCount
+            spawnedActors[i].EnableNoWait()
+            i += 1
+        EndWhile
+
+        ; Spawn boss if not already pre-placed
+        If QuestBossNPC == None
+            Actor boss = IntelEngine.SpawnQuestBoss(enemyAnchor, QuestEnemyType)
+            If boss != None
+                boss.DisableNoWait()
+                boss.MoveTo(enemyAnchor, Utility.RandomFloat(-150.0, 150.0), Utility.RandomFloat(-150.0, 150.0), 0.0)
+                QuestBossNPC = boss
+                StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", boss)
+                QuestSpawnCount += 1
+                boss.EnableNoWait()
+            EndIf
+        EndIf
+
         QuestEnemiesSpawned = true
-        Core.DebugMsg("Story [quest/" + QuestSubType + "]: Spawned " + QuestSpawnCount + " " + QuestEnemyType + " at " + QuestLocationName)
+        Core.DebugMsg("Story [quest/" + QuestSubType + "]: spawned " + QuestSpawnCount + " " + QuestEnemyType + " at " + QuestLocationName)
+
+        ; Update compass to boss for combat quests (marker was on entrance before enemies spawned)
+        If QuestSubType == "combat" && QuestBossNPC != None && QuestTargetAlias != None
+            QuestTargetAlias.ForceRefTo(QuestBossNPC)
+            SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, false)
+            Utility.Wait(0.1)
+            SetObjectiveDisplayed(QUEST_OBJECTIVE_ID, true)
+            Core.DebugMsg("Story [quest/combat]: quest marker moved to boss")
+        EndIf
     ElseIf QuestSpawnAttempts >= 3
         ; Safety net: after 3 failed spawn attempts, auto-complete so quest doesn't hang forever
         Core.DebugMsg("Story [quest]: spawn failed after 3 attempts, auto-completing")
@@ -3260,7 +3310,9 @@ Bool Function AreAllQuestEnemiesDead()
     Int i = 0
     While i < count
         Actor spawned = StorageUtil.FormListGet(player, "Intel_QuestSpawnedNPCs", i) as Actor
-        If spawned != None && !spawned.IsDead()
+        ; Treat None, dead, deleted, or disabled enemies as "gone" — prevents quest
+        ; hanging forever if enemies clipped into geometry or fell through the world.
+        If spawned != None && !spawned.IsDead() && !spawned.IsDeleted() && !spawned.IsDisabled()
             return false
         EndIf
         i += 1
@@ -3581,6 +3633,9 @@ Function PlaceQuestMarker()
     ElseIf QuestPrePlaced && QuestSubType == "find_item" && QuestItemChest != None
         QuestTargetAlias.ForceRefTo(QuestItemChest)
         Core.DebugMsg("Story [quest]: marker on chest (pre-placed deep inside)")
+    ElseIf QuestPrePlaced && QuestSubType == "combat" && QuestBossNPC != None
+        QuestTargetAlias.ForceRefTo(QuestBossNPC)
+        Core.DebugMsg("Story [quest]: marker on boss (pre-placed deep inside)")
     Else
         QuestTargetAlias.ForceRefTo(QuestLocation)
     EndIf
