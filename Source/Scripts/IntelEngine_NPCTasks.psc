@@ -48,9 +48,6 @@ Float Property MAX_TASK_HOURS = 6.0 AutoReadOnly
 
 ; STATE_AT_TARGET moved to Core.STATE_AT_TARGET (=8)
 
-Int Property INTERACT_CYCLES = 2 AutoReadOnly
-{Update cycles to "converse" at target (~6s)}
-
 Int Property MAX_TARGET_WAIT_CYCLES = 15 AutoReadOnly
 {Max cycles to wait for the fetched target to walk to the player (~45s).
 Progress-tracked: if target is getting closer, the counter resets.}
@@ -380,7 +377,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     ; After a fetch completes, the completion narration can trigger a dialogue
     ; evaluation that re-selects FetchPerson before the NPC has time to rest.
     Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
-    If cooldown > 0.0 && (Utility.GetCurrentRealTime() - cooldown) < 15.0
+    If cooldown > 0.0 && cooldown <= Utility.GetCurrentRealTime() && (Utility.GetCurrentRealTime() - cooldown) < 15.0
         Core.DebugMsg("FetchNPC: " + akAgent.GetDisplayName() + " on cooldown")
         Return false
     EndIf
@@ -554,7 +551,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
 
     ; Cooldown — prevents narration-triggered re-selection loops
     Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
-    If cooldown > 0.0 && (Utility.GetCurrentRealTime() - cooldown) < 15.0
+    If cooldown > 0.0 && cooldown <= Utility.GetCurrentRealTime() && (Utility.GetCurrentRealTime() - cooldown) < 15.0
         Core.DebugMsg("DeliverMessage: " + akAgent.GetDisplayName() + " on cooldown")
         Return false
     EndIf
@@ -706,7 +703,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
 
     ; Cooldown — prevents narration-triggered re-selection loops
     Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
-    If cooldown > 0.0 && (Utility.GetCurrentRealTime() - cooldown) < 15.0
+    If cooldown > 0.0 && cooldown <= Utility.GetCurrentRealTime() && (Utility.GetCurrentRealTime() - cooldown) < 15.0
         Core.DebugMsg("SearchForActor: " + akAgent.GetDisplayName() + " on cooldown")
         Return false
     EndIf
@@ -847,7 +844,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
 
     ; Cooldown
     Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
-    If cooldown > 0.0 && (Utility.GetCurrentRealTime() - cooldown) < 15.0
+    If cooldown > 0.0 && cooldown <= Utility.GetCurrentRealTime() && (Utility.GetCurrentRealTime() - cooldown) < 15.0
         Core.DebugMsg("EscortTarget: " + akAgent.GetDisplayName() + " on cooldown")
         Return false
     EndIf
@@ -1095,9 +1092,37 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
         dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
     EndIf
 
-    ; If the player can see the agent, don't teleport — narrate and cancel.
-    ; The player has been watching the NPC fail for too long.
+    ; If the player can see the agent, don't teleport.
+    ; State 8 (at target): interaction cycles stuck — force-complete them.
+    ; State 3 (returning): task nearly done — complete instead of canceling.
+    ; Other states: narrate failure and cancel.
     If agent.Is3DLoaded()
+        ; State 8: agent found the target but interaction cycles are stuck.
+        ; Force-complete by zeroing cycles and calling the task handler directly.
+        If taskState == Core.STATE_AT_TARGET && target != None && !target.IsDead()
+            Core.DebugMsg(agent.GetDisplayName() + " interaction timed out while visible — force-completing")
+            StorageUtil.SetIntValue(agent, "Intel_InteractCyclesRemaining", 0)
+            If taskType == "fetch_npc"
+                HandleAtTarget(slot, agent, target)
+            ElseIf taskType == "deliver_message"
+                HandleAtTarget_Message(slot, agent, target)
+            ElseIf taskType == "escort_target"
+                HandleAtTarget_Escort(slot, agent, target)
+            EndIf
+            Return
+        EndIf
+        ; State 3: task nearly done — complete instead of canceling
+        If taskState == 3 && target != None && !target.IsDead()
+            If taskType == "fetch_npc"
+                Core.DebugMsg(agent.GetDisplayName() + " fetch timed out while returning — completing")
+                OnReturnedWithTarget(slot, agent, target)
+                Return
+            ElseIf taskType == "escort_target"
+                Core.DebugMsg(agent.GetDisplayName() + " escort timed out while walking — completing")
+                OnEscortComplete(slot, agent, target)
+                Return
+            EndIf
+        EndIf
         Core.DebugMsg(agent.GetDisplayName() + " timed out while visible — narrating cancel")
         Actor player = Game.GetPlayer()
         Core.SendTaskNarration(agent, agent.GetDisplayName() + " tried to carry out the task but couldn't get going and gave up.", player)
@@ -1237,9 +1262,11 @@ Function CheckArrivalAtTarget(Int slot, Actor agent, Actor target)
         Return
     EndIf
 
-    ; Off-screen: same cell means the agent pathfound to the target naturally
+    ; Off-screen: same INTERIOR cell means the agent pathfound to the target
+    ; naturally. Exterior cells are too large — two actors in the same Tamriel
+    ; cell can be 4000+ units apart. Let HandleOffScreenTravel estimate arrival.
     Cell agentCell = agent.GetParentCell()
-    If agentCell != None && agentCell == target.GetParentCell()
+    If agentCell != None && agentCell.IsInterior() && agentCell == target.GetParentCell()
         Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName() + "'s cell (off-screen)")
         OnArrivedAtTarget(slot, agent, target)
         Return
@@ -1263,18 +1290,25 @@ Function OnArrivedAtTarget(Int slot, Actor agent, Actor target)
 
     Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName())
 
-    ; Remove travel package — agent will sandbox near target during interaction
-    Core.RemoveAllPackages(agent)
-    PO3_SKSEFunctions.SetLinkedRef(agent, None, Core.IntelEngine_TravelTarget)
+    ; Remove travel package, apply sandbox near target to hold agent in place
+    ; during interaction. Without this, NPCs with schedule AI (innkeepers, etc.)
+    ; revert to default packages and walk home before interaction completes.
+    Core.RemoveAllPackages(agent, false)
+    PO3_SKSEFunctions.SetLinkedRef(agent, target as ObjectReference, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+    agent.EvaluatePackage()
 
     ; Face the target for immersive conversation
     agent.SetLookAt(target)
 
-    ; Set interact counter and transition to AT_TARGET
-    StorageUtil.SetIntValue(agent, "Intel_InteractCyclesRemaining", INTERACT_CYCLES)
+    ; Single interaction cycle — just enough for a brief pause before
+    ; the task handler fires the narration and transitions to the next phase.
+    ; Multiple cycles cause noticeable delays because monitoring ticks run
+    ; at 3.0s intervals and can be slower under VM load.
+    StorageUtil.SetIntValue(agent, "Intel_InteractCyclesRemaining", 1)
     Core.SetSlotState(slot, agent, Core.STATE_AT_TARGET)
 
-    Core.DebugMsg(agent.GetDisplayName() + " interacting with " + target.GetDisplayName() + " for " + INTERACT_CYCLES + " cycles")
+    Core.DebugMsg(agent.GetDisplayName() + " interacting with " + target.GetDisplayName() + " for 1 cycle")
 EndFunction
 
 ; -----------------------------------------------------------------------------
@@ -1369,6 +1403,9 @@ Function HandleFetchFailure(Int slot, Actor agent, Actor target)
     ; Agent returns alone — no MakeNPCFollowAgent
     ; Natural pathfinding back to player. No teleporting.
 
+    ; Remove sandbox from OnArrivedAtTarget before adding travel
+    Core.RemoveAllPackages(agent, false)
+
     ; Set up walk back to player
     ObjectReference returnMarker = player
     StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", returnMarker)
@@ -1397,6 +1434,9 @@ Function BeginReturn(Int slot, Actor agent, Actor target, Actor player)
         OnReturnedWithTarget(slot, agent, target)
         Return
     EndIf
+
+    ; Remove sandbox from OnArrivedAtTarget before adding travel packages
+    Core.RemoveAllPackages(agent, false)
 
     ; Target pathfinds to player independently — same priority as agent.
     ; Must use PRIORITY_TRAVEL to override sandbox and other ambient packages.
@@ -1442,9 +1482,11 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
     ; TARGET-FIRST COMPLETION (success returns only)
     ; The target arriving at the player IS the completion event. The agent's
     ; position doesn't matter — their job was to convince the target to come.
-    ; Grace period: skip for first 3 cycles so NPCs have time to walk visibly.
+    ; No grace period — the target walking up IS the visible approach.
+    ; Checking immediately prevents the "NPC on your face but not detected"
+    ; problem caused by VM-throttled polling on heavy modlists.
     ; =========================================================================
-    If returnCycles > 3 && waitForTarget && target != None && !target.IsDead()
+    If waitForTarget && target != None && !target.IsDead()
         Actor player = Game.GetPlayer()
         Bool targetAtPlayer = false
         If target.Is3DLoaded() && player.Is3DLoaded()
@@ -1765,6 +1807,9 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
         StorageUtil.SetIntValue(target, "Intel_WasAccompanying", 1)
         Core.DebugMsg(target.GetDisplayName() + " FollowPlayer package removed for escort")
     EndIf
+
+    ; Remove sandbox from OnArrivedAtTarget before adding travel packages
+    Core.RemoveAllPackages(agent, false)
 
     ; Both NPCs walk to destination together
     PO3_SKSEFunctions.SetLinkedRef(target, destMarkerRef, Core.IntelEngine_TravelTarget)

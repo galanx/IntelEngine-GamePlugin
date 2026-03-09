@@ -95,6 +95,7 @@ Int OID_QuestRescue
 Int OID_QuestFindItem
 Int OID_QuestAllowDeath
 
+
 ; =============================================================================
 ; SKI_ConfigBase OVERRIDES
 ; =============================================================================
@@ -478,7 +479,7 @@ Event OnOptionSelect(Int optionId)
 
     ElseIf optionId == OID_DangerAllowAll || optionId == OID_DangerBlockCivilians || \
            optionId == OID_DangerFollowersOnly || optionId == OID_DangerBlockAll
-        If Core != None && Core.StoryEngine != None
+        If Core != None
             Int newPolicy = 1
             If optionId == OID_DangerAllowAll
                 newPolicy = 0
@@ -489,8 +490,7 @@ Event OnOptionSelect(Int optionId)
             ElseIf optionId == OID_DangerBlockAll
                 newPolicy = 3
             EndIf
-            Core.StoryEngine.DangerZonePolicy = newPolicy
-            IntelEngine.SetDangerZonePolicy(newPolicy)
+            Core.SetDangerZonePolicy(newPolicy)
             SetToggleOptionValue(OID_DangerAllowAll, newPolicy == 0)
             SetToggleOptionValue(OID_DangerBlockCivilians, newPolicy == 1)
             SetToggleOptionValue(OID_DangerFollowersOnly, newPolicy == 2)
@@ -499,7 +499,7 @@ Event OnOptionSelect(Int optionId)
 
     ElseIf optionId == OID_HomeAllowAll || optionId == OID_HomeBlockCivilians || \
            optionId == OID_HomeFollowersOnly || optionId == OID_HomeBlockAll
-        If Core != None && Core.StoryEngine != None
+        If Core != None
             Int newPolicy = 0
             If optionId == OID_HomeAllowAll
                 newPolicy = 0
@@ -510,8 +510,7 @@ Event OnOptionSelect(Int optionId)
             ElseIf optionId == OID_HomeBlockAll
                 newPolicy = 3
             EndIf
-            Core.StoryEngine.PlayerHomePolicy = newPolicy
-            IntelEngine.SetPlayerHomePolicy(newPolicy)
+            Core.SetPlayerHomePolicy(newPolicy)
             SetToggleOptionValue(OID_HomeAllowAll, newPolicy == 0)
             SetToggleOptionValue(OID_HomeBlockCivilians, newPolicy == 1)
             SetToggleOptionValue(OID_HomeFollowersOnly, newPolicy == 2)
@@ -555,15 +554,8 @@ Event OnOptionSelect(Int optionId)
 
     ElseIf optionId == OID_StoryEngineEnabled
         Bool newVal = !Core.IsStoryEngineEnabled()
-        Core.SetSettingBool("Intel_MCM_StoryEnabled", newVal)
+        Core.SetStoryEnabled(newVal)
         SetToggleOptionValue(OID_StoryEngineEnabled, newVal)
-        If Core.StoryEngine != None
-            If newVal
-                Core.StoryEngine.StartScheduler()
-            Else
-                Core.StoryEngine.StopScheduler()
-            EndIf
-        EndIf
 
     ElseIf optionId == OID_NPCTickEnabled
         If Core != None && Core.StoryEngine != None
@@ -659,7 +651,7 @@ Event OnOptionSliderOpen(Int optionId)
         EndIf
         SetSliderDialogStartValue(currentValue)
         SetSliderDialogDefaultValue(800.0)
-        SetSliderDialogRange(200.0, 2000.0)
+        SetSliderDialogRange(400.0, 2000.0)
         SetSliderDialogInterval(100.0)
     ElseIf optionId == OID_StoryEngineInterval
         SetSliderDialogStartValue(Core.GetStoryEngineInterval())
@@ -721,7 +713,7 @@ EndEvent
 
 Event OnOptionSliderAccept(Int optionId, Float sliderValue)
     If optionId == OID_MaxTasks
-        Core.SetSettingFloat("Intel_MCM_MaxTasks", sliderValue)
+        Core.SetMaxTasks(sliderValue as Int)
         SetSliderOptionValue(OID_MaxTasks, sliderValue, "{0}")
     ElseIf optionId == OID_DefaultWaitHours
         Core.SetSettingFloat("Intel_MCM_DefaultWaitHours", sliderValue)
@@ -736,18 +728,14 @@ Event OnOptionSliderAccept(Int optionId, Float sliderValue)
         SetSliderOptionValue(OID_MeetingGracePeriod, sliderValue, "{1}")
     ElseIf optionId == OID_LingerReleaseDistance
         If Core != None
-            Core.LINGER_RELEASE_DISTANCE = sliderValue
+            Core.SetReleaseDistance(sliderValue)
         EndIf
         SetSliderOptionValue(OID_LingerReleaseDistance, sliderValue, "{0}")
     ElseIf optionId == OID_StoryEngineInterval
-        Core.SetSettingFloat("Intel_MCM_StoryInterval", sliderValue)
+        Core.SetStoryInterval(sliderValue)
         SetSliderOptionValue(OID_StoryEngineInterval, sliderValue, "{1}")
-        ; Restart scheduler so the new interval takes effect immediately
-        If Core != None && Core.StoryEngine != None
-            Core.StoryEngine.StartScheduler()
-        EndIf
     ElseIf optionId == OID_StoryEngineCooldown
-        Core.SetSettingFloat("Intel_MCM_StoryCooldown", sliderValue)
+        Core.SetStoryCooldown(sliderValue)
         SetSliderOptionValue(OID_StoryEngineCooldown, sliderValue, "{0}")
     ElseIf optionId == OID_StoryLongAbsence
         If Core != None && Core.StoryEngine != None
@@ -932,3 +920,4 @@ Function ClearSlotWithConfirm(Int slot)
         ForcePageReset()
     EndIf
 EndFunction
+

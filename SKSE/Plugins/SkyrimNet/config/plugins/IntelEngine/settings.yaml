@@ -1,3 +1,6 @@
+ui:
+  dashboard_hotkey: 55
+  dashboard_modifiers: 2
 story:
   faction_blocklist: ""
   location_blocklist: ""

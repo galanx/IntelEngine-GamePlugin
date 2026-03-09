@@ -10,6 +10,25 @@ variants:
 
 schema:
   fields:
+    # ── UI ──
+    - name: "Dashboard Hotkey"
+      path: "ui.dashboard_hotkey"
+      type: "hotkey"
+      description: "Main key for dashboard toggle (VK code, e.g., 55 = 7). Set to -1 to disable."
+      defaultValue: 55
+      min: -1
+      max: 255
+      category: "UI"
+
+    - name: "Dashboard Modifiers"
+      path: "ui.dashboard_modifiers"
+      type: "int"
+      description: "Modifier key bitmask: 1=Ctrl, 2=Shift, 4=Alt. Combine with +. Default 3 = Ctrl+Shift."
+      defaultValue: 0
+      min: 0
+      max: 7
+      category: "UI"
+
     # ── Story Engine ──
     - name: "Faction Blocklist"
       path: "story.faction_blocklist"

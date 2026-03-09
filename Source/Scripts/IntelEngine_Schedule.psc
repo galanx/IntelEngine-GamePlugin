@@ -719,6 +719,45 @@ Function CancelAllSchedules()
 EndFunction
 
 ; =============================================================================
+; DASHBOARD ACCESSORS
+; =============================================================================
+
+String Function GetScheduleAgentName(Int slot)
+    If slot < 0 || slot >= MAX_SCHEDULED || ScheduledAgents[slot] == None
+        Return ""
+    EndIf
+    Return ScheduledAgents[slot].GetDisplayName()
+EndFunction
+
+String Function GetScheduleDestination(Int slot)
+    If slot < 0 || slot >= MAX_SCHEDULED
+        Return ""
+    EndIf
+    Return ScheduledDestinations[slot]
+EndFunction
+
+String Function GetScheduleTaskType(Int slot)
+    If slot < 0 || slot >= MAX_SCHEDULED
+        Return ""
+    EndIf
+    Return ScheduledTaskTypes[slot]
+EndFunction
+
+String Function GetScheduleTargetName(Int slot)
+    If slot < 0 || slot >= MAX_SCHEDULED
+        Return ""
+    EndIf
+    Return ScheduledTargetNames[slot]
+EndFunction
+
+Int Function GetScheduleSlotState(Int slot)
+    If slot < 0 || slot >= MAX_SCHEDULED || ScheduledAgents[slot] == None
+        Return 0
+    EndIf
+    Return StorageUtil.GetIntValue(ScheduledAgents[slot], "Intel_ScheduledState", 0)
+EndFunction
+
+; =============================================================================
 ; INTERNAL HELPERS
 ; =============================================================================
 
