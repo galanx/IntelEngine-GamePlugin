@@ -10,6 +10,7 @@
         <folder source="Source" destination="Source" />
         <folder source="Interface" destination="Interface" />
         <folder source="SKSE" destination="SKSE" />
+        <folder source="PrismaUI" destination="PrismaUI" />
     </requiredInstallFiles>
 
     <installSteps order="Explicit">
