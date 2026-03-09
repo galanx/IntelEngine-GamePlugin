@@ -512,8 +512,9 @@ Function OnArrival(Int slot, Actor npc)
         Core.NotifyPlayer(npc.GetDisplayName() + " arrived at " + destination)
     EndIf
 
-    ; Remove travel package, apply sandbox
-    Core.RemoveAllPackages(npc)
+    ; Remove travel package — don't evaluate yet (sandbox applied immediately after,
+    ; avoids a brief gap where NPC reverts to default AI)
+    Core.RemoveAllPackages(npc, false)
 
     ; Keep travel linked ref — points to the destination marker (or doorDest
     ; after door teleportation, updated in CheckForArrival/TeleportToExterior).
@@ -523,6 +524,15 @@ Function OnArrival(Int slot, Actor npc)
 
     ; Apply tight sandbox at destination (linked ref = destination marker)
     ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+
+    ; Off-screen: redirect linked ref to NPC itself before evaluating. The
+    ; destination marker may be in an unloaded cell — the engine's sandbox
+    ; procedure can't resolve that location, causing a null vtable crash
+    ; (BGSProcedureSandbox, call [rax+0x4B8]). The NPC is already at the
+    ; destination so self-ref gives an equivalent 200-unit sandbox radius.
+    If !npc.Is3DLoaded()
+        PO3_SKSEFunctions.SetLinkedRef(npc, npc as ObjectReference, Core.IntelEngine_TravelTarget)
+    EndIf
     npc.EvaluatePackage()
 
     ; Ensure building access: if NPC is inside an interior, unlock door + remove trespass

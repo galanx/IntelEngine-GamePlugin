@@ -202,6 +202,11 @@ Function RestartMonitoring()
         EndIf
     ElseIf IsActive && ActiveStoryNPC != None
         If ActiveStoryNPC.IsDead() || ActiveStoryNPC.IsDisabled()
+            Int deadSlot2 = Core.FindSlotByAgent(ActiveStoryNPC)
+            If deadSlot2 >= 0
+                Core.ClearSlot(deadSlot2)
+            EndIf
+            Core.RemoveAllPackages(ActiveStoryNPC, false)
             CleanupStoryDispatch()
         ElseIf ActiveStoryType == "ambush" || ActiveStoryType == "ambush_charge" || ActiveStoryType == "stalker" || ActiveStoryType == "ambush_combat"
             ; Sneak/combat/charge phase can't be recovered reliably -- abandon, let NPC go home
@@ -560,6 +565,15 @@ Function TickNPCInteractions()
         return
     EndIf
 
+    ; Warm social cooldowns from StorageUtil into C++ mirror, then rebuild if any found
+    If WarmSocialCooldownsForPool()
+        npcContext = IntelEngine.BuildNPCInteractionContext(4)
+        If npcContext == ""
+            NPCTickPending = false
+            return
+        EndIf
+    EndIf
+
     String contextJson = IntelEngine.BuildNPCInteractionRequestJson(npcContext)
     SendStoryLLMRequest("intel_story_npc_dm", "OnNPCInteractionResponse", contextJson)
 EndFunction
@@ -606,9 +620,15 @@ Function OnNPCInteractionResponse(String response, Int success)
     If npc2 == None || npc2.IsDead() || npc2.IsDisabled()
         return
     EndIf
-    If !ApplyNPCSocialCooldown(npc1) || !ApplyNPCSocialCooldown(npc2)
+
+    ; Check cooldown for BOTH before applying either (avoid partial cooldown reset)
+    If !CheckNPCSocialCooldown(npc1) || !CheckNPCSocialCooldown(npc2)
+        Core.DebugMsg("NPC DM: " + npc1.GetDisplayName() + " or " + npc2.GetDisplayName() + " on social cooldown")
         return
     EndIf
+    ; Both passed — now stamp both
+    SetNPCSocialCooldown(npc1)
+    SetNPCSocialCooldown(npc2)
 
     Core.SendPersistentMemory(npc1, npc2, narration)
     Core.DebugMsg("NPC DM [" + storyType + "]: " + npc1.GetDisplayName() + " + " + npc2.GetDisplayName())
@@ -652,6 +672,7 @@ Function OnNPCInteractionResponse(String response, Int success)
         ; Neither visible, dispatch busy, or followers -- off-screen facts only
         String summary = BuildInteractionSummary(npc1, narration, npc2)
         AddRecentStoryEvent(storyType + ": " + summary)
+        AddNPCSocialLog(storyType, npc1.GetDisplayName(), npc2.GetDisplayName(), narration)
         Core.DebugMsg("Story: " + summary)
     EndIf
 EndFunction
@@ -667,6 +688,7 @@ Function DispatchNPCSocial(Actor npc, Actor target, String narration, String sto
         ; No free slots -- fall back to off-screen
         String summary = BuildInteractionSummary(npc, narration, target)
         AddRecentStoryEvent(storyType + ": " + summary)
+        AddNPCSocialLog(storyType, npc.GetDisplayName(), target.GetDisplayName(), narration)
         Core.DebugMsg("NPC Social: no free slot, off-screen: " + summary)
         return
     EndIf
@@ -807,18 +829,24 @@ Bool Function ApplyCooldownCheck(Actor candidate)
     return true
 EndFunction
 
-Bool Function ApplyNPCSocialCooldown(Actor candidate)
-    {Separate cooldown for NPC-NPC social interactions (gossip, npc_interaction).
-     Uses its own StorageUtil key so it doesn't block story DM dispatches.}
+Bool Function CheckNPCSocialCooldown(Actor candidate)
+    {Check if NPC is off social cooldown. Does NOT write timestamp — use SetNPCSocialCooldown after both pass.}
     Float lastPicked = StorageUtil.GetFloatValue(candidate, "Intel_NPCSocialLastPicked", 0.0)
-    Float currentTime = Utility.GetCurrentGameTime()
-    Float cooldownDays = NPCSocialCooldownHours / 24.0
-    If lastPicked > 0.0 && (currentTime - lastPicked) < cooldownDays
-        return false
+    If lastPicked <= 0.0
+        return true
     EndIf
+    Float cooldownDays = NPCSocialCooldownHours / 24.0
+    return (Utility.GetCurrentGameTime() - lastPicked) >= cooldownDays
+EndFunction
 
-    StorageUtil.SetFloatValue(candidate, "Intel_NPCSocialLastPicked", currentTime)
-    return true
+Function SetNPCSocialCooldown(Actor candidate)
+    {Stamp the NPC's social cooldown. Call only after both NPCs pass CheckNPCSocialCooldown.}
+    Float now = Utility.GetCurrentGameTime()
+    StorageUtil.SetFloatValue(candidate, "Intel_NPCSocialLastPicked", now)
+    If !StorageUtil.FormListHas(self, "Intel_SocialCooldownActors", candidate)
+        StorageUtil.FormListAdd(self, "Intel_SocialCooldownActors", candidate)
+    EndIf
+    IntelEngine.NotifySocialCooldown(candidate, now, NPCSocialCooldownHours)
 EndFunction
 
 Function WarmCooldownMirror()
@@ -846,6 +874,30 @@ Function WarmCooldownMirror()
     EndWhile
     If warmed > 0
         Core.DebugMsg("Story: warmed C++ cooldown mirror (" + warmed + " NPCs)")
+    EndIf
+
+    ; Warm social cooldowns
+    Float socialCooldownDays = NPCSocialCooldownHours / 24.0
+    Int socialCount = StorageUtil.FormListCount(self, "Intel_SocialCooldownActors")
+    Int socialWarmed = 0
+    Int si = socialCount - 1
+    While si >= 0
+        Actor socialNpc = StorageUtil.FormListGet(self, "Intel_SocialCooldownActors", si) as Actor
+        If socialNpc != None
+            Float socialLastPicked = StorageUtil.GetFloatValue(socialNpc, "Intel_NPCSocialLastPicked", 0.0)
+            If socialLastPicked > 0.0 && (currentTime - socialLastPicked) < socialCooldownDays
+                IntelEngine.NotifySocialCooldown(socialNpc, socialLastPicked, NPCSocialCooldownHours)
+                socialWarmed += 1
+            Else
+                StorageUtil.FormListRemoveAt(self, "Intel_SocialCooldownActors", si)
+            EndIf
+        Else
+            StorageUtil.FormListRemoveAt(self, "Intel_SocialCooldownActors", si)
+        EndIf
+        si -= 1
+    EndWhile
+    If socialWarmed > 0
+        Core.DebugMsg("Story: warmed C++ social cooldown mirror (" + socialWarmed + " NPCs)")
     EndIf
 EndFunction
 
@@ -884,6 +936,39 @@ Bool Function WarmCooldownsForPool()
     EndWhile
     If warmed > 0
         Core.DebugMsg("Story: pre-warmed " + warmed + " cooldowns from pool candidates")
+    EndIf
+    return warmed > 0
+EndFunction
+
+Bool Function WarmSocialCooldownsForPool()
+    {Check NPC interaction pool candidates against StorageUtil social cooldowns.
+     Returns true if any were on cooldown (caller should rebuild pool).}
+    Int[] formIDs = IntelEngine.GetNPCCandidatePoolFormIDs()
+    If formIDs.Length == 0
+        return false
+    EndIf
+
+    Float currentTime = Utility.GetCurrentGameTime()
+    Float cooldownDays = NPCSocialCooldownHours / 24.0
+
+    Int warmed = 0
+    Int i = 0
+    While i < formIDs.Length
+        Actor npc = Game.GetForm(formIDs[i]) as Actor
+        If npc != None
+            Float lastPicked = StorageUtil.GetFloatValue(npc, "Intel_NPCSocialLastPicked", 0.0)
+            If lastPicked > 0.0 && (currentTime - lastPicked) < cooldownDays
+                IntelEngine.NotifySocialCooldown(npc, lastPicked, NPCSocialCooldownHours)
+                If !StorageUtil.FormListHas(self, "Intel_SocialCooldownActors", npc)
+                    StorageUtil.FormListAdd(self, "Intel_SocialCooldownActors", npc)
+                EndIf
+                warmed += 1
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+    If warmed > 0
+        Core.DebugMsg("NPC Social: pre-warmed " + warmed + " social cooldowns from pool")
     EndIf
     return warmed > 0
 EndFunction
@@ -1251,6 +1336,7 @@ Function PerformVisibleInteraction(Actor npc1, Actor npc2, String eventText, Str
     Core.SendTaskNarration(npc1, summary, npc2)
 
     AddRecentStoryEvent(eventType + ": " + summary)
+    AddNPCSocialLog(eventType, npc1.GetDisplayName(), npc2.GetDisplayName(), eventText)
     Debug.Trace("[IntelEngine] StoryEngine: Visible " + eventType + " performed")
 EndFunction
 
@@ -1646,6 +1732,13 @@ EndFunction
 
 Function CheckStoryNPCArrival()
     If ActiveStoryNPC == None || ActiveStoryNPC.IsDead() || ActiveStoryNPC.IsDisabled()
+        If ActiveStoryNPC != None
+            Int deadSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+            If deadSlot >= 0
+                Core.ClearSlot(deadSlot)
+            EndIf
+            Core.RemoveAllPackages(ActiveStoryNPC, false)
+        EndIf
         CleanupStoryDispatch()
         return
     EndIf
@@ -1655,6 +1748,11 @@ Function CheckStoryNPCArrival()
     ; Utility.Wait re-entry corrupted state). Clean up to prevent tick death.
     If ActiveStoryType == ""
         Core.DebugMsg("Story: corrupt state detected (IsActive but no type) for " + ActiveStoryNPC.GetDisplayName() + " - cleaning up")
+        Int corruptSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+        If corruptSlot >= 0
+            Core.ClearSlot(corruptSlot)
+        EndIf
+        Core.RemoveAllPackages(ActiveStoryNPC, false)
         CleanupStoryDispatch()
         return
     EndIf
@@ -2482,6 +2580,13 @@ Function OnQuestNPCArrived()
     Utility.Wait(15.0)
     ; Bail out if NPC became invalid during the wait
     If ActiveStoryNPC == None || ActiveStoryNPC.IsDead() || ActiveStoryNPC.IsInCombat()
+        If ActiveStoryNPC != None
+            Int questSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+            If questSlot >= 0
+                Core.ClearSlot(questSlot)
+            EndIf
+            Core.RemoveAllPackages(ActiveStoryNPC, false)
+        EndIf
         CleanupQuest()
         CleanupStoryDispatch()
         return
@@ -3767,6 +3872,21 @@ Function AddRecentStoryEvent(String summary)
     StorageUtil.StringListAdd(player, "Intel_RecentStoryEvents", summary)
     While StorageUtil.StringListCount(player, "Intel_RecentStoryEvents") > 8
         StorageUtil.StringListRemoveAt(player, "Intel_RecentStoryEvents", 0)
+    EndWhile
+EndFunction
+
+Function AddNPCSocialLog(String eventType, String npc1Name, String npc2Name, String narration)
+    {Store structured NPC social interaction for dashboard display. Parallel StringLists, last 5.}
+    Actor player = Game.GetPlayer()
+    StorageUtil.StringListAdd(player, "Intel_SocialLog_Type", eventType)
+    StorageUtil.StringListAdd(player, "Intel_SocialLog_NPC1", npc1Name)
+    StorageUtil.StringListAdd(player, "Intel_SocialLog_NPC2", npc2Name)
+    StorageUtil.StringListAdd(player, "Intel_SocialLog_Text", narration)
+    While StorageUtil.StringListCount(player, "Intel_SocialLog_Type") > 5
+        StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Type", 0)
+        StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_NPC1", 0)
+        StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_NPC2", 0)
+        StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Text", 0)
     EndWhile
 EndFunction
 

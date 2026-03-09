@@ -132,6 +132,9 @@ String Function StringTrim(String text) Global Native
 ; Split string by delimiter
 String[] Function StringSplit(String text, String delimiter) Global Native
 
+; Escape a string for safe JSON embedding (backslash, quote, newline)
+String Function StringEscapeJson(String text) Global Native
+
 ; =============================================================================
 ; INDEX MANAGEMENT FUNCTIONS
 ; =============================================================================
@@ -425,6 +428,9 @@ String Function BuildNPCInteractionRequestJson(String npcContext) Global Native
 ; gameTime: the Intel_StoryLastPicked timestamp (NOT current time on rejection).
 Function NotifyStoryCooldown(Actor akActor, Float gameTime) Global Native
 
+; Mirror social cooldown to C++ so pair pool can filter cooldown NPCs.
+Function NotifySocialCooldown(Actor akActor, Float gameTime, Float cooldownHours) Global Native
+
 ; Check if an actor is currently on story cooldown (dispatched recently).
 Bool Function IsActorOnStoryCooldown(Actor akActor) Global Native
 
@@ -434,6 +440,11 @@ Function NotifyStoryTypePicked(String storyType) Global Native
 ; Get FormIDs of all NPCs in the last DM candidate pool.
 ; Used to pre-warm cooldowns from StorageUtil before the DM prompt.
 Int[] Function GetDMCandidatePoolFormIDs() Global Native
+Int[] Function GetNPCCandidatePoolFormIDs() Global Native
+
+; Scan loaded actors for those currently running one of the given packages.
+; Returns JSON: [{"name":"...","formId":123,"pkgFormId":456},...]
+String Function ScanActorsWithPackages(Int[] packageFormIDs) Global Native
 
 ; Spawn leveled enemies at a location for quest system.
 ; Looks up vanilla ActorBases by EditorID (no CK properties needed).
@@ -547,6 +558,37 @@ String Function RenderGossipToldSection(String[] rumors, String[] recipients, Fl
 
 ; Pre-render task history section (first person). Returns "### Past Tasks\nWhat I've done:\n..."
 String Function RenderTaskHistorySection(String[] descs, Float[] times, Float currentGameDays) Global Native
+
+; =============================================================================
+; DASHBOARD FUNCTIONS
+; =============================================================================
+
+; Notify the PrismaUI dashboard that slot data changed (triggers JS refresh)
+Function NotifyDashboardSlotChanged() Global Native
+
+; Get the current dashboard hotkey VK code (-1 = disabled, 120 = F9 default)
+Int Function GetDashboardHotkey() Global Native
+
+; Set the dashboard hotkey VK code and persist to settings.yaml
+Bool Function SetDashboardHotkey(Int vkCode) Global Native
+
+; Hot-reload the dashboard UI from disk without restarting the game
+Function ReloadDashboardUI() Global Native
+
+; Re-read hotkey config from settings.yaml (takes effect immediately)
+Function ReloadDashboardConfig() Global Native
+
+; Push comprehensive dashboard state JSON to PrismaUI frontend
+Function PushDashboardFullState(String json) Global Native
+
+; Check if dashboard is currently visible
+Bool Function IsDashboardOpen() Global Native
+
+; Retrieve a pending Director parameter stored by C++ (for Director mode dispatch)
+String Function GetPendingDirectorParam(String key) Global Native
+
+; Clear all pending Director parameters
+Function ClearPendingDirectorParams() Global Native
 
 ; =============================================================================
 ; DEBUG / TESTING FUNCTIONS

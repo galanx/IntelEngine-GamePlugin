@@ -265,6 +265,9 @@ Function Maintenance(Bool isFirstLoad = false)
     If !isFirstLoad
         CleanExpiredFactsGlobal()
     EndIf
+
+    ; Register dashboard event listeners
+    RegisterDashboardEvents()
 EndFunction
 
 Function InitializeSlotArrays()
@@ -1601,6 +1604,65 @@ Float Function GetStoryEngineCooldown()
     return GetSettingFloat("Intel_MCM_StoryCooldown", 24.0)
 EndFunction
 
+; Unified setters — single source of truth for both MCM and Dashboard.
+; Each setter writes to ALL storage locations (StorageUtil + GlobalVariable/property).
+
+Function SetStoryEnabled(Bool val)
+    SetSettingBool("Intel_MCM_StoryEnabled", val)
+    If StoryEngine
+        If val
+            StoryEngine.IntelEngine_StoryEngineEnabled.SetValue(1.0)
+            StoryEngine.StartScheduler()
+        Else
+            StoryEngine.IntelEngine_StoryEngineEnabled.SetValue(0.0)
+            StoryEngine.StopScheduler()
+        EndIf
+    EndIf
+EndFunction
+
+Function SetStoryInterval(Float val)
+    SetSettingFloat("Intel_MCM_StoryInterval", val)
+    If StoryEngine
+        StoryEngine.IntelEngine_StoryEngineInterval.SetValue(val)
+        StoryEngine.StartScheduler()
+    EndIf
+EndFunction
+
+Function SetStoryCooldown(Float val)
+    SetSettingFloat("Intel_MCM_StoryCooldown", val)
+    If StoryEngine
+        StoryEngine.IntelEngine_StoryEngineCooldown.SetValue(val)
+    EndIf
+EndFunction
+
+Function SetMaxTasks(Int val)
+    SetSettingFloat("Intel_MCM_MaxTasks", val as Float)
+    IntelEngine_MaxConcurrentTasks.SetValue(val as Float)
+EndFunction
+
+Function SetReleaseDistance(Float val)
+    ; Minimum 400 — sandbox radius is 200 units, so anything less causes
+    ; false releases when the NPC walks to a sandbox idle point.
+    If val < 400.0
+        val = 400.0
+    EndIf
+    LINGER_RELEASE_DISTANCE = val
+EndFunction
+
+Function SetDangerZonePolicy(Int val)
+    If StoryEngine
+        StoryEngine.DangerZonePolicy = val
+    EndIf
+    IntelEngine.SetDangerZonePolicy(val)
+EndFunction
+
+Function SetPlayerHomePolicy(Int val)
+    If StoryEngine
+        StoryEngine.PlayerHomePolicy = val
+    EndIf
+    IntelEngine.SetPlayerHomePolicy(val)
+EndFunction
+
 ; =============================================================================
 ; DEBUG
 ; =============================================================================
@@ -1771,4 +1833,613 @@ Function ForceResetAllSlots()
     EndWhile
 
     NotifyPlayer("IntelEngine: All tasks reset")
+EndFunction
+
+; =============================================================================
+; DASHBOARD STATE & EVENTS
+; =============================================================================
+
+Function RegisterDashboardEvents()
+    RegisterForModEvent("IntelEngine_DashboardOpened", "OnDashboardOpened")
+    RegisterForModEvent("IntelEngine_DashboardRefresh", "OnDashboardRefresh")
+    RegisterForModEvent("IntelEngine_DashboardCancelTask", "OnDashboardCancelTask")
+    RegisterForModEvent("IntelEngine_DashboardCancelSchedule", "OnDashboardCancelSchedule")
+    RegisterForModEvent("IntelEngine_DashboardToggleStory", "OnDashboardToggleStory")
+    RegisterForModEvent("IntelEngine_DashboardSetting", "OnDashboardSetting")
+    RegisterForModEvent("IntelEngine_DashboardRemovePackages", "OnDashboardRemovePackages")
+    RegisterForModEvent("IntelEngine_DashboardDispatchStory", "OnDashboardDispatchStory")
+    RegisterForModEvent("IntelEngine_DashboardExecuteAction", "OnDashboardExecuteAction")
+    DebugMsg("Dashboard ModEvent listeners registered")
+EndFunction
+
+Event OnDashboardOpened(String eventName, String strArg, Float numArg, Form sender)
+    PushDashboardState()
+EndEvent
+
+Event OnDashboardRefresh(String eventName, String strArg, Float numArg, Form sender)
+    PushDashboardState()
+EndEvent
+
+Event OnDashboardCancelTask(String eventName, String strArg, Float numArg, Form sender)
+    Int slot = numArg as Int
+    If slot >= 0 && slot < MAX_SLOTS
+        Actor agent = GetAgentAlias(slot).GetActorReference()
+        If agent != None
+            DebugMsg("Dashboard: Cancelling task in slot " + slot + " for " + agent.GetDisplayName())
+            StorageUtil.SetStringValue(agent, "Intel_Result", "cancelled")
+            ClearSlotRestoreFollower(slot, agent)
+            PushDashboardState()
+        EndIf
+    EndIf
+EndEvent
+
+Event OnDashboardRemovePackages(String eventName, String strArg, Float numArg, Form sender)
+    Int formId = numArg as Int
+    Actor npc = Game.GetForm(formId) as Actor
+    If npc != None
+        DebugMsg("Dashboard: Removing packages from " + npc.GetDisplayName())
+        ; Clear slot if NPC is in one (prevents orphaned "Travelling" entries)
+        Int slot = FindSlotByAgent(npc)
+        If slot >= 0
+            ClearSlot(slot)
+        Else
+            RemoveIntelPackages(npc)
+        EndIf
+        ; Clean up story/social dispatch if this NPC was the active dispatch target
+        If StoryEngine.ActiveStoryNPC == npc
+            StoryEngine.CleanupStoryDispatch()
+        EndIf
+        If StoryEngine.NPCSocialTraveler == npc
+            StoryEngine.CleanupNPCSocialDispatch()
+        EndIf
+        ; Also clear linked ref in case it's driving a sandbox location
+        PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+        ; Wait for engine to process the package removal before re-scanning
+        Utility.Wait(0.5)
+        PushDashboardState()
+    EndIf
+EndEvent
+
+Event OnDashboardCancelSchedule(String eventName, String strArg, Float numArg, Form sender)
+    Int slot = numArg as Int
+    If Schedule
+        Schedule.ClearScheduleSlot(slot)
+        DebugMsg("Dashboard: Cancelled scheduled task in slot " + slot)
+        PushDashboardState()
+    EndIf
+EndEvent
+
+Event OnDashboardToggleStory(String eventName, String strArg, Float numArg, Form sender)
+    If !StoryEngine
+        Return
+    EndIf
+    Bool enabled = numArg > 0.5
+    DebugMsg("Dashboard: Toggle story type " + strArg + " = " + enabled)
+    If strArg == "seek_player"
+        StoryEngine.TypeSeekPlayerEnabled = enabled
+    ElseIf strArg == "informant"
+        StoryEngine.TypeInformantEnabled = enabled
+    ElseIf strArg == "road_encounter"
+        StoryEngine.TypeRoadEncounterEnabled = enabled
+    ElseIf strArg == "ambush"
+        StoryEngine.TypeAmbushEnabled = enabled
+    ElseIf strArg == "stalker"
+        StoryEngine.TypeStalkerEnabled = enabled
+    ElseIf strArg == "message"
+        StoryEngine.TypeMessageEnabled = enabled
+    ElseIf strArg == "quest"
+        StoryEngine.TypeQuestEnabled = enabled
+    ElseIf strArg == "npc_interaction"
+        StoryEngine.TypeNPCInteractionEnabled = enabled
+    ElseIf strArg == "npc_gossip"
+        StoryEngine.TypeNPCGossipEnabled = enabled
+    EndIf
+    PushDashboardState()
+EndEvent
+
+Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sender)
+    DebugMsg("Dashboard: Setting " + strArg + " = " + numArg)
+
+    ; Use centralized setters (same ones MCM calls) for single source of truth
+    If strArg == "debugMode"
+        SetSettingBool("Intel_MCM_DebugMode", numArg > 0.5)
+    ElseIf strArg == "storyEnabled"
+        SetStoryEnabled(numArg > 0.5)
+    ElseIf strArg == "storyInterval"
+        SetStoryInterval(numArg)
+    ElseIf strArg == "storyCooldown"
+        SetStoryCooldown(numArg)
+    ElseIf strArg == "maxTasks"
+        SetMaxTasks(numArg as Int)
+    ElseIf strArg == "releaseDistance"
+        SetReleaseDistance(numArg)
+    ElseIf strArg == "longAbsenceDays"
+        If StoryEngine
+            StoryEngine.LongAbsenceDaysConfig = numArg
+        EndIf
+    ElseIf strArg == "maxTravelDays"
+        If StoryEngine
+            StoryEngine.MaxTravelDaysConfig = numArg
+        EndIf
+    ElseIf strArg == "allowStuckTeleport"
+        If StoryEngine
+            StoryEngine.AllowStuckTeleport = numArg > 0.5
+        EndIf
+    ElseIf strArg == "dangerZonePolicy"
+        SetDangerZonePolicy(numArg as Int)
+    ElseIf strArg == "playerHomePolicy"
+        SetPlayerHomePolicy(numArg as Int)
+    ElseIf strArg == "npcTickEnabled"
+        If StoryEngine
+            StoryEngine.NPCTickEnabled = numArg > 0.5
+        EndIf
+    ElseIf strArg == "npcTickInterval"
+        If StoryEngine
+            StoryEngine.NPCTickIntervalHours = numArg
+        EndIf
+    ElseIf strArg == "npcSocialCooldown"
+        If StoryEngine
+            StoryEngine.NPCSocialCooldownHours = numArg
+        EndIf
+    ElseIf strArg == "reportBack"
+        StorageUtil.SetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack", numArg as Int)
+    ElseIf strArg == "questCombat"
+        If StoryEngine
+            StoryEngine.QuestSubTypeCombatEnabled = numArg > 0.5
+        EndIf
+    ElseIf strArg == "questRescue"
+        If StoryEngine
+            StoryEngine.QuestSubTypeRescueEnabled = numArg > 0.5
+        EndIf
+    ElseIf strArg == "questFindItem"
+        If StoryEngine
+            StoryEngine.QuestSubTypeFindItemEnabled = numArg > 0.5
+        EndIf
+    ElseIf strArg == "taskConfirmPrompt"
+        StorageUtil.SetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt", numArg as Int)
+    ElseIf strArg == "defaultWaitHours"
+        SetSettingFloat("Intel_MCM_DefaultWaitHours", numArg)
+    ElseIf strArg == "meetingTimeoutHours"
+        StorageUtil.SetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", numArg)
+    ElseIf strArg == "meetingGracePeriod"
+        MeetingGracePeriod = numArg
+    ElseIf strArg == "questTimeoutDays"
+        If StoryEngine
+            StoryEngine.QUEST_EXPIRY_DAYS = numArg
+        EndIf
+    ElseIf strArg == "questAllowVictimDeath"
+        If StoryEngine
+            StoryEngine.QuestAllowVictimDeath = numArg > 0.5
+        EndIf
+    EndIf
+    ; No PushDashboardState() — React updates optimistically
+EndEvent
+
+; =============================================================================
+; DIRECTOR MODE: Story Dispatch
+; =============================================================================
+Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Form sender)
+    ; strArg = storyType
+    ; All fields stored in C++ pending params (type-specific fields included)
+    String storyType = strArg
+    String npcName = IntelEngine.GetPendingDirectorParam("npcName")
+    String narration = IntelEngine.GetPendingDirectorParam("narration")
+
+    ; Response JSON built in C++ with proper escaping (nlohmann::json)
+    ; All type-specific fields extracted from response via ExtractJsonField (single source of truth)
+    String response = IntelEngine.GetPendingDirectorParam("response")
+    IntelEngine.ClearPendingDirectorParams()
+
+    Actor npc = IntelEngine.ResolveStoryCandidate(npcName)
+    If !npc || npc.IsDead()
+        DebugMsg("Director: Could not find NPC '" + npcName + "' for story dispatch")
+        Return
+    EndIf
+    If narration == ""
+        DebugMsg("Director: Empty narration, aborting")
+        Return
+    EndIf
+    If !StoryEngine
+        DebugMsg("Director: StoryEngine not available")
+        Return
+    EndIf
+
+    DebugMsg("Director: Dispatching " + storyType + " with " + npc.GetDisplayName() + " - " + narration)
+
+    ; Record persistent memory (same as automatic dispatch — skipped for message type)
+    If storyType != "message"
+        SendPersistentMemory(npc, Game.GetPlayer(), npc.GetDisplayName() + " set out to find " + Game.GetPlayer().GetDisplayName())
+    EndIf
+
+    ; Route through StoryEngine's actual type handlers (identical to automatic dispatch)
+    ; Director skips cooldown/MCM checks intentionally — it's a manual DM override
+    If storyType == "seek_player"
+        InjectFact(npc, "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration)
+        StoryEngine.ActiveStoryType = storyType
+        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
+
+    ElseIf storyType == "informant"
+        String fSubject = StoryEngine.ExtractJsonField(response, "subject")
+        String fGossip = StoryEngine.ExtractJsonField(response, "gossip")
+        If fSubject != "" && fGossip != ""
+            Actor subjectNPC = IntelEngine.FindNPCByName(fSubject)
+            If subjectNPC
+                InjectFact(subjectNPC, fGossip)
+            EndIf
+            String fSender = StoryEngine.ExtractJsonField(response, "sender")
+            If fSender != ""
+                InjectFact(npc, "heard from " + fSender + " that " + fSubject + " " + fGossip)
+            Else
+                InjectFact(npc, "witnessed that " + fSubject + " " + fGossip)
+            EndIf
+        EndIf
+        StoryEngine.ActiveStoryType = "informant"
+        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
+
+    ElseIf storyType == "ambush" || storyType == "stalker"
+        StoryEngine.HandleAmbushStalkerDispatch(npc, narration, response, storyType)
+
+    ElseIf storyType == "quest"
+        StoryEngine.HandleQuestDispatch(npc, narration, response)
+
+    ElseIf storyType == "message"
+        StoryEngine.HandleMessageDispatch(npc, narration, response)
+
+    ElseIf storyType == "road_encounter"
+        InjectFact(npc, narration)
+        StoryEngine.PlaceRoadEncounter(npc, narration, StoryEngine.ExtractJsonField(response, "destination"))
+
+    Else
+        DebugMsg("Director: unknown story type '" + storyType + "'")
+    EndIf
+
+    PushDashboardState()
+EndEvent
+
+
+; =============================================================================
+; DIRECTOR MODE: Action Execution
+; =============================================================================
+Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Form sender)
+    ; strArg = actionName, numArg = npcFormId
+    ; Action params stored in C++ pending params
+    String actionName = strArg
+    Actor npc = Game.GetForm(numArg as Int) as Actor
+
+    If !npc || npc.IsDead()
+        IntelEngine.ClearPendingDirectorParams()
+        DebugMsg("Director: Invalid or dead NPC for action execution")
+        Return
+    EndIf
+
+    DebugMsg("Director: Executing " + actionName + " on " + npc.GetDisplayName())
+
+    If actionName == "GoToLocation"
+        String destination = IntelEngine.GetPendingDirectorParam("destination")
+        Int speed = IntelEngine.GetPendingDirectorParam("speed") as Int
+        Int waitFP = IntelEngine.GetPendingDirectorParam("waitForPlayer") as Int
+        IntelEngine.ClearPendingDirectorParams()
+        Travel.GoToLocation(npc, destination, speed, waitFP, false)
+
+    ElseIf actionName == "FetchPerson"
+        String targetName = IntelEngine.GetPendingDirectorParam("targetName")
+        String failReason = IntelEngine.GetPendingDirectorParam("failReason")
+        IntelEngine.ClearPendingDirectorParams()
+        If failReason == ""
+            failReason = "none"
+        EndIf
+        NPCTasks.FetchNPC(npc, targetName, failReason)
+
+    ElseIf actionName == "SearchForActor"
+        String targetName = IntelEngine.GetPendingDirectorParam("targetName")
+        Int speed = IntelEngine.GetPendingDirectorParam("speed") as Int
+        IntelEngine.ClearPendingDirectorParams()
+        NPCTasks.SearchForActor(npc, targetName, speed)
+
+    ElseIf actionName == "DeliverMessage"
+        String targetName = IntelEngine.GetPendingDirectorParam("targetName")
+        String msgContent = IntelEngine.GetPendingDirectorParam("msgContent")
+        String meetLoc = IntelEngine.GetPendingDirectorParam("meetLocation")
+        String meetTime = IntelEngine.GetPendingDirectorParam("meetTime")
+        IntelEngine.ClearPendingDirectorParams()
+        If meetLoc == ""
+            meetLoc = "none"
+        EndIf
+        If meetTime == ""
+            meetTime = "none"
+        EndIf
+        NPCTasks.DeliverMessage(npc, targetName, msgContent, meetLoc, meetTime)
+
+    ElseIf actionName == "EscortTarget"
+        String targetName = IntelEngine.GetPendingDirectorParam("targetName")
+        String destination = IntelEngine.GetPendingDirectorParam("destination")
+        Int shouldWait = IntelEngine.GetPendingDirectorParam("shouldWait") as Int
+        IntelEngine.ClearPendingDirectorParams()
+        If destination == ""
+            destination = "home"
+        EndIf
+        NPCTasks.EscortTarget(npc, targetName, destination, shouldWait)
+
+    ElseIf actionName == "CancelCurrentTask"
+        IntelEngine.ClearPendingDirectorParams()
+        CancelCurrentTask(npc)
+
+    ElseIf actionName == "ChangeSpeed"
+        Int newSpeed = IntelEngine.GetPendingDirectorParam("newSpeed") as Int
+        IntelEngine.ClearPendingDirectorParams()
+        ChangeTaskSpeed(npc, newSpeed)
+
+    ElseIf actionName == "ScheduleMeeting"
+        String destination = IntelEngine.GetPendingDirectorParam("destination")
+        String timeCond = IntelEngine.GetPendingDirectorParam("timeCondition")
+        IntelEngine.ClearPendingDirectorParams()
+        Schedule.ScheduleMeeting(npc, destination, timeCond)
+
+    ElseIf actionName == "ScheduleFetch"
+        String targetName = IntelEngine.GetPendingDirectorParam("targetName")
+        String timeCond = IntelEngine.GetPendingDirectorParam("timeCondition")
+        IntelEngine.ClearPendingDirectorParams()
+        Schedule.ScheduleFetch(npc, targetName, timeCond)
+
+    ElseIf actionName == "ScheduleDelivery"
+        String targetName = IntelEngine.GetPendingDirectorParam("targetName")
+        String msgContent = IntelEngine.GetPendingDirectorParam("msgContent")
+        String timeCond = IntelEngine.GetPendingDirectorParam("timeCondition")
+        String meetLoc = IntelEngine.GetPendingDirectorParam("meetLocation")
+        String meetTime = IntelEngine.GetPendingDirectorParam("meetTime")
+        IntelEngine.ClearPendingDirectorParams()
+        If meetLoc == ""
+            meetLoc = "none"
+        EndIf
+        If meetTime == ""
+            meetTime = "none"
+        EndIf
+        Schedule.ScheduleDelivery(npc, targetName, msgContent, timeCond, meetLoc, meetTime)
+
+    Else
+        IntelEngine.ClearPendingDirectorParams()
+        DebugMsg("Director: Unknown action " + actionName)
+    EndIf
+
+    Utility.Wait(0.5)
+    PushDashboardState()
+EndEvent
+
+Function PushDashboardState()
+    If !IntelEngine.IsDashboardOpen()
+        Return
+    EndIf
+
+    String json = BuildDashboardStateJson()
+    IntelEngine.PushDashboardFullState(json)
+EndFunction
+
+String Function BuildDashboardStateJson()
+    ; Build comprehensive state JSON for the dashboard UI.
+    ; Uses string concatenation (no JContainers dependency).
+    String json = "{"
+
+    ; ── Active Tasks ──
+    json += "\"tasks\":["
+    Int i = 0
+    While i < MAX_SLOTS
+        If i > 0
+            json += ","
+        EndIf
+        json += "{"
+        json += "\"index\":" + i
+        json += ",\"state\":" + SlotStates[i]
+        json += ",\"taskType\":\"" + SlotTaskTypes[i] + "\""
+        json += ",\"targetName\":\"" + EscapeJson(SlotTargetNames[i]) + "\""
+
+        Actor agent = GetAgentAlias(i).GetActorReference()
+        If agent != None && SlotStates[i] != 0
+            json += ",\"agentName\":\"" + EscapeJson(agent.GetDisplayName()) + "\""
+            json += ",\"agentFormId\":" + agent.GetFormID()
+        Else
+            json += ",\"agentName\":\"\",\"agentFormId\":0"
+        EndIf
+        json += ",\"cooldownRemaining\":0"
+        json += ",\"speed\":" + SlotSpeeds[i]
+        json += "}"
+        i += 1
+    EndWhile
+    json += "]"
+
+    ; ── Scheduled Tasks ──
+    json += ",\"scheduled\":["
+    If Schedule
+        i = 0
+        Bool first = true
+        While i < Schedule.MAX_SCHEDULED
+            String schedAgent = Schedule.GetScheduleAgentName(i)
+            If schedAgent != ""
+                If !first
+                    json += ","
+                EndIf
+                first = false
+                json += "{"
+                json += "\"agent\":\"" + EscapeJson(schedAgent) + "\""
+                json += ",\"destination\":\"" + EscapeJson(Schedule.GetScheduleDestination(i)) + "\""
+                json += ",\"taskType\":\"" + Schedule.GetScheduleTaskType(i) + "\""
+                json += ",\"targetName\":\"" + EscapeJson(Schedule.GetScheduleTargetName(i)) + "\""
+                json += ",\"timeDesc\":\"" + EscapeJson(Schedule.GetScheduleDisplay(i)) + "\""
+                json += ",\"schedStatus\":\"" + EscapeJson(Schedule.GetScheduleStatus(i)) + "\""
+                json += ",\"schedState\":" + Schedule.GetScheduleSlotState(i)
+                json += "}"
+            EndIf
+            i += 1
+        EndWhile
+    EndIf
+    json += "]"
+
+    ; ── Story Engine ──
+    json += ",\"story\":{"
+    If StoryEngine
+        json += "\"enabled\":" + BoolToJson(IsStoryEngineEnabled())
+        json += ",\"isActive\":" + BoolToJson(StoryEngine.IsActive)
+        json += ",\"activeNPC\":\"" + EscapeJson(GetActorName(StoryEngine.ActiveStoryNPC)) + "\""
+        json += ",\"activeType\":\"" + StoryEngine.ActiveStoryType + "\""
+        json += ",\"activeNarration\":\"" + EscapeJson(StoryEngine.ActiveNarration) + "\""
+        Float storyInterval = GetStoryEngineInterval()
+        json += ",\"interval\":" + storyInterval
+        json += ",\"cooldown\":" + GetStoryEngineCooldown()
+        ; Next story check-in (hours until next DM tick)
+        Float nextCheck = 0.0
+        If StoryEngine.LastStoryTickTime > 0.0
+            Float intervalDays = storyInterval / 24.0
+            nextCheck = ((StoryEngine.LastStoryTickTime + intervalDays) - Utility.GetCurrentGameTime()) * 24.0
+            If nextCheck < 0.0
+                nextCheck = 0.0
+            EndIf
+        EndIf
+        json += ",\"nextCheckIn\":" + nextCheck
+
+        ; Story type toggles
+        json += ",\"types\":{"
+        json += "\"seek_player\":" + BoolToJson(StoryEngine.TypeSeekPlayerEnabled)
+        json += ",\"informant\":" + BoolToJson(StoryEngine.TypeInformantEnabled)
+        json += ",\"road_encounter\":" + BoolToJson(StoryEngine.TypeRoadEncounterEnabled)
+        json += ",\"ambush\":" + BoolToJson(StoryEngine.TypeAmbushEnabled)
+        json += ",\"stalker\":" + BoolToJson(StoryEngine.TypeStalkerEnabled)
+        json += ",\"message\":" + BoolToJson(StoryEngine.TypeMessageEnabled)
+        json += ",\"quest\":" + BoolToJson(StoryEngine.TypeQuestEnabled)
+        json += ",\"npc_interaction\":" + BoolToJson(StoryEngine.TypeNPCInteractionEnabled)
+        json += ",\"npc_gossip\":" + BoolToJson(StoryEngine.TypeNPCGossipEnabled)
+        json += "}"
+    Else
+        json += "\"enabled\":false,\"isActive\":false,\"activeNPC\":\"\",\"activeType\":\"\""
+        json += ",\"interval\":3,\"cooldown\":24,\"types\":{}"
+    EndIf
+    json += "}"
+
+    ; ── Quest ──
+    json += ",\"quest\":{"
+    If StoryEngine && StoryEngine.QuestActive
+        json += "\"active\":true"
+        json += ",\"giver\":\"" + EscapeJson(GetActorName(StoryEngine.QuestGiver)) + "\""
+        json += ",\"location\":\"" + EscapeJson(StoryEngine.QuestLocationName) + "\""
+        json += ",\"subType\":\"" + StoryEngine.QuestSubType + "\""
+        json += ",\"enemyType\":\"" + StoryEngine.QuestEnemyType + "\""
+        json += ",\"enemiesSpawned\":" + BoolToJson(StoryEngine.QuestEnemiesSpawned)
+        json += ",\"victimName\":\"" + EscapeJson(StoryEngine.QuestVictimName) + "\""
+        json += ",\"victimFreed\":" + BoolToJson(StoryEngine.QuestVictimFreed)
+        json += ",\"itemName\":\"" + EscapeJson(StoryEngine.QuestItemName) + "\""
+        json += ",\"guideActive\":" + BoolToJson(StoryEngine.QuestGuideActive)
+    Else
+        json += "\"active\":false"
+    EndIf
+    json += "}"
+
+    ; ── NPC Social ──
+    json += ",\"social\":{"
+    If StoryEngine
+        json += "\"enabled\":" + BoolToJson(StoryEngine.NPCTickEnabled)
+        json += ",\"isActive\":" + BoolToJson(StoryEngine.IsNPCStoryActive)
+        json += ",\"traveler\":\"" + EscapeJson(GetActorName(StoryEngine.NPCSocialTraveler)) + "\""
+        json += ",\"target\":\"" + EscapeJson(GetActorName(StoryEngine.NPCSocialTarget)) + "\""
+        json += ",\"type\":\"" + StoryEngine.NPCSocialType + "\""
+        json += ",\"narration\":\"" + EscapeJson(StoryEngine.NPCSocialNarration) + "\""
+    Else
+        json += "\"enabled\":false,\"isActive\":false,\"traveler\":\"\",\"target\":\"\",\"type\":\"\""
+    EndIf
+    json += "}"
+
+    ; ── NPC Social Log (last 5 interactions/gossip) ──
+    Actor logPlayer = Game.GetPlayer()
+    Int logCount = StorageUtil.StringListCount(logPlayer, "Intel_SocialLog_Type")
+    json += ",\"npcSocialLog\":["
+    ; Show newest first (reverse order)
+    Int li = logCount - 1
+    Bool logFirst = true
+    While li >= 0
+        If !logFirst
+            json += ","
+        EndIf
+        logFirst = false
+        json += "{"
+        json += "\"type\":\"" + StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Type", li) + "\""
+        json += ",\"npc1\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_NPC1", li)) + "\""
+        json += ",\"npc2\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_NPC2", li)) + "\""
+        json += ",\"text\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Text", li)) + "\""
+        json += "}"
+        li -= 1
+    EndWhile
+    json += "]"
+
+    ; ── Active Packages (scan loaded actors for IntelEngine package overrides) ──
+    Int[] pkgFormIDs = new Int[6]
+    pkgFormIDs[0] = TravelPackage_Walk.GetFormID()
+    pkgFormIDs[1] = TravelPackage_Jog.GetFormID()
+    pkgFormIDs[2] = TravelPackage_Run.GetFormID()
+    If TravelPackage_Stalk
+        pkgFormIDs[3] = TravelPackage_Stalk.GetFormID()
+    EndIf
+    If SandboxPackage
+        pkgFormIDs[4] = SandboxPackage.GetFormID()
+    EndIf
+    If SandboxNearPlayerPackage
+        pkgFormIDs[5] = SandboxNearPlayerPackage.GetFormID()
+    EndIf
+    json += ",\"packages\":" + IntelEngine.ScanActorsWithPackages(pkgFormIDs)
+
+    ; ── Config ──
+    ; Read from centralized getters — same source MCM uses (single source of truth)
+    json += ",\"config\":{"
+    json += "\"debugMode\":" + BoolToJson(IsDebugMode())
+    json += ",\"storyEnabled\":" + BoolToJson(IsStoryEngineEnabled())
+    json += ",\"storyInterval\":" + GetStoryEngineInterval()
+    json += ",\"storyCooldown\":" + GetStoryEngineCooldown()
+    json += ",\"maxTasks\":" + GetMaxConcurrentTasks()
+    json += ",\"releaseDistance\":" + LINGER_RELEASE_DISTANCE
+    json += ",\"reportBack\":" + BoolToJson(StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack") > 0)
+    json += ",\"taskConfirmPrompt\":" + BoolToJson(StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt") > 0)
+    json += ",\"defaultWaitHours\":" + GetDefaultWaitHours()
+    json += ",\"meetingTimeoutHours\":" + StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 5.0)
+    json += ",\"meetingGracePeriod\":" + MeetingGracePeriod
+
+    If StoryEngine
+        json += ",\"longAbsenceDays\":" + StoryEngine.LongAbsenceDaysConfig
+        json += ",\"maxTravelDays\":" + StoryEngine.MaxTravelDaysConfig
+        json += ",\"allowStuckTeleport\":" + BoolToJson(StoryEngine.AllowStuckTeleport)
+        json += ",\"dangerZonePolicy\":" + StoryEngine.DangerZonePolicy
+        json += ",\"playerHomePolicy\":" + StoryEngine.PlayerHomePolicy
+        json += ",\"npcTickEnabled\":" + BoolToJson(StoryEngine.NPCTickEnabled)
+        json += ",\"npcTickInterval\":" + StoryEngine.NPCTickIntervalHours
+        json += ",\"npcSocialCooldown\":" + StoryEngine.NPCSocialCooldownHours
+        json += ",\"questCombat\":" + BoolToJson(StoryEngine.QuestSubTypeCombatEnabled)
+        json += ",\"questRescue\":" + BoolToJson(StoryEngine.QuestSubTypeRescueEnabled)
+        json += ",\"questFindItem\":" + BoolToJson(StoryEngine.QuestSubTypeFindItemEnabled)
+        json += ",\"questTimeoutDays\":" + StoryEngine.QUEST_EXPIRY_DAYS
+        json += ",\"questAllowVictimDeath\":" + BoolToJson(StoryEngine.QuestAllowVictimDeath)
+    Else
+        json += ",\"longAbsenceDays\":3,\"maxTravelDays\":1,\"allowStuckTeleport\":true"
+        json += ",\"dangerZonePolicy\":1,\"playerHomePolicy\":0"
+        json += ",\"npcTickEnabled\":true,\"npcTickInterval\":1.5,\"npcSocialCooldown\":24"
+        json += ",\"questCombat\":true,\"questRescue\":true,\"questFindItem\":true"
+        json += ",\"questTimeoutDays\":7,\"questAllowVictimDeath\":false"
+    EndIf
+    json += "}"
+
+    json += "}"
+    Return json
+EndFunction
+
+String Function EscapeJson(String text)
+    ; Use C++ native for reliable JSON string escaping
+    Return IntelEngine.StringEscapeJson(text)
+EndFunction
+
+String Function BoolToJson(Bool val)
+    If val
+        Return "true"
+    EndIf
+    Return "false"
+EndFunction
+
+String Function GetActorName(Actor akActor)
+    If akActor != None
+        Return akActor.GetDisplayName()
+    EndIf
+    Return ""
 EndFunction
