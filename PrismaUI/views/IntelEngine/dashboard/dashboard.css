@@ -649,6 +649,9 @@ video {
 .shrink-0 {
   flex-shrink: 0;
 }
+.origin-top-right {
+  transform-origin: top right;
+}
 .cursor-not-allowed {
   cursor: not-allowed;
 }
@@ -1024,6 +1027,7 @@ video {
   --bg-slot: rgba(30, 30, 40, 0.9);
   --bg-slot-hover: rgba(40, 40, 55, 0.95);
   --border-color: rgba(100, 100, 120, 0.3);
+  --ui-scale: 1;
 }
 
 body {

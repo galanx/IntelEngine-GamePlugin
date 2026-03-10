@@ -29,6 +29,15 @@ schema:
       max: 7
       category: "UI"
 
+    - name: "UI Scale"
+      path: "ui.scale"
+      type: "float"
+      description: "Dashboard zoom level. 1.3 = default, 1.5-2.0 for 4K monitors."
+      defaultValue: 1.3
+      min: 0.8
+      max: 2.0
+      category: "UI"
+
     # ── Story Engine ──
     - name: "Faction Blocklist"
       path: "story.faction_blocklist"

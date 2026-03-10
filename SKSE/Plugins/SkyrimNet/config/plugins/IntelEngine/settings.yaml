@@ -1,6 +1,7 @@
 ui:
   dashboard_hotkey: 55
   dashboard_modifiers: 2
+  scale: 1.3
 story:
   faction_blocklist: ""
   location_blocklist: ""
