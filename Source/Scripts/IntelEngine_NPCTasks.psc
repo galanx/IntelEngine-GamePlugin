@@ -2082,9 +2082,8 @@ Function OnArrivedToDeliver(Int slot, Actor agent, Actor target)
         Utility.Wait(0.5)
         Core.SendTaskNarration(target, agentName + " found " + targetName + " and delivered a message: \"" + msgContent + "\"", agent)
     Else
-        ; Player absent — transient event for target's conversational context.
-        ; Long-term persistence is via StoreReceivedMessage (decorators).
-        Core.SendTransientEvent(target, agent, agentName + " came and told " + targetName + ": \"" + msgContent + "\"")
+        ; Player absent — persistent event so both parties recall the delivery
+        Core.SendPersistentMemory(target, agent, agentName + " came and told " + targetName + ": \"" + msgContent + "\"")
     EndIf
 
     StorageUtil.SetStringValue(agent, "Intel_Result", "delivered")

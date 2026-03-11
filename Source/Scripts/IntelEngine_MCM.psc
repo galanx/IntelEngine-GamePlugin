@@ -95,6 +95,10 @@ Int OID_QuestRescue
 Int OID_QuestFindItem
 Int OID_QuestAllowDeath
 
+; Faction Politics
+Int OID_PoliticsEnabled
+Int OID_PoliticsTickInterval
+
 
 ; =============================================================================
 ; SKI_ConfigBase OVERRIDES
@@ -447,6 +451,15 @@ Function ShowSettingsPage()
     OID_QuestFindItem = AddToggleOption("Find item quests", tQuestFindItem)
     OID_QuestAllowDeath = AddToggleOption("Allow NPC death in rescue", tQuestAllowDeath)
 
+    AddEmptyOption()
+    AddHeaderOption("Faction Politics")
+
+    Bool politicsEnabled = IntelEngine.IsPoliticsEnabled()
+    OID_PoliticsEnabled = AddToggleOption("Enable Faction Politics", politicsEnabled)
+
+    Float tickInterval = IntelEngine.GetPoliticsTickInterval() as Float
+    OID_PoliticsTickInterval = AddSliderOption("Tick Interval (hours)", tickInterval, "{0}")
+
 EndFunction
 
 ; =============================================================================
@@ -561,6 +574,16 @@ Event OnOptionSelect(Int optionId)
         If Core != None && Core.StoryEngine != None
             Core.StoryEngine.NPCTickEnabled = !Core.StoryEngine.NPCTickEnabled
             SetToggleOptionValue(OID_NPCTickEnabled, Core.StoryEngine.NPCTickEnabled)
+        EndIf
+
+    ElseIf optionId == OID_PoliticsEnabled
+        Bool newVal = !IntelEngine.IsPoliticsEnabled()
+        IntelEngine.SetPoliticsEnabled(newVal)
+        SetToggleOptionValue(OID_PoliticsEnabled, newVal)
+        If newVal && Core != None && Core.Politics != None
+            Core.Politics.StartScheduler()
+        ElseIf !newVal && Core != None && Core.Politics != None
+            Core.Politics.StopScheduler()
         EndIf
 
     ElseIf optionId == OID_StoryForceRestart
@@ -708,6 +731,11 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogDefaultValue(24.0)
         SetSliderDialogRange(6.0, 72.0)
         SetSliderDialogInterval(6.0)
+    ElseIf optionId == OID_PoliticsTickInterval
+        SetSliderDialogStartValue(IntelEngine.GetPoliticsTickInterval() as Float)
+        SetSliderDialogDefaultValue(6.0)
+        SetSliderDialogRange(1.0, 24.0)
+        SetSliderDialogInterval(1.0)
     EndIf
 EndEvent
 
@@ -762,6 +790,9 @@ Event OnOptionSliderAccept(Int optionId, Float sliderValue)
             Core.StoryEngine.NPCSocialCooldownHours = sliderValue
         EndIf
         SetSliderOptionValue(OID_NPCSocialCooldown, sliderValue, "{0}")
+    ElseIf optionId == OID_PoliticsTickInterval
+        IntelEngine.SetPoliticsTickInterval(sliderValue as Int)
+        SetSliderOptionValue(OID_PoliticsTickInterval, sliderValue, "{0}")
     EndIf
 EndEvent
 
@@ -856,6 +887,10 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("Enable 'find lost item' quest type. A valuable item spawns in a chest guarded by enemies.")
     ElseIf optionId == OID_QuestAllowDeath
         SetInfoText("WARNING: If enabled, rescued NPCs can die during combat. This can break main quests if essential NPCs are killed! Keep disabled unless you want maximum realism.")
+    ElseIf optionId == OID_PoliticsEnabled
+        SetInfoText("Enable the autonomous faction politics system. Factions trade, negotiate, scheme, and go to war based on LLM-driven decisions.")
+    ElseIf optionId == OID_PoliticsTickInterval
+        SetInfoText("How often (in game hours) the Political DM evaluates faction relations and generates events. Default 6.")
     EndIf
 EndEvent
 

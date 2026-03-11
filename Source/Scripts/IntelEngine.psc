@@ -611,3 +611,80 @@ Function SetDebugLevel(Int level) Global Native
 
 ; Get current DLL version
 String Function GetVersion() Global Native
+
+; =============================================================================
+; FACTION POLITICS FUNCTIONS
+; =============================================================================
+
+; Get relation score between two factions (-100 to +100)
+Int Function GetFactionRelation(String factionA, String factionB) Global Native
+
+; Adjust relation between two factions by delta, returns new score
+Int Function AdjustFactionRelation(String factionA, String factionB, Int delta) Global Native
+
+; Get player standing with a faction (-100 to +100)
+Int Function GetPlayerFactionStanding(String factionId) Global Native
+
+; Adjust player standing with a faction by delta, returns new standing
+Int Function AdjustPlayerFactionStanding(String factionId, Int delta) Global Native
+
+; Check if two factions are at war
+Bool Function IsFactionAtWar(String factionA, String factionB) Global Native
+
+; Get war morale for factionA in an active war against factionB (0-100, -1 if no war)
+Int Function GetWarMorale(String factionA, String factionB) Global Native
+
+; Get human-readable relation status (Alliance/Friendly/Neutral/Tense/Hostile/War)
+String Function GetRelationStatus(String factionA, String factionB) Global Native
+
+; Build comprehensive political context JSON for LLM prompts
+String Function BuildPoliticalContext(Float gameTime) Global Native
+
+; Build compact political dashboard JSON for PrismaUI
+String Function BuildPoliticalDashboardJson() Global Native
+
+; Record a political event between factions, returns event ID (-1 on failure)
+Int Function RecordPoliticalEvent(String factionA, String factionB, String eventType, String description, Int delta, Float gameTime) Global Native
+
+; Check if faction politics system is enabled
+Bool Function IsPoliticsEnabled() Global Native
+
+; Get politics tick interval in game hours
+Int Function GetPoliticsTickInterval() Global Native
+
+; Hot-reload faction config from factions.yaml
+Function ReloadFactionConfig() Global Native
+
+; Get loaded faction leader Actor references (for fact injection)
+; Returns only leaders currently loaded in the game world
+Actor[] Function GetFactionLeaderActors(String factionId) Global Native
+
+; Get FormIDs for all faction leaders (works even when unloaded)
+; Use with Game.GetForm() to get Actor references regardless of load state
+Int[] Function GetFactionLeaderFormIds(String factionId) Global Native
+
+; Parse and apply player_standing_changes from Political DM response
+; Returns number of standings applied
+Int Function ApplyPlayerStandingChanges(String responseJson) Global Native
+
+; Process player conduct with cross-faction consequences
+; Applies primary delta to factionId, then checks if the reporter NPC belongs
+; to a rival/ally faction and applies inverse/matching delta (halved)
+; Returns number of standings changed (1-2)
+Int Function ProcessPlayerConduct(Actor reporter, String factionId, String sentiment, String reason) Global Native
+
+; Check crime gold against political factions, apply standing penalties for new bounties
+; Returns number of standings changed
+Int Function CheckCrimeGoldStandings() Global Native
+
+; Decay all non-zero player standings by decayRate toward 0
+; Returns number of standings decayed
+Int Function DecayPlayerStandings(Int decayRate) Global Native
+
+; Write political_state.json for pull-based NPC awareness
+; Call after standing changes to make them visible to NPCs
+Function WritePoliticalStateFile() Global Native
+
+; Runtime politics settings
+Function SetPoliticsEnabled(Bool enabled) Global Native
+Function SetPoliticsTickInterval(Int hours) Global Native

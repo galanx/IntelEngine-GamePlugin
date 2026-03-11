@@ -244,6 +244,12 @@ Function Maintenance(Bool isFirstLoad = false)
             DebugMsg("WARNING: StoryEngine property was None, recovered via cast")
         EndIf
     EndIf
+    If !Politics
+        Politics = q as IntelEngine_Politics
+        If Politics
+            DebugMsg("WARNING: Politics property was None, recovered via cast")
+        EndIf
+    EndIf
 
     ; Restart monitoring loops on all task scripts.
     ; RegisterForSingleUpdate is per-script and does NOT survive save/load,
@@ -259,6 +265,9 @@ Function Maintenance(Bool isFirstLoad = false)
     EndIf
     If StoryEngine
         StoryEngine.RestartMonitoring()
+    EndIf
+    If Politics
+        Politics.Maintenance()
     EndIf
 
     ; Clean expired facts on subsequent loads
@@ -1367,9 +1376,9 @@ Function SendTaskNarration(Actor akActor, String msgText, Actor akTarget = None)
 EndFunction
 
 Function SendPersistentMemory(Actor akOriginator, Actor akTarget, String msgText)
-    ; Adds a persistent event to SkyrimNet's context without triggering dialogue.
-    ; Both actors will recall this in future conversations.
-    ; Uses RegisterPersistentEvent (context-aware) instead of RegisterEvent (historical only).
+    ; Registers a persistent event in SkyrimNet's event system.
+    ; Writes to both in-memory cache (NPC dialogue prompts) and event DB
+    ; (queryable by GetRecentEventsForActor, visible to Story DM).
     SkyrimNetApi.RegisterPersistentEvent(msgText, akOriginator, akTarget)
 EndFunction
 
@@ -2383,6 +2392,11 @@ String Function BuildDashboardStateJson()
     EndIf
     json += ",\"packages\":" + IntelEngine.ScanActorsWithPackages(pkgFormIDs)
 
+    ; ── Politics (from C++ PoliticalDB) ──
+    If IntelEngine.IsPoliticsEnabled()
+        json += ",\"politics\":" + IntelEngine.BuildPoliticalDashboardJson()
+    EndIf
+
     ; ── Config ──
     ; Read from centralized getters — same source MCM uses (single source of truth)
     json += ",\"config\":{"
@@ -2443,3 +2457,5 @@ String Function GetActorName(Actor akActor)
     EndIf
     Return ""
 EndFunction
+
+IntelEngine_Politics Property Politics  Auto  
