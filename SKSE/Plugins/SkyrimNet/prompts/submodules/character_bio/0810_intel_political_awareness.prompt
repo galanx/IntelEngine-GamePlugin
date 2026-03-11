@@ -1,0 +1,48 @@
+{# Political Awareness — IntelEngine faction politics injection.
+   3-tier NPC matching: (1) exact leader name, (2) Skyrim engine faction via is_in_faction(),
+   (3) location-based fallback. Members/leaders see all their faction's events;
+   unaffiliated NPCs only see major events (wars, alliances).
+   Player standing only shown to leaders/members (tiers 1-2), not location fallback. #}
+{% if render_mode == "full" or render_mode == "static" %}
+{% set polState = read_json("IntelEngine/political_state") %}
+{% if polState %}
+{% set npcName = "" %}
+{% set npcLocation = "" %}
+{% if actorUUID and isValidActor(actorUUID) %}{% set npcName = decnpc(actorUUID).name %}{% set npcLocation = get_location(actorUUID) %}{% endif %}
+{% set myFactionId = "" %}
+{% set myFactionName = "" %}
+{% set isFactionLeader = false %}
+{% set isFactionMember = false %}
+{% for fac in polState.factions %}{% for lname in fac.leaders %}{% if lname == npcName %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% set isFactionLeader = true %}{% endif %}{% endfor %}{% if myFactionId == "" and existsIn(fac, "skyrim_faction_id") and fac.skyrim_faction_id != "" and is_in_faction(actorUUID, fac.skyrim_faction_id) %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% set isFactionMember = true %}{% endif %}{% if myFactionId == "" and fac.hold != "" and contains(npcLocation, fac.hold) %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% endif %}{% endfor %}
+{% set relevantEvents = [] %}
+{% for evt in polState.recent_events %}{% if myFactionId != "" %}{% set evtFactionB = "" %}{% if existsIn(evt, "faction_b") %}{% set evtFactionB = evt.faction_b %}{% endif %}{% if evt.faction_a == myFactionId or evtFactionB == myFactionId %}{% set relevantEvents = append(relevantEvents, evt) %}{% endif %}{% else %}{% if evt.type == "war_declaration" or evt.type == "surrender" or evt.type == "alliance_proposal" or evt.type == "mutual_defense_pact" %}{% set relevantEvents = append(relevantEvents, evt) %}{% endif %}{% endif %}{% endfor %}
+{% set relevantRelations = [] %}
+{% for rel in polState.relations %}{% if myFactionId != "" %}{% if rel.a == myFactionId or rel.b == myFactionId %}{% set relevantRelations = append(relevantRelations, rel) %}{% endif %}{% else %}{% if existsIn(rel, "war") and rel.war %}{% set relevantRelations = append(relevantRelations, rel) %}{% endif %}{% endif %}{% endfor %}
+{% set hasPlayerStanding = false %}
+{% if (isFactionLeader or isFactionMember) and existsIn(polState, "player_standings") %}{% for ps in polState.player_standings %}{% if ps.faction_id == myFactionId %}{% set hasPlayerStanding = true %}{% endif %}{% endfor %}{% endif %}
+{% if length(relevantEvents) > 0 or length(relevantRelations) > 0 or hasPlayerStanding %}
+## Political Awareness
+{% if myFactionName != "" %}
+{{ npcName }}{% if isFactionLeader %} is a leader of{% elif isFactionMember %} is a member of{% else %} is currently in the territory of{% endif %} {{ myFactionName }}.
+{% endif %}
+{% if length(relevantEvents) > 0 %}
+
+Recent political events {{ npcName }} would know about:
+{% for evt in relevantEvents %}
+- {{ evt.description }}
+{% endfor %}
+{% endif %}
+{% if length(relevantRelations) > 0 %}
+
+Current faction standings:
+{% for rel in relevantRelations %}
+- {{ rel.a_name }} and {{ rel.b_name }}: {{ rel.status }}{% if existsIn(rel, "war") and rel.war %} (AT WAR){% endif %}{% if existsIn(rel, "trade") and rel.trade %} (trading){% endif %}
+{% endfor %}
+{% endif %}
+{% if hasPlayerStanding %}{% for ps in polState.player_standings %}{% if ps.faction_id == myFactionId %}
+
+{{ myFactionName }} views {{ player.name }} as {{ ps.status }} (standing: {{ ps.standing }}).
+{% endif %}{% endfor %}{% endif %}
+{% endif %}
+{% endif %}
+{% endif %}

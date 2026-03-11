@@ -2176,6 +2176,10 @@ Function OnMessageArrived()
     EndIf
     Core.SendTaskNarration(ActiveStoryNPC, fullNarration, Game.GetPlayer())
 
+    ; Persist the delivered message on both the messenger and the player
+    ; so both parties recall it in future conversations
+    Core.SendPersistentMemory(ActiveStoryNPC, Game.GetPlayer(), ActiveStoryNPC.GetDisplayName() + " delivered a message from " + senderName + ": " + msgContent)
+
     ; Safety net: if msgContent conveys urgency but meetTime is set, the LLM
     ; contradicted itself (e.g., "needs you immediately" + meetTime="afternoon").
     ; Drop the meeting — treat as plain message so narration and schedule don't clash.
