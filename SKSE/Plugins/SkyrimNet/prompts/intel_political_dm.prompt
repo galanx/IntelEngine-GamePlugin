@@ -46,9 +46,10 @@ Your ENTIRE response must be a single JSON object — nothing before it, nothing
 - **brawl** — Street fight between faction members. (-5 to -8)
 - **proxy_attack** — Hired thugs attack rival faction. (-8 to -12)
 
-### War Events (only when at War threshold)
-- **war_declaration** — Formal declaration of war. (-15)
-- **surrender** — Faction surrenders to end war. (+5 to +10, ends war)
+### War Events (only when status is "Critical" or during active war)
+- **war_declaration** — Formal declaration of war. Only when the pair's status is "Critical" AND no active war exists between them AND they are NOT listed in `war_cooldowns`. (-15)
+- **battle_result** — Off-screen battle during active war. Include extra fields: `battle_location`, `battle_result` (attacker_victory/defender_victory/draw), `battle_victor` (faction ID of winner), `attacker_losses` (5-20), `defender_losses` (5-20). relation_delta: -5 to -10.
+- **surrender** — Faction surrenders to end war. Only when one side's `morale_a` or `morale_b` (in the `active_wars` entry) is below 20. faction_a = surrendering faction, faction_b = victor. (+5 to +10, ends war)
 
 ## Faction-Specific Conflict Styles
 
@@ -74,18 +75,37 @@ Each faction controls a specific hold. Events should reflect geographic reality:
 
 Events between distant factions happen via trade routes, agents, or emissaries — not face-to-face on each other's doorstep.
 
+## Relation Status Labels
+
+The `status` field in the relations data uses these labels (mapped from the numeric `score`):
+- **Alliance** (80 to 100)
+- **Friendly** (40 to 79)
+- **Neutral** (0 to 39)
+- **Tense** (-1 to -39)
+- **Hostile** (-40 to war_threshold+1) — e.g., -40 to -49 for default threshold of -50
+- **Critical** (at or below war_threshold) — war-eligible, war_declaration should follow
+
 ## Rules
 
 1. **ONE event per tick** — never generate multiple events.
-2. **Gradual escalation** — don't jump from Neutral to War. Follow the path: trade_dispute → tariff → embargo → border_skirmish → war_declaration.
-3. **Respect current relations** — conflict events require Tense (-1 to -39) or worse. War events require Hostile (-40 to -49) or worse. Don't generate border_skirmish between Allied factions.
+2. **Gradual escalation** — don't jump from Neutral to war. Follow the path: trade_dispute → tariff → embargo → border_skirmish → war_declaration. However, if a pair's status is already "Critical", war_declaration is appropriate regardless of whether border_skirmish occurred — the gradual path has already completed via score accumulation.
+3. **Respect current relations** — conflict events require Tense or worse. When a faction pair's status is "Critical" and NOT on cooldown (check `war_cooldowns`), generate a `war_declaration` event. If one Critical pair is on cooldown, pick another Critical pair or generate non-war events instead. Don't generate border_skirmish between Allied factions.
 4. **Positive events happen too** — not every tick is negative. Trade deals, gifts, and alliances keep the world dynamic and interesting.
 5. **Max active wars: {{ maxActiveWars }}** — if already at limit, focus on existing conflicts rather than starting new ones.
 6. **Max relation change: {{ maxRelationChange }}** — relation_delta must be between -{{ maxRelationChange }} and +{{ maxRelationChange }}. The delta must NEVER be 0.
 7. **Ground in lore** — use the geography and lore section above. Events must make geographic and political sense.
-8. **Spread events across factions** — do NOT fixate on one faction pair. Check recent_events: if the last 2+ events involved the same pair, you MUST pick a DIFFERENT pair this tick. All 10 factions should participate in the political landscape over time.
+8. **Spread events across factions** — do NOT fixate on one faction pair. Check recent_events: if the last 2+ events involved the same pair, you MUST pick a DIFFERENT pair this tick. **Exceptions:** (a) during active wars, warring factions may appear in consecutive ticks for battle_result or surrender events; (b) if a pair's status is "Critical", war_declaration takes priority over spread rotation.
 9. **When nothing makes sense, skip** — return should_act:false. Not every tick needs an event. But prefer acting over skipping.
 10. **Description must be immersive** — write as a news report that NPCs would gossip about. Past tense. Under 200 characters.
+
+## Active War Behavior
+
+When `active_wars` is non-empty, prioritize war-related events for those factions:
+- **Generate battle_result events** for active wars — these drive the war forward. Include a lore-appropriate `battle_location` (a named place in Skyrim near the factions' territories).
+- **Low morale triggers surrender** — if a faction's `morale_a` or `morale_b` in the `active_wars` entry is below 20, generate a `surrender` event. This is the hard threshold enforced by the engine.
+- **War fatigue spreads** — wars between two factions can generate negative events between their allies/rivals too (alliances tested, trade disrupted).
+- **Balance war and non-war events** — not every tick during a war needs to be a battle. Political intrigue, espionage, and trade disruptions between non-warring factions keep the world alive.
+- **Attacker/defender losses** — for `battle_result`, losses represent percentage of strength lost (5-20 range). Larger battles between military factions have higher losses. Guild conflicts have lower losses (5-10).
 
 ## Player Behavior Analysis
 
@@ -103,6 +123,10 @@ Respond with ONLY a JSON object:
 Skip: {{ "{" }}"should_act":false}
 
 Event: {{ "{" }}"should_act":true,"faction_a":"FactionIdA","faction_b":"FactionIdB","event_type":"trade_dispute","description":"The Imperial Legion seized a Stormcloak supply caravan near Whiterun","relation_delta":-5,"instigator_npc":"General Tullius"}
+
+Battle result: {{ "{" }}"should_act":true,"faction_a":"ImperialFaction","faction_b":"StormcloakFaction","event_type":"battle_result","description":"Imperial forces routed a Stormcloak raiding party on the Whiterun plains","relation_delta":-8,"battle_location":"Whiterun Plains","battle_result":"attacker_victory","battle_victor":"ImperialFaction","attacker_losses":8,"defender_losses":15}
+
+Surrender: {{ "{" }}"should_act":true,"faction_a":"StormcloakFaction","faction_b":"ImperialFaction","event_type":"surrender","description":"The Stormcloaks sued for peace after a devastating defeat at Eastmarch","relation_delta":8}
 
 Event with player standing: {{ "{" }}"should_act":true,"faction_a":"FactionIdA","faction_b":"FactionIdB","event_type":"trade_deal","description":"Trade routes reopened between Solitude and Riften","relation_delta":8,"instigator_npc":"Maven Black-Briar","player_standing_changes":[{{ "{" }}"faction":"ImperialFaction","delta":5,"reason":"spoke favorably of the Legion"}]}
 

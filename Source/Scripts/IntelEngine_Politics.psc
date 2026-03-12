@@ -7,6 +7,10 @@ Scriptname IntelEngine_Politics extends Quest
 ; the Political DM evaluates faction relations and generates ONE political
 ; event that shifts the balance of power.
 ;
+; Phase 2: Wars can be declared when relations cross thresholds.
+; Active wars have morale decay per tick and end via surrender (morale < 20).
+; Off-screen battles are resolved by the DM.
+;
 ; Consequences dispatch through the Story Engine (political_informant type)
 ; and NPC dialogue awareness via SkyrimNet's memory injection.
 ;
@@ -88,6 +92,9 @@ Function RunPoliticalTick(Float currentGameTime)
     TickPending = true
     LastTickGameTime = currentGameTime
 
+    ; Process active wars first (morale decay, surrender checks)
+    ProcessActiveWars(currentGameTime)
+
     ; Build context in C++ (reads factions.yaml + IntelEngine.db)
     String contextJson = IntelEngine.BuildPoliticalContext(currentGameTime)
 
@@ -153,9 +160,19 @@ Function OnPoliticalDMResponse(String response, Int success)
             InjectPoliticalFact(factionA, factionB, description)
         EndIf
 
-        ; Check for war threshold crossing
+        ; Handle war declaration
         If eventType == "war_declaration"
-            Core.DebugMsg("Politics: WAR DECLARED — " + factionA + " vs " + factionB)
+            HandleWarDeclaration(factionA, factionB, description, gameTime)
+        EndIf
+
+        ; Handle surrender — DM generated a surrender event for an active war
+        If eventType == "surrender"
+            HandleSurrender(factionA, factionB, description, gameTime)
+        EndIf
+
+        ; Handle off-screen battle result from DM
+        If eventType == "battle_result"
+            HandleBattleResult(response, factionA, factionB, description, gameTime)
         EndIf
     Else
         Core.DebugMsg("Politics: Failed to record event (validation failed?)")
@@ -169,6 +186,102 @@ Function OnPoliticalDMResponse(String response, Int success)
 
     ; Run periodic standing mechanics (crime gold penalties, decay)
     RunStandingMechanics()
+EndFunction
+
+; =============================================================================
+; WAR LIFECYCLE
+; =============================================================================
+
+Function HandleWarDeclaration(String factionA, String factionB, String description, Float gameTime)
+    Int warId = IntelEngine.DeclareWar(factionA, factionB, gameTime)
+
+    If warId >= 0
+        Core.DebugMsg("Politics: WAR #" + warId + " DECLARED — " + factionA + " vs " + factionB)
+        ; NPC awareness: political_state.json (pull-based) + bio facts (push-based on leaders)
+        ; Players discover wars through NPC conversations + dashboard notifications
+    Else
+        Core.DebugMsg("Politics: War declaration blocked (cooldown/max wars/already active)")
+    EndIf
+EndFunction
+
+Function HandleSurrender(String factionA, String factionB, String description, Float gameTime)
+    ; The DM generates surrender events — faction_a is the surrendering faction
+    ; faction_b is the victor
+    Bool ended = IntelEngine.EndFactionWar(factionA, factionB, factionB, gameTime)
+
+    If ended
+        Core.DebugMsg("Politics: WAR ENDED — " + factionA + " surrendered to " + factionB)
+    Else
+        Core.DebugMsg("Politics: Surrender event but no active war found between " + factionA + " and " + factionB)
+    EndIf
+EndFunction
+
+Function HandleBattleResult(String response, String factionA, String factionB, String description, Float gameTime)
+    ; Parse battle-specific fields from DM response
+    String battleLoc = IntelEngine.StoryResponseGetField(response, "battle_location")
+    String battleResult = IntelEngine.StoryResponseGetField(response, "battle_result")
+    String victor = IntelEngine.StoryResponseGetField(response, "battle_victor")
+    String lossesAStr = IntelEngine.StoryResponseGetField(response, "attacker_losses")
+    String lossesBStr = IntelEngine.StoryResponseGetField(response, "defender_losses")
+
+    If battleLoc == ""
+        battleLoc = "the field"
+    EndIf
+    If battleResult == ""
+        battleResult = "draw"
+    EndIf
+
+    Int lossesA = lossesAStr as Int
+    Int lossesB = lossesBStr as Int
+
+    ; Clamp losses to reasonable range
+    If lossesA < 0
+        lossesA = 0
+    ElseIf lossesA > 30
+        lossesA = 30
+    EndIf
+    If lossesB < 0
+        lossesB = 0
+    ElseIf lossesB > 30
+        lossesB = 30
+    EndIf
+
+    Int battleId = IntelEngine.RecordOffScreenBattle(factionA, factionB, battleLoc, battleResult, description, lossesA, lossesB, victor)
+
+    If battleId >= 0
+        Core.DebugMsg("Politics: Battle #" + battleId + " recorded at " + battleLoc + " — victor: " + victor)
+    Else
+        Core.DebugMsg("Politics: Failed to record battle (no active war?)")
+    EndIf
+EndFunction
+
+Function ProcessActiveWars(Float currentGameTime)
+    Int warCount = IntelEngine.GetActiveWarCount()
+    If warCount == 0
+        return
+    EndIf
+
+    ; C++ handles morale decay and surrender detection for all active wars
+    String warUpdatesJson = IntelEngine.ProcessWarTick(currentGameTime)
+
+    If warUpdatesJson == "[]"
+        return
+    EndIf
+
+    Core.DebugMsg("Politics: Processed " + warCount + " active war(s), morale decay applied")
+
+    ; Parse war updates to detect ended wars and dispatch stories
+    ; The JSON is an array of objects with optional "ended" and "victor" fields
+    ; We use StoryResponseGetField on each element — but since this is an array,
+    ; we handle it at the Papyrus level by checking for "ended" in the string
+    If IntelEngine.StringContains(warUpdatesJson, "\"ended\"")
+        Core.DebugMsg("Politics: One or more wars ended via morale collapse this tick")
+        ; Note: The C++ ProcessWarTick already ended the wars in DB.
+        ; Story dispatch for war endings will happen when the DM generates
+        ; surrender events naturally, or we can parse the JSON here for
+        ; immediate dispatch. For now, the DM will pick up the ended wars
+        ; in the next tick's context and generate appropriate narrative.
+    EndIf
 EndFunction
 
 ; =============================================================================
