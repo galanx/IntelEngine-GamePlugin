@@ -107,7 +107,7 @@ Function RunPoliticalTick(Float currentGameTime)
     ; Send to LLM via SkyrimNet
     Core.DebugMsg("Politics: Sending DM request")
     Int result = SkyrimNetApi.SendCustomPromptToLLM("intel_political_dm", \
-        "intel_political_dm", contextJson, Self, "IntelEngine_Politics", "OnPoliticalDMResponse")
+        "intel_story_dm", contextJson, Self, "IntelEngine_Politics", "OnPoliticalDMResponse")
 
     If result < 0
         Core.DebugMsg("Politics: LLM call failed, code " + result)
