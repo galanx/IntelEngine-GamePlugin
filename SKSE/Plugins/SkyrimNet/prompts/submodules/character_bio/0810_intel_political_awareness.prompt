@@ -29,7 +29,7 @@
 
 Recent political events {{ npcName }} would know about:
 {% for evt in relevantEvents %}
-- {{ evt.description }}
+- {% if existsIn(evt, "when") %}({{ evt.when }}) {% endif %}{{ evt.description }}
 {% endfor %}
 {% endif %}
 {% if length(relevantRelations) > 0 %}
