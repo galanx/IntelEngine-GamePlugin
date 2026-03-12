@@ -631,10 +631,10 @@ Int Function AdjustPlayerFactionStanding(String factionId, Int delta) Global Nat
 ; Check if two factions are at war
 Bool Function IsFactionAtWar(String factionA, String factionB) Global Native
 
-; Get war morale for factionA in an active war against factionB (0-100, -1 if no war)
-Int Function GetWarMorale(String factionA, String factionB) Global Native
+; Get war morale for queryFaction in an active war between factionA and factionB (0-100, -1 if no war)
+Int Function GetWarMorale(String factionA, String factionB, String queryFaction) Global Native
 
-; Get human-readable relation status (Alliance/Friendly/Neutral/Tense/Hostile/War)
+; Get human-readable relation status (Alliance/Friendly/Neutral/Tense/Hostile/Critical)
 String Function GetRelationStatus(String factionA, String factionB) Global Native
 
 ; Build comprehensive political context JSON for LLM prompts
@@ -688,3 +688,25 @@ Function WritePoliticalStateFile() Global Native
 ; Runtime politics settings
 Function SetPoliticsEnabled(Bool enabled) Global Native
 Function SetPoliticsTickInterval(Int hours) Global Native
+
+; === War Lifecycle ===
+
+; Declare war between two factions. Returns war ID or -1 on failure.
+; Validates: max wars, cooldown, faction existence, no duplicate war.
+Int Function DeclareWar(String factionA, String factionB, Float gameTime) Global Native
+
+; Process one war tick: apply morale decay, check surrender.
+; Returns JSON array of war updates (including ended wars with victor).
+String Function ProcessWarTick(Float gameTime) Global Native
+
+; End a specific war with a named victor. Returns true on success.
+Bool Function EndFactionWar(String factionA, String factionB, String victor, Float gameTime) Global Native
+
+; Get number of currently active wars.
+Int Function GetActiveWarCount() Global Native
+
+; Get war strength for a faction in an active war. Returns 0 if no war.
+Int Function GetWarStrength(String factionA, String factionB, String queryFaction) Global Native
+
+; Record an off-screen battle result. Applies morale/strength changes. Returns battle ID or -1.
+Int Function RecordOffScreenBattle(String factionA, String factionB, String location, String result, String narrative, Int attackerLosses, Int defenderLosses, String victor) Global Native
