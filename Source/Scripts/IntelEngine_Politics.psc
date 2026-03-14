@@ -21,6 +21,7 @@ Scriptname IntelEngine_Politics extends Quest
 ; === Properties (set in CK or via Core) ===
 IntelEngine_Core Property Core Auto
 IntelEngine_StoryEngine Property StoryEngine Auto
+IntelEngine_Battle Property Battle Auto
 
 ; === State ===
 Float Property LastTickGameTime = 0.0 Auto Hidden
@@ -174,6 +175,22 @@ Function OnPoliticalDMResponse(String response, Int success)
         If eventType == "battle_result"
             HandleBattleResult(response, factionA, factionB, description, gameTime)
         EndIf
+
+        ; Handle DM scheduling a player-present battle
+        If eventType == "battle_scheduled"
+            HandleBattleScheduled(factionA, factionB, gameTime)
+        EndIf
+
+        ; Check if this witnessable event should physically manifest near the player
+        If eventType == "assassination_attempt" || eventType == "brawl" || \
+           eventType == "border_skirmish"
+            String manifestJson = IntelEngine.CheckEventManifestation(factionA, factionB, eventType)
+            If manifestJson != ""
+                If Battle
+                    Battle.ManifestEvent(manifestJson)
+                EndIf
+            EndIf
+        EndIf
     Else
         Core.DebugMsg("Politics: Failed to record event (validation failed?)")
     EndIf
@@ -217,41 +234,67 @@ Function HandleSurrender(String factionA, String factionB, String description, F
 EndFunction
 
 Function HandleBattleResult(String response, String factionA, String factionB, String description, Float gameTime)
-    ; Parse battle-specific fields from DM response
+    ; Parse battle location from DM response
     String battleLoc = IntelEngine.StoryResponseGetField(response, "battle_location")
-    String battleResult = IntelEngine.StoryResponseGetField(response, "battle_result")
-    String victor = IntelEngine.StoryResponseGetField(response, "battle_victor")
-    String lossesAStr = IntelEngine.StoryResponseGetField(response, "attacker_losses")
-    String lossesBStr = IntelEngine.StoryResponseGetField(response, "defender_losses")
-
     If battleLoc == ""
         battleLoc = "the field"
     EndIf
-    If battleResult == ""
-        battleResult = "draw"
-    EndIf
 
-    Int lossesA = lossesAStr as Int
-    Int lossesB = lossesBStr as Int
+    ; Create a pending battle at the named location's real world coordinates.
+    ; If the player travels there within 3 game hours, soldiers spawn.
+    ; Otherwise it auto-resolves off-screen when the deadline expires.
+    Int pendingId = IntelEngine.AddPendingBattle(battleLoc, factionA, factionB, response)
 
-    ; Clamp losses to reasonable range
-    If lossesA < 0
-        lossesA = 0
-    ElseIf lossesA > 30
-        lossesA = 30
-    EndIf
-    If lossesB < 0
-        lossesB = 0
-    ElseIf lossesB > 30
-        lossesB = 30
-    EndIf
+    If pendingId >= 0
+        ; START notification — player sees battle beginning
+        String nameA = IntelEngine.GetFactionDisplayName(factionA)
+        String nameB = IntelEngine.GetFactionDisplayName(factionB)
+        Debug.Notification(nameA + " forces engage " + nameB + " at " + battleLoc + "!")
 
-    Int battleId = IntelEngine.RecordOffScreenBattle(factionA, factionB, battleLoc, battleResult, description, lossesA, lossesB, victor)
+        ; Start polling for player proximity (Battle script checks every 3s)
+        If Battle
+            Battle.StartPendingBattlePoll()
+        EndIf
 
-    If battleId >= 0
-        Core.DebugMsg("Politics: Battle #" + battleId + " recorded at " + battleLoc + " — victor: " + victor)
+        Core.DebugMsg("Politics: Pending battle #" + pendingId + " created at " + battleLoc + " — " + factionA + " vs " + factionB)
     Else
-        Core.DebugMsg("Politics: Failed to record battle (no active war?)")
+        ; Location couldn't be resolved — fall back to immediate off-screen resolution
+        Core.DebugMsg("Politics: Could not resolve location '" + battleLoc + "' — recording off-screen")
+        String battleResult = IntelEngine.StoryResponseGetField(response, "battle_result")
+        String victor = IntelEngine.StoryResponseGetField(response, "battle_victor")
+        Int lossesA = IntelEngine.StoryResponseGetField(response, "attacker_losses") as Int
+        Int lossesB = IntelEngine.StoryResponseGetField(response, "defender_losses") as Int
+
+        If battleResult == ""
+            battleResult = "draw"
+        EndIf
+        If lossesA < 0
+            lossesA = 0
+        ElseIf lossesA > 30
+            lossesA = 30
+        EndIf
+        If lossesB < 0
+            lossesB = 0
+        ElseIf lossesB > 30
+            lossesB = 30
+        EndIf
+
+        IntelEngine.RecordOffScreenBattle(factionA, factionB, battleLoc, battleResult, description, lossesA, lossesB, victor)
+    EndIf
+EndFunction
+
+Function HandleBattleScheduled(String factionA, String factionB, Float gameTime)
+    ; Find the active war ID for this faction pair
+    ; Schedule battle 6-12 game hours from now
+    Float delay = Utility.RandomFloat(6.0, 12.0) / 24.0  ; convert hours to game days
+    Float battleTime = gameTime + delay
+
+    If Battle
+        Int warId = IntelEngine.GetActiveWarId(factionA, factionB)
+        Battle.ScheduleBattle(factionA, factionB, warId, battleTime)
+        Core.DebugMsg("Politics: Battle scheduled — " + factionA + " vs " + factionB + " in " + (delay * 24.0) + "h")
+    Else
+        Core.DebugMsg("Politics: Battle property not set — cannot schedule")
     EndIf
 EndFunction
 

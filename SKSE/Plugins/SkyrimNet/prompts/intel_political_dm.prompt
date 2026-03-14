@@ -40,14 +40,15 @@ Your ENTIRE response must be a single JSON object — nothing before it, nothing
 - **betrayal** — Breaking an agreement or alliance. (-10 to -15)
 
 ### Conflict Events (only when relations are Tense or worse)
-- **border_skirmish** — Armed clash at faction borders. (-8 to -12)
+- **border_skirmish** — Open armed clash between identified faction members at contested territory. (-8 to -12)
 - **assassination_attempt** — Targeted attack on faction member. (-10 to -15)
 - **sabotage** — Destruction of property/resources. (-8 to -12)
 - **brawl** — Street fight between faction members. (-5 to -8)
-- **proxy_attack** — Hired thugs attack rival faction. (-8 to -12)
+- **proxy_attack** — Covert hired attack NOT attributed to the faction publicly (deniable). (-8 to -12)
 
 ### War Events (only when status is "Critical" or during active war)
 - **war_declaration** — Formal declaration of war. Only when the pair's status is "Critical" AND no active war exists between them AND they are NOT listed in `war_cooldowns`. (-15)
+- **battle_scheduled** — Schedule a battle that will take place in 6-12 hours during active war. Only during active war. No extra fields needed. relation_delta: -1 (minimal — the battle result itself changes relations later). Use sparingly — at most one scheduled battle per war.
 - **battle_result** — Off-screen battle during active war. Include extra fields: `battle_location`, `battle_result` (attacker_victory/defender_victory/draw), `battle_victor` (faction ID of winner), `attacker_losses` (5-20), `defender_losses` (5-20). relation_delta: -5 to -10.
 - **surrender** — Faction surrenders to end war. Only when one side's `morale_a` or `morale_b` (in the `active_wars` entry) is below 20. faction_a = surrendering faction, faction_b = victor. (+5 to +10, ends war)
 
@@ -85,6 +86,17 @@ The `status` field in the relations data uses these labels (mapped from the nume
 - **Hostile** (-40 to war_threshold+1) — e.g., -40 to -49 for default threshold of -50
 - **Critical** (at or below war_threshold) — war-eligible, war_declaration should follow
 
+## Player Proximity Awareness
+
+If `player_nearby_leaders` is present in the political state, the player is physically standing near those faction leaders right now. This changes what events feel believable:
+
+- **If leaders from TWO different factions are both nearby**, prefer face-to-face events between their factions — the player can witness a direct confrontation. `diplomatic_gift`, `alliance_proposal`, `mutual_defense_pact`, `peace_offer`, or `political_marriage` work when both parties are present. For conflict: use the appropriate event for their faction type (see Faction-Specific Conflict Styles) if relations are Tense or worse. **Exception:** if the spread rule (Rule 8) says this pair was used recently, treat it as a one-leader scenario instead.
+- **If only ONE faction's leader is nearby**, avoid events that describe a direct meeting between that leader and an absent leader. Events like `diplomatic_gift`, `alliance_proposal`, `mutual_defense_pact`, `peace_offer`, and `political_marriage` imply both leaders are physically together — don't use these when one is absent. Instead:
+  - **Agent-based events are always fine:** `insult` (delivered by herald), `espionage`, `sabotage`, `trade_dispute`, `tariff`, `embargo`, and `proxy_attack` happen through intermediaries and don't require both leaders present.
+  - **Conflict events** work well thematically near the player if the pair's relations are Tense or worse. Use the appropriate type for the faction (see Faction-Specific Conflict Styles above) — not all factions use the same conflict style.
+  - **Or pick a different faction pair entirely.** The political world is bigger than what's in front of the player.
+- **Proximity is a soft preference.** Agent-based events are always available regardless of leader locations. Only use `should_act:false` if no valid event exists for other reasons (relations, spread rotation, etc.) — not because of proximity constraints alone.
+
 ## Rules
 
 1. **ONE event per tick** — never generate multiple events.
@@ -101,7 +113,7 @@ The `status` field in the relations data uses these labels (mapped from the nume
 ## Active War Behavior
 
 When `active_wars` is non-empty, prioritize war-related events for those factions:
-- **Generate battle_result events** for active wars — these drive the war forward. Include a lore-appropriate `battle_location` (a named place in Skyrim near the factions' territories).
+- **Generate battle_result events** for active wars — these drive the war forward. Include a `battle_location` that is a real named location in Skyrim (e.g., "Kynesgrove", "Fort Kastav", "Rorikstead", "Whiterun"). Use simple location names — just the place name, no hold suffix. The location must be a real place that exists on Skyrim's map. If unsure of a specific location near the factions' territories, use the nearest hold capital (Whiterun, Windhelm, Riften, Markarth, Solitude, Falkreath, Morthal, Dawnstar, Winterhold) — never invent a location name.
 - **Low morale triggers surrender** — if a faction's `morale_a` or `morale_b` in the `active_wars` entry is below 20, generate a `surrender` event. This is the hard threshold enforced by the engine.
 - **War fatigue spreads** — wars between two factions can generate negative events between their allies/rivals too (alliances tested, trade disrupted).
 - **Balance war and non-war events** — not every tick during a war needs to be a battle. Political intrigue, espionage, and trade disruptions between non-warring factions keep the world alive.
@@ -124,7 +136,7 @@ Skip: {{ "{" }}"should_act":false}
 
 Event: {{ "{" }}"should_act":true,"faction_a":"FactionIdA","faction_b":"FactionIdB","event_type":"trade_dispute","description":"The Imperial Legion seized a Stormcloak supply caravan near Whiterun","relation_delta":-5,"instigator_npc":"General Tullius"}
 
-Battle result: {{ "{" }}"should_act":true,"faction_a":"ImperialFaction","faction_b":"StormcloakFaction","event_type":"battle_result","description":"Imperial forces routed a Stormcloak raiding party on the Whiterun plains","relation_delta":-8,"battle_location":"Whiterun Plains","battle_result":"attacker_victory","battle_victor":"ImperialFaction","attacker_losses":8,"defender_losses":15}
+Battle result: {{ "{" }}"should_act":true,"faction_a":"ImperialFaction","faction_b":"StormcloakFaction","event_type":"battle_result","description":"Imperial forces routed a Stormcloak raiding party outside Whiterun","relation_delta":-8,"battle_location":"Whiterun","battle_result":"attacker_victory","battle_victor":"ImperialFaction","attacker_losses":8,"defender_losses":15}
 
 Surrender: {{ "{" }}"should_act":true,"faction_a":"StormcloakFaction","faction_b":"ImperialFaction","event_type":"surrender","description":"The Stormcloaks sued for peace after a devastating defeat at Eastmarch","relation_delta":8}
 

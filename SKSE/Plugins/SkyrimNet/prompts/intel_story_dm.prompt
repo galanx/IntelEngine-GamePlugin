@@ -141,6 +141,18 @@ NPC asks the player for help at a specific location. Three sub-types available �
 - Quest giver gets memory of asking for help.
 {% endif %}
 
+## Political Story Guidance
+
+The Political Climate section shows wars, events, and faction tensions. Most stories should still be driven by personal NPC motivations — politics is ONE flavor, not the default. Only use political stories when a **specific recent event** from the Political Climate section gives a candidate a concrete reason to act.
+
+- **NPCs with a "Faction:" line** belong to a political faction. When picking them, consider how current tensions affect their behavior — but only if a recent event gives them something specific to react to. Do NOT generate generic "faction loyalty" stories without a concrete trigger.
+{% if player_at_inn == "1" %}
+- **Player is at an inn** — inns are natural hubs for news. If a recent political event exists in the Political Climate, consider `informant` or `message` types referencing that specific event. But personal stories, romantic encounters, and non-political gossip are equally valid at inns — don't force politics into every tavern visit.
+{% endif %}
+{% if latest_witness_event and latest_witness_event != "" %}
+- **WITNESSABLE EVENT: {{ latest_witness_event }}** — This political event just happened. If a candidate belongs to one of the involved factions, consider dispatching them with a story connected to this specific event (`seek_player` for urgent news, `informant` for spreading word, `message` for a high-status leader sending a courier, `ambush` for retaliation — combat-capable classes only). This is a strong opportunity but not mandatory — only use it if a candidate naturally fits.
+{% endif %}
+
 ## Rules
 1. **REJECT ALL if nothing fits** — return should_act:false if no candidate has a compelling, memory-grounded reason to act right now. Quality over quantity.
 2. **Respect per-candidate eligible types** — each candidate has an "Eligible:" line listing the story types they can participate in. You MUST only assign a candidate a type from their eligible list. If a type is not in their Eligible list, that candidate CANNOT be used for it. This is a HARD constraint — no exceptions.
