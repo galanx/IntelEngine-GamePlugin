@@ -26,7 +26,7 @@ Faction Property Intel_BattleSideA Auto
 Faction Property Intel_BattleSideB Auto
 
 ; === Settings ===
-Int Property MaxSoldiersPerSide = 15 Auto Hidden
+Int Property MaxSoldiersPerSide = 22 Auto Hidden
 Int Property SpawnDistance = 1000 Auto Hidden  ; units from center to each rally point
 Float Property BattleSpawnDistance = 2000.0 Auto Hidden  ; units ahead of player toward battle location
 Float Property PollInterval = 3.0 Auto Hidden  ; seconds between state polls
@@ -332,8 +332,8 @@ Function StartBattleSequence()
     EndIf
 
     ; Initialize actor arrays (size must match MaxSoldiersPerSide)
-    SideAActors = new Actor[15]
-    SideBActors = new Actor[15]
+    SideAActors = new Actor[22]
+    SideBActors = new Actor[22]
     SideACount = 0
     SideBCount = 0
     CurrentWave = 0
@@ -575,16 +575,16 @@ Function SpawnWave(Int waveNum)
 EndFunction
 
 Int Function GetWaveSoldierCount(Int waveNum)
-    ; Total across all waves MUST NOT exceed MaxSoldiersPerSide (15) / Actor array size.
-    ; 7+5+3 = 15, guaranteeing wave 3 leader always has room to spawn.
+    ; Total across all waves MUST NOT exceed MaxSoldiersPerSide (22) / Actor array size.
+    ; 10+7+5 = 22.
     If waveNum == 1
-        return 7  ; vanguard
+        return 10  ; vanguard
     ElseIf waveNum == 2
-        return 5  ; reinforcements
+        return 7   ; reinforcements
     ElseIf waveNum == 3
-        return 3  ; reserves + leader
+        return 5   ; reserves + leader
     EndIf
-    return 3
+    return 5
 EndFunction
 
 Function SpawnSoldiersAtMarker(String factionId, ObjectReference marker, Int count, Bool isSideA)
@@ -823,6 +823,9 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
     IntelEngine.RecordOffScreenBattle(BattleFactionA, BattleFactionB, BattleLocationName, \
         result, narrative, lossesA, lossesB, victor)
 
+    ; Inject battle memories into nearby named NPCs who witnessed the fight
+    InjectBattleWitnessMemories(victorName, loserName, lossesA + lossesB)
+
     ; Victory/defeat notification (non-LLM — avoids triggering evaluation cycle)
     If playerSideWas == victor
         Debug.Notification("The " + victorName + " banner stands over " + BattleLocationName + ". The battle is yours.")
@@ -916,6 +919,35 @@ Function ApplySpectatorConsequences(String victor)
         Debug.Notification("Your inaction has not gone unnoticed.")
         IntelEngine.WritePoliticalStateFile()
     EndIf
+EndFunction
+
+Function InjectBattleWitnessMemories(String victorName, String loserName, Int totalCasualties)
+    ; Find named NPCs near the battle who witnessed the fighting
+    Actor player = Game.GetPlayer()
+    Actor[] witnesses = IntelEngine.GetNearbyWitnessNPCs(player, 5000.0)
+
+    If witnesses.Length == 0
+        Core.DebugMsg("Battle: No nearby witness NPCs found for memory injection")
+        return
+    EndIf
+
+    ; Build fact text — past tense, factual, no emotion (let LLM decide feelings)
+    String fact = "witnessed a battle between " + victorName + " and " + loserName + " forces at " + BattleLocationName + ". " + victorName + " prevailed"
+    If totalCasualties > 0
+        fact += " with " + totalCasualties + " casualties"
+    EndIf
+
+    Int injected = 0
+    Int i = 0
+    While i < witnesses.Length
+        If witnesses[i] != None
+            Core.InjectFact(witnesses[i], fact)
+            injected += 1
+        EndIf
+        i += 1
+    EndWhile
+
+    Core.DebugMsg("Battle: Injected battle witness memories into " + injected + " nearby NPCs")
 EndFunction
 
 Int Function CountDeadInArray(Actor[] arr, Int count)

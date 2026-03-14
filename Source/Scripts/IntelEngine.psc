@@ -736,6 +736,9 @@ String Function GetFactionSoldierTemplate(String factionId) Global Native
 ; Falls back to generic bandit if template not found. Returns array of spawned Actors.
 Actor[] Function SpawnBattleSoldiers(String factionIdWithCount, ObjectReference spawnAt) Global Native
 
+; Get named NPCs near a reference point who witnessed the battle (excludes battle-spawned soldiers).
+Actor[] Function GetNearbyWitnessNPCs(ObjectReference center, Float radius) Global Native
+
 ; Start a new player-present battle. Returns battle ID or -1 if already active.
 Int Function StartBattle(String factionA, String factionB, String locationName, Int warId) Global Native
 
