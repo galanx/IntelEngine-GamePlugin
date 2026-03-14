@@ -269,6 +269,9 @@ Function Maintenance(Bool isFirstLoad = false)
     If Politics
         Politics.Maintenance()
     EndIf
+    If Battle
+        Battle.OnGameReload()
+    EndIf
 
     ; Clean expired facts on subsequent loads
     If !isFirstLoad
@@ -2458,4 +2461,5 @@ String Function GetActorName(Actor akActor)
     Return ""
 EndFunction
 
-IntelEngine_Politics Property Politics  Auto  
+IntelEngine_Politics Property Politics  Auto
+IntelEngine_Battle Property Battle Auto

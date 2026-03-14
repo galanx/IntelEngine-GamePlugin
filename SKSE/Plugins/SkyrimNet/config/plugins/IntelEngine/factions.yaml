@@ -22,6 +22,11 @@
 #  -39 to -1   = Tense
 #  -49 to -40  = Hostile
 # -100 to -50  = War (threshold configurable per faction)
+#
+# soldier_template: EditorID of a LeveledNpc or Npc record to spawn for this
+# faction. Lookup order: exact EditorID → prefix match (Requiem variants) →
+# FormID fallback (vanilla SSE where EditorIDs are stripped). Custom modlists
+# can override by setting their own EditorID here.
 # =============================================================================
 
 factions:
@@ -38,7 +43,7 @@ factions:
     allies: ["ThalmorFaction"]
     base_army_strength: 30
     war_threshold: -50
-    soldier_template: "LvlImperialSoldier"
+    soldier_template: "LCharSoldierImperial"
     prison_location: "SolitudeCastleDour"
     prison_marker: [0, 0, 0]
 
@@ -52,7 +57,7 @@ factions:
     allies: []
     base_army_strength: 25
     war_threshold: -50
-    soldier_template: "LvlStormcloakSoldier"
+    soldier_template: "LCharSoldierSons"
     prison_location: "WindhelmPalaceOfTheKings"
     prison_marker: [0, 0, 0]
 
@@ -66,7 +71,7 @@ factions:
     allies: ["ImperialFaction"]
     base_army_strength: 20
     war_threshold: -50
-    soldier_template: "LvlThalmor"
+    soldier_template: "LCharThalmorMelee1H"
     prison_location: "ThalmorEmbassy"
     prison_marker: [0, 0, 0]
 
@@ -83,6 +88,7 @@ factions:
     allies: []
     war_threshold: -60
     conflict_style: "brawl"
+    soldier_template: "LCharBanditMeleeAny"
     prison_location: "WhiterunJorrvaskr"
     prison_marker: [0, 0, 0]
 
@@ -96,6 +102,7 @@ factions:
     allies: ["BlackBriarFamily"]
     war_threshold: -55
     conflict_style: "sabotage"
+    soldier_template: "WEThiefSubChar"
     prison_location: "RiftenRatway"
     prison_marker: [0, 0, 0]
 
@@ -109,6 +116,7 @@ factions:
     allies: []
     war_threshold: -65
     conflict_style: "sabotage"
+    soldier_template: "LCharBanditWizard"
     prison_location: "CollegeOfWinterholdHallOfTheElements"
     prison_marker: [0, 0, 0]
 
@@ -122,6 +130,7 @@ factions:
     allies: []
     war_threshold: -50
     conflict_style: "assassination"
+    soldier_template: "WEAssassinSubChar"
     prison_location: "DarkBrotherhoodSanctuary"
     prison_marker: [0, 0, 0]
 
@@ -132,11 +141,13 @@ factions:
     name: "Silver-Blood Family"
     type: "political"
     hold: "Markarth"
+    skyrim_faction_id: "CrimeFactionReach"
     leader_names: ["Thongvor Silver-Blood", "Thonar Silver-Blood"]
     rivals: []
     allies: []
     war_threshold: -55
     conflict_style: "proxy"
+    soldier_template: "LCharForswornMelee1H"
     prison_location: "MarkarthCidhnaMine"
     prison_marker: [0, 0, 0]
 
@@ -144,11 +155,13 @@ factions:
     name: "Black-Briar Family"
     type: "political"
     hold: "Riften"
+    skyrim_faction_id: "CrimeFactionRift"
     leader_names: ["Maven Black-Briar"]
     rivals: []
     allies: ["ThievesGuildFaction"]
     war_threshold: -55
     conflict_style: "assassination"
+    soldier_template: "WEThiefSubChar"
     prison_location: "RiftenJail"
     prison_marker: [0, 0, 0]
 
@@ -176,44 +189,3 @@ default_relations:
     faction_b: "ThievesGuildFaction"
     relation: 60
 
-# =============================================================================
-# Battle Locations
-# =============================================================================
-# Curated outdoor locations with good navmesh and two rally points each.
-# Coordinates are placeholders — must be filled with actual world positions.
-
-battle_locations:
-  - name: "Whiterun Plains"
-    cell: "WhiterunExterior03"
-    center: [0, 0, 0]
-    rally_west: [0, 0, 0]
-    rally_east: [0, 0, 0]
-    holds: ["Whiterun"]
-
-  - name: "Eastmarch Tundra"
-    cell: "EastmarchExterior08"
-    center: [0, 0, 0]
-    rally_north: [0, 0, 0]
-    rally_south: [0, 0, 0]
-    holds: ["Windhelm", "Whiterun"]
-
-  - name: "Haafingar Coast"
-    cell: "HaafingarExterior05"
-    center: [0, 0, 0]
-    rally_west: [0, 0, 0]
-    rally_east: [0, 0, 0]
-    holds: ["Solitude"]
-
-  - name: "The Reach Valley"
-    cell: "ReachExterior04"
-    center: [0, 0, 0]
-    rally_north: [0, 0, 0]
-    rally_south: [0, 0, 0]
-    holds: ["Markarth"]
-
-  - name: "Rift Crossroads"
-    cell: "RiftExterior06"
-    center: [0, 0, 0]
-    rally_west: [0, 0, 0]
-    rally_east: [0, 0, 0]
-    holds: ["Riften"]
