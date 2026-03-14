@@ -819,12 +819,33 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
     Int lossesB = CountDeadInArray(SideBActors, SideBCount)
 
     ; Record in political DB (plain text narrative — display names are from factions.yaml, safe for concat)
+    String playerName = Game.GetPlayer().GetDisplayName()
     String narrative = victorName + " defeated " + loserName + " at " + BattleLocationName
+    If playerSideWas != ""
+        narrative += ". " + playerName + " fought for " + IntelEngine.GetFactionDisplayName(playerSideWas)
+        Int playerTotalKills = playerKillsA + playerKillsB
+        If playerTotalKills > 0
+            narrative += ", personally killing " + playerTotalKills + " soldiers"
+        EndIf
+    EndIf
     IntelEngine.RecordOffScreenBattle(BattleFactionA, BattleFactionB, BattleLocationName, \
         result, narrative, lossesA, lossesB, victor)
 
+    ; Record player kill events as political events so factions track what the player did.
+    ; Delta is 0 — standing was already adjusted by ApplyPlayerKillStanding above.
+    ; This event is purely for visibility in the political event log and NPC awareness.
+    Float gameTime = Utility.GetCurrentGameTime()
+    If playerKillsA > 0
+        String killDescA = playerName + " killed " + playerKillsA + " " + IntelEngine.GetFactionDisplayName(BattleFactionA) + " soldiers during the battle at " + BattleLocationName
+        IntelEngine.RecordPoliticalEvent(BattleFactionA, "", "player_combat", killDescA, 0, gameTime)
+    EndIf
+    If playerKillsB > 0
+        String killDescB = playerName + " killed " + playerKillsB + " " + IntelEngine.GetFactionDisplayName(BattleFactionB) + " soldiers during the battle at " + BattleLocationName
+        IntelEngine.RecordPoliticalEvent(BattleFactionB, "", "player_combat", killDescB, 0, gameTime)
+    EndIf
+
     ; Inject battle memories into nearby named NPCs who witnessed the fight
-    InjectBattleWitnessMemories(victorName, loserName, lossesA + lossesB)
+    InjectBattleWitnessMemories(victorName, loserName, lossesA + lossesB, playerSideWas, playerKillsA + playerKillsB)
 
     ; Victory/defeat notification (non-LLM — avoids triggering evaluation cycle)
     If playerSideWas == victor
@@ -921,7 +942,7 @@ Function ApplySpectatorConsequences(String victor)
     EndIf
 EndFunction
 
-Function InjectBattleWitnessMemories(String victorName, String loserName, Int totalCasualties)
+Function InjectBattleWitnessMemories(String victorName, String loserName, Int totalCasualties, String playerSide, Int playerKills)
     ; Find named NPCs near the battle who witnessed the fighting
     Actor player = Game.GetPlayer()
     Actor[] witnesses = IntelEngine.GetNearbyWitnessNPCs(player, 5000.0)
@@ -935,6 +956,13 @@ Function InjectBattleWitnessMemories(String victorName, String loserName, Int to
     String fact = "witnessed a battle between " + victorName + " and " + loserName + " forces at " + BattleLocationName + ". " + victorName + " prevailed"
     If totalCasualties > 0
         fact += " with " + totalCasualties + " casualties"
+    EndIf
+    String playerName = player.GetDisplayName()
+    If playerSide != ""
+        fact += ". " + playerName + " fought for " + IntelEngine.GetFactionDisplayName(playerSide)
+        If playerKills > 0
+            fact += " and killed " + playerKills + " enemy soldiers"
+        EndIf
     EndIf
 
     Int injected = 0
