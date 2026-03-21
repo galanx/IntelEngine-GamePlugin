@@ -1,4 +1,4 @@
 customCategory: intel_communication
 name: Communication
-description: "Messages and people — SELECT THIS when {{ npc.name }} is asked to: deliver a message, go get someone and bring them back, or react to the player expressing a political opinion or faction loyalty."
+description: "Messages and reactions — SELECT THIS when {{ npc.name }} is asked to: deliver a message to someone, or when {{ npc.name }} reacts to the player expressing a political opinion, faction loyalty, insult, or support."
 enabled: true
