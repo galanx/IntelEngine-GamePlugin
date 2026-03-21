@@ -1,3 +1,4 @@
+customCategory: intel_communication
 name: DeliverMessage
 description: >
   PLAYER-INITIATED ONLY. The PLAYER must explicitly ask you to go deliver a message to someone.

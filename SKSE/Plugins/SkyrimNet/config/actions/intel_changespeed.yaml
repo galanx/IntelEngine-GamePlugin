@@ -1,3 +1,4 @@
+customCategory: intel_taskcontrol
 name: ChangeSpeed
 description: >
   Change your travel speed mid-task WITHOUT canceling it. Only use this if you are CURRENTLY performing a task (fetching someone, delivering a message, traveling somewhere, etc.).
