@@ -3067,17 +3067,20 @@ Function OnQuestNPCArrived()
         questPromptText = ActiveStoryNPC.GetDisplayName() + " pleads for help rescuing " + QuestVictimName + " near " + questLoc + "."
     ElseIf QuestSubType == "find_item"
         questPromptText = ActiveStoryNPC.GetDisplayName() + " tells you about " + QuestItemDesc + " near " + questLoc + "."
-    ElseIf QuestSubType == "faction_battle"
+    ElseIf QuestSubType == "faction_battle" || (QuestAlliedFaction != "" && QuestSubType == "combat")
         String allyName = IntelEngine.GetFactionDisplayName(QuestAlliedFaction)
         questPromptText = ActiveStoryNPC.GetDisplayName() + " rallies you to fight alongside the " + allyName + " near " + questLoc + "."
+    ElseIf QuestAlliedFaction != "" && QuestSubType == "rescue"
+        String allyName2 = IntelEngine.GetFactionDisplayName(QuestAlliedFaction)
+        questPromptText = ActiveStoryNPC.GetDisplayName() + " urges you to rescue " + QuestVictimName + " for the " + allyName2 + " near " + questLoc + "."
     Else
         questPromptText = ActiveStoryNPC.GetDisplayName() + " tells you about trouble near " + questLoc + "."
     EndIf
 
     String choice = ""
-    ; Couriers, followers, and faction_battle couriers can't guide.
-    ; Faction_battle couriers are already AT the quest location (local guard/soldier).
-    Bool canGuide = isDirect && !ActiveStoryNPC.IsPlayerTeammate() && QuestSubType != "faction_battle"
+    ; Couriers, followers, and faction quest couriers can't guide.
+    ; Faction couriers are local guards/soldiers — already at the location.
+    Bool canGuide = isDirect && !ActiveStoryNPC.IsPlayerTeammate() && QuestAlliedFaction == ""
     If canGuide
         choice = SkyMessage.Show(questPromptText, "Lead the way", "I'll go alone", "Not interested")
     Else
