@@ -180,12 +180,21 @@ Event OnInit()
     DebugMsg("IntelEngine Quest OnInit")
 EndEvent
 
+Float LastMaintenanceRealTime = 0.0
+
 Function Maintenance(Bool isFirstLoad = false)
     {
-        Called by PlayerAlias on every game load.
+        Called by PlayerAlias on every game load AND by C++ bootstrap.
+        Guard: skip if already ran within 2 real seconds (both paths fire on load).
         isFirstLoad = true when mod is first installed (OnInit on alias)
         isFirstLoad = false on subsequent loads (OnPlayerLoadGame on alias)
     }
+    Float now = Utility.GetCurrentRealTime()
+    If !isFirstLoad && (now - LastMaintenanceRealTime) < 2.0 && LastMaintenanceRealTime > 0.0
+        DebugMsg("IntelEngine Maintenance skipped (duplicate call within 2s)")
+        return
+    EndIf
+    LastMaintenanceRealTime = now
     DebugMsg("IntelEngine Maintenance (firstLoad=" + isFirstLoad + ")")
 
     ; On first install (new game), clear all StorageUtil data from previous sessions.
@@ -250,6 +259,14 @@ Function Maintenance(Bool isFirstLoad = false)
             DebugMsg("WARNING: Politics property was None, recovered via cast")
         EndIf
     EndIf
+    If !Battle
+        Battle = q as IntelEngine_Battle
+        If Battle
+            DebugMsg("WARNING: Battle property was None, recovered via cast")
+        Else
+            DebugMsg("ERROR: Battle cast FAILED - IntelEngine_Battle script not found on quest")
+        EndIf
+    EndIf
 
     ; Restart monitoring loops on all task scripts.
     ; RegisterForSingleUpdate is per-script and does NOT survive save/load,
@@ -265,6 +282,7 @@ Function Maintenance(Bool isFirstLoad = false)
     EndIf
     If StoryEngine
         StoryEngine.RestartMonitoring()
+        StoryEngine.StartScheduler()
     EndIf
     If Politics
         Politics.Maintenance()
@@ -344,46 +362,8 @@ Function SaveTaskToHistory(Actor akAgent, String taskType, String target, String
         Return
     EndIf
 
-    ; Build past-tense description based on task type and result
-    String desc = ""
-
-    If taskType == "travel"
-        If result == "timeout"
-            desc = "Went to " + target + " but gave up waiting"
-        Else
-            desc = "Traveled to " + target
-        EndIf
-    ElseIf taskType == "fetch_npc"
-        If result == "success"
-            desc = "Found " + target + " and brought them back"
-        Else
-            desc = "Looked for " + target + " but couldn't bring them"
-        EndIf
-    ElseIf taskType == "deliver_message"
-        If result == "delivered"
-            desc = "Delivered a message to " + target
-            If msgContent != ""
-                ; Truncate long messages
-                If StringUtil.GetLength(msgContent) > 80
-                    msgContent = StringUtil.Substring(msgContent, 0, 80) + "..."
-                EndIf
-                desc = desc + ": '" + msgContent + "'"
-            EndIf
-            If meetLocation != ""
-                desc = desc + " (meeting at " + meetLocation + ")"
-            EndIf
-        Else
-            desc = "Tried to deliver a message to " + target
-        EndIf
-    ElseIf taskType == "search_for_actor"
-        desc = "Searched for " + target
-    ElseIf taskType == "story"
-        desc = "Sought out " + target
-    ElseIf taskType == "story_npc"
-        desc = "Went to talk with " + target
-    Else
-        desc = "Completed a task involving " + target
-    EndIf
+    ; C++ builds the description string (stale-bytecode-safe, extensible)
+    String desc = IntelEngine.BuildTaskHistoryDesc(taskType, target, result, msgContent, meetLocation)
 
     ; Append to history lists
     StorageUtil.StringListAdd(akAgent, "Intel_TaskHistory", desc)
@@ -1041,10 +1021,52 @@ Function DismissFollowerForTask(Actor npc)
 EndFunction
 
 Int Function ShowTaskConfirmation(Actor npc, String promptText)
-    {Show MCM task confirmation if enabled. Returns: 0=allow, 1=deny (narrate), 2=deny silent.}
-    If StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt") != 1
-        Return 0
+    {Legacy wrapper — calls per-action version with empty action (uses old global toggle).}
+    return ShowTaskConfirmationForAction(npc, promptText, "")
+EndFunction
+
+Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String actionName)
+    {Per-action confirmation prompt. Returns: 0=allow, 1=deny (narrate), 2=deny silent.
+    Mode per action: 0=disabled, 1=followers only, 2=everyone.}
+    Int mode = 0
+    If actionName != "" && StoryEngine != None
+        If actionName == "GoToLocation"
+            mode = StoryEngine.ConfirmGoToLocation
+        ElseIf actionName == "DeliverMessage"
+            mode = StoryEngine.ConfirmDeliverMessage
+        ElseIf actionName == "FetchPerson"
+            mode = StoryEngine.ConfirmFetchPerson
+        ElseIf actionName == "EscortTarget"
+            mode = StoryEngine.ConfirmEscortTarget
+        ElseIf actionName == "SearchForActor"
+            mode = StoryEngine.ConfirmSearchForActor
+        ElseIf actionName == "ScheduleFetch"
+            mode = StoryEngine.ConfirmScheduleFetch
+        ElseIf actionName == "ScheduleDelivery"
+            mode = StoryEngine.ConfirmScheduleDelivery
+        ElseIf actionName == "ScheduleMeeting"
+            mode = StoryEngine.ConfirmScheduleMeeting
+        EndIf
+    Else
+        ; Legacy fallback: old global toggle
+        mode = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt")
+        If mode == 1
+            mode = 2  ; old toggle was binary (on=everyone), map to mode 2
+        EndIf
     EndIf
+
+    If mode == 0
+        Return 0  ; disabled
+    EndIf
+
+    If mode == 1
+        ; Followers only — skip if NPC is not the player's active follower
+        If !npc.IsPlayerTeammate()
+            Return 0
+        EndIf
+    EndIf
+
+    ; mode 1 (follower matched) or mode 2 (everyone) — show prompt
     String result = SkyMessage.Show(promptText, "Allow", "Deny", "Deny (Silent)")
     If result == "Deny"
         Return 1
@@ -1055,18 +1077,8 @@ Int Function ShowTaskConfirmation(Actor npc, String promptText)
 EndFunction
 
 String Function DetermineLatenessOutcome(Float actualGameTime, Float deadlineGameTime)
-    {Determine if arrival time is late, early, or on-time relative to deadline.
-    Uses MeetingGracePeriod tolerance to handle timescale variations.
-    Returns: "late", "early", or "on_time"}
-    Float hoursLate = (actualGameTime - deadlineGameTime) * 24.0
-
-    If hoursLate > MeetingGracePeriod
-        Return "late"
-    ElseIf hoursLate < -MeetingGracePeriod
-        Return "early"
-    Else
-        Return "on_time"
-    EndIf
+    ; C++ handles the comparison logic (stale-bytecode-safe)
+    return IntelEngine.DetermineLatenessOutcome(deadlineGameTime, actualGameTime, MeetingGracePeriod)
 EndFunction
 
 Function InitializeStuckTrackingForSlot(Int slot, Actor npc)
@@ -1675,6 +1687,27 @@ Function SetPlayerHomePolicy(Int val)
     IntelEngine.SetPlayerHomePolicy(val)
 EndFunction
 
+Function SetHoldRestrictionPolicy(String storyType, Int val)
+    If StoryEngine
+        If storyType == "seek_player"
+            StoryEngine.HoldPolicySeekPlayer = val
+        ElseIf storyType == "informant"
+            StoryEngine.HoldPolicyInformant = val
+        ElseIf storyType == "road_encounter"
+            StoryEngine.HoldPolicyRoadEncounter = val
+        ElseIf storyType == "ambush"
+            StoryEngine.HoldPolicyAmbush = val
+        ElseIf storyType == "stalker"
+            StoryEngine.HoldPolicyStalker = val
+        ElseIf storyType == "message"
+            StoryEngine.HoldPolicyMessage = val
+        ElseIf storyType == "quest"
+            StoryEngine.HoldPolicyQuest = val
+        EndIf
+    EndIf
+    IntelEngine.SetHoldRestrictionPolicy(storyType, val)
+EndFunction
+
 ; =============================================================================
 ; DEBUG
 ; =============================================================================
@@ -1708,59 +1741,17 @@ String Function GetSlotStatus(Int slot)
             String target = SlotTargetNames[slot]
             Int taskState = SlotStates[slot]
 
-            ; Build human-readable task description
-            String desc = ""
-            If taskType == "fetch_npc"
-                If taskState == 1
-                    desc = "fetching " + target
-                ElseIf taskState == 8
-                    desc = "talking to " + target
-                ElseIf taskState == 3
-                    desc = "returning with " + target
-                Else
-                    desc = "fetching " + target
-                EndIf
-            ElseIf taskType == "deliver_message"
-                If taskState == 1
-                    desc = "delivering message to " + target
-                ElseIf taskState == 8
-                    desc = "speaking with " + target
-                Else
-                    desc = "delivering message to " + target
-                EndIf
-            ElseIf taskType == "search_for_actor"
-                If taskState == 1
-                    desc = "searching for " + target
-                ElseIf taskState == 5
-                    desc = "waiting (searching for " + target + ")"
-                Else
-                    desc = "searching for " + target
-                EndIf
-            ElseIf taskType == "travel"
-                If taskState == 1
-                    desc = "traveling to " + target
-                ElseIf taskState == 2
-                    desc = "waiting at " + target
-                Else
-                    desc = "traveling to " + target
-                EndIf
-            Else
-                desc = "on a task"
-            EndIf
-
-            ; Append location or combat flag
+            ; C++ builds the description (stale-bytecode-safe)
+            String cellName = ""
             If agent.IsInCombat()
-                desc += " [IN COMBAT]"
+                cellName = "[IN COMBAT]"
             Else
                 Cell agentCell = agent.GetParentCell()
                 If agentCell
-                    String cellName = agentCell.GetName()
-                    If cellName != ""
-                        desc += " @ " + cellName
-                    EndIf
+                    cellName = agentCell.GetName()
                 EndIf
             EndIf
-
+            String desc = IntelEngine.GetSlotStatusNative(taskType, taskState, target, cellName)
             Return agentName + ": " + desc
         EndIf
     EndIf
@@ -1935,6 +1926,8 @@ Event OnDashboardToggleStory(String eventName, String strArg, Float numArg, Form
         StoryEngine.TypeRoadEncounterEnabled = enabled
     ElseIf strArg == "ambush"
         StoryEngine.TypeAmbushEnabled = enabled
+    ElseIf strArg == "faction_ambush"
+        StoryEngine.TypeFactionAmbushEnabled = enabled
     ElseIf strArg == "stalker"
         StoryEngine.TypeStalkerEnabled = enabled
     ElseIf strArg == "message"
@@ -1981,6 +1974,28 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
         SetDangerZonePolicy(numArg as Int)
     ElseIf strArg == "playerHomePolicy"
         SetPlayerHomePolicy(numArg as Int)
+    ElseIf strArg == "holdPolicySeekPlayer"
+        SetHoldRestrictionPolicy("seek_player", numArg as Int)
+    ElseIf strArg == "holdPolicyInformant"
+        SetHoldRestrictionPolicy("informant", numArg as Int)
+    ElseIf strArg == "holdPolicyRoadEncounter"
+        SetHoldRestrictionPolicy("road_encounter", numArg as Int)
+    ElseIf strArg == "holdPolicyAmbush"
+        SetHoldRestrictionPolicy("ambush", numArg as Int)
+    ElseIf strArg == "holdPolicyStalker"
+        SetHoldRestrictionPolicy("stalker", numArg as Int)
+    ElseIf strArg == "holdPolicyMessage"
+        SetHoldRestrictionPolicy("message", numArg as Int)
+    ElseIf strArg == "holdPolicyQuest"
+        SetHoldRestrictionPolicy("quest", numArg as Int)
+    ElseIf strArg == "npc_interaction"
+        If StoryEngine
+            StoryEngine.TypeNPCInteractionEnabled = numArg > 0.5
+        EndIf
+    ElseIf strArg == "npc_gossip"
+        If StoryEngine
+            StoryEngine.TypeNPCGossipEnabled = numArg > 0.5
+        EndIf
     ElseIf strArg == "npcTickEnabled"
         If StoryEngine
             StoryEngine.NPCTickEnabled = numArg > 0.5
@@ -2007,8 +2022,52 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
         If StoryEngine
             StoryEngine.QuestSubTypeFindItemEnabled = numArg > 0.5
         EndIf
+    ElseIf strArg == "questFactionCombat"
+        If StoryEngine
+            StoryEngine.QuestSubTypeFactionCombatEnabled = numArg > 0.5
+        EndIf
+    ElseIf strArg == "questFactionRescue"
+        If StoryEngine
+            StoryEngine.QuestSubTypeFactionRescueEnabled = numArg > 0.5
+        EndIf
+    ElseIf strArg == "questFactionBattle"
+        If StoryEngine
+            StoryEngine.QuestSubTypeFactionBattleEnabled = numArg > 0.5
+        EndIf
     ElseIf strArg == "taskConfirmPrompt"
         StorageUtil.SetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt", numArg as Int)
+    ElseIf strArg == "confirmGoToLocation"
+        If StoryEngine
+            StoryEngine.ConfirmGoToLocation = numArg as Int
+        EndIf
+    ElseIf strArg == "confirmDeliverMessage"
+        If StoryEngine
+            StoryEngine.ConfirmDeliverMessage = numArg as Int
+        EndIf
+    ElseIf strArg == "confirmFetchPerson"
+        If StoryEngine
+            StoryEngine.ConfirmFetchPerson = numArg as Int
+        EndIf
+    ElseIf strArg == "confirmEscortTarget"
+        If StoryEngine
+            StoryEngine.ConfirmEscortTarget = numArg as Int
+        EndIf
+    ElseIf strArg == "confirmSearchForActor"
+        If StoryEngine
+            StoryEngine.ConfirmSearchForActor = numArg as Int
+        EndIf
+    ElseIf strArg == "confirmScheduleMeeting"
+        If StoryEngine
+            StoryEngine.ConfirmScheduleMeeting = numArg as Int
+        EndIf
+    ElseIf strArg == "confirmScheduleFetch"
+        If StoryEngine
+            StoryEngine.ConfirmScheduleFetch = numArg as Int
+        EndIf
+    ElseIf strArg == "confirmScheduleDelivery"
+        If StoryEngine
+            StoryEngine.ConfirmScheduleDelivery = numArg as Int
+        EndIf
     ElseIf strArg == "defaultWaitHours"
         SetSettingFloat("Intel_MCM_DefaultWaitHours", numArg)
     ElseIf strArg == "meetingTimeoutHours"
@@ -2313,6 +2372,7 @@ String Function BuildDashboardStateJson()
         json += ",\"informant\":" + BoolToJson(StoryEngine.TypeInformantEnabled)
         json += ",\"road_encounter\":" + BoolToJson(StoryEngine.TypeRoadEncounterEnabled)
         json += ",\"ambush\":" + BoolToJson(StoryEngine.TypeAmbushEnabled)
+        json += ",\"faction_ambush\":" + BoolToJson(StoryEngine.TypeFactionAmbushEnabled)
         json += ",\"stalker\":" + BoolToJson(StoryEngine.TypeStalkerEnabled)
         json += ",\"message\":" + BoolToJson(StoryEngine.TypeMessageEnabled)
         json += ",\"quest\":" + BoolToJson(StoryEngine.TypeQuestEnabled)
@@ -2421,19 +2481,41 @@ String Function BuildDashboardStateJson()
         json += ",\"allowStuckTeleport\":" + BoolToJson(StoryEngine.AllowStuckTeleport)
         json += ",\"dangerZonePolicy\":" + StoryEngine.DangerZonePolicy
         json += ",\"playerHomePolicy\":" + StoryEngine.PlayerHomePolicy
+        json += ",\"holdPolicySeekPlayer\":" + StoryEngine.HoldPolicySeekPlayer
+        json += ",\"holdPolicyInformant\":" + StoryEngine.HoldPolicyInformant
+        json += ",\"holdPolicyRoadEncounter\":" + StoryEngine.HoldPolicyRoadEncounter
+        json += ",\"holdPolicyAmbush\":" + StoryEngine.HoldPolicyAmbush
+        json += ",\"holdPolicyStalker\":" + StoryEngine.HoldPolicyStalker
+        json += ",\"holdPolicyMessage\":" + StoryEngine.HoldPolicyMessage
+        json += ",\"holdPolicyQuest\":" + StoryEngine.HoldPolicyQuest
+        json += ",\"confirmGoToLocation\":" + StoryEngine.ConfirmGoToLocation
+        json += ",\"confirmDeliverMessage\":" + StoryEngine.ConfirmDeliverMessage
+        json += ",\"confirmFetchPerson\":" + StoryEngine.ConfirmFetchPerson
+        json += ",\"confirmEscortTarget\":" + StoryEngine.ConfirmEscortTarget
+        json += ",\"confirmSearchForActor\":" + StoryEngine.ConfirmSearchForActor
+        json += ",\"confirmScheduleMeeting\":" + StoryEngine.ConfirmScheduleMeeting
+        json += ",\"confirmScheduleFetch\":" + StoryEngine.ConfirmScheduleFetch
+        json += ",\"confirmScheduleDelivery\":" + StoryEngine.ConfirmScheduleDelivery
         json += ",\"npcTickEnabled\":" + BoolToJson(StoryEngine.NPCTickEnabled)
         json += ",\"npcTickInterval\":" + StoryEngine.NPCTickIntervalHours
         json += ",\"npcSocialCooldown\":" + StoryEngine.NPCSocialCooldownHours
         json += ",\"questCombat\":" + BoolToJson(StoryEngine.QuestSubTypeCombatEnabled)
         json += ",\"questRescue\":" + BoolToJson(StoryEngine.QuestSubTypeRescueEnabled)
         json += ",\"questFindItem\":" + BoolToJson(StoryEngine.QuestSubTypeFindItemEnabled)
+        json += ",\"questFactionCombat\":" + BoolToJson(StoryEngine.QuestSubTypeFactionCombatEnabled)
+        json += ",\"questFactionRescue\":" + BoolToJson(StoryEngine.QuestSubTypeFactionRescueEnabled)
+        json += ",\"questFactionBattle\":" + BoolToJson(StoryEngine.QuestSubTypeFactionBattleEnabled)
         json += ",\"questTimeoutDays\":" + StoryEngine.QUEST_EXPIRY_DAYS
         json += ",\"questAllowVictimDeath\":" + BoolToJson(StoryEngine.QuestAllowVictimDeath)
     Else
         json += ",\"longAbsenceDays\":3,\"maxTravelDays\":1,\"allowStuckTeleport\":true"
         json += ",\"dangerZonePolicy\":1,\"playerHomePolicy\":0"
+        json += ",\"holdPolicySeekPlayer\":1,\"holdPolicyInformant\":1,\"holdPolicyRoadEncounter\":1"
+        json += ",\"holdPolicyAmbush\":1,\"holdPolicyStalker\":1,\"holdPolicyMessage\":1,\"holdPolicyQuest\":1"
+        json += ",\"confirmGoToLocation\":1,\"confirmDeliverMessage\":1,\"confirmFetchPerson\":1,\"confirmEscortTarget\":1"
+        json += ",\"confirmSearchForActor\":1,\"confirmScheduleMeeting\":1,\"confirmScheduleFetch\":1,\"confirmScheduleDelivery\":1"
         json += ",\"npcTickEnabled\":true,\"npcTickInterval\":1.5,\"npcSocialCooldown\":24"
-        json += ",\"questCombat\":true,\"questRescue\":true,\"questFindItem\":true"
+        json += ",\"questCombat\":true,\"questRescue\":true,\"questFindItem\":true,\"questFactionCombat\":true,\"questFactionRescue\":true,\"questFactionBattle\":true"
         json += ",\"questTimeoutDays\":7,\"questAllowVictimDeath\":false"
     EndIf
     json += "}"

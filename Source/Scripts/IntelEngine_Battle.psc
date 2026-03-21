@@ -27,14 +27,15 @@ Faction Property Intel_BattleSideB Auto
 
 ; === Settings ===
 Int Property MaxSoldiersPerSide = 22 Auto Hidden
-Int Property SpawnDistance = 1000 Auto Hidden  ; units from center to each rally point
-Float Property BattleSpawnDistance = 2000.0 Auto Hidden  ; units ahead of player toward battle location
+Int Property SpawnDistance = 150 Auto Hidden  ; units from center to each side (300 apart = guaranteed LoS)
+Float Property BattleSpawnDistance = 600.0 Auto Hidden  ; units ahead of player toward battle location
 Float Property PollInterval = 3.0 Auto Hidden  ; seconds between state polls
-Float Property CenterSpawnDistance = 800.0 Auto Hidden  ; units ahead of player for battle center
+Float Property CenterSpawnDistance = 500.0 Auto Hidden  ; units ahead of player for battle center
 Float Property MidBattleCasualtyRate = 2.0 Auto Hidden  ; game-minutes per casualty during off-screen
 Float Property MidBattleMoraleRate = 5.0 Auto Hidden    ; morale loss per game-minute off-screen
 Int Property MidBattleMoraleCap = 60 Auto Hidden        ; max morale loss from off-screen time
 Int Property MidBattleMinSoldiers = 3 Auto Hidden       ; minimum soldiers per side for mid-battle
+Float Property BattleHardTimeout = 1800.0 Auto Hidden   ; seconds — force-end battle if stuck (30 min real time)
 
 ; === Standing Tuning ===
 Int Property AutoJoinStandingThreshold = 20 Auto Hidden   ; auto-join if standing >= this with ONE side
@@ -56,12 +57,10 @@ Bool Property BattleSpawned = false Auto Hidden
 Int Property ActiveBattleId = -1 Auto Hidden
 String Property BattleLocationName = "" Auto Hidden
 Float Property ActualBattleStartTime = 0.0 Auto Hidden
-
-; Spawn tracking (FormList would be better but arrays work for actor cap of ~35)
-Actor[] Property SideAActors Auto Hidden
-Actor[] Property SideBActors Auto Hidden
-Int Property SideACount = 0 Auto Hidden
-Int Property SideBCount = 0 Auto Hidden
+Float Property BattleStartRealTime = 0.0 Auto Hidden  ; Utility.GetCurrentRealTime() at spawn
+Actor Property BattleLeader Auto Hidden               ; Allied soldier with quest marker + Essential
+Bool Property BattleLeaderWasEssential = false Auto Hidden
+ObjectReference Property BattleSpawnAnchor Auto Hidden  ; Where to spawn soldiers (quest location marker)
 
 ; Spawn anchor markers (placed dynamically, cleaned up after battle)
 ObjectReference Property CenterMarker Auto Hidden
@@ -73,6 +72,11 @@ Int Property CurrentWave = 0 Auto Hidden
 
 ; Player participation
 String Property PlayerBattleSide = "" Auto Hidden
+String Property QuestAutoJoinFaction = "" Auto Hidden  ; Set by StoryEngine for quest-dispatched battles
+
+; Deferred cleanup state (non-blocking, uses OnUpdate polling)
+Bool Property DeferredCleanupActive = false Auto Hidden
+Float Property DeferredCleanupStart = 0.0 Auto Hidden
 
 ; Pending battle polling
 Bool Property PendingPollActive = false Auto Hidden
@@ -142,67 +146,44 @@ Function HandlePendingBattleTriggered(Int pendingId)
     String factionA = IntelEngine.StoryResponseGetField(infoJson, "faction_a")
     String factionB = IntelEngine.StoryResponseGetField(infoJson, "faction_b")
     String locName = IntelEngine.StoryResponseGetField(infoJson, "location")
-    String xStr = IntelEngine.StoryResponseGetField(infoJson, "x")
-    String yStr = IntelEngine.StoryResponseGetField(infoJson, "y")
-    String zStr = IntelEngine.StoryResponseGetField(infoJson, "z")
 
-    ; Validate coordinates — empty strings cast to 0.0 which would spawn at world origin
-    If xStr == "" || yStr == "" || zStr == ""
-        Core.DebugMsg("Battle: Pending battle " + pendingId + " has invalid coordinates — aborting")
+    If factionA == "" || factionB == ""
+        Core.DebugMsg("Battle: Pending battle " + pendingId + " has empty factions — aborting")
         return
     EndIf
 
-    ; Set up battle state
-    BattleFactionA = factionA
-    BattleFactionB = factionB
-    BattleLocationName = locName
-
-    ; Find the war ID for this faction pair
+    ; Unified path: reuse StartBattleImmediate → StartBattleSequence → SpawnFullBattle
+    ; This ensures pending battles get ALL the C++ fixes: anchor-based spawning,
+    ; bounty prevention, leader selection, spawn validation, cleanup tracking.
     BattleWarId = IntelEngine.GetActiveWarId(factionA, factionB)
 
-    ; Parse coordinates — used to calculate direction from player to battle
-    Float battleX = xStr as Float
-    Float battleY = yStr as Float
-    Float battleZ = zStr as Float
-
-    ; Start battle in C++ BattleManager
-    ActualBattleStartTime = Utility.GetCurrentGameTime()
-    ActiveBattleId = IntelEngine.StartBattle(factionA, factionB, locName, BattleWarId)
-    If ActiveBattleId < 0
-        Core.DebugMsg("Battle: C++ StartBattle failed (another battle active?)")
-        ResetState()
-        return
+    ; Resolve the actual battle location as spawn anchor (soldiers should already be there)
+    ; Pending battles trigger at 5000 units — soldiers spawn at the location, not at the player,
+    ; so they're already fighting when the player walks up.
+    Actor player = Game.GetPlayer()
+    ObjectReference locRef = IntelEngine.ResolveAnyDestination(player, locName)
+    If locRef != None
+        BattleSpawnAnchor = locRef
+    Else
+        ; Fallback: spawn ahead of player if location can't be resolved
+        Float playerAngle = player.GetAngleZ()
+        Float spawnDist = 1500.0
+        Form xmarkerBase = Game.GetFormFromFile(0x0000003B, "Skyrim.esm")
+        If xmarkerBase
+            ObjectReference marker = player.PlaceAtMe(xmarkerBase)
+            Float anchorX = player.GetPositionX() + Math.Sin(playerAngle) * spawnDist
+            Float anchorY = player.GetPositionY() + Math.Cos(playerAngle) * spawnDist
+            marker.SetPosition(anchorX, anchorY, player.GetPositionZ())
+            BattleSpawnAnchor = marker
+        Else
+            BattleSpawnAnchor = player as ObjectReference
+        EndIf
     EndIf
 
-    ; Initialize actor arrays
-    SideAActors = new Actor[15]
-    SideBActors = new Actor[15]
-    SideACount = 0
-    SideBCount = 0
-    CurrentWave = 0
-    BattleSpawned = true
+    StartBattleImmediate(factionA, factionB, BattleWarId)
 
-    ; Ensure battle factions are hostile to each other
-    Intel_BattleSideA.SetEnemy(Intel_BattleSideB)
-
-    ; Place markers ahead of the player in the direction of the battle location.
-    ; Spawning at the actual battle coordinates fails because SetPosition moves
-    ; XMarkers outside the loaded cell grid, making PlaceObjectAtMe silently fail.
-    PlaceMarkersTowardBattle(battleX, battleY)
-
-    ShowBattleStartNotification(locName)
-
-    ; Spawn vanguard wave
-    SpawnWave(1)
-
-    ; Check if player should auto-join based on faction standing
-    EvaluatePlayerJoin()
-
-    ; Start active battle polling
-    RegisterForSingleUpdate(PollInterval)
-
-    Core.DebugMsg("Battle: Triggered at " + locName + " (battle coords: " + battleX + ", " + battleY + \
-        ", spawned near player) — " + factionA + " vs " + factionB)
+    Core.DebugMsg("Battle: Pending battle " + pendingId + " triggered at " + locName + \
+        " — " + factionA + " vs " + factionB + " (unified spawn path)")
 EndFunction
 
 ; =============================================================================
@@ -236,6 +217,37 @@ Event OnUpdate()
         Else
             RegisterForSingleUpdate(PollInterval)
             return  ; Don't start pending battles while manifestation is active
+        EndIf
+    EndIf
+
+    ; Phase 0: Deferred cleanup — proximity-based per-actor cleanup.
+    ; Actors behind the player and >2000 units away (or unloaded) get cleaned.
+    ; 180s hard timeout as safety net to prevent stale actors cluttering the world.
+    If DeferredCleanupActive
+        Float elapsed = Utility.GetCurrentRealTime() - DeferredCleanupStart
+        Bool forceAll = elapsed >= 180.0
+        Actor player = Game.GetPlayer()
+
+        ; Clean soldiers via C++ (no Papyrus arrays — immune to stale bytecode)
+        Int remaining = IntelEngine.CleanupBattleSoldiers(player.GetPositionX(), \
+            player.GetPositionY(), player.GetPositionZ(), player.GetAngleZ(), forceAll)
+
+        If remaining == 0 || forceAll
+            If forceAll && remaining > 0
+                Core.DebugMsg("Battle: Hard timeout cleanup — " + remaining + " actors remaining")
+            EndIf
+            ; NOW remove player from battle factions — all soldiers are disabled/gone
+            RemovePlayerFromBattle()
+            CleanupMarkers()
+            DeferredCleanupActive = false
+            Bool hadPendingPolls = PendingPollActive && IntelEngine.GetPendingBattleCount() > 0
+            ResetState()
+            If hadPendingPolls
+                PendingPollActive = true
+                RegisterForSingleUpdate(PollInterval)
+                Core.DebugMsg("Battle: Resumed pending battle polling after cleanup")
+            EndIf
+            return
         EndIf
     EndIf
 
@@ -281,6 +293,21 @@ Event OnUpdate()
 
     ; Phase B: Active battle combat polling
     If !IntelEngine.IsBattleActive()
+        ; Battle ended (C++ detected all soldiers dead or timeout).
+        ; Clean up immediately — don't wait for next story tick.
+        If BattleSpawned
+            Core.DebugMsg("Battle: Poll detected battle ended — cleaning up Papyrus state")
+            BattleSpawned = false  ; prevent re-entrant cleanup on next poll
+            ; Don't RemovePlayerFromBattle here — deferred cleanup keeps soldiers alive.
+            ; Player stays in battle faction until cleanup finishes (OnUpdate Phase 0).
+            ; Notify StoryEngine directly so quest completes NOW (not on next story tick)
+            If Core.StoryEngine != None
+                Core.StoryEngine.CheckQuestProximity()
+            EndIf
+            DeferredCleanupActive = true
+            DeferredCleanupStart = Utility.GetCurrentRealTime()
+            RegisterForSingleUpdate(PollInterval)
+        EndIf
         return
     EndIf
 
@@ -294,6 +321,32 @@ Event OnUpdate()
             return
         EndIf
     EndIf
+
+    ; Hard timeout — force-end if battle is stuck (soldiers behind geometry, pathfinding broken)
+    ; This prevents the player from being stuck in a battle faction forever.
+    If BattleStartRealTime > 0.0
+        Float battleAge = Utility.GetCurrentRealTime() - BattleStartRealTime
+        If battleAge > BattleHardTimeout
+            Core.DebugMsg("Battle: HARD TIMEOUT (" + battleAge + "s) — force-ending battle")
+            Int timeoutMsg = Utility.RandomInt(0, 2)
+            If timeoutMsg == 0
+                Debug.Notification("Both sides withdraw, exhausted.")
+            ElseIf timeoutMsg == 1
+                Debug.Notification("The surviving soldiers disengage.")
+            Else
+                Debug.Notification("The fighting dies down. Neither side holds the field.")
+            EndIf
+            RemovePlayerFromBattle()
+            CleanupBattle()
+            return
+        EndIf
+    EndIf
+
+    ; Continuous bounty suppression during active battle.
+    ; Spawned soldiers have crime factions removed, but nearby unspawned guards
+    ; still detect "assault" when the player accidentally hits a friendly.
+    ; Clear any bounty every poll cycle so it never sticks during combat.
+    IntelEngine.ClearAllHoldBounties()
 
     ; Poll C++ BattleManager for state updates
     String stateJson = IntelEngine.PollBattleState()
@@ -311,6 +364,22 @@ EndEvent
 ; BATTLE START
 ; =============================================================================
 
+; Start a battle immediately (no schedule delay). Used by quest-dispatched
+; faction_battle where the player has already traveled to the location.
+Function StartBattleImmediate(String factionA, String factionB, Int warId)
+    If IntelEngine.IsBattleActive()
+        Core.DebugMsg("Battle: Cannot start immediate — already active")
+        return
+    EndIf
+    BattleFactionA = factionA
+    BattleFactionB = factionB
+    BattleWarId = warId
+    BattleScheduled = false
+    BattleSpawned = false
+    Core.DebugMsg("Battle: Starting immediate — " + factionA + " vs " + factionB)
+    StartBattleSequence()
+EndFunction
+
 Function StartBattleSequence()
     BattleScheduled = false
 
@@ -324,6 +393,7 @@ Function StartBattleSequence()
 
     ; Start battle in C++ BattleManager
     ActualBattleStartTime = Utility.GetCurrentGameTime()
+    BattleStartRealTime = Utility.GetCurrentRealTime()
     ActiveBattleId = IntelEngine.StartBattle(BattleFactionA, BattleFactionB, BattleLocationName, BattleWarId)
     If ActiveBattleId < 0
         Core.DebugMsg("Battle: C++ StartBattle failed (another battle active?)")
@@ -331,11 +401,6 @@ Function StartBattleSequence()
         return
     EndIf
 
-    ; Initialize actor arrays (size must match MaxSoldiersPerSide)
-    SideAActors = new Actor[22]
-    SideBActors = new Actor[22]
-    SideACount = 0
-    SideBCount = 0
     CurrentWave = 0
 
     ; Ensure battle factions are hostile to each other (in case CK setup missed)
@@ -360,20 +425,112 @@ Function SpawnFullBattle()
     Core.DebugMsg("Battle: Spawning full battle — " + BattleFactionA + " vs " + BattleFactionB)
     BattleSpawned = true
 
-    ; Calculate dynamic positions based on player
-    CalculateAndPlaceMarkers()
+    ; Snapshot current bounty so battle-accumulated bounty can be reverted without losing pre-existing bounty
+    IntelEngine.ClearAllHoldBounties()  ; first call = snapshot
+
+    ; === ALL spawn logic is in C++ — no Papyrus arrays needed ===
+    ; C++ handles: spawn at anchor, faction assignment, positioning, leader selection,
+    ; Protected flag, bounty snapshot. Returns JSON with FormIDs for Papyrus-only ops.
+    Actor player = Game.GetPlayer()
+    ObjectReference spawnAnchor = BattleSpawnAnchor
+    If spawnAnchor == None
+        spawnAnchor = player as ObjectReference
+    EndIf
+
+    String resultJson = IntelEngine.ExecuteFullBattleSpawn(QuestAutoJoinFaction, player, player.GetAngleZ(), spawnAnchor)
+    QuestAutoJoinFaction = ""
+
+    Bool success = IntelEngine.StoryResponseGetField(resultJson, "success") == "true"
+    If !success
+        String err = IntelEngine.StoryResponseGetField(resultJson, "error")
+        Core.DebugMsg("Battle: ExecuteFullBattleSpawn FAILED: " + err)
+        CleanupBattle()
+        return
+    EndIf
+
+    Int sideASpawned = IntelEngine.StoryResponseGetField(resultJson, "sideACount") as Int
+    Int sideBSpawned = IntelEngine.StoryResponseGetField(resultJson, "sideBCount") as Int
+    Int paired = IntelEngine.StoryResponseGetField(resultJson, "paired") as Int
+    Bool playerJoined = IntelEngine.StoryResponseGetField(resultJson, "playerJoined") == "true"
+    String joinFaction = IntelEngine.StoryResponseGetField(resultJson, "joinFaction")
+    String notification = IntelEngine.StoryResponseGetField(resultJson, "notification")
+
+    ; === Papyrus-only operations: quest marker ===
+    ; SetPlayerTeammate is now handled entirely in C++ (SetActorPlayerTeammate)
+    ; which adds to CurrentFollowerFaction + sets boolBit. The old Papyrus loop
+    ; failed 100% due to FormID overflow (0xFF prefix → negative int → Game.GetForm returns None).
+
+    If playerJoined
+        PlayerBattleSide = joinFaction
+        Core.DebugMsg("Battle: Player joined " + joinFaction + " — teammates set by C++ (" + sideASpawned + " vs " + sideBSpawned + ")")
+    Else
+        Core.DebugMsg("Battle: Player did NOT auto-join (playerJoined=false, joinFaction=" + joinFaction + ")")
+    EndIf
+
+    ; Quest marker on leader (C++ already made leader Protected + SpeedMult 115)
+    Int leaderFormId = IntelEngine.GetJsonArrayInt(resultJson, "leaderFormId", 0)
+    If leaderFormId != 0
+        Actor leader = Game.GetForm(leaderFormId) as Actor
+        If leader
+            BattleLeader = leader
+            BattleLeaderWasEssential = leader.IsEssential()
+            ; Move quest marker from location to leader's head
+            If Core.StoryEngine != None
+                ReferenceAlias targetAlias = Core.StoryEngine.QuestTargetAlias
+                ; Runtime recovery: property may be None on old saves
+                ; Uses same recovery pattern as StoryEngine.PlaceQuestMarker
+                If targetAlias == None
+                    Int aliasCount = Core.StoryEngine.GetNumAliases()
+                    Int ai = aliasCount - 1
+                    While ai >= 1 && targetAlias == None
+                        ReferenceAlias ra = Core.StoryEngine.GetAlias(ai) as ReferenceAlias
+                        If ra != None \
+                            && ra != Core.AgentAlias00 && ra != Core.AgentAlias01 \
+                            && ra != Core.AgentAlias02 && ra != Core.AgentAlias03 \
+                            && ra != Core.AgentAlias04 \
+                            && ra != Core.TargetAlias00 && ra != Core.TargetAlias01 \
+                            && ra != Core.TargetAlias02 && ra != Core.TargetAlias03 \
+                            && ra != Core.TargetAlias04
+                            targetAlias = ra
+                            Core.StoryEngine.QuestTargetAlias = targetAlias
+                            Core.DebugMsg("Battle: recovered QuestTargetAlias from alias scan")
+                        EndIf
+                        ai -= 1
+                    EndWhile
+                EndIf
+                If targetAlias != None
+                    targetAlias.ForceRefTo(leader)
+                    Core.StoryEngine.SetObjectiveDisplayed(Core.StoryEngine.QUEST_OBJECTIVE_ID, false)
+                    Utility.Wait(0.1)
+                    Core.StoryEngine.SetObjectiveDisplayed(Core.StoryEngine.QUEST_OBJECTIVE_ID, true)
+                    Core.DebugMsg("Battle: Quest marker moved to leader — " + leader.GetDisplayName())
+                Else
+                    Core.DebugMsg("Battle: WARNING — QuestTargetAlias is None, cannot place marker on leader")
+                EndIf
+            EndIf
+        EndIf
+    EndIf
+
+    ; Show notifications
+    If playerJoined && notification != ""
+        Debug.Notification(notification)
+    EndIf
+
+    CurrentWave = 1
+    IntelEngine.AdvanceBattleWave()
+
+    Core.DebugMsg("Battle: C++ spawned " + sideASpawned + " vs " + sideBSpawned + ", " + paired + " combat pairs")
+
+    ; Kick-start combat — soldiers need StartCombat to engage immediately
+    ForceInitialEngagement()
 
     ShowBattleStartNotification(BattleLocationName)
 
-    ; Spawn vanguard wave (wave 1) at rally points — soldiers march toward center
-    SpawnWave(1)
-
-    ; Check if player should auto-join based on faction standing
-    EvaluatePlayerJoin()
-
-    ; Start polling
+    ; Start polling for state updates / wave spawns
     RegisterForSingleUpdate(PollInterval)
 EndFunction
+
+; (ApplyBattleFactions removed — C++ handles faction assignment, Papyrus soldier loop handles positioning)
 
 ; =============================================================================
 ; SPAWNING — MID-BATTLE (player arrived late)
@@ -427,6 +584,9 @@ Function SpawnMidBattle()
     ; Spawn near center instead of at rally — they've already marched
     SpawnSoldiersAtMarker(BattleFactionA, CenterMarker, soldiersPerSide, true)
     SpawnSoldiersAtMarker(BattleFactionB, CenterMarker, soldiersPerSide, false)
+
+    ; Kick-start combat — soldiers are at the same marker, need StartCombat to engage
+    ForceInitialEngagement()
 
     ; Apply simulated morale loss
     IntelEngine.AdjustBattleMorale(BattleFactionA, -moraleLoss)
@@ -534,57 +694,67 @@ EndFunction
 ; =============================================================================
 
 Function SpawnWave(Int waveNum)
+    ; Fully C++ wave spawning — handles factions, aggression, combat pairs, crime factions
+    Actor player = Game.GetPlayer()
     Int count = GetWaveSoldierCount(waveNum)
-    Core.DebugMsg("Battle: Spawning wave " + waveNum + " — " + count + " soldiers per side")
 
-    ; Spawn at rally points — soldiers will march toward center
-    SpawnSoldiersAtMarker(BattleFactionA, RallyMarkerA, count, true)
-    SpawnSoldiersAtMarker(BattleFactionB, RallyMarkerB, count, false)
+    Core.DebugMsg("Battle: Spawning wave " + waveNum + " — " + count + " soldiers per side (C++)")
+
+    ; Reinforcements: announce BEFORE spawn so player looks around
+    If waveNum > 1
+        String waveType = "wave" + waveNum
+        Debug.Notification(IntelEngine.GetBattleNotification(waveType, "", "", false))
+    EndIf
+
+    ; C++ handles everything: spawn, faction, aggression, combat pairs, crime faction removal
+    ; Spawn at battle anchor (quest location) so reinforcements arrive at the fight, not the player
+    ObjectReference anchor = BattleSpawnAnchor
+    If anchor == None
+        anchor = CenterMarker
+    EndIf
+    String resultJson = IntelEngine.SpawnReinforcements(count, player, anchor)
+    Bool success = IntelEngine.StoryResponseGetField(resultJson, "success") == "true"
+
+    If !success
+        Core.DebugMsg("Battle: SpawnReinforcements FAILED: " + IntelEngine.StoryResponseGetField(resultJson, "error"))
+        CurrentWave = waveNum
+        IntelEngine.AdvanceBattleWave()
+        return
+    EndIf
+
+    Int sideASpawned = IntelEngine.StoryResponseGetField(resultJson, "sideACount") as Int
+    Int sideBSpawned = IntelEngine.StoryResponseGetField(resultJson, "sideBCount") as Int
+    String playerSide = IntelEngine.StoryResponseGetField(resultJson, "playerSide")
+
+    ; SetPlayerTeammate handled by C++ SpawnReinforcements (SetActorPlayerTeammate).
+    ; Old Papyrus loop removed — Game.GetForm() fails for 0xFF-prefix FormIDs.
+    Core.DebugMsg("Battle: Wave " + waveNum + " — " + sideASpawned + " vs " + sideBSpawned + " (teammates set by C++)")
 
     CurrentWave = waveNum
     IntelEngine.AdvanceBattleWave()
 
-    ; Wave notification (non-LLM — visual feedback only, randomized for replay variety)
-    Utility.Wait(1.5 + Utility.RandomFloat(0.0, 1.5))
-    Int variant = Utility.RandomInt(0, 2)
+    ; Wave 1 notification fires AFTER spawn
     If waveNum == 1
-        If variant == 0
-            Debug.Notification("The vanguard charges forward.")
-        ElseIf variant == 1
-            Debug.Notification("The first wave advances into position.")
-        Else
-            Debug.Notification("Soldiers pour onto the battlefield.")
-        EndIf
-    ElseIf waveNum == 2
-        If variant == 0
-            Debug.Notification("Reinforcements arrive from the flanks.")
-        ElseIf variant == 1
-            Debug.Notification("Fresh soldiers pour into the fray.")
-        Else
-            Debug.Notification("A horn sounds — more troops advance.")
-        EndIf
-    ElseIf waveNum == 3
-        If variant == 0
-            Debug.Notification("The reserves commit to the final push.")
-        ElseIf variant == 1
-            Debug.Notification("The last of the reserves march forward.")
-        Else
-            Debug.Notification("Every remaining soldier enters the battle.")
-        EndIf
+        Utility.Wait(1.5 + Utility.RandomFloat(0.0, 1.5))
+        Debug.Notification(IntelEngine.GetBattleNotification("wave1", "", "", false))
     EndIf
 EndFunction
 
 Int Function GetWaveSoldierCount(Int waveNum)
     ; Total across all waves MUST NOT exceed MaxSoldiersPerSide (22) / Actor array size.
-    ; 10+7+5 = 22.
+    ; 6+5+4+4+3 = 22. Five waves for a prolonged war-like battle.
     If waveNum == 1
-        return 10  ; vanguard
+        return 6   ; vanguard
     ElseIf waveNum == 2
-        return 7   ; reinforcements
+        return 5   ; first reinforcements
     ElseIf waveNum == 3
-        return 5   ; reserves + leader
+        return 4   ; second reinforcements
+    ElseIf waveNum == 4
+        return 4   ; reserves
+    ElseIf waveNum == 5
+        return 3   ; last stand
     EndIf
-    return 5
+    return 3
 EndFunction
 
 Function SpawnSoldiersAtMarker(String factionId, ObjectReference marker, Int count, Bool isSideA)
@@ -593,13 +763,13 @@ Function SpawnSoldiersAtMarker(String factionId, ObjectReference marker, Int cou
         return
     EndIf
 
-    ; Cap total soldiers per side
-    Int currentCount = 0
-    If isSideA
-        currentCount = SideACount
-    Else
-        currentCount = SideBCount
+    ; Cap total soldiers per side (query C++ for current count)
+    String sideKey = "A"
+    If !isSideA
+        sideKey = "B"
     EndIf
+    String sideJson = IntelEngine.GetBattleSoldierFormIds(sideKey)
+    Int currentCount = IntelEngine.StoryResponseGetField(sideJson, "count") as Int
     If currentCount + count > MaxSoldiersPerSide
         count = MaxSoldiersPerSide - currentCount
     EndIf
@@ -620,40 +790,37 @@ Function SpawnSoldiersAtMarker(String factionId, ObjectReference marker, Int cou
         Actor soldier = soldiers[i]
         If soldier
 
-            ; Spread offset from spawn point so they don't stack
-            Float offsetX = Utility.RandomFloat(-200.0, 200.0)
-            Float offsetY = Utility.RandomFloat(-200.0, 200.0)
+            ; Spread soldiers around the rally marker — MoveTo snaps Z to terrain
+            Float offsetX = Utility.RandomFloat(-150.0, 150.0)
+            Float offsetY = Utility.RandomFloat(-150.0, 150.0)
             soldier.MoveTo(marker, offsetX, offsetY, 0.0)
 
-            ; Add to battle faction for hostility
+            ; Aggressive + Foolhardy — only attacks faction enemies (not civilians/guards).
+            ; At 300 units apart (SpawnDistance=150 per side), StartCombat on ALL pairs
+            ; in ForceInitialEngagement guarantees immediate engagement without needing
+            ; Very Aggressive (which would attack civilians).
             soldier.AddToFaction(battleFaction)
-            soldier.SetActorValue("Aggression", 1.0)
-            soldier.SetActorValue("Confidence", 3.0)
+            soldier.SetActorValue("Aggression", 1.0)  ; Aggressive — attacks faction enemies only
+            soldier.SetActorValue("Confidence", 4.0)  ; Foolhardy — never flees
 
             ; Register with C++ BattleManager (tier 0 = generic soldier)
+            ; C++ tracks all actors for cleanup — no Papyrus arrays needed
             IntelEngine.RegisterBattleActor(soldier, factionId, 0)
 
-            ; Store reference for cleanup
-            If isSideA
-                If SideACount < SideAActors.Length
-                    SideAActors[SideACount] = soldier
-                    SideACount += 1
-                EndIf
-            Else
-                If SideBCount < SideBActors.Length
-                    SideBActors[SideBCount] = soldier
-                    SideBCount += 1
-                EndIf
-            EndIf
+            ; kPlayerTeammate NOT set — causes cascade (allies defend player against
+            ; retaliating ally → infighting → guards join). Battle faction handles it.
 
-            ; March toward center (combat AI takes over when they detect enemies)
+            ; Charge toward center marker (500 units ahead of player, on navmesh).
+            ; Soldiers spawn 600 units BEHIND the player, so they run ~1100 units
+            ; forward past the player toward the fight. StartCombat in
+            ; ForceInitialEngagement ensures they engage when they meet.
             If CenterMarker
-                soldier.PathToReference(CenterMarker, 1)
+                soldier.PathToReference(CenterMarker, 0)  ; 0 = run, not walk
             EndIf
 
-            ; Stagger spawns so soldiers stream in rather than all popping at once
+            ; Stagger every 2 soldiers with variance for natural stream-in
             If i > 0 && i % 2 == 0
-                Utility.Wait(0.3)
+                Utility.Wait(0.15 + Utility.RandomFloat(0.0, 0.15))
             EndIf
         EndIf
         i += 1
@@ -667,35 +834,29 @@ EndFunction
 ; =============================================================================
 
 Function EvaluatePlayerJoin()
-    ; Check player standing with both factions to determine if they auto-join
-    ; Standing >= 20 with exactly ONE side: auto-join that side
-    ; Standing >= 20 with both: remain spectator (Phase 4 dialogue prompt decides)
-    ; Standing < 20 with both: spectator
+    ; C++ handles all standing logic and join decision
+    String resultJson = IntelEngine.EvaluatePlayerJoinBattle(QuestAutoJoinFaction)
+    QuestAutoJoinFaction = ""
 
-    Int standingA = IntelEngine.GetPlayerFactionStanding(BattleFactionA)
-    Int standingB = IntelEngine.GetPlayerFactionStanding(BattleFactionB)
-
-    Core.DebugMsg("Battle: Player standing — " + BattleFactionA + "=" + standingA + ", " + BattleFactionB + "=" + standingB)
-
-    String joinSide = ""
-    If standingA >= AutoJoinStandingThreshold && standingB >= AutoJoinStandingThreshold
-        ; Positive with both — stay neutral, Phase 4 lets factions ask the player via dialogue
-        Core.DebugMsg("Battle: Player has standing with both sides — remaining spectator until asked")
-    ElseIf standingA >= AutoJoinStandingThreshold
-        joinSide = BattleFactionA
-    ElseIf standingB >= AutoJoinStandingThreshold
-        joinSide = BattleFactionB
+    Bool shouldJoin = IntelEngine.StoryResponseGetField(resultJson, "shouldJoin") == "true"
+    If !shouldJoin
+        Core.DebugMsg("Battle: Player is a spectator")
+        return
     EndIf
 
-    If joinSide != ""
-        ; Recognition beat — let the player process before committing
-        String displayName = IntelEngine.GetFactionDisplayName(joinSide)
+    String joinFaction = IntelEngine.StoryResponseGetField(resultJson, "joinFaction")
+    String displayName = IntelEngine.StoryResponseGetField(resultJson, "displayName")
+    Bool isQuestJoin = IntelEngine.StoryResponseGetField(resultJson, "isQuestJoin") == "true"
+
+    If isQuestJoin
+        Debug.Notification("You join the " + displayName + " on the field.")
+        Utility.Wait(1.0)
+    Else
         Debug.Notification("The " + displayName + " soldiers recognize you as an ally.")
         Utility.Wait(2.0)
-        JoinBattleSide(joinSide)
-    Else
-        Core.DebugMsg("Battle: Player is a spectator")
     EndIf
+
+    JoinBattleSide(joinFaction)
 EndFunction
 
 Function JoinBattleSide(String factionId)
@@ -723,12 +884,18 @@ Function JoinBattleSide(String factionId)
 
     ; Add player to the correct ESP battle faction for hostility
     Actor player = Game.GetPlayer()
+    String side = "A"
     If factionId == BattleFactionA
         player.AddToFaction(Intel_BattleSideA)
-        ; Player is now allied with side A, hostile to side B (factions are enemies)
     Else
         player.AddToFaction(Intel_BattleSideB)
+        side = "B"
     EndIf
+
+    ; SetPlayerTeammate on existing soldiers is handled by C++ SetActorPlayerTeammate.
+    ; The old Papyrus loop failed for 0xFF-prefix FormIDs (Game.GetForm overflow).
+    ; C++ SetPlayerSide already sets teammates when called.
+    IntelEngine.SetBattleSoldiersAsTeammates(side)
 
     String displayName = IntelEngine.GetFactionDisplayName(factionId)
     Debug.Notification("You fight alongside the " + displayName + ".")
@@ -736,7 +903,9 @@ Function JoinBattleSide(String factionId)
 EndFunction
 
 Function RemovePlayerFromBattle()
-    ; Remove player from battle factions — called on battle end and cleanup
+    ; Remove player from battle factions only.
+    ; Crime faction removal/restoration is now quest-level (StoryEngine),
+    ; not battle-level — covers the entire quest duration.
     If PlayerBattleSide == ""
         return
     EndIf
@@ -750,6 +919,99 @@ Function RemovePlayerFromBattle()
 
     Core.DebugMsg("Battle: Player removed from battle factions")
     PlayerBattleSide = ""
+EndFunction
+
+; =============================================================================
+; COMBAT ENGAGEMENT
+; =============================================================================
+
+Function ForceInitialEngagement()
+    ; Query C++ for actor FormIDs — NO Papyrus arrays needed (immune to stale bytecode)
+    String jsonA = IntelEngine.GetBattleSoldierFormIds("A")
+    String jsonB = IntelEngine.GetBattleSoldierFormIds("B")
+    Int countA = IntelEngine.StoryResponseGetField(jsonA, "count") as Int
+    Int countB = IntelEngine.StoryResponseGetField(jsonB, "count") as Int
+
+    Int engageCount = countA
+    If countB < engageCount
+        engageCount = countB
+    EndIf
+
+    Int paired = 0
+    Int i = 0
+    While i < engageCount
+        Int formIdA = IntelEngine.GetJsonArrayInt(jsonA, "formIds", i)
+        Int formIdB = IntelEngine.GetJsonArrayInt(jsonB, "formIds", i)
+        Actor soldierA = Game.GetForm(formIdA) as Actor
+        Actor soldierB = Game.GetForm(formIdB) as Actor
+        If soldierA && soldierB && !soldierA.IsDead() && !soldierB.IsDead()
+            soldierA.StartCombat(soldierB)
+            soldierB.StartCombat(soldierA)
+            paired += 1
+        EndIf
+        i += 1
+    EndWhile
+    Core.DebugMsg("Battle: Kick-started " + paired + "/" + engageCount + " combat pairs, " + countA + " vs " + countB)
+EndFunction
+
+; =============================================================================
+; BOUNTY SUPPRESSION
+; =============================================================================
+
+; CacheCrimeFactions — REMOVED. Bounty management moved entirely to C++.
+; C++ SnapshotBounties() is called from ExecuteFullBattleSpawn automatically.
+
+; ClearBattleBounty — REMOVED. Bounty prevention handled at spawn time by C++ crime faction removal.
+; RestorePreBattleBounties — REMOVED. No-op since crime faction removal is permanent on spawned soldiers.
+
+; =============================================================================
+; POST-BATTLE
+; =============================================================================
+
+Function PostBattleSoldierMoment(String playerFaction, String victorName, Bool playerWon)
+    ; Find a surviving ally via C++ actor list (no Papyrus arrays)
+    String side = "A"
+    If playerFaction != BattleFactionA
+        side = "B"
+    EndIf
+    String json = IntelEngine.GetBattleSoldierFormIds(side)
+    Int count = IntelEngine.StoryResponseGetField(json, "count") as Int
+    Actor survivor = None
+    Int i = 0
+    While i < count && !survivor
+        Int formId = IntelEngine.GetJsonArrayInt(json, "formIds", i)
+        Actor soldier = Game.GetForm(formId) as Actor
+        If soldier && !soldier.IsDead()
+            survivor = soldier
+        EndIf
+        i += 1
+    EndWhile
+    If !survivor
+        ; C++ generates the no-survivor notification text
+        String noSurvivorType = "no_survivor_win"
+        If !playerWon
+            noSurvivorType = "no_survivor_loss"
+        EndIf
+        Debug.Notification(IntelEngine.GetBattleNotification(noSurvivorType, "", "", false))
+        return
+    EndIf
+    ; Survivor walks toward player — weary pace (engine operations)
+    Actor player = Game.GetPlayer()
+    survivor.SetActorValue("SpeedMult", 70.0)
+    survivor.PathToReference(player, 1)
+    Float waitTime = 0.0
+    While waitTime < 8.0 && survivor.GetDistance(player) > 200.0
+        Utility.Wait(1.0)
+        waitTime += 1.0
+    EndWhile
+    ; C++ generates the soldier dialogue text
+    String dialogueType = "soldier_victory"
+    If !playerWon
+        dialogueType = "soldier_defeat"
+    EndIf
+    Debug.Notification("\"" + IntelEngine.GetBattleNotification(dialogueType, "", victorName, playerWon) + "\"")
+    survivor.SetActorValue("SpeedMult", 100.0)
+    Core.DebugMsg("Battle: Post-battle soldier moment — " + survivor.GetDisplayName())
 EndFunction
 
 ; =============================================================================
@@ -768,7 +1030,7 @@ Function HandlePollResult(String stateJson)
         Bool shouldSpawnB = IntelEngine.StoryResponseGetField(stateJson, "should_spawn_wave_b") == "true"
 
         Int cppWave = IntelEngine.GetBattleCurrentWave()
-        If (shouldSpawnA || shouldSpawnB) && cppWave < 3
+        If (shouldSpawnA || shouldSpawnB) && cppWave < 5
             SpawnWave(cppWave + 1)
         EndIf
     EndIf
@@ -789,232 +1051,79 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
     ; Stop polling immediately to prevent race with OnUpdate
     UnregisterForUpdate()
 
-    ; Capture player side before it's cleared
-    String playerSideWas = PlayerBattleSide
+    ; Count casualties via C++ (no Papyrus arrays needed)
+    Int lossesA = IntelEngine.CountDeadBattleSoldiers("A")
+    Int lossesB = IntelEngine.CountDeadBattleSoldiers("B")
 
-    ; Apply kill-based standing penalties (player killed soldiers from a faction)
-    Int playerKillsA = IntelEngine.StoryResponseGetField(stateJson, "player_kills_a") as Int
-    Int playerKillsB = IntelEngine.StoryResponseGetField(stateJson, "player_kills_b") as Int
-    ApplyPlayerKillStanding(playerKillsA, playerKillsB)
+    ; C++ handles ALL game logic: standings, narrative, political events, witness facts, end battle
+    ; MUST run BEFORE RemovePlayerFromBattle — FinalizeBattle reads playerSide to award standing.
+    String resultJson = IntelEngine.FinalizeBattle(ActiveBattleId, result, victor, \
+        lossesA, lossesB, BattleLocationName, Utility.GetCurrentGameTime())
 
-    ; Apply player standing changes BEFORE ending battle (so IsBattleFaction still works)
-    ApplyPostBattleStanding(victor)
+    ; Do NOT remove player from battle factions here — soldiers are still alive during
+    ; deferred cleanup. Removing the player from the faction makes stray-hit soldiers
+    ; hostile again. RemovePlayerFromBattle is called when cleanup finishes (OnUpdate Phase 0).
 
-    ; Remove player from battle factions
-    RemovePlayerFromBattle()
+    ; Parse C++ result for engine-only operations (notifications, soldier moment, cleanup)
+    String playerSideWas = IntelEngine.StoryResponseGetField(resultJson, "playerSideWas")
+    Bool playerWon = IntelEngine.StoryResponseGetField(resultJson, "playerWon") == "true"
+    String notification = IntelEngine.StoryResponseGetField(resultJson, "notification")
+    String spectatorNotif = IntelEngine.StoryResponseGetField(resultJson, "spectatorNotification")
+    String witnessFact = IntelEngine.StoryResponseGetField(resultJson, "witnessFact")
 
-    ; End in C++
-    IntelEngine.EndBattle(ActiveBattleId, result, victor)
-
-    ; Record as off-screen battle in DB for political consequences
-    String victorName = IntelEngine.GetFactionDisplayName(victor)
-    String loser = BattleFactionA
-    If victor == BattleFactionA
-        loser = BattleFactionB
+    ; Inject witness memories (requires Papyrus Actor handles for SkyrimNet API)
+    If witnessFact != ""
+        Actor player = Game.GetPlayer()
+        Actor[] witnesses = IntelEngine.GetNearbyWitnessNPCs(player, 5000.0)
+        Int i = 0
+        While i < witnesses.Length
+            If witnesses[i] != None
+                Core.InjectFact(witnesses[i], witnessFact)
+            EndIf
+            i += 1
+        EndWhile
     EndIf
-    String loserName = IntelEngine.GetFactionDisplayName(loser)
 
-    ; Count casualties
-    Int lossesA = CountDeadInArray(SideAActors, SideACount)
-    Int lossesB = CountDeadInArray(SideBActors, SideBCount)
+    ; Brief silence between last sword strike and announcement
+    Utility.Wait(2.0 + Utility.RandomFloat(0.0, 1.5))
 
-    ; Record in political DB — use ambiguous player identity so the player can deny involvement.
-    ; NPCs weren't necessarily there; reports are secondhand, deniable.
-    String playerName = Game.GetPlayer().GetDisplayName()
-    String playerDesc = "someone matching the description of " + playerName
-    String narrative = victorName + " defeated " + loserName + " at " + BattleLocationName
+    ; Notifications (engine-only: Debug.Notification)
+    If notification != ""
+        Debug.Notification(notification)
+    EndIf
+    If spectatorNotif != ""
+        Utility.Wait(1.5)
+        Debug.Notification(spectatorNotif)
+    EndIf
+
+    ; Post-battle soldier moment (engine-only: PathToReference, GetDistance)
     If playerSideWas != ""
-        narrative += ". " + playerDesc + " was seen fighting for " + IntelEngine.GetFactionDisplayName(playerSideWas)
-        Int playerTotalKills = playerKillsA + playerKillsB
-        If playerTotalKills > 0
-            narrative += " and reportedly killed " + playerTotalKills + " soldiers"
-        EndIf
-    EndIf
-    IntelEngine.RecordOffScreenBattle(BattleFactionA, BattleFactionB, BattleLocationName, \
-        result, narrative, lossesA, lossesB, victor)
-
-    ; Record player kill events as political events so factions track what the player did.
-    ; Delta is 0 — standing was already adjusted by ApplyPlayerKillStanding above.
-    ; Identity kept ambiguous — "someone resembling" allows player deniability.
-    Float gameTime = Utility.GetCurrentGameTime()
-    If playerKillsA > 0
-        String killDescA = playerDesc + " reportedly killed " + playerKillsA + " " + IntelEngine.GetFactionDisplayName(BattleFactionA) + " soldiers during the battle at " + BattleLocationName
-        IntelEngine.RecordPoliticalEvent(BattleFactionA, "", "player_combat", killDescA, 0, gameTime)
-    EndIf
-    If playerKillsB > 0
-        String killDescB = playerDesc + " reportedly killed " + playerKillsB + " " + IntelEngine.GetFactionDisplayName(BattleFactionB) + " soldiers during the battle at " + BattleLocationName
-        IntelEngine.RecordPoliticalEvent(BattleFactionB, "", "player_combat", killDescB, 0, gameTime)
+        String victorName = IntelEngine.StoryResponseGetField(resultJson, "victorName")
+        PostBattleSoldierMoment(playerSideWas, victorName, playerWon)
     EndIf
 
-    ; Inject battle memories into nearby named NPCs who witnessed the fight
-    InjectBattleWitnessMemories(victorName, loserName, lossesA + lossesB, playerSideWas, playerKillsA + playerKillsB)
-
-    ; Victory/defeat notification (non-LLM — avoids triggering evaluation cycle)
-    If playerSideWas == victor
-        Debug.Notification("The " + victorName + " banner stands over " + BattleLocationName + ". The battle is yours.")
-    ElseIf playerSideWas != ""
-        Debug.Notification("The field is lost. " + victorName + " forces hold " + BattleLocationName + ".")
-    Else
-        Debug.Notification("The fighting ends. " + victorName + " banners now fly over " + BattleLocationName + ".")
-    EndIf
-
-    ; Cleanup all remaining actors after a randomized delay (avoids mechanical feel)
-    Utility.Wait(8.0 + Utility.RandomFloat(0.0, 5.0))
-    CleanupAllActors()
-    CleanupMarkers()
-    ResetState()
+    ; Deferred cleanup — soldiers stay until player leaves
+    DeferredCleanupActive = true
+    DeferredCleanupStart = Utility.GetCurrentRealTime()
+    RegisterForSingleUpdate(PollInterval)
 EndFunction
 
-Function ApplyPlayerKillStanding(Int killsA, Int killsB)
-    ; Penalize standing with factions whose soldiers the player killed.
-    ; Killing your OWN side's soldiers still penalizes — friendly fire isn't free.
-    If killsA > 0
-        Int penaltyA = killsA * KillStandingPenaltyPerSoldier
-        IntelEngine.AdjustPlayerFactionStanding(BattleFactionA, penaltyA)
-        Core.DebugMsg("Battle: Player killed " + killsA + " " + BattleFactionA + " soldiers (" + penaltyA + " standing)")
-    EndIf
-    If killsB > 0
-        Int penaltyB = killsB * KillStandingPenaltyPerSoldier
-        IntelEngine.AdjustPlayerFactionStanding(BattleFactionB, penaltyB)
-        Core.DebugMsg("Battle: Player killed " + killsB + " " + BattleFactionB + " soldiers (" + penaltyB + " standing)")
-    EndIf
-EndFunction
+; ApplyPlayerKillStanding, ApplyPostBattleStanding, ApplySpectatorConsequences,
+; InjectBattleWitnessMemories — ALL moved to C++ FinalizeBattle. Deleted.
 
-Function ApplyPostBattleStanding(String victor)
-    If victor == ""
-        return
-    EndIf
-
-    ; Spectator consequences — player was present but chose not to fight
-    If PlayerBattleSide == ""
-        ApplySpectatorConsequences(victor)
-        return
-    EndIf
-
-    String enemy = GetEnemyFaction()
-    Bool playerWon = (PlayerBattleSide == victor)
-
-    If playerWon
-        IntelEngine.AdjustPlayerFactionStanding(PlayerBattleSide, VictoryAllyBonus)
-        IntelEngine.AdjustPlayerFactionStanding(enemy, VictoryEnemyPenalty)
-        Debug.Notification("The " + IntelEngine.GetFactionDisplayName(PlayerBattleSide) + " honored your valor on the battlefield.")
-        Core.DebugMsg("Battle: Player victory — +" + VictoryAllyBonus + " " + PlayerBattleSide + ", " + VictoryEnemyPenalty + " " + enemy)
-    Else
-        IntelEngine.AdjustPlayerFactionStanding(PlayerBattleSide, DefeatAllyBonus)
-        IntelEngine.AdjustPlayerFactionStanding(enemy, DefeatEnemyPenalty)
-        Core.DebugMsg("Battle: Player defeat — +" + DefeatAllyBonus + " " + PlayerBattleSide + ", " + DefeatEnemyPenalty + " " + enemy)
-    EndIf
-
-    ; Update political state file so NPCs see new standings
-    IntelEngine.WritePoliticalStateFile()
-EndFunction
-
-Function ApplySpectatorConsequences(String victor)
-    ; Player watched the battle without joining — both sides notice
-    ; Only penalize factions the player has meaningful standing with
-    ; If standing >= join threshold with BOTH sides, no penalty — player was correctly
-    ; held as neutral (Phase 4 dialogue decides). Penalizing before being asked is unfair.
-
-    Int standingA = IntelEngine.GetPlayerFactionStanding(BattleFactionA)
-    Int standingB = IntelEngine.GetPlayerFactionStanding(BattleFactionB)
-
-    ; Skip penalty when player was deliberately neutral (high standing with both)
-    If standingA >= AutoJoinStandingThreshold && standingB >= AutoJoinStandingThreshold
-        Core.DebugMsg("Battle: Spectator — no penalty (standing with both sides, awaiting Phase 4 recruitment)")
-        return
-    EndIf
-
-    Bool penalized = false
-
-    If standingA >= SpectatorPenaltyThreshold
-        IntelEngine.AdjustPlayerFactionStanding(BattleFactionA, SpectatorPenalty)
-        Core.DebugMsg("Battle: Spectator penalty — " + SpectatorPenalty + " " + BattleFactionA + " (had standing " + standingA + ")")
-        penalized = true
-    EndIf
-
-    If standingB >= SpectatorPenaltyThreshold
-        IntelEngine.AdjustPlayerFactionStanding(BattleFactionB, SpectatorPenalty)
-        Core.DebugMsg("Battle: Spectator penalty — " + SpectatorPenalty + " " + BattleFactionB + " (had standing " + standingB + ")")
-        penalized = true
-    EndIf
-
-    If penalized
-        Debug.Notification("Your inaction has not gone unnoticed.")
-        IntelEngine.WritePoliticalStateFile()
-    EndIf
-EndFunction
-
-Function InjectBattleWitnessMemories(String victorName, String loserName, Int totalCasualties, String playerSide, Int playerKills)
-    ; Find named NPCs near the battle who witnessed the fighting
-    Actor player = Game.GetPlayer()
-    Actor[] witnesses = IntelEngine.GetNearbyWitnessNPCs(player, 5000.0)
-
-    If witnesses.Length == 0
-        Core.DebugMsg("Battle: No nearby witness NPCs found for memory injection")
-        return
-    EndIf
-
-    ; Build fact text — past tense, factual, no emotion (let LLM decide feelings)
-    String fact = "witnessed a battle between " + victorName + " and " + loserName + " forces at " + BattleLocationName + ". " + victorName + " prevailed"
-    If totalCasualties > 0
-        fact += " with " + totalCasualties + " casualties"
-    EndIf
-    If playerSide != ""
-        fact += ". someone resembling " + player.GetDisplayName() + " was seen fighting for " + IntelEngine.GetFactionDisplayName(playerSide)
-        If playerKills > 0
-            fact += " and appeared to have killed " + playerKills + " enemy soldiers"
-        EndIf
-    EndIf
-
-    Int injected = 0
-    Int i = 0
-    While i < witnesses.Length
-        If witnesses[i] != None
-            Core.InjectFact(witnesses[i], fact)
-            injected += 1
-        EndIf
-        i += 1
-    EndWhile
-
-    Core.DebugMsg("Battle: Injected battle witness memories into " + injected + " nearby NPCs")
-EndFunction
-
-Int Function CountDeadInArray(Actor[] arr, Int count)
-    Int dead = 0
-    Int i = 0
-    While i < count
-        If !arr[i] || arr[i].IsDead()
-            dead += 1
-        EndIf
-        i += 1
-    EndWhile
-    return dead
-EndFunction
+; CountDeadInArray — REMOVED. Superseded by C++ IntelEngine.CountDeadBattleSoldiers()
+; CleanupActorsByProximity — REMOVED. Superseded by C++ IntelEngine.CleanupBattleSoldiers()
 
 ; =============================================================================
 ; CLEANUP
 ; =============================================================================
 
 Function CleanupAllActors()
-    CleanupActorArray(SideAActors, SideACount)
-    CleanupActorArray(SideBActors, SideBCount)
+    ; Delegated entirely to C++ — no Papyrus arrays needed
+    IntelEngine.ForceCleanupAllSoldiers()
 EndFunction
 
-Function CleanupActorArray(Actor[] arr, Int count)
-    Int i = 0
-    While i < count
-        If arr[i]
-            arr[i].DisableNoWait()
-            arr[i].Delete()
-            arr[i] = None
-        EndIf
-        ; Stagger cleanup so bodies fade in a wave, not all at once
-        If i % 3 == 2
-            Utility.Wait(0.3)
-        EndIf
-        i += 1
-    EndWhile
-EndFunction
+; CleanupActorArray — REMOVED. C++ ForceCleanupAllSoldiers handles all cleanup.
 
 Function CleanupMarkers()
     If CenterMarker
@@ -1035,6 +1144,9 @@ Function CleanupMarkers()
 EndFunction
 
 Function ResetState()
+    ; Always reset C++ state first — prevents "battle system busy" blocking all systems
+    IntelEngine.ResetBattleState()
+
     BattleFactionA = ""
     BattleFactionB = ""
     BattleWarId = 0
@@ -1043,11 +1155,23 @@ Function ResetState()
     BattleSpawned = false
     ActiveBattleId = -1
     BattleLocationName = ""
-    SideACount = 0
-    SideBCount = 0
+    BattleSpawnAnchor = None
     CurrentWave = 0
     ActualBattleStartTime = 0.0
+    BattleStartRealTime = 0.0
     PlayerBattleSide = ""
+    QuestAutoJoinFaction = ""
+    ; Revert battle leader's Protected flag and SpeedMult
+    If BattleLeader != None
+        BattleLeader.SetActorValue("SpeedMult", 100.0)
+        If !BattleLeaderWasEssential
+            IntelEngine.SetActorProtected(BattleLeader, false)
+        EndIf
+        BattleLeader = None
+        BattleLeaderWasEssential = false
+    EndIf
+    DeferredCleanupActive = false
+    DeferredCleanupStart = 0.0
     UnregisterForUpdate()
     UnregisterForUpdateGameTime()
 EndFunction
@@ -1057,9 +1181,13 @@ EndFunction
 ; =============================================================================
 
 Function ManifestEvent(String manifestJson)
-    ; Guard: no active battle or manifestation, player must be in exterior
+    ; Guard: no active battle, manifestation, or faction ambush; player must be in exterior
     If IntelEngine.IsBattleActive() || ManifestActive
         Core.DebugMsg("Battle: Cannot manifest — battle or manifestation already active")
+        return
+    EndIf
+    If Core != None && Core.StoryEngine != None && Core.StoryEngine.FactionAmbushActive
+        Core.DebugMsg("Battle: Cannot manifest — faction ambush already active")
         return
     EndIf
     If !IsPlayerInExterior()
@@ -1272,13 +1400,7 @@ EndFunction
 ; UTILITY
 ; =============================================================================
 
-String Function GetEnemyFaction()
-    ; Returns the faction opposing the player's battle side
-    If PlayerBattleSide == BattleFactionA
-        return BattleFactionB
-    EndIf
-    return BattleFactionA
-EndFunction
+; GetEnemyFaction — moved to C++ BattleManager. Deleted.
 
 Bool Function IsPlayerInExterior()
     ; GetParentCell is safe for the player — they're always in a loaded cell
@@ -1293,11 +1415,11 @@ EndFunction
 Function ShowBattleStartNotification(String locationName)
     Int startMsg = Utility.RandomInt(0, 2)
     If startMsg == 0
-        Debug.Notification("War drums echo across " + locationName + ". Two armies approach.")
+        Debug.Notification("Soldiers clash near " + locationName + ".")
     ElseIf startMsg == 1
-        Debug.Notification("The clash of arms erupts near " + locationName + ".")
+        Debug.Notification("A skirmish breaks out at " + locationName + ".")
     Else
-        Debug.Notification("Battle standards are raised at " + locationName + ".")
+        Debug.Notification("Armed men trade blows near " + locationName + ".")
     EndIf
 EndFunction
 

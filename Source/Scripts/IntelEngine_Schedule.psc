@@ -78,6 +78,14 @@ Function RestartMonitoring()
         InitializeScheduleArrays()
     EndIf
 
+    ; Safety: if arrays still None after init attempt (shouldn't happen), bail
+    If ScheduledAgents == None
+        Core.DebugMsg("Schedule: arrays still None after init — skipping recount")
+        ScheduledCount = 0
+        RegisterForNextDispatch()
+        return
+    EndIf
+
     ; Re-count from arrays — ScheduledCount can desync on reload
     Int count = 0
     Int i = 0
@@ -122,7 +130,7 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     EndIf
 
     ; Shared scheduling scaffolding: time parse ? MCM confirm ? override ? allocate
-    Int slot = PrepareScheduleSlot(akNPC, "travel", "meet at " + destination, timeCondition)
+    Int slot = PrepareScheduleSlot(akNPC, "travel", "meet at " + destination, timeCondition, "ScheduleMeeting")
     If slot < 0
         Return false
     EndIf
@@ -170,10 +178,9 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledDepartureHours", travelHoursEstimate)
     Core.DebugMsg("Departure buffer for " + akNPC.GetDisplayName() + ": " + travelHoursEstimate + "h (meeting in " + hoursUntilMeeting + "h)")
 
-    Float hoursUntil = (meetingGameTime - currentGameTime) * 24.0
-    String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
+    String timeDesc = GetPreciseTimeDescription(targetHour)
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will meet you at " + destination + " " + timeDesc)
-    Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", in " + hoursUntil + "h, condition='" + timeCondition + "')")
+    Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", condition='" + timeCondition + "')")
 
     RegisterForNextDispatch()
     Return true
@@ -194,7 +201,7 @@ Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition
         Return false
     EndIf
 
-    Int slot = PrepareScheduleSlot(akNPC, "fetch_npc", "fetch " + targetName, timeCondition)
+    Int slot = PrepareScheduleSlot(akNPC, "fetch_npc", "fetch " + targetName, timeCondition, "ScheduleFetch")
     If slot < 0
         Return false
     EndIf
@@ -205,8 +212,7 @@ Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition
     ScheduledTargetNames[slot] = targetName
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledTargetName", targetName)
 
-    Float hoursUntil = (ScheduledTimes[slot] - Utility.GetCurrentGameTime()) * 24.0
-    String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
+    String timeDesc = GetPreciseTimeDescription(targetHour)
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will fetch " + targetName + " " + timeDesc)
     Core.DebugMsg("Scheduled fetch: " + akNPC.GetDisplayName() + " ? fetch " + targetName + " at game time " + ScheduledTimes[slot])
 
@@ -227,7 +233,7 @@ Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent
         Return false
     EndIf
 
-    Int slot = PrepareScheduleSlot(akNPC, "deliver_message", "deliver a message to " + targetName, timeCondition)
+    Int slot = PrepareScheduleSlot(akNPC, "deliver_message", "deliver a message to " + targetName, timeCondition, "ScheduleDelivery")
     If slot < 0
         Return false
     EndIf
@@ -244,8 +250,7 @@ Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetLocation", meetLocation)
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetTime", meetTime)
 
-    Float hoursUntil = (ScheduledTimes[slot] - Utility.GetCurrentGameTime()) * 24.0
-    String timeDesc = GetPreciseTimeDescription(targetHour, hoursUntil)
+    String timeDesc = GetPreciseTimeDescription(targetHour)
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will deliver message to " + targetName + " " + timeDesc)
     Core.DebugMsg("Scheduled delivery: " + akNPC.GetDisplayName() + " ? message to " + targetName + " at game time " + ScheduledTimes[slot])
 
@@ -264,8 +269,8 @@ EndFunction
 ; Callers then store task-specific data and notify the player.
 ; =============================================================================
 
-Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescription, String timeCondition)
-    {Shared scheduling setup. Handles time parsing, MCM confirmation, slot override,
+Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescription, String timeCondition, String scheduleActionName = "")
+    {Shared scheduling setup. Handles time parsing, per-action confirmation, slot override,
     and common data storage. Returns slot index or -1 on failure.
     After success, callers store task-specific data into ScheduledTargetNames,
     ScheduledMessages, etc. and call RegisterForSingleUpdateGameTime(0.5).}
@@ -278,22 +283,18 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     Float currentHour = GetCurrentGameHour()
     Float targetGameTime = IntelEngine.CalculateTargetGameTime(targetHour, currentHour)
 
-    ; MCM confirmation prompt ? BEFORE clearing any existing schedules
-    If StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt") == 1
-        String npcName = akNPC.GetDisplayName()
-        Float hoursPreview = (targetGameTime - Utility.GetCurrentGameTime()) * 24.0
-        String timePreview = GetPreciseTimeDescription(targetHour, hoursPreview)
-        String promptText = npcName + " wants to " + taskDescription + " " + timePreview + "."
-        String confirmResult = SkyMessage.Show(promptText, "Allow", "Deny", "Deny (Silent)")
-        If confirmResult == "Deny"
-            Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule that.")
-            Core.InjectFact(akNPC, "invited " + Game.GetPlayer().GetDisplayName() + " to " + taskDescription + " but was turned down")
-            Return -1
-        ElseIf confirmResult != "Allow"
-            ; Silent decline: inject fact (no narration) so LLM knows not to retry
-            Core.InjectFact(akNPC, "proposed to " + taskDescription + " but the plan fell through")
-            Return -1
-        EndIf
+    ; Per-action confirmation prompt — BEFORE clearing any existing schedules
+    String npcName = akNPC.GetDisplayName()
+    String timePreview = GetPreciseTimeDescription(targetHour)
+    String promptText = npcName + " wants to " + taskDescription + " " + timePreview + "."
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, promptText, scheduleActionName)
+    If confirmResult == 1
+        Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule that.")
+        Core.InjectFact(akNPC, "invited " + Game.GetPlayer().GetDisplayName() + " to " + taskDescription + " but was turned down")
+        Return -1
+    ElseIf confirmResult == 2
+        Core.InjectFact(akNPC, "proposed to " + taskDescription + " but the plan fell through")
+        Return -1
     EndIf
 
     ; Override any existing schedule for this NPC (after confirmation)
@@ -394,69 +395,14 @@ Float Function GetCurrentGameHour()
     Return dayFraction * 24.0
 EndFunction
 
-String Function GetPreciseTimeDescription(Float hour, Float hoursUntil)
-    {Get a precise human-readable description using both target hour and hours-until}
-
-    ; For very short waits, use relative description
-    If hoursUntil < 0.5
-        Return "very soon"
-    ElseIf hoursUntil < 1.5
-        Return "in about an hour"
-    ElseIf hoursUntil < 12.0
-        ; Short-to-medium wait ? show relative hours + time of day for clarity
-        Int roundedHours = hoursUntil as Int
-        If roundedHours < 1
-            roundedHours = 1
-        EndIf
-        Return "in about " + roundedHours + " hours (" + GetTimeDescription(hour) + ")"
-    ElseIf hoursUntil < 36.0
-        ; Could be today or tomorrow ? check if target crosses midnight
-        ; Derive current hour: currentHour = targetHour - hoursUntil, normalized to 0-24
-        Float currentHour = hour - hoursUntil
-        While currentHour < 0.0
-            currentHour += 24.0
-        EndWhile
-        While currentHour >= 24.0
-            currentHour -= 24.0
-        EndWhile
-        Float hoursToMidnight = 24.0 - currentHour
-        If hoursUntil < hoursToMidnight
-            ; Still today ? just show time of day (e.g., "tonight", "in the evening")
-            Return GetTimeDescription(hour)
-        EndIf
-        ; Tomorrow ? show time of day with "tomorrow" prefix
-        If hour >= 22.0 || hour < 5.0
-            Return "tomorrow at night"
-        EndIf
-        Return "tomorrow " + GetTimeDescription(hour)
-    EndIf
-
-    ; Far future ? just show time of day
-    Return GetTimeDescription(hour)
+String Function GetPreciseTimeDescription(Float hour)
+    ; C++ handles all time formatting logic (stale-bytecode-safe)
+    return IntelEngine.GetPreciseTimeDescription(hour, Utility.GetCurrentGameTime())
 EndFunction
 
 String Function GetTimeDescription(Float hour)
-    {Get human-readable time description}
-
-    If hour >= 5.0 && hour < 6.0
-        Return "at dawn"
-    ElseIf hour >= 6.0 && hour < 8.0
-        Return "at sunrise"
-    ElseIf hour >= 8.0 && hour < 12.0
-        Return "in the morning"
-    ElseIf hour >= 12.0 && hour < 14.0
-        Return "at midday"
-    ElseIf hour >= 14.0 && hour < 18.0
-        Return "in the afternoon"
-    ElseIf hour >= 18.0 && hour < 20.0
-        Return "in the evening"
-    ElseIf hour >= 20.0 && hour < 22.0
-        Return "at dusk"
-    ElseIf hour >= 22.0 || hour < 5.0
-        Return "tonight"
-    EndIf
-
-    Return "later"
+    ; C++ handles hour-to-description mapping
+    return IntelEngine.GetTimeDescription(hour)
 EndFunction
 
 ; =============================================================================

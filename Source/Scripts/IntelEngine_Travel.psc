@@ -183,7 +183,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
 
     ; MCM task confirmation prompt (skip for scheduled meetings - player already agreed)
     If !isScheduled
-        Int confirmResult = Core.ShowTaskConfirmation(akNPC, akNPC.GetDisplayName() + " wants to travel to " + destination + ".")
+        Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, akNPC.GetDisplayName() + " wants to travel to " + destination + ".", "GoToLocation")
         If confirmResult == 1
             Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + akNPC.GetDisplayName() + " they cannot go to " + destination + ".")
             Return false
@@ -191,6 +191,9 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
             Return false
         EndIf
     EndIf
+
+    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akNPC.GetDisplayName() + " departed for " + destination + " (task in progress)", akNPC, None)
 
     ; Override existing task if any
     Core.OverrideExistingTask(akNPC)

@@ -2,11 +2,8 @@ name: SearchForActor
 description: >
   Lead someone TO a person. You guide, they follow — you travel TOGETHER.
 
-  TRIGGER: Someone wants to COME WITH YOU to find a person.
-
   Examples:
   - "take me to Alvor", "show me where Ysolda is", "help me find Nazeem"
-  - "lead me to the blacksmith", "where is she? Take me there"
 
   DECISION RULES:
   - Requester COMES WITH YOU = SearchForActor (travel together)
@@ -24,7 +21,10 @@ parameterMapping:
   - type: dynamic
     name: targetName
     description: >
-      The person to search for. Must be a real Skyrim NPC name.
+      The person to search for. Must be a named NPC or a hold guard.
+      Valid: "Ysolda", "Faendal", "Riften Guard"
+      INVALID: "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
+      If you cannot name a specific person, do NOT use this action.
       Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
   - type: dynamic
     name: speed
@@ -40,8 +40,6 @@ eligibilityRules:
     logicalOperator: "AND"
     required: true
 
-eventString: "{{ actor.name }} is searching for {{ targetName }}"
-isShortLived: false
 enabled: true
 defaultPriority: 6
 tags: []

@@ -1,24 +1,27 @@
 name: ScheduleMeeting
 description: >
-  AGREE TO MEET LATER or PLAN TO GO SOMEWHERE LATER. You stay put now, travel when the time comes.
+  Plan to travel to a specific place at a specific future time. You stay put now and go later.
 
-  TRIGGER: Any mention of a future time + a place (explicit or implied).
-  This includes farewells, agreements, promises, and self-initiated plans.
+  WHEN TO USE: Someone explicitly agrees to meet at a named place and time, or you make a
+  deliberate plan to go somewhere later.
 
-  Examples that MUST trigger this action:
-  - "see you in the evening" / "see you tonight" / "see you tomorrow"
-  - "meet me at the inn at sunset" / "let's meet at noon"
-  - "sure, tomorrow evening" / "alright, I'll be there" / "tomorrow then"
-  - "until tonight" / "I'll come by later" / "catch you at dusk"
-  - You want to visit someone or go somewhere later on your own
+  WHEN NOT TO USE:
+  - Casual farewells like "see you later", "goodbye", "take care" — these are social niceties, NOT plans
+  - Vague statements like "maybe sometime" or "we should hang out" — no concrete commitment
+  - The conversation just mentions a place without any plan to go there
+  - You are already AT the destination
+  - No specific time was mentioned or implied
 
-  If no place is named, use the current location or the most relevant place from context.
+  Examples that SHOULD trigger:
+  - "meet me at the inn at sunset" (specific place + specific time)
+  - "I'll come by Dragonsreach tomorrow morning" (explicit plan with place + time)
+  - "sure, I'll be at the marketplace at noon" (agreed commitment)
 
-  KEY RULE: If the conversation implies "I will be somewhere at a future time" = ScheduleMeeting.
-  Does NOT matter if it's casual ("see you later") or formal ("meet me at Dragonsreach at noon").
-
-  NOT GoToLocation — GoToLocation means leave RIGHT NOW.
-  NOT ScheduleFetch/ScheduleDelivery — those involve a TARGET PERSON to fetch or message.
+  Examples that should NOT trigger:
+  - "see you tonight" (vague farewell — no place specified)
+  - "goodbye, take care" (social pleasantry)
+  - "maybe we can meet sometime" (no commitment)
+  - "I was at the market earlier" (past event, not a plan)
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Schedule
@@ -31,19 +34,17 @@ parameterMapping:
   - type: dynamic
     name: destination
     description: >
-      Where to go. Examples:
-      - "Bannered Mare", "Dragonsreach", "the marketplace"
-      - "home" or "my home" — YOUR own home
-      - "<Name>'s home" — someone else's home (e.g., "Alvor's home")
-      - Just a name like "Camilla" — resolves to their home
-      If no place was mentioned, use the current location or best guess from context.
+      Where to meet. MUST be a specific, real Skyrim location that someone could walk to.
+      Use the EXACT name of an inn, shop, house, keep, or landmark — NOT a hold, province, or region.
+      GOOD: "The Bannered Mare", "Dragonsreach", "Candlehearth Hall", "Palace of the Kings", "the marketplace", "Arcadia's Cauldron"
+      BAD: "Cyrodiil" (province), "Eastmarch" (hold), "Skyrim" (region), "the city" (too vague)
+      Use "home" only for your own home.
   - type: dynamic
     name: timeCondition
     description: >
-      When to arrive. Pass relative times EXACTLY as spoken.
-      Relative (pass verbatim): "in 2 hours", "in half an hour", "soon"
-      Absolute: "at dawn", "at noon", "in the evening", "tonight",
-      "after sunset", "tomorrow morning", "at midnight"
+      When to arrive. Must be a specific time, not vague.
+      Examples: "at dawn", "at noon", "in the evening", "tonight",
+      "after sunset", "tomorrow morning", "in 2 hours"
 
 eligibilityRules:
   - conditions:
@@ -57,5 +58,5 @@ eligibilityRules:
 eventString: "{{ actor.name }} plans to be at {{ destination }} {{ timeCondition }}"
 isShortLived: false
 enabled: true
-defaultPriority: 6
+defaultPriority: 4
 tags: []
