@@ -1,0 +1,4 @@
+customCategory: intel_travel
+name: Travel
+description: "Travel and movement — SELECT THIS when {{ npc.name }} decides to: go somewhere, head to a location, travel to a place, go home, go outside/inside/upstairs/downstairs, lead someone to a destination, or walk with someone to escort them."
+enabled: true

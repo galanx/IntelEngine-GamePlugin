@@ -1,3 +1,4 @@
+customCategory: intel_communication
 name: ReportPlayerConduct
 description: >
   React to the player expressing a political opinion, faction loyalty, insult, or support.

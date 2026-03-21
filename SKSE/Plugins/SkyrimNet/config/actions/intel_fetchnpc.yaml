@@ -1,3 +1,4 @@
+customCategory: intel_communication
 name: FetchPerson
 description: >
   PLAYER-INITIATED ONLY. The PLAYER must explicitly ask you to go get someone and bring them back.

@@ -1,0 +1,4 @@
+customCategory: intel_taskcontrol
+name: TaskControl
+description: "Task management — SELECT THIS when {{ npc.name }} is told to: stop what they're doing, cancel their task, wait, hold on, come back, hurry up, run faster, slow down, or change their travel speed."
+enabled: true

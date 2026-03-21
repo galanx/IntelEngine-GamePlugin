@@ -1,3 +1,4 @@
+customCategory: intel_scheduling
 name: ScheduleFetch
 description: >
   Plan to fetch someone LATER. You stay put now and go get them when the time comes.
