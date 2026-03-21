@@ -1,20 +1,14 @@
 name: ScheduleFetch
 description: >
-  Schedule fetching someone LATER. Delayed FetchPerson — stay put now, go get them when the time comes.
+  Plan to fetch someone LATER. You stay put now and go get them when the time comes.
 
-  TRIGGER: Need to bring someone back, but NOT right now.
+  WHEN TO USE: Someone asks you to bring a specific person at a future time.
 
-  Examples:
-  - "go get Ysolda after sunset"
-  - You need someone's presence at a future time
-
-  DECISION RULES:
-  - Fetch NOW = FetchPerson
-  - Fetch LATER = ScheduleFetch
-  - Deliver WORDS later = ScheduleDelivery (has a message to relay)
-  - Go to a PLACE later = ScheduleMeeting (no person to fetch)
-
-  You will NOT leave immediately. You go when the time comes.
+  WHEN NOT TO USE:
+  - Fetch them NOW — use FetchPerson instead
+  - Deliver WORDS later — use ScheduleDelivery instead
+  - Go to a PLACE later — use ScheduleMeeting instead
+  - Nobody asked — do not self-assign
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Schedule
@@ -27,13 +21,12 @@ parameterMapping:
   - type: dynamic
     name: targetName
     description: >
-      The person to fetch. Must be a real Skyrim NPC name.
-      Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
+      The person to fetch. Must be a named NPC or hold guard (e.g., "Ysolda", "Whiterun Guard").
+      INVALID: "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
   - type: dynamic
     name: timeCondition
     description: >
-      When to go fetch them. Examples: "at dawn", "after sunset",
-      "in 2 hours", "tonight", "tomorrow morning"
+      When to go fetch them. Examples: "at dawn", "after sunset", "tonight"
 
 eligibilityRules:
   - conditions:
@@ -47,5 +40,5 @@ eligibilityRules:
 eventString: "{{ actor.name }} plans to fetch {{ targetName }} {{ timeCondition }}"
 isShortLived: false
 enabled: true
-defaultPriority: 5
+defaultPriority: 4
 tags: []

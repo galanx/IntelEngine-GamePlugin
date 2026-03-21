@@ -84,7 +84,7 @@ The `status` field in the relations data uses these labels (mapped from the nume
 - **Neutral** (0 to 39)
 - **Tense** (-1 to -39)
 - **Hostile** (-40 to war_threshold+1) — e.g., -40 to -49 for default threshold of -50
-- **Critical** (at or below war_threshold) — war-eligible, war_declaration should follow
+- **Critical** (at or below war_threshold) — war-eligible. If no active war exists and no cooldown applies, war_declaration MUST be your next event for this pair
 
 ## Player Proximity Awareness
 
@@ -101,7 +101,7 @@ If `player_nearby_leaders` is present in the political state, the player is phys
 
 1. **ONE event per tick** — never generate multiple events.
 2. **Gradual escalation** — don't jump from Neutral to war. Follow the path: trade_dispute → tariff → embargo → border_skirmish → war_declaration. However, if a pair's status is already "Critical", war_declaration is appropriate regardless of whether border_skirmish occurred — the gradual path has already completed via score accumulation.
-3. **Respect current relations** — conflict events require Tense or worse. When a faction pair's status is "Critical" and NOT on cooldown (check `war_cooldowns`), generate a `war_declaration` event. If one Critical pair is on cooldown, pick another Critical pair or generate non-war events instead. Don't generate border_skirmish between Allied factions.
+3. **Respect current relations and DECLARE WAR when appropriate** — conflict events require Tense or worse. **CRITICAL RULE: If ANY faction pair has status "Critical" (at or below war threshold), there is NO active war between them, and they are NOT in `war_cooldowns`, you MUST generate a `war_declaration` event for that pair. This takes absolute priority over all other events.** Factions at Critical standing without a war is an unstable state that must be resolved. If multiple Critical pairs exist without wars, pick the one with the lowest score. If all Critical pairs are on cooldown or at war, generate non-war events instead. Don't generate border_skirmish between Allied factions.
 4. **Positive events happen too** — not every tick is negative. Trade deals, gifts, and alliances keep the world dynamic and interesting.
 5. **Max active wars: {{ maxActiveWars }}** — if already at limit, focus on existing conflicts rather than starting new ones.
 6. **Max relation change: {{ maxRelationChange }}** — relation_delta must be between -{{ maxRelationChange }} and +{{ maxRelationChange }}. The delta must NEVER be 0.

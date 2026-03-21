@@ -49,28 +49,28 @@ EndFunction
 ; =============================================================================
 
 Function StartScheduler()
+    ; Politics NO LONGER registers its own game-time timer.
+    ; All scripts share the same quest — RegisterForSingleUpdateGameTime is per-quest.
+    ; StoryEngine owns the shared timer and uses the shortest interval across all systems.
+    ; Politics is ticked via OnUpdateGameTime (which fires for ALL scripts on the quest).
     If !Initialized || !IntelEngine.IsPoliticsEnabled()
         return
     EndIf
-
-    Float intervalHours = IntelEngine.GetPoliticsTickInterval() as Float
-    RegisterForSingleUpdateGameTime(intervalHours)
-    Core.DebugMsg("Politics: Scheduled next tick in " + intervalHours + " game hours")
+    Core.DebugMsg("Politics: Scheduler ready (driven by shared quest timer)")
 EndFunction
 
 Function StopScheduler()
-    UnregisterForUpdateGameTime()
-    Core.DebugMsg("Politics: Scheduler stopped")
+    ; No-op — StoryEngine owns the timer. Politics self-gates via elapsed time.
+    Core.DebugMsg("Politics: Scheduler stopped (self-gate will skip ticks)")
 EndFunction
 
 Event OnUpdateGameTime()
+    ; Shared quest timer fires for all scripts. Politics self-gates via elapsed time.
     If !Initialized || !IntelEngine.IsPoliticsEnabled()
         return
     EndIf
 
     If TickPending
-        ; Previous tick still processing, skip
-        StartScheduler()
         return
     EndIf
 
@@ -81,8 +81,8 @@ Event OnUpdateGameTime()
     If elapsed >= intervalHours
         RunPoliticalTick(currentTime)
     EndIf
-
-    StartScheduler()
+    ; Do NOT call StartScheduler/RegisterForSingleUpdateGameTime here —
+    ; StoryEngine owns the shared timer and will re-register it.
 EndEvent
 
 ; =============================================================================
@@ -123,180 +123,66 @@ EndFunction
 Function OnPoliticalDMResponse(String response, Int success)
     TickPending = false
 
-    If success != 1 || response == ""
-        Core.DebugMsg("Politics: DM response failed or empty")
+    ; C++ handles ALL logic: parsing, validation, event recording, war/surrender/battle,
+    ; standings, decay, crime checks. Returns JSON with Papyrus-only actions.
+    String resultJson = IntelEngine.ProcessPoliticalDMResponse(response, success)
+
+    Bool acted = IntelEngine.StoryResponseGetField(resultJson, "acted") == "true"
+    If !acted
         return
     EndIf
 
-    ; Parse response JSON
-    Bool shouldAct = IntelEngine.StoryResponseShouldAct(response)
-    If !shouldAct
-        Core.DebugMsg("Politics: DM decided no event this tick")
-        return
+    String description = IntelEngine.StoryResponseGetField(resultJson, "description")
+    String factionA = IntelEngine.StoryResponseGetField(resultJson, "factionA")
+    String factionB = IntelEngine.StoryResponseGetField(resultJson, "factionB")
+    String eventType = IntelEngine.StoryResponseGetField(resultJson, "eventType")
+
+    Core.DebugMsg("Politics: Event " + eventType + " (" + factionA + " vs " + factionB + ")")
+
+    ; Papyrus-only: inject facts into loaded leaders (requires Actor handles for SkyrimNet API)
+    If description != ""
+        InjectPoliticalFact(factionA, factionB, description)
     EndIf
 
-    String factionA = IntelEngine.StoryResponseGetField(response, "faction_a")
-    String factionB = IntelEngine.StoryResponseGetField(response, "faction_b")
-    String eventType = IntelEngine.StoryResponseGetField(response, "event_type")
-    String description = IntelEngine.StoryResponseGetField(response, "description")
-    String deltaStr = IntelEngine.StoryResponseGetField(response, "relation_delta")
-    String instigator = IntelEngine.StoryResponseGetField(response, "instigator_npc")
-
-    If factionA == "" || eventType == ""
-        Core.DebugMsg("Politics: Invalid DM response — missing faction_a or event_type")
-        return
+    ; Papyrus-only: battle notifications + pending poll start (requires engine operations)
+    String notification = IntelEngine.StoryResponseGetField(resultJson, "notification")
+    If notification != ""
+        Debug.Notification(notification)
     EndIf
 
-    Int delta = deltaStr as Int
-    Float gameTime = Utility.GetCurrentGameTime()
-
-    ; Record event in IntelEngine.db and apply relation delta
-    Int eventId = IntelEngine.RecordPoliticalEvent(factionA, factionB, eventType, description, delta, gameTime)
-
-    If eventId >= 0
-        Core.DebugMsg("Politics: Recorded event #" + eventId + " " + eventType + " (" + factionA + " vs " + factionB + ") delta=" + delta)
-
-        ; Inject as SkyrimNet fact so NPCs gossip about it
-        If description != ""
-            InjectPoliticalFact(factionA, factionB, description)
+    ; Start pending battle polling if a pending battle was created
+    If IntelEngine.StoryResponseGetField(resultJson, "startPendingPoll") == "true"
+        If Battle
+            Battle.StartPendingBattlePoll()
         EndIf
-
-        ; Handle war declaration
-        If eventType == "war_declaration"
-            HandleWarDeclaration(factionA, factionB, description, gameTime)
-        EndIf
-
-        ; Handle surrender — DM generated a surrender event for an active war
-        If eventType == "surrender"
-            HandleSurrender(factionA, factionB, description, gameTime)
-        EndIf
-
-        ; Handle off-screen battle result from DM
-        If eventType == "battle_result"
-            HandleBattleResult(response, factionA, factionB, description, gameTime)
-        EndIf
-
-        ; Handle DM scheduling a player-present battle
-        If eventType == "battle_scheduled"
-            HandleBattleScheduled(factionA, factionB, gameTime)
-        EndIf
-
-        ; Check if this witnessable event should physically manifest near the player
-        If eventType == "assassination_attempt" || eventType == "brawl" || \
-           eventType == "border_skirmish"
-            String manifestJson = IntelEngine.CheckEventManifestation(factionA, factionB, eventType)
-            If manifestJson != ""
-                If Battle
-                    Battle.ManifestEvent(manifestJson)
-                EndIf
-            EndIf
-        EndIf
-    Else
-        Core.DebugMsg("Politics: Failed to record event (validation failed?)")
     EndIf
 
-    ; Apply player standing changes (if the DM included any based on player dialogue)
-    Int standingsApplied = IntelEngine.ApplyPlayerStandingChanges(response)
-    If standingsApplied > 0
-        Core.DebugMsg("Politics: Applied " + standingsApplied + " player standing changes")
+    ; Schedule a player-present battle if the DM requested one
+    If IntelEngine.StoryResponseGetField(resultJson, "scheduleBattle") == "true"
+        If Battle
+            String sFactionA = IntelEngine.StoryResponseGetField(resultJson, "scheduleFactionA")
+            String sFactionB = IntelEngine.StoryResponseGetField(resultJson, "scheduleFactionB")
+            Int sWarId = IntelEngine.StoryResponseGetField(resultJson, "scheduleWarId") as Int
+            Float sBattleTime = IntelEngine.StoryResponseGetField(resultJson, "scheduleBattleTime") as Float
+            Battle.ScheduleBattle(sFactionA, sFactionB, sWarId, sBattleTime)
+        EndIf
     EndIf
 
-    ; Run periodic standing mechanics (crime gold penalties, decay)
-    RunStandingMechanics()
+    ; Manifest political event near player if applicable (requires engine spawn operations)
+    String manifestJson = IntelEngine.StoryResponseGetField(resultJson, "manifestJson")
+    If manifestJson != ""
+        If Battle
+            Battle.ManifestEvent(manifestJson)
+        EndIf
+    EndIf
 EndFunction
 
 ; =============================================================================
 ; WAR LIFECYCLE
 ; =============================================================================
 
-Function HandleWarDeclaration(String factionA, String factionB, String description, Float gameTime)
-    Int warId = IntelEngine.DeclareWar(factionA, factionB, gameTime)
-
-    If warId >= 0
-        Core.DebugMsg("Politics: WAR #" + warId + " DECLARED — " + factionA + " vs " + factionB)
-        ; NPC awareness: political_state.json (pull-based) + bio facts (push-based on leaders)
-        ; Players discover wars through NPC conversations + dashboard notifications
-    Else
-        Core.DebugMsg("Politics: War declaration blocked (cooldown/max wars/already active)")
-    EndIf
-EndFunction
-
-Function HandleSurrender(String factionA, String factionB, String description, Float gameTime)
-    ; The DM generates surrender events — faction_a is the surrendering faction
-    ; faction_b is the victor
-    Bool ended = IntelEngine.EndFactionWar(factionA, factionB, factionB, gameTime)
-
-    If ended
-        Core.DebugMsg("Politics: WAR ENDED — " + factionA + " surrendered to " + factionB)
-    Else
-        Core.DebugMsg("Politics: Surrender event but no active war found between " + factionA + " and " + factionB)
-    EndIf
-EndFunction
-
-Function HandleBattleResult(String response, String factionA, String factionB, String description, Float gameTime)
-    ; Parse battle location from DM response
-    String battleLoc = IntelEngine.StoryResponseGetField(response, "battle_location")
-    If battleLoc == ""
-        battleLoc = "the field"
-    EndIf
-
-    ; Create a pending battle at the named location's real world coordinates.
-    ; If the player travels there within 3 game hours, soldiers spawn.
-    ; Otherwise it auto-resolves off-screen when the deadline expires.
-    Int pendingId = IntelEngine.AddPendingBattle(battleLoc, factionA, factionB, response)
-
-    If pendingId >= 0
-        ; START notification — player sees battle beginning
-        String nameA = IntelEngine.GetFactionDisplayName(factionA)
-        String nameB = IntelEngine.GetFactionDisplayName(factionB)
-        Debug.Notification(nameA + " forces engage " + nameB + " at " + battleLoc + "!")
-
-        ; Start polling for player proximity (Battle script checks every 3s)
-        If Battle
-            Battle.StartPendingBattlePoll()
-        EndIf
-
-        Core.DebugMsg("Politics: Pending battle #" + pendingId + " created at " + battleLoc + " — " + factionA + " vs " + factionB)
-    Else
-        ; Location couldn't be resolved — fall back to immediate off-screen resolution
-        Core.DebugMsg("Politics: Could not resolve location '" + battleLoc + "' — recording off-screen")
-        String battleResult = IntelEngine.StoryResponseGetField(response, "battle_result")
-        String victor = IntelEngine.StoryResponseGetField(response, "battle_victor")
-        Int lossesA = IntelEngine.StoryResponseGetField(response, "attacker_losses") as Int
-        Int lossesB = IntelEngine.StoryResponseGetField(response, "defender_losses") as Int
-
-        If battleResult == ""
-            battleResult = "draw"
-        EndIf
-        If lossesA < 0
-            lossesA = 0
-        ElseIf lossesA > 30
-            lossesA = 30
-        EndIf
-        If lossesB < 0
-            lossesB = 0
-        ElseIf lossesB > 30
-            lossesB = 30
-        EndIf
-
-        IntelEngine.RecordOffScreenBattle(factionA, factionB, battleLoc, battleResult, description, lossesA, lossesB, victor)
-    EndIf
-EndFunction
-
-Function HandleBattleScheduled(String factionA, String factionB, Float gameTime)
-    ; Find the active war ID for this faction pair
-    ; Schedule battle 6-12 game hours from now
-    Float delay = Utility.RandomFloat(6.0, 12.0) / 24.0  ; convert hours to game days
-    Float battleTime = gameTime + delay
-
-    If Battle
-        Int warId = IntelEngine.GetActiveWarId(factionA, factionB)
-        Battle.ScheduleBattle(factionA, factionB, warId, battleTime)
-        Core.DebugMsg("Politics: Battle scheduled — " + factionA + " vs " + factionB + " in " + (delay * 24.0) + "h")
-    Else
-        Core.DebugMsg("Politics: Battle property not set — cannot schedule")
-    EndIf
-EndFunction
+; HandleWarDeclaration, HandleSurrender, HandleBattleResult, HandleBattleScheduled
+; — ALL moved to C++ ProcessPoliticalDMResponse. No longer needed in Papyrus.
 
 Function ProcessActiveWars(Float currentGameTime)
     Int warCount = IntelEngine.GetActiveWarCount()
@@ -391,25 +277,8 @@ EndFunction
 ; PLAYER STANDING — PERIODIC MECHANICS (called during tick)
 ; =============================================================================
 
-Function RunStandingMechanics()
-    ; Standing decay first — drift toward 0 before applying new penalties
-    ; (prevents decay from immediately nullifying small crime penalties)
-    Int decayed = IntelEngine.DecayPlayerStandings(1)
-    If decayed > 0
-        Core.DebugMsg("Politics: Decayed " + decayed + " player standings toward neutral")
-    EndIf
-
-    ; Crime gold penalties — checks crime gold against political factions
-    Int crimeChanges = IntelEngine.CheckCrimeGoldStandings()
-    If crimeChanges > 0
-        Core.DebugMsg("Politics: Applied " + crimeChanges + " crime-based standing changes")
-    EndIf
-
-    ; Update state file if anything changed
-    If decayed > 0 || crimeChanges > 0
-        IntelEngine.WritePoliticalStateFile()
-    EndIf
-EndFunction
+; RunStandingMechanics — moved to C++ RunStandingMechanicsInternal.
+; Now called internally by ProcessPoliticalDMResponse. No longer needed standalone.
 
 ; =============================================================================
 ; PAPYRUS UTILITIES

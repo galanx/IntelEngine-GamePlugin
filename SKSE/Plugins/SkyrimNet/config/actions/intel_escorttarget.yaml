@@ -1,18 +1,14 @@
 name: EscortTarget
 description: >
-  Walk WITH someone to a destination. You personally accompany them.
-
-  TRIGGER: Any request to escort, walk, or take someone to a specific place.
+  Walk WITH someone to a destination. You personally accompany them the entire journey.
 
   Examples:
-  - "take Alvor home", "walk Ysolda to the inn", "escort this pilgrim to Whiterun"
-  - "take him home", "walk her to safety"
-  - You stay with them during the entire journey
+  - "take Alvor home", "walk Ysolda to the inn", "escort her to safety"
 
   DECISION RULES:
-  - "take X home" or "walk X to Y" = EscortTarget (you walk WITH them)
-  - "bring X here" or "get X" = FetchPerson (you go alone, return with them)
-  - "tell X to come" = DeliverMessage (relay words, not physically escort)
+  - "take X to Y" or "walk X to Y" = EscortTarget
+  - "bring X here" or "get X" = FetchPerson
+  - "tell X to come" = DeliverMessage
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_NPCTasks
@@ -25,13 +21,16 @@ parameterMapping:
   - type: dynamic
     name: targetName
     description: >
-      The person to escort. Must be a real Skyrim NPC name. NEVER {{ player.name }}.
-      Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
+      The person to escort. Must be a named NPC or a hold guard.
+      Valid: "Nazeem", "Adrianne Avenicci", "Whiterun Guard"
+      INVALID: "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
+      NEVER use {{ player.name }}. If you cannot name a specific person, do NOT use this action.
   - type: dynamic
     name: destination
     description: >
       Where to escort them. Use "home" if taking them home.
-      Otherwise use a location name like "Whiterun", "Dragonsreach", "the inn".
+      Otherwise use a specific named place: "Dragonsreach", "The Bannered Mare", "Candlehearth Hall".
+      NEVER use hold/province names ("Eastmarch", "Cyrodiil") or vague descriptions ("the city").
   - type: dynamic
     name: shouldWait
     description: >
@@ -49,8 +48,6 @@ eligibilityRules:
     logicalOperator: "AND"
     required: true
 
-eventString: "{{ actor.name }} already left to escort {{ targetName }} to {{ destination }} (task in progress)"
-isShortLived: false
 enabled: true
 defaultPriority: 6
 tags: []
