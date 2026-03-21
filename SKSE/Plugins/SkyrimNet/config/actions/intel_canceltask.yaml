@@ -1,4 +1,4 @@
-customCategory: intel_taskcontrol
+customCategory: intel_travel
 name: CancelCurrentTask
 description: >
   Stop your current active task entirely.
