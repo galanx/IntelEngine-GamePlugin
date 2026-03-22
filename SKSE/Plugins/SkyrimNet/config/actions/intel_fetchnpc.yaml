@@ -1,19 +1,25 @@
+customCategory: intel_travel
 name: FetchPerson
 description: >
-  Go GET someone and BRING THEM BACK. Solo round trip — you go alone, return with them.
+  PLAYER-INITIATED ONLY. The PLAYER must explicitly ask you to go get someone and bring them back.
 
-  TRIGGER: Any request to bring/get/fetch a person (by name or pronoun).
+  This action means: leave where you are, find a specific person, and bring them to the player.
 
-  Examples:
-  - "fetch Alvor", "go get Ysolda", "bring Nazeem here"
-  - "go get him", "bring her here", "get them"
-  - You need someone's physical presence and will personally escort them back
+  ONLY trigger when {{ player.name }} says something like:
+  - "go get Ysolda"
+  - "bring Nazeem here"
+  - "fetch Alvor for me"
+  - "go find the guard and bring him"
 
-  DECISION RULES:
-  - "bring X here" or "get X" = FetchPerson (you go alone, return with them)
-  - "take X home" or "walk X to Y" = EscortTarget (you walk WITH them)
-  - "tell X to come" = DeliverMessage (relay words, not physically escort)
-  - "go get X LATER" = ScheduleFetch (delayed version)
+  NEVER trigger on your own initiative. NEVER trigger because:
+  - You think someone should come here
+  - You want to introduce the player to someone
+  - The conversation mentions another NPC
+  - You decide on your own that someone's presence is needed
+
+  If {{ player.name }} did not directly ask you to bring someone, do NOT pick this action.
+
+  CRITICAL: The target must be a DIFFERENT NPC, NEVER {{ player.name }}. You cannot fetch the person who is standing right in front of you asking you to fetch someone.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_NPCTasks
@@ -26,13 +32,16 @@ parameterMapping:
   - type: dynamic
     name: targetName
     description: >
-      The person to fetch. Must be a real Skyrim NPC name.
-      Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
+      The person to fetch. Must be a named NPC or hold guard.
+      NEVER {{ player.name }} — you cannot fetch the player.
+      Valid: "Ysolda", "Nazeem", "Whiterun Guard"
+      INVALID: "{{ player.name }}", "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
+      If you cannot name a specific person, do NOT use this action.
   - type: dynamic
     name: failReason
     description: >
       Should the target refuse? Set to "none" if they come willingly.
-      If they would refuse, write the reason (e.g., "too busy with court duties").
+      If they would refuse, write the reason.
 
 eligibilityRules:
   - conditions:
@@ -43,8 +52,6 @@ eligibilityRules:
     logicalOperator: "AND"
     required: true
 
-eventString: "{{ actor.name }} already left to fetch {{ targetName }} (task in progress)"
-isShortLived: false
 enabled: true
-defaultPriority: 6
+defaultPriority: 4
 tags: []

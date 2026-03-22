@@ -362,13 +362,16 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmation(akAgent, akAgent.GetDisplayName() + " wants to go fetch " + targetName + ".")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to go fetch " + targetName + ".", "FetchPerson")
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to go fetch " + targetName + ".")
         Return false
     ElseIf confirmResult == 2
         Return false
     EndIf
+
+    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to fetch " + targetName + " (task in progress)", akAgent, None)
 
     ; Override existing task if any
     Core.OverrideExistingTask(akAgent)
@@ -538,13 +541,16 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmation(akAgent, akAgent.GetDisplayName() + " wants to deliver a message to " + targetName + ".")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to deliver a message to " + targetName + ".", "DeliverMessage")
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to deliver the message.")
         Return false
     ElseIf confirmResult == 2
         Return false
     EndIf
+
+    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to deliver a message to " + targetName + " (task in progress)", akAgent, None)
 
     ; Override existing task if any
     Core.OverrideExistingTask(akAgent)
@@ -690,13 +696,16 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmation(akAgent, akAgent.GetDisplayName() + " wants to help search for " + targetName + ".")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to help search for " + targetName + ".", "SearchForActor")
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to search for " + targetName + ".")
         Return false
     ElseIf confirmResult == 2
         Return false
     EndIf
+
+    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " is searching for " + targetName, akAgent, None)
 
     ; Override existing task if any
     Core.OverrideExistingTask(akAgent)
@@ -831,13 +840,16 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmation(akAgent, akAgent.GetDisplayName() + " wants to escort " + targetName + " to " + destLabel + ".")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to escort " + targetName + " to " + destLabel + ".", "EscortTarget")
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to escort " + targetName + ".")
         Return false
     ElseIf confirmResult == 2
         Return false
     EndIf
+
+    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to escort " + targetName + " to " + destLabel + " (task in progress)", akAgent, None)
 
     ; Override existing task if any
     Core.OverrideExistingTask(akAgent)
@@ -1125,7 +1137,7 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
         EndIf
         Core.DebugMsg(agent.GetDisplayName() + " timed out while visible — narrating cancel")
         Actor player = Game.GetPlayer()
-        Core.SendTaskNarration(agent, agent.GetDisplayName() + " tried to carry out the task but couldn't get going and gave up.", player)
+        Core.SendTaskNarration(agent, agent.GetDisplayName() + " " + IntelEngine.BuildStuckNarration(taskType), player)
         Core.RemoveAllPackages(agent)
         Core.ClearSlot(slot, true)
         Return
@@ -2082,9 +2094,8 @@ Function OnArrivedToDeliver(Int slot, Actor agent, Actor target)
         Utility.Wait(0.5)
         Core.SendTaskNarration(target, agentName + " found " + targetName + " and delivered a message: \"" + msgContent + "\"", agent)
     Else
-        ; Player absent — transient event for target's conversational context.
-        ; Long-term persistence is via StoreReceivedMessage (decorators).
-        Core.SendTransientEvent(target, agent, agentName + " came and told " + targetName + ": \"" + msgContent + "\"")
+        ; Player absent — persistent event so both parties recall the delivery
+        Core.SendPersistentMemory(target, agent, agentName + " came and told " + targetName + ": \"" + msgContent + "\"")
     EndIf
 
     StorageUtil.SetStringValue(agent, "Intel_Result", "delivered")
@@ -2312,7 +2323,7 @@ Function HandleDepartureFailure(Int slot, Actor agent)
     Core.DebugMsg(agentName + " failed to depart (visible) — narrating cancel")
 
     If agent.GetParentCell() == player.GetParentCell()
-        Core.SendTaskNarration(agent, agentName + " tried to leave but was unable to and gave up on the task.", player)
+        Core.SendTaskNarration(agent, agentName + " " + IntelEngine.BuildStuckNarration(Core.SlotTaskTypes[slot]), player)
     Else
         Core.SendTransientEvent(agent, player, agentName + " was unable to carry out the task and stayed behind.")
     EndIf

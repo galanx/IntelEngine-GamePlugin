@@ -1,0 +1,4 @@
+customCategory: intel_travel
+name: Travel
+description: "Travel, movement, and tasks — SELECT THIS when {{ npc.name }} decides to: go somewhere, head to a location, go home, go outside/inside, lead someone to a destination, escort someone, go fetch a person and bring them back, stop a current task, cancel what they're doing, hurry up, slow down, or change travel speed."
+enabled: true

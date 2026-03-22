@@ -1,6 +1,6 @@
 Scriptname IntelEngine Hidden
 {
-    IntelEngine Native API v1.0
+    IntelEngine Native API v3.0
 
     SKSE DLL providing high-performance functions for intelligent NPC tasks:
     - Fuzzy NPC name search with Levenshtein distance
@@ -386,11 +386,27 @@ Function SetDangerZonePolicy(Int policy) Global Native
 ; Set player home visit policy (0=allow all, 1=block civilians, 2=followers only, 3=block all).
 Function SetPlayerHomePolicy(Int policy) Global Native
 
+; Set per-story-type hold restriction (0=no restriction, 1=same hold civilians, 2=same hold except followers, 3=same hold everyone).
+Function SetHoldRestrictionPolicy(String storyType, Int policy) Global Native
+
+; Check if an NPC passes the hold restriction for a story type (true = allowed).
+Bool Function CheckHoldRestriction(Actor akActor, String storyType) Global Native
+
+; Get the hold name for an actor (walks BGSLocation hierarchy to hold level).
+String Function GetActorHoldName(Actor akActor) Global Native
+
+; Get recent dialogue history for an NPC. Returns formatted string, empty if no dialogue.
+String Function GetRecentDialogue(Actor akActor, Int maxExchanges = 1) Global Native
+
+; Check if an NPC knows the player (has dialogue, memories, or relationship data).
+Bool Function NPCKnowsPlayer(Actor akActor) Global Native
+
 ; Check if actor is in PotentialFollowerFaction (can be recruited as follower).
 Bool Function IsPotentialFollower(Actor akActor) Global Native
 
 ; Check if the player is in a location on the blocklist (plugin config, 30s cache).
 Bool Function IsPlayerInBlockedLocation() Global Native
+Bool Function IsPlayerInWhitelistedLocation() Global Native
 
 ; Check if a JSON LLM response contains "should_act":true.
 ; Faster than Papyrus string parsing. Used by Story Engine response handlers.
@@ -436,6 +452,8 @@ Bool Function IsActorOnStoryCooldown(Actor akActor) Global Native
 
 ; Record that the LLM picked a story type. Used for DM prompt balancing.
 Function NotifyStoryTypePicked(String storyType) Global Native
+Function WarmStoryTypeCountsFromCSV(String csv) Global Native
+Function SetRecentGossipContext(String gossipLines) Global Native
 
 ; Get FormIDs of all NPCs in the last DM candidate pool.
 ; Used to pre-warm cooldowns from StorageUtil before the DM prompt.
@@ -611,3 +629,339 @@ Function SetDebugLevel(Int level) Global Native
 
 ; Get current DLL version
 String Function GetVersion() Global Native
+
+; =============================================================================
+; FACTION POLITICS FUNCTIONS
+; =============================================================================
+
+; Get relation score between two factions (-100 to +100)
+Int Function GetFactionRelation(String factionA, String factionB) Global Native
+
+; Adjust relation between two factions by delta, returns new score
+Int Function AdjustFactionRelation(String factionA, String factionB, Int delta) Global Native
+
+; Get player standing with a faction (-100 to +100)
+Int Function GetPlayerFactionStanding(String factionId) Global Native
+
+; Adjust player standing with a faction by delta, returns new standing
+Int Function AdjustPlayerFactionStanding(String factionId, Int delta) Global Native
+
+; Check if two factions are at war
+Bool Function IsFactionAtWar(String factionA, String factionB) Global Native
+
+; Get war morale for queryFaction in an active war between factionA and factionB (0-100, -1 if no war)
+Int Function GetWarMorale(String factionA, String factionB, String queryFaction) Global Native
+
+; Get human-readable relation status (Alliance/Friendly/Neutral/Tense/Hostile/Critical)
+String Function GetRelationStatus(String factionA, String factionB) Global Native
+
+; Build comprehensive political context JSON for LLM prompts
+String Function BuildPoliticalContext(Float gameTime) Global Native
+
+; Build compact political dashboard JSON for PrismaUI
+String Function BuildPoliticalDashboardJson() Global Native
+
+; Record a political event between factions, returns event ID (-1 on failure)
+Int Function RecordPoliticalEvent(String factionA, String factionB, String eventType, String description, Int delta, Float gameTime) Global Native
+
+; Check if a political event should physically manifest near the player.
+; Returns JSON spawn instructions or empty string if player is not at the event location.
+String Function CheckEventManifestation(String factionA, String factionB, String eventType) Global Native
+
+; Confirm manifestation cooldown after Papyrus verified actors spawned successfully.
+Function ConfirmManifestationCooldown() Global Native
+
+; Check if faction politics system is enabled
+Bool Function IsPoliticsEnabled() Global Native
+
+; Get politics tick interval in game hours
+Int Function GetPoliticsTickInterval() Global Native
+
+; Hot-reload faction config from factions.yaml
+Function ReloadFactionConfig() Global Native
+
+; Get loaded faction leader Actor references (for fact injection)
+; Returns only leaders currently loaded in the game world
+Actor[] Function GetFactionLeaderActors(String factionId) Global Native
+
+; Get FormIDs for all faction leaders (works even when unloaded)
+; Use with Game.GetForm() to get Actor references regardless of load state
+Int[] Function GetFactionLeaderFormIds(String factionId) Global Native
+
+; Parse and apply player_standing_changes from Political DM response
+; Returns number of standings applied
+Int Function ApplyPlayerStandingChanges(String responseJson) Global Native
+
+; Process player conduct with cross-faction consequences
+; Applies primary delta to factionId, then checks if the reporter NPC belongs
+; to a rival/ally faction and applies inverse/matching delta (halved)
+; Returns number of standings changed (1-2)
+Int Function ProcessPlayerConduct(Actor reporter, String factionId, String sentiment, String reason) Global Native
+
+; Check crime gold against political factions, apply standing penalties for new bounties
+; Returns number of standings changed
+Int Function CheckCrimeGoldStandings() Global Native
+
+; Decay all non-zero player standings by decayRate toward 0
+; Returns number of standings decayed
+Int Function DecayPlayerStandings(Int decayRate) Global Native
+
+; Write political_state.json for pull-based NPC awareness
+; Call after standing changes to make them visible to NPCs
+Function WritePoliticalStateFile() Global Native
+
+; --- Phase 2 Migration: FactionPolitics C++ Logic ---
+; Process Political DM response in C++. Returns JSON with actions for Papyrus (fact injection, battle poll, etc.)
+String Function ProcessPoliticalDMResponse(String response, Int success) Global Native
+
+; Run standing mechanics (decay + crime). Returns JSON: {decayed, crimeChanges, updated}
+String Function RunStandingMechanics() Global Native
+
+; Runtime politics settings
+Function SetPoliticsEnabled(Bool enabled) Global Native
+Function SetPoliticsTickInterval(Int hours) Global Native
+
+; === War Lifecycle ===
+
+; Declare war between two factions. Returns war ID or -1 on failure.
+; Validates: max wars, cooldown, faction existence, no duplicate war.
+Int Function DeclareWar(String factionA, String factionB, Float gameTime) Global Native
+
+; Process one war tick: apply morale decay, check surrender.
+; Returns JSON array of war updates (including ended wars with victor).
+String Function ProcessWarTick(Float gameTime) Global Native
+
+; End a specific war with a named victor. Returns true on success.
+Bool Function EndFactionWar(String factionA, String factionB, String victor, Float gameTime) Global Native
+
+; Get number of currently active wars.
+Int Function GetActiveWarCount() Global Native
+
+; Get the DB war ID for an active war between two factions. Returns -1 if no war.
+Int Function GetActiveWarId(String factionA, String factionB) Global Native
+
+; Get war strength for a faction in an active war. Returns 0 if no war.
+Int Function GetWarStrength(String factionA, String factionB, String queryFaction) Global Native
+
+; Record an off-screen battle result. Applies morale/strength changes. Returns battle ID or -1.
+Int Function RecordOffScreenBattle(String factionA, String factionB, String location, String result, String narrative, Int attackerLosses, Int defenderLosses, String victor) Global Native
+
+; === Faction Query ===
+
+; Returns true if the NPC is high-status (Jarl, unique+essential leader) and should never travel personally.
+Bool Function IsHighStatusNPC(Actor npc) Global Native
+
+; Extract faction ID from "faction:FactionId" format. Returns "" if no prefix.
+String Function ExtractFactionId(String enemyType) Global Native
+
+; Get display name for a faction ID. Returns the ID itself if not found.
+String Function GetFactionDisplayName(String factionId) Global Native
+
+; Get a rival faction ID for the given faction. Returns first rival, or "" if none.
+String Function GetFactionRival(String factionId) Global Native
+
+; Get the faction's current war enemy. If at war, returns the opponent. Falls back to rival.
+String Function GetFactionWarEnemy(String factionId) Global Native
+
+; Get the political faction ID an NPC belongs to ("StormcloakFaction", "ImperialFaction", etc).
+; Returns "" if the NPC is not affiliated with any political faction.
+String Function GetNPCPoliticalFactionId(Actor npc) Global Native
+
+; Find a loaded NPC belonging to the given political faction.
+; Returns None if no loaded faction member is found.
+Actor Function FindFactionMember(String factionId) Global Native
+
+; === Battle System (Player-Present) ===
+
+; Get soldier template EditorID for a faction. Empty if not configured.
+String Function GetFactionSoldierTemplate(String factionId) Global Native
+
+; Spawn soldiers from a faction's template at the given reference.
+; factionIdWithCount format: "FactionId:Count" (e.g., "StormcloakFaction:7")
+; Falls back to generic bandit if template not found. Returns array of spawned Actors.
+Actor[] Function SpawnBattleSoldiers(String factionIdWithCount, ObjectReference spawnAt) Global Native
+
+; Execute the ENTIRE battle spawn sequence in C++: player join, position calculation,
+; spawn both sides at anchor, faction assignment, leader selection, bounty snapshot.
+; Returns JSON: {success, sideACount, sideBCount, paired, playerJoined, joinFaction, notification,
+;                leaderFormId, sideAFormIds, sideBFormIds}
+String Function ExecuteFullBattleSpawn(String questAutoJoinFaction, Actor player, Float playerAngleZ, ObjectReference spawnAnchor) Global Native
+
+; Spawn reinforcements for an active battle (wave 2+). Handles factions, aggression, combat, crime factions.
+String Function SpawnReinforcements(Int count, Actor player, ObjectReference spawnAnchor = None) Global Native
+
+; Get FormIDs of soldiers on a given side ("A" or "B"). Returns JSON: {formIds: [...], count, alive}
+String Function GetBattleSoldierFormIds(String side) Global Native
+
+; Set all alive soldiers on a side as player teammates (C++ — bypasses FormID overflow).
+Function SetBattleSoldiersAsTeammates(String side) Global Native
+
+; Count dead soldiers on a given side ("A" or "B").
+Int Function CountDeadBattleSoldiers(String side) Global Native
+
+; Cleanup battle soldiers by proximity. Returns count of remaining actors.
+Int Function CleanupBattleSoldiers(Float playerX, Float playerY, Float playerZ, Float playerAngleZ, Bool forceAll) Global Native
+
+; Force cleanup ALL battle soldiers (hard timeout).
+Function ForceCleanupAllSoldiers() Global Native
+
+; Bounty prevention: removes crime factions from spawned soldiers at battle start.
+Function SnapshotBounties() Global Native
+
+; Clear kPlayerTeammate flag from all actors — called on battle end to restore normal guard behavior.
+Function ClearBattleTeammates() Global Native
+
+; Clear all hold bounties — called during active battle polls to suppress bounty from friendly fire.
+Function ClearAllHoldBounties() Global Native
+
+; Get an integer from a JSON array by key and index.
+Int Function GetJsonArrayInt(String json, String arrayKey, Int index) Global Native
+
+; Set per-actor Protected flag (instance-level, doesn't affect other actors sharing the same ActorBase).
+Function SetActorProtected(Actor akActor, Bool protect) Global Native
+
+; Get named NPCs near a reference point who witnessed the battle (excludes battle-spawned soldiers).
+Actor[] Function GetNearbyWitnessNPCs(ObjectReference center, Float radius) Global Native
+
+; Start a new player-present battle. Returns battle ID or -1 if already active.
+Int Function StartBattle(String factionA, String factionB, String locationName, Int warId) Global Native
+
+; End the active battle with a result and victor.
+Function EndBattle(Int battleId, String result, String victor) Global Native
+
+; Register a spawned actor in the active battle.
+; tier: 0=generic soldier, 1=recruited NPC, 2=faction leader
+Bool Function RegisterBattleActor(Actor akActor, String factionId, Int tier) Global Native
+
+; Poll battle state. Returns JSON with events, morale, alive counts, wave triggers, battle_over.
+; Returns "{}" if no battle active. Call every 3 seconds from Papyrus.
+String Function PollBattleState() Global Native
+
+; Get current morale for a faction in the active battle (0-100).
+Int Function GetBattleMorale(String factionId) Global Native
+
+; Adjust morale by delta (clamped 0-100).
+Function AdjustBattleMorale(String factionId, Int delta) Global Native
+
+; Check if a battle is currently active.
+Bool Function IsBattleActive() Global Native
+
+; Get active battle ID, or -1 if none.
+Int Function GetActiveBattleId() Global Native
+
+; Get alive count for a faction in the active battle.
+Int Function GetBattleAliveCount(String factionId) Global Native
+
+; Get current wave number (0=pre-battle, 1=vanguard, 2=reinforcements, 3=reserves).
+Int Function GetBattleCurrentWave() Global Native
+
+; Advance to next wave. Called after spawning wave actors.
+Function AdvanceBattleWave() Global Native
+
+; Set the player's battle side. Applies morale boost (+15 ally, -5 enemy).
+; factionId must be factionA or factionB of the active battle. Empty string = leave.
+; Returns false if no active battle or invalid faction.
+Bool Function SetPlayerBattleSide(String factionId) Global Native
+
+; Remove player from hold crime factions (prevents ALL bounty).
+; Called at faction quest start. Stays removed until RestorePlayerCrimeFactions.
+Function RemovePlayerCrimeFactions() Global Native
+
+; Restore player to hold crime factions and clear residual bounty.
+; Called when faction quest fully completes.
+Function RestorePlayerCrimeFactions() Global Native
+
+; Get the player's current battle side (empty = spectator/not participating).
+String Function GetPlayerBattleSide() Global Native
+
+; Check if the player participated in the current battle at any point.
+Bool Function HasPlayerParticipatedInBattle() Global Native
+
+; Check if a faction is involved in the active battle (used for crime gold exemption).
+Bool Function IsBattleFaction(String factionId) Global Native
+
+; --- Remaining Migration: Text builders, math, display formatters ---
+String Function BuildTaskHistoryDesc(String taskType, String target, String result, String msgContent, String meetLocation) Global Native
+String Function GetSlotStatusNative(String taskType, Int taskState, String targetName, String cellName) Global Native
+String Function GetPreciseTimeDescription(Float meetTimeHours, Float currentGameTime) Global Native
+String Function GetTimeDescription(Float hours) Global Native
+String Function DetermineLatenessOutcome(Float scheduledTime, Float arrivalTime, Float gracePeriod) Global Native
+Bool Function IsUrgentMessage(String msgContent) Global Native
+String Function BuildStuckNarration(String taskType) Global Native
+
+; --- Phase 3 Migration: StoryEngine helpers ---
+; Build exclude list from toggle bitmask + environment flags. Returns comma-separated string.
+; Bitmask: bit0=seekPlayer..bit13=questFactionBattle. envFlags: bit0=isInterior, bit1=isDangerous.
+String Function BuildExcludeList(Int toggleBitmask, Int envFlags) Global Native
+
+; Validate a DM story response. Returns JSON: {valid, reason, type}
+String Function ValidateStoryResponse(String responseJson, Int toggleBitmask, Int envFlags) Global Native
+; Build fact text for faction_battle quest dispatch (courier wording).
+String Function BuildFactionBattleDispatchFact(String alliedFaction, String questLocation, String playerName) Global Native
+
+; Record faction_battle completion: facts for leaders + political event. Returns JSON.
+String Function RecordFactionBattleCompletion(String alliedFaction, String questLocation, String playerName, String enemyFaction = "") Global Native
+
+; Build expiry fact when player didn't show up for a faction_battle.
+String Function BuildBattleExpiryFact(String alliedFaction, String questLocation, String playerName) Global Native
+
+; --- Phase 1 Migration: BattleManager C++ Logic ---
+; All game logic moved to C++. Papyrus calls these and uses return JSON for engine operations.
+
+; Finalize battle: apply standings, record events, build narrative. Returns JSON with all results.
+String Function FinalizeBattle(Int battleId, String result, String victor, Int deadA, Int deadB, String locationName, Float gameTime) Global Native
+
+; Calculate reinforcement spawn positions behind player relative to battle center.
+String Function CalculateReinforcementPositions(Float playerX, Float playerY, Float playerZ, Float centerX, Float centerY, Int waveNum) Global Native
+
+; Evaluate whether player should auto-join a battle side. Returns JSON with decision.
+String Function EvaluatePlayerJoinBattle(String questAutoJoinFaction) Global Native
+
+; Get notification text for a battle event type.
+String Function GetBattleNotification(String notificationType, String locationName, String victorName, Bool playerWon) Global Native
+
+; Validate that a faction_battle quest can be dispatched. Returns JSON with canStart + enemyFaction.
+String Function ValidateFactionBattleDispatch(String alliedFaction, String suggestedEnemy = "") Global Native
+
+; Calculate mid-battle state for late-arriving player. Returns JSON with soldiersPerSide + moraleLoss.
+String Function CalculateMidBattleState(Float scheduledTime, Float currentTime) Global Native
+
+; Get action from poll result. Returns JSON with action type + params.
+String Function GetBattlePollAction(String stateJson) Global Native
+
+; Reset all battle state. Called after cleanup completes.
+Function ResetBattleState() Global Native
+
+; Calculate exterior battle marker position. Returns JSON with x/y/z.
+String Function CalculateBattleMarkerPosition(Float playerX, Float playerY, Float locX, Float locY, Float locZ, Float offsetUnits) Global Native
+
+; --- Pending Battle Functions ---
+; Create a pending battle at a named location. Returns pending ID or -1 if location not found.
+Int Function AddPendingBattle(String locationName, String factionA, String factionB, String resultJson) Global Native
+
+; Poll pending battles for player proximity. Returns triggered pending ID or -1.
+; Also auto-expires battles past their 3-hour deadline.
+Int Function PollPendingBattles() Global Native
+
+; Remove a pending battle by ID (after triggering or manual cleanup).
+Function RemovePendingBattle(Int pendingId) Global Native
+
+; Clear all pending battles and expired results. Called on game reload.
+Function ClearPendingBattles() Global Native
+
+; Get pending battle info as JSON string. Returns "{}" if not found.
+String Function GetPendingBattleInfo(Int pendingId) Global Native
+
+; Get count of active pending battles.
+Int Function GetPendingBattleCount() Global Native
+
+; Get and consume the last expired battle result JSON. Returns "" if none.
+; Used to show RESULT notification when pending battles expire off-screen.
+String Function GetLastExpiredBattleResult() Global Native
+
+; --- JSON Array Helper Functions ---
+; Get length of a JSON array. If key is empty, treats json as the array itself.
+Int Function GetJsonArrayLength(String json, String key) Global Native
+
+; Get item at index from a JSON array. If key is empty, treats json as the array.
+String Function GetJsonArrayItem(String json, String key, Int index) Global Native
