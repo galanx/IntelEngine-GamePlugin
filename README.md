@@ -1,5 +1,5 @@
-# IntelEngine v2.5.0
-### NPC Autonomy & Player-Driven Task Framework for SkyrimNet
+# IntelEngine v3.0.0
+### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 *"Meet me at the Western Watchtower at sunset."*
 *She agrees. Hours pass. The sun dips. You arrive — and she's already there.*
@@ -65,8 +65,19 @@ Without any player input, NPCs autonomously:
 - **Ambush you** for real grudges — with stealth approach, combat, and a yield system
 - **Secretly follow you** out of obsession until caught
 - **Deliver messages** from NPCs who can't come themselves
-- **Offer quests** to clear enemy camps, with a guide option and map marker
+- **Offer quests** — bounty hunts, rescue missions, item retrieval, and **faction war battles**
 - **Interact with each other** independently — arguments, deals, whispered conspiracies
+
+### Part 3 — Faction Politics (NEW in v3.0)
+
+A living political system where 9 factions (configurable) scheme, trade, and wage war:
+
+- **Political DM** generates events every 6 game hours — trade deals, espionage, border skirmishes, assassinations, war declarations, and surrenders
+- **Player standing** with each faction rises and falls based on your actions — fight for a faction, betray them, commit crimes in their territory
+- **Faction wars** with morale, army strength, off-screen battles, and **player-present battles** with 5 waves of spawned soldiers (22 per side)
+- **Faction quests** — when your standing is 20+ with a faction, they call on you for combat missions, rescue operations, and full-scale battles that affect war outcomes
+- **Political awareness** — NPCs know about recent political events and react to them in conversation
+- **Prisma UI dashboard** with a Politics tab showing all faction relations, active wars, and player standings
 
 No teleportation. No console commands. No hardcoded location lists. IntelEngine dynamically indexes every actor and location across every cell in the game — every inn, every home, every NPC is discoverable because the index is built from your actual load order.
 
@@ -299,6 +310,30 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 ---
 
+## In-Game Dashboard (PrismaUI)
+
+When the optional [PrismaUI](https://github.com/psc-87/PrismaUI) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
+
+### Tabs
+
+**Tasks** — Live view of all active and scheduled tasks. Cancel individual tasks, see agent names, destinations, task types, speeds, and scheduled meeting timing ("in ~3h", "very soon", "overdue").
+
+**Story Engine** — Toggle the Story Engine and individual story types on/off. See the active dispatch, next DM check-in timer, NPC social activity, active quests, and a log of recent NPC-to-NPC interactions.
+
+**Director** — Manual Dungeon Master controls. Dispatch any story type to any NPC with full parameter fields (informant gossip, quest locations, message content, etc.). Execute any of the 10 player-driven actions directly on loaded NPCs with guided field hints and required-field validation.
+
+**Active Packages** — See which NPCs are currently running IntelEngine AI packages (travel, sandbox, stalk). Remove packages from stuck NPCs directly.
+
+**Settings** — Full parity with the MCM. Every setting has a description hint. Includes plugin configuration (blocklists, LLM overrides, dashboard hotkey) read from `settings.yaml`.
+
+### How It Works
+
+The dashboard communicates through a C++ bridge: JavaScript events are routed to Papyrus via `pendingParams` (thread-safe `std::unordered_map` with mutex) and ModEvents. All JSON is built in C++ using `nlohmann::json` for proper escaping. Papyrus reads the dashboard state from live quest properties and pushes comprehensive JSON snapshots to the frontend.
+
+PrismaUI is entirely optional — IntelEngine works identically without it. The MCM provides the same configuration capabilities.
+
+---
+
 ## Architecture
 
 IntelEngine operates as two tightly integrated layers, with a third connecting it to SkyrimNet's AI:
@@ -310,6 +345,7 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 - **Time parsing** — natural language to game-hour conversion for scheduling
 - **Stuck & departure detection** — native position polling at engine speed, independent per task slot
 - **Cell analysis** — door enumeration, exterior/interior classification, directional scanning
+- **Dashboard bridge** — PrismaUI integration with thread-safe C++/Papyrus event routing and JSON state serialization
 
 **Papyrus Scripts** — game engine integration:
 - AI package management (travel, sandbox, and escort packages at three speed tiers)
@@ -318,7 +354,7 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 - Save/load recovery with full package and linked-ref reconstruction
 - MCM management interface
 
-**SkyrimNet Action YAMLs** — nine AI-selectable actions with eligibility rules, typed parameters, and event strings that feed context back into NPC awareness for future decisions.
+**SkyrimNet Action YAMLs** — ten AI-selectable actions with eligibility rules, typed parameters, and event strings that feed context back into NPC awareness for future decisions.
 
 **SkyrimNet Plugin Manifest** — IntelEngine registers as a SkyrimNet plugin with its own settings file, allowing separate LLM configuration (model, endpoint, API key, temperature, token limit) for the Story Engine DM. Also exposes faction and location blocklists for fine-grained control over story candidates.
 
@@ -374,6 +410,10 @@ IntelEngine is under active development. The following features are planned for 
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)
+
+### Optional
+
+- [PrismaUI](https://github.com/psc-87/PrismaUI) — in-game overlay framework. Enables the real-time dashboard with task monitoring, story engine controls, director mode, and full settings management. IntelEngine works without it — you just won't have the overlay.
 
 ---
 
