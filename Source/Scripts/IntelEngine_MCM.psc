@@ -53,7 +53,14 @@ Int OID_CancelAllSchedules
 Int OID_DebugMode
 Int OID_MaxTasks
 Int OID_DefaultWaitHours
-Int OID_TravelConfirmMode
+Int OID_ConfirmGoToLocation
+Int OID_ConfirmDeliverMessage
+Int OID_ConfirmFetchPerson
+Int OID_ConfirmEscortTarget
+Int OID_ConfirmSearchForActor
+Int OID_ConfirmScheduleFetch
+Int OID_ConfirmScheduleDelivery
+Int OID_ConfirmScheduleMeeting
 Int OID_DeliveryReportBack
 Int OID_MeetingTimeoutHours
 Int OID_MeetingGracePeriod
@@ -83,6 +90,7 @@ Int OID_TypeSeekPlayer
 Int OID_TypeInformant
 Int OID_TypeRoadEncounter
 Int OID_TypeAmbush
+Int OID_TypeFactionAmbush
 Int OID_TypeStalker
 Int OID_TypeMessage
 Int OID_TypeQuest
@@ -93,7 +101,65 @@ Int OID_TypeNPCGossip
 Int OID_QuestCombat
 Int OID_QuestRescue
 Int OID_QuestFindItem
+Int OID_QuestFactionCombat
+Int OID_QuestFactionRescue
+Int OID_QuestFactionBattle
 Int OID_QuestAllowDeath
+
+; Faction Politics
+Int OID_PoliticsEnabled
+Int OID_PoliticsTickInterval
+
+; Hold Restriction page (per-story-type radio groups)
+Int OID_HoldSeekNone
+Int OID_HoldSeekCivilian
+Int OID_HoldSeekExceptFollower
+Int OID_HoldSeekAll
+Int OID_HoldSeekLocalCivilian
+Int OID_HoldSeekLocalExceptFollower
+Int OID_HoldSeekLocalAll
+Int OID_HoldInformantNone
+Int OID_HoldInformantCivilian
+Int OID_HoldInformantExceptFollower
+Int OID_HoldInformantAll
+Int OID_HoldInformantLocalCivilian
+Int OID_HoldInformantLocalExceptFollower
+Int OID_HoldInformantLocalAll
+Int OID_HoldRoadNone
+Int OID_HoldRoadCivilian
+Int OID_HoldRoadExceptFollower
+Int OID_HoldRoadAll
+Int OID_HoldRoadLocalCivilian
+Int OID_HoldRoadLocalExceptFollower
+Int OID_HoldRoadLocalAll
+Int OID_HoldAmbushNone
+Int OID_HoldAmbushCivilian
+Int OID_HoldAmbushExceptFollower
+Int OID_HoldAmbushAll
+Int OID_HoldAmbushLocalCivilian
+Int OID_HoldAmbushLocalExceptFollower
+Int OID_HoldAmbushLocalAll
+Int OID_HoldStalkerNone
+Int OID_HoldStalkerCivilian
+Int OID_HoldStalkerExceptFollower
+Int OID_HoldStalkerAll
+Int OID_HoldStalkerLocalCivilian
+Int OID_HoldStalkerLocalExceptFollower
+Int OID_HoldStalkerLocalAll
+Int OID_HoldMessageNone
+Int OID_HoldMessageCivilian
+Int OID_HoldMessageExceptFollower
+Int OID_HoldMessageAll
+Int OID_HoldMessageLocalCivilian
+Int OID_HoldMessageLocalExceptFollower
+Int OID_HoldMessageLocalAll
+Int OID_HoldQuestNone
+Int OID_HoldQuestCivilian
+Int OID_HoldQuestExceptFollower
+Int OID_HoldQuestAll
+Int OID_HoldQuestLocalCivilian
+Int OID_HoldQuestLocalExceptFollower
+Int OID_HoldQuestLocalAll
 
 
 ; =============================================================================
@@ -105,30 +171,41 @@ String Function GetCustomControl(Int optionId)
 EndFunction
 
 Int Function GetVersion()
-    Return 2
+    Return 4
 EndFunction
 
 Event OnConfigInit()
+    Debug.Trace("IntelEngine MCM: OnConfigInit fired")
     ModName = "IntelEngine"
-    Pages = new String[3]
+    Pages = new String[4]
     Pages[0] = "Active Tasks"
     Pages[1] = "Scheduled Tasks"
     Pages[2] = "Settings"
+    Pages[3] = "Hold Restrictions"
 EndEvent
 
 Event OnVersionUpdate(Int newVersion)
-    If newVersion >= 2
-        ; Refresh page names — OnConfigInit only runs on first save init,
-        ; so renamed pages (e.g. "Scheduled Meetings" → "Scheduled Tasks")
-        ; won't update on existing saves without this.
-        Pages = new String[3]
+    Debug.Trace("IntelEngine MCM: OnVersionUpdate fired, newVersion=" + newVersion)
+    EnsurePages()
+EndEvent
+
+Event OnConfigOpen()
+    EnsurePages()
+EndEvent
+
+Function EnsurePages()
+    If Pages.Length != 4
+        Pages = new String[4]
         Pages[0] = "Active Tasks"
         Pages[1] = "Scheduled Tasks"
         Pages[2] = "Settings"
+        Pages[3] = "Hold Restrictions"
+        Debug.Trace("IntelEngine MCM: Pages rebuilt to 4")
     EndIf
-EndEvent
+EndFunction
 
 Event OnPageReset(String page)
+    Debug.Trace("IntelEngine MCM: OnPageReset page='" + page + "' Pages.Length=" + Pages.Length)
     SetCursorFillMode(TOP_TO_BOTTOM)
 
     ; Clear schedule cancel OIDs when NOT on the scheduled page.
@@ -150,6 +227,8 @@ Event OnPageReset(String page)
         ShowScheduledPage()
     ElseIf page == "Settings"
         ShowSettingsPage()
+    ElseIf page == "Hold Restrictions"
+        ShowHoldRestrictionsPage()
     EndIf
 EndEvent
 
@@ -289,10 +368,18 @@ Function ShowSettingsPage()
     OID_DefaultWaitHours = AddSliderOption("Default Wait Hours", waitHours, "{0}")
 
     AddEmptyOption()
-    AddHeaderOption("Task Settings")
-
-    Bool travelPrompt = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt") as Bool
-    OID_TravelConfirmMode = AddToggleOption("Show Task Confirmation", travelPrompt)
+    AddHeaderOption("Action Confirmation Prompts")
+    ; 0=Disabled, 1=Followers Only, 2=Everyone
+    If Core != None && Core.StoryEngine != None
+        OID_ConfirmGoToLocation = AddTextOption("Go To Location", ConfirmModeLabel(Core.StoryEngine.ConfirmGoToLocation))
+        OID_ConfirmFetchPerson = AddTextOption("Fetch Person", ConfirmModeLabel(Core.StoryEngine.ConfirmFetchPerson))
+        OID_ConfirmDeliverMessage = AddTextOption("Deliver Message", ConfirmModeLabel(Core.StoryEngine.ConfirmDeliverMessage))
+        OID_ConfirmEscortTarget = AddTextOption("Escort Target", ConfirmModeLabel(Core.StoryEngine.ConfirmEscortTarget))
+        OID_ConfirmSearchForActor = AddTextOption("Search For Actor", ConfirmModeLabel(Core.StoryEngine.ConfirmSearchForActor))
+        OID_ConfirmScheduleMeeting = AddTextOption("Schedule Meeting", ConfirmModeLabel(Core.StoryEngine.ConfirmScheduleMeeting))
+        OID_ConfirmScheduleFetch = AddTextOption("Schedule Fetch", ConfirmModeLabel(Core.StoryEngine.ConfirmScheduleFetch))
+        OID_ConfirmScheduleDelivery = AddTextOption("Schedule Delivery", ConfirmModeLabel(Core.StoryEngine.ConfirmScheduleDelivery))
+    EndIf
 
     Bool reportBack = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack") as Bool
     OID_DeliveryReportBack = AddToggleOption("Report Back After Delivery", reportBack)
@@ -358,6 +445,7 @@ Function ShowSettingsPage()
     Bool tInformant = true
     Bool tRoad = true
     Bool tAmbush = true
+    Bool tFactionAmbush = true
     Bool tStalker = true
     Bool tMessage = true
     Bool tQuest = true
@@ -366,6 +454,7 @@ Function ShowSettingsPage()
         tInformant = Core.StoryEngine.TypeInformantEnabled
         tRoad = Core.StoryEngine.TypeRoadEncounterEnabled
         tAmbush = Core.StoryEngine.TypeAmbushEnabled
+        tFactionAmbush = Core.StoryEngine.TypeFactionAmbushEnabled
         tStalker = Core.StoryEngine.TypeStalkerEnabled
         tMessage = Core.StoryEngine.TypeMessageEnabled
         tQuest = Core.StoryEngine.TypeQuestEnabled
@@ -374,6 +463,7 @@ Function ShowSettingsPage()
     OID_TypeInformant = AddToggleOption("Informant", tInformant)
     OID_TypeRoadEncounter = AddToggleOption("Road Encounter", tRoad)
     OID_TypeAmbush = AddToggleOption("Ambush", tAmbush)
+    OID_TypeFactionAmbush = AddToggleOption("Faction Ambush", tFactionAmbush)
     OID_TypeStalker = AddToggleOption("Stalker", tStalker)
     OID_TypeMessage = AddToggleOption("Message", tMessage)
     OID_TypeQuest = AddToggleOption("Quest", tQuest)
@@ -435,18 +525,212 @@ Function ShowSettingsPage()
     Bool tQuestCombat = true
     Bool tQuestRescue = true
     Bool tQuestFindItem = true
+    Bool tQuestFactionCombat = true
+    Bool tQuestFactionRescue = true
+    Bool tQuestFactionBattle = true
     Bool tQuestAllowDeath = false
     If Core != None && Core.StoryEngine != None
         tQuestCombat = Core.StoryEngine.QuestSubTypeCombatEnabled
         tQuestRescue = Core.StoryEngine.QuestSubTypeRescueEnabled
         tQuestFindItem = Core.StoryEngine.QuestSubTypeFindItemEnabled
+        tQuestFactionCombat = Core.StoryEngine.QuestSubTypeFactionCombatEnabled
+        tQuestFactionRescue = Core.StoryEngine.QuestSubTypeFactionRescueEnabled
+        tQuestFactionBattle = Core.StoryEngine.QuestSubTypeFactionBattleEnabled
         tQuestAllowDeath = Core.StoryEngine.QuestAllowVictimDeath
     EndIf
     OID_QuestCombat = AddToggleOption("Combat quests", tQuestCombat)
     OID_QuestRescue = AddToggleOption("Rescue quests", tQuestRescue)
     OID_QuestFindItem = AddToggleOption("Find item quests", tQuestFindItem)
+    OID_QuestFactionCombat = AddToggleOption("Faction combat quests", tQuestFactionCombat)
+    OID_QuestFactionRescue = AddToggleOption("Faction rescue quests", tQuestFactionRescue)
+    OID_QuestFactionBattle = AddToggleOption("Faction battle quests", tQuestFactionBattle)
     OID_QuestAllowDeath = AddToggleOption("Allow NPC death in rescue", tQuestAllowDeath)
 
+    AddEmptyOption()
+    AddHeaderOption("Faction Politics")
+
+    Bool politicsEnabled = IntelEngine.IsPoliticsEnabled()
+    OID_PoliticsEnabled = AddToggleOption("Enable Faction Politics", politicsEnabled)
+
+    Float tickInterval = IntelEngine.GetPoliticsTickInterval() as Float
+    OID_PoliticsTickInterval = AddSliderOption("Tick Interval (hours)", tickInterval, "{0}")
+
+EndFunction
+
+; =============================================================================
+; HOLD RESTRICTIONS PAGE
+; =============================================================================
+
+Function ShowHoldRestrictionsPage()
+    SetCursorFillMode(TOP_TO_BOTTOM)
+    SetCursorPosition(0)
+
+    AddHeaderOption("Hold Restrictions")
+    AddTextOption("Controls whether NPCs can", "", OPTION_FLAG_DISABLED)
+    AddTextOption("travel across holds by type.", "", OPTION_FLAG_DISABLED)
+    AddTextOption("Default: Same Hold (Civilians)", "", OPTION_FLAG_DISABLED)
+
+    Int pSeek = 1
+    Int pInformant = 1
+    Int pRoad = 1
+    Int pAmbush = 1
+    Int pStalker = 1
+    Int pMessage = 1
+    Int pQuest = 1
+    If Core != None && Core.StoryEngine != None
+        pSeek = Core.StoryEngine.HoldPolicySeekPlayer
+        pInformant = Core.StoryEngine.HoldPolicyInformant
+        pRoad = Core.StoryEngine.HoldPolicyRoadEncounter
+        pAmbush = Core.StoryEngine.HoldPolicyAmbush
+        pStalker = Core.StoryEngine.HoldPolicyStalker
+        pMessage = Core.StoryEngine.HoldPolicyMessage
+        pQuest = Core.StoryEngine.HoldPolicyQuest
+    EndIf
+
+    ; ---- Left column (4 groups × 8 rows = 32 = exactly at SkyUI limit) ----
+    AddHeaderOption("Seek Player")
+    OID_HoldSeekNone = AddToggleOption("No restriction", pSeek == 0)
+    OID_HoldSeekCivilian = AddToggleOption("Same hold (civilians)", pSeek == 1)
+    OID_HoldSeekExceptFollower = AddToggleOption("Same hold (except followers)", pSeek == 2)
+    OID_HoldSeekAll = AddToggleOption("Same hold (everyone)", pSeek == 3)
+    OID_HoldSeekLocalCivilian = AddToggleOption("Same town (civilians)", pSeek == 4)
+    OID_HoldSeekLocalExceptFollower = AddToggleOption("Same town (-followers)", pSeek == 5)
+    OID_HoldSeekLocalAll = AddToggleOption("Same town (everyone)", pSeek == 6)
+    AddHeaderOption("Informant")
+    OID_HoldInformantNone = AddToggleOption("No restriction", pInformant == 0)
+    OID_HoldInformantCivilian = AddToggleOption("Same hold (civilians)", pInformant == 1)
+    OID_HoldInformantExceptFollower = AddToggleOption("Same hold (-followers)", pInformant == 2)
+    OID_HoldInformantAll = AddToggleOption("Same hold (everyone)", pInformant == 3)
+    OID_HoldInformantLocalCivilian = AddToggleOption("Same town (civilians)", pInformant == 4)
+    OID_HoldInformantLocalExceptFollower = AddToggleOption("Same town (-followers)", pInformant == 5)
+    OID_HoldInformantLocalAll = AddToggleOption("Same town (everyone)", pInformant == 6)
+    AddHeaderOption("Road Encounter")
+    OID_HoldRoadNone = AddToggleOption("No restriction", pRoad == 0)
+    OID_HoldRoadCivilian = AddToggleOption("Same hold (civilians)", pRoad == 1)
+    OID_HoldRoadExceptFollower = AddToggleOption("Same hold (-followers)", pRoad == 2)
+    OID_HoldRoadAll = AddToggleOption("Same hold (everyone)", pRoad == 3)
+    OID_HoldRoadLocalCivilian = AddToggleOption("Same town (civilians)", pRoad == 4)
+    OID_HoldRoadLocalExceptFollower = AddToggleOption("Same town (-followers)", pRoad == 5)
+    OID_HoldRoadLocalAll = AddToggleOption("Same town (everyone)", pRoad == 6)
+    AddHeaderOption("Ambush")
+    OID_HoldAmbushNone = AddToggleOption("No restriction", pAmbush == 0)
+    OID_HoldAmbushCivilian = AddToggleOption("Same hold (civilians)", pAmbush == 1)
+    OID_HoldAmbushExceptFollower = AddToggleOption("Same hold (-followers)", pAmbush == 2)
+    OID_HoldAmbushAll = AddToggleOption("Same hold (everyone)", pAmbush == 3)
+    OID_HoldAmbushLocalCivilian = AddToggleOption("Same town (civilians)", pAmbush == 4)
+    OID_HoldAmbushLocalExceptFollower = AddToggleOption("Same town (-followers)", pAmbush == 5)
+    OID_HoldAmbushLocalAll = AddToggleOption("Same town (everyone)", pAmbush == 6)
+
+    ; ---- Right column (3 groups × 8 rows = 24, under 32) ----
+    SetCursorPosition(1)
+    AddHeaderOption("Stalker")
+    OID_HoldStalkerNone = AddToggleOption("No restriction", pStalker == 0)
+    OID_HoldStalkerCivilian = AddToggleOption("Same hold (civilians)", pStalker == 1)
+    OID_HoldStalkerExceptFollower = AddToggleOption("Same hold (-followers)", pStalker == 2)
+    OID_HoldStalkerAll = AddToggleOption("Same hold (everyone)", pStalker == 3)
+    OID_HoldStalkerLocalCivilian = AddToggleOption("Same town (civilians)", pStalker == 4)
+    OID_HoldStalkerLocalExceptFollower = AddToggleOption("Same town (-followers)", pStalker == 5)
+    OID_HoldStalkerLocalAll = AddToggleOption("Same town (everyone)", pStalker == 6)
+    AddHeaderOption("Message")
+    OID_HoldMessageNone = AddToggleOption("No restriction", pMessage == 0)
+    OID_HoldMessageCivilian = AddToggleOption("Same hold (civilians)", pMessage == 1)
+    OID_HoldMessageExceptFollower = AddToggleOption("Same hold (-followers)", pMessage == 2)
+    OID_HoldMessageAll = AddToggleOption("Same hold (everyone)", pMessage == 3)
+    OID_HoldMessageLocalCivilian = AddToggleOption("Same town (civilians)", pMessage == 4)
+    OID_HoldMessageLocalExceptFollower = AddToggleOption("Same town (-followers)", pMessage == 5)
+    OID_HoldMessageLocalAll = AddToggleOption("Same town (everyone)", pMessage == 6)
+    AddHeaderOption("Quest")
+    OID_HoldQuestNone = AddToggleOption("No restriction", pQuest == 0)
+    OID_HoldQuestCivilian = AddToggleOption("Same hold (civilians)", pQuest == 1)
+    OID_HoldQuestExceptFollower = AddToggleOption("Same hold (-followers)", pQuest == 2)
+    OID_HoldQuestAll = AddToggleOption("Same hold (everyone)", pQuest == 3)
+    OID_HoldQuestLocalCivilian = AddToggleOption("Same town (civilians)", pQuest == 4)
+    OID_HoldQuestLocalExceptFollower = AddToggleOption("Same town (-followers)", pQuest == 5)
+    OID_HoldQuestLocalAll = AddToggleOption("Same town (everyone)", pQuest == 6)
+EndFunction
+
+String Function ConfirmModeLabel(Int mode)
+    If mode == 0
+        return "Disabled"
+    ElseIf mode == 1
+        return "Followers Only"
+    ElseIf mode == 2
+        return "Everyone"
+    EndIf
+    return "Disabled"
+EndFunction
+
+Function CycleConfirmMode(Int optionId, String propName)
+    If Core == None || Core.StoryEngine == None
+        return
+    EndIf
+    Int current = 0
+    If propName == "GoToLocation"
+        current = Core.StoryEngine.ConfirmGoToLocation
+    ElseIf propName == "DeliverMessage"
+        current = Core.StoryEngine.ConfirmDeliverMessage
+    ElseIf propName == "FetchPerson"
+        current = Core.StoryEngine.ConfirmFetchPerson
+    ElseIf propName == "EscortTarget"
+        current = Core.StoryEngine.ConfirmEscortTarget
+    ElseIf propName == "SearchForActor"
+        current = Core.StoryEngine.ConfirmSearchForActor
+    ElseIf propName == "ScheduleFetch"
+        current = Core.StoryEngine.ConfirmScheduleFetch
+    ElseIf propName == "ScheduleDelivery"
+        current = Core.StoryEngine.ConfirmScheduleDelivery
+    ElseIf propName == "ScheduleMeeting"
+        current = Core.StoryEngine.ConfirmScheduleMeeting
+    EndIf
+    Int next = (current + 1) % 3
+    If propName == "GoToLocation"
+        Core.StoryEngine.ConfirmGoToLocation = next
+    ElseIf propName == "DeliverMessage"
+        Core.StoryEngine.ConfirmDeliverMessage = next
+    ElseIf propName == "FetchPerson"
+        Core.StoryEngine.ConfirmFetchPerson = next
+    ElseIf propName == "EscortTarget"
+        Core.StoryEngine.ConfirmEscortTarget = next
+    ElseIf propName == "SearchForActor"
+        Core.StoryEngine.ConfirmSearchForActor = next
+    ElseIf propName == "ScheduleFetch"
+        Core.StoryEngine.ConfirmScheduleFetch = next
+    ElseIf propName == "ScheduleDelivery"
+        Core.StoryEngine.ConfirmScheduleDelivery = next
+    ElseIf propName == "ScheduleMeeting"
+        Core.StoryEngine.ConfirmScheduleMeeting = next
+    EndIf
+    SetTextOptionValue(optionId, ConfirmModeLabel(next))
+EndFunction
+
+Function SetHoldPolicy(String storyType, Int optionId, Int oidNone, Int oidCivilian, Int oidExceptFollower, Int oidAll, Int oidLocalCivilian, Int oidLocalExceptFollower, Int oidLocalAll)
+    If Core == None || Core.StoryEngine == None
+        return
+    EndIf
+    Int newPolicy = 1
+    If optionId == oidNone
+        newPolicy = 0
+    ElseIf optionId == oidCivilian
+        newPolicy = 1
+    ElseIf optionId == oidExceptFollower
+        newPolicy = 2
+    ElseIf optionId == oidAll
+        newPolicy = 3
+    ElseIf optionId == oidLocalCivilian
+        newPolicy = 4
+    ElseIf optionId == oidLocalExceptFollower
+        newPolicy = 5
+    ElseIf optionId == oidLocalAll
+        newPolicy = 6
+    EndIf
+    Core.SetHoldRestrictionPolicy(storyType, newPolicy)
+    SetToggleOptionValue(oidNone, newPolicy == 0)
+    SetToggleOptionValue(oidCivilian, newPolicy == 1)
+    SetToggleOptionValue(oidExceptFollower, newPolicy == 2)
+    SetToggleOptionValue(oidAll, newPolicy == 3)
+    SetToggleOptionValue(oidLocalCivilian, newPolicy == 4)
+    SetToggleOptionValue(oidLocalExceptFollower, newPolicy == 5)
+    SetToggleOptionValue(oidLocalAll, newPolicy == 6)
 EndFunction
 
 ; =============================================================================
@@ -532,15 +816,22 @@ Event OnOptionSelect(Int optionId)
         Core.SetSettingBool("Intel_MCM_DebugMode", newVal)
         SetToggleOptionValue(OID_DebugMode, newVal)
 
-    ElseIf optionId == OID_TravelConfirmMode
-        Int current = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt")
-        If current > 0
-            StorageUtil.SetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt", 0)
-            SetToggleOptionValue(OID_TravelConfirmMode, false)
-        Else
-            StorageUtil.SetIntValue(Game.GetPlayer(), "Intel_TaskConfirmPrompt", 1)
-            SetToggleOptionValue(OID_TravelConfirmMode, true)
-        EndIf
+    ElseIf optionId == OID_ConfirmGoToLocation
+        CycleConfirmMode(optionId, "GoToLocation")
+    ElseIf optionId == OID_ConfirmDeliverMessage
+        CycleConfirmMode(optionId, "DeliverMessage")
+    ElseIf optionId == OID_ConfirmFetchPerson
+        CycleConfirmMode(optionId, "FetchPerson")
+    ElseIf optionId == OID_ConfirmEscortTarget
+        CycleConfirmMode(optionId, "EscortTarget")
+    ElseIf optionId == OID_ConfirmSearchForActor
+        CycleConfirmMode(optionId, "SearchForActor")
+    ElseIf optionId == OID_ConfirmScheduleFetch
+        CycleConfirmMode(optionId, "ScheduleFetch")
+    ElseIf optionId == OID_ConfirmScheduleDelivery
+        CycleConfirmMode(optionId, "ScheduleDelivery")
+    ElseIf optionId == OID_ConfirmScheduleMeeting
+        CycleConfirmMode(optionId, "ScheduleMeeting")
 
     ElseIf optionId == OID_DeliveryReportBack
         Int current = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack")
@@ -561,6 +852,16 @@ Event OnOptionSelect(Int optionId)
         If Core != None && Core.StoryEngine != None
             Core.StoryEngine.NPCTickEnabled = !Core.StoryEngine.NPCTickEnabled
             SetToggleOptionValue(OID_NPCTickEnabled, Core.StoryEngine.NPCTickEnabled)
+        EndIf
+
+    ElseIf optionId == OID_PoliticsEnabled
+        Bool newVal = !IntelEngine.IsPoliticsEnabled()
+        IntelEngine.SetPoliticsEnabled(newVal)
+        SetToggleOptionValue(OID_PoliticsEnabled, newVal)
+        If newVal && Core != None && Core.Politics != None
+            Core.Politics.StartScheduler()
+        ElseIf !newVal && Core != None && Core.Politics != None
+            Core.Politics.StopScheduler()
         EndIf
 
     ElseIf optionId == OID_StoryForceRestart
@@ -584,6 +885,9 @@ Event OnOptionSelect(Int optionId)
         ElseIf optionId == OID_TypeAmbush
             Core.StoryEngine.TypeAmbushEnabled = !Core.StoryEngine.TypeAmbushEnabled
             SetToggleOptionValue(OID_TypeAmbush, Core.StoryEngine.TypeAmbushEnabled)
+        ElseIf optionId == OID_TypeFactionAmbush
+            Core.StoryEngine.TypeFactionAmbushEnabled = !Core.StoryEngine.TypeFactionAmbushEnabled
+            SetToggleOptionValue(OID_TypeFactionAmbush, Core.StoryEngine.TypeFactionAmbushEnabled)
         ElseIf optionId == OID_TypeStalker
             Core.StoryEngine.TypeStalkerEnabled = !Core.StoryEngine.TypeStalkerEnabled
             SetToggleOptionValue(OID_TypeStalker, Core.StoryEngine.TypeStalkerEnabled)
@@ -611,10 +915,55 @@ Event OnOptionSelect(Int optionId)
         ElseIf optionId == OID_QuestFindItem
             Core.StoryEngine.QuestSubTypeFindItemEnabled = !Core.StoryEngine.QuestSubTypeFindItemEnabled
             SetToggleOptionValue(OID_QuestFindItem, Core.StoryEngine.QuestSubTypeFindItemEnabled)
+        ElseIf optionId == OID_QuestFactionCombat
+            Core.StoryEngine.QuestSubTypeFactionCombatEnabled = !Core.StoryEngine.QuestSubTypeFactionCombatEnabled
+            SetToggleOptionValue(OID_QuestFactionCombat, Core.StoryEngine.QuestSubTypeFactionCombatEnabled)
+        ElseIf optionId == OID_QuestFactionRescue
+            Core.StoryEngine.QuestSubTypeFactionRescueEnabled = !Core.StoryEngine.QuestSubTypeFactionRescueEnabled
+            SetToggleOptionValue(OID_QuestFactionRescue, Core.StoryEngine.QuestSubTypeFactionRescueEnabled)
+        ElseIf optionId == OID_QuestFactionBattle
+            Core.StoryEngine.QuestSubTypeFactionBattleEnabled = !Core.StoryEngine.QuestSubTypeFactionBattleEnabled
+            SetToggleOptionValue(OID_QuestFactionBattle, Core.StoryEngine.QuestSubTypeFactionBattleEnabled)
         ElseIf optionId == OID_QuestAllowDeath
             Core.StoryEngine.QuestAllowVictimDeath = !Core.StoryEngine.QuestAllowVictimDeath
             SetToggleOptionValue(OID_QuestAllowDeath, Core.StoryEngine.QuestAllowVictimDeath)
         EndIf
+
+    ; ---- Hold Restriction toggles ----
+    ElseIf optionId == OID_HoldSeekNone || optionId == OID_HoldSeekCivilian || \
+           optionId == OID_HoldSeekExceptFollower || optionId == OID_HoldSeekAll || \
+           optionId == OID_HoldSeekLocalCivilian || optionId == OID_HoldSeekLocalExceptFollower || optionId == OID_HoldSeekLocalAll
+        SetHoldPolicy("seek_player", optionId, OID_HoldSeekNone, OID_HoldSeekCivilian, OID_HoldSeekExceptFollower, OID_HoldSeekAll, OID_HoldSeekLocalCivilian, OID_HoldSeekLocalExceptFollower, OID_HoldSeekLocalAll)
+
+    ElseIf optionId == OID_HoldInformantNone || optionId == OID_HoldInformantCivilian || \
+           optionId == OID_HoldInformantExceptFollower || optionId == OID_HoldInformantAll || \
+           optionId == OID_HoldInformantLocalCivilian || optionId == OID_HoldInformantLocalExceptFollower || optionId == OID_HoldInformantLocalAll
+        SetHoldPolicy("informant", optionId, OID_HoldInformantNone, OID_HoldInformantCivilian, OID_HoldInformantExceptFollower, OID_HoldInformantAll, OID_HoldInformantLocalCivilian, OID_HoldInformantLocalExceptFollower, OID_HoldInformantLocalAll)
+
+    ElseIf optionId == OID_HoldRoadNone || optionId == OID_HoldRoadCivilian || \
+           optionId == OID_HoldRoadExceptFollower || optionId == OID_HoldRoadAll || \
+           optionId == OID_HoldRoadLocalCivilian || optionId == OID_HoldRoadLocalExceptFollower || optionId == OID_HoldRoadLocalAll
+        SetHoldPolicy("road_encounter", optionId, OID_HoldRoadNone, OID_HoldRoadCivilian, OID_HoldRoadExceptFollower, OID_HoldRoadAll, OID_HoldRoadLocalCivilian, OID_HoldRoadLocalExceptFollower, OID_HoldRoadLocalAll)
+
+    ElseIf optionId == OID_HoldAmbushNone || optionId == OID_HoldAmbushCivilian || \
+           optionId == OID_HoldAmbushExceptFollower || optionId == OID_HoldAmbushAll || \
+           optionId == OID_HoldAmbushLocalCivilian || optionId == OID_HoldAmbushLocalExceptFollower || optionId == OID_HoldAmbushLocalAll
+        SetHoldPolicy("ambush", optionId, OID_HoldAmbushNone, OID_HoldAmbushCivilian, OID_HoldAmbushExceptFollower, OID_HoldAmbushAll, OID_HoldAmbushLocalCivilian, OID_HoldAmbushLocalExceptFollower, OID_HoldAmbushLocalAll)
+
+    ElseIf optionId == OID_HoldStalkerNone || optionId == OID_HoldStalkerCivilian || \
+           optionId == OID_HoldStalkerExceptFollower || optionId == OID_HoldStalkerAll || \
+           optionId == OID_HoldStalkerLocalCivilian || optionId == OID_HoldStalkerLocalExceptFollower || optionId == OID_HoldStalkerLocalAll
+        SetHoldPolicy("stalker", optionId, OID_HoldStalkerNone, OID_HoldStalkerCivilian, OID_HoldStalkerExceptFollower, OID_HoldStalkerAll, OID_HoldStalkerLocalCivilian, OID_HoldStalkerLocalExceptFollower, OID_HoldStalkerLocalAll)
+
+    ElseIf optionId == OID_HoldMessageNone || optionId == OID_HoldMessageCivilian || \
+           optionId == OID_HoldMessageExceptFollower || optionId == OID_HoldMessageAll || \
+           optionId == OID_HoldMessageLocalCivilian || optionId == OID_HoldMessageLocalExceptFollower || optionId == OID_HoldMessageLocalAll
+        SetHoldPolicy("message", optionId, OID_HoldMessageNone, OID_HoldMessageCivilian, OID_HoldMessageExceptFollower, OID_HoldMessageAll, OID_HoldMessageLocalCivilian, OID_HoldMessageLocalExceptFollower, OID_HoldMessageLocalAll)
+
+    ElseIf optionId == OID_HoldQuestNone || optionId == OID_HoldQuestCivilian || \
+           optionId == OID_HoldQuestExceptFollower || optionId == OID_HoldQuestAll || \
+           optionId == OID_HoldQuestLocalCivilian || optionId == OID_HoldQuestLocalExceptFollower || optionId == OID_HoldQuestLocalAll
+        SetHoldPolicy("quest", optionId, OID_HoldQuestNone, OID_HoldQuestCivilian, OID_HoldQuestExceptFollower, OID_HoldQuestAll, OID_HoldQuestLocalCivilian, OID_HoldQuestLocalExceptFollower, OID_HoldQuestLocalAll)
 
     EndIf
 EndEvent
@@ -656,7 +1005,7 @@ Event OnOptionSliderOpen(Int optionId)
     ElseIf optionId == OID_StoryEngineInterval
         SetSliderDialogStartValue(Core.GetStoryEngineInterval())
         SetSliderDialogDefaultValue(3.0)
-        SetSliderDialogRange(0.5, 12.0)
+        SetSliderDialogRange(0.5, 168.0)
         SetSliderDialogInterval(0.5)
     ElseIf optionId == OID_StoryEngineCooldown
         SetSliderDialogStartValue(Core.GetStoryEngineCooldown())
@@ -697,7 +1046,7 @@ Event OnOptionSliderOpen(Int optionId)
         EndIf
         SetSliderDialogStartValue(currentValue)
         SetSliderDialogDefaultValue(1.5)
-        SetSliderDialogRange(0.5, 6.0)
+        SetSliderDialogRange(0.5, 168.0)
         SetSliderDialogInterval(0.5)
     ElseIf optionId == OID_NPCSocialCooldown
         Float currentValue = 24.0
@@ -708,6 +1057,11 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogDefaultValue(24.0)
         SetSliderDialogRange(6.0, 72.0)
         SetSliderDialogInterval(6.0)
+    ElseIf optionId == OID_PoliticsTickInterval
+        SetSliderDialogStartValue(IntelEngine.GetPoliticsTickInterval() as Float)
+        SetSliderDialogDefaultValue(6.0)
+        SetSliderDialogRange(1.0, 168.0)
+        SetSliderDialogInterval(1.0)
     EndIf
 EndEvent
 
@@ -762,6 +1116,9 @@ Event OnOptionSliderAccept(Int optionId, Float sliderValue)
             Core.StoryEngine.NPCSocialCooldownHours = sliderValue
         EndIf
         SetSliderOptionValue(OID_NPCSocialCooldown, sliderValue, "{0}")
+    ElseIf optionId == OID_PoliticsTickInterval
+        IntelEngine.SetPoliticsTickInterval(sliderValue as Int)
+        SetSliderOptionValue(OID_PoliticsTickInterval, sliderValue, "{0}")
     EndIf
 EndEvent
 
@@ -780,8 +1137,11 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("How many game hours NPCs wait at travel destinations before returning home. Does not affect scheduled meetings (those use Meeting Timeout).")
     ElseIf optionId == OID_ResetAllTasks
         SetInfoText("Force reset all active tasks. NPCs will return to their normal routines.")
-    ElseIf optionId == OID_TravelConfirmMode
-        SetInfoText("When enabled, a prompt appears before an NPC starts a task. You can Allow, Deny, or Deny Silently.")
+    ElseIf optionId == OID_ConfirmGoToLocation || optionId == OID_ConfirmDeliverMessage || \
+           optionId == OID_ConfirmFetchPerson || optionId == OID_ConfirmEscortTarget || \
+           optionId == OID_ConfirmSearchForActor || optionId == OID_ConfirmScheduleFetch || \
+           optionId == OID_ConfirmScheduleDelivery || optionId == OID_ConfirmScheduleMeeting
+        SetInfoText("Click to cycle: Disabled / Followers Only / Everyone. Controls whether a confirmation prompt appears before this action. Followers Only = only prompts when the acting NPC is your active follower.")
     ElseIf optionId == OID_DeliveryReportBack
         SetInfoText("When enabled, messengers return to you after delivering a message off-screen and report back.")
     ElseIf optionId == OID_MeetingTimeoutHours
@@ -854,8 +1214,18 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("Enable 'rescue captive NPC' quest type. A real NPC is teleported to the location and held captive by enemies.")
     ElseIf optionId == OID_QuestFindItem
         SetInfoText("Enable 'find lost item' quest type. A valuable item spawns in a chest guarded by enemies.")
+    ElseIf optionId == OID_QuestFactionCombat
+        SetInfoText("Enable faction combat quests. Clear out hostile faction soldiers at a location. Rewards faction standing with the opposing side.")
+    ElseIf optionId == OID_QuestFactionRescue
+        SetInfoText("Enable faction rescue quests. Rescue a captive from hostile faction soldiers. Rewards faction standing with the opposing side.")
+    ElseIf optionId == OID_QuestFactionBattle
+        SetInfoText("Enable faction battle quests. A friendly faction invites you to join an upcoming battle. Requires high standing (40+).")
     ElseIf optionId == OID_QuestAllowDeath
         SetInfoText("WARNING: If enabled, rescued NPCs can die during combat. This can break main quests if essential NPCs are killed! Keep disabled unless you want maximum realism.")
+    ElseIf optionId == OID_PoliticsEnabled
+        SetInfoText("Enable the autonomous faction politics system. Factions trade, negotiate, scheme, and go to war based on LLM-driven decisions.")
+    ElseIf optionId == OID_PoliticsTickInterval
+        SetInfoText("How often (in game hours) the Political DM evaluates faction relations and generates events. Default 6.")
     EndIf
 EndEvent
 

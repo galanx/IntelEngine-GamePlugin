@@ -1,22 +1,48 @@
+customCategory: intel_travel
 name: GoToLocation
 description: >
-  Go to a PLACE right now. Leave immediately.
+  Leave immediately and travel to a specific place.
 
-  TRIGGER: You need to physically move to a location NOW (not later).
+  TRIGGER WORDS that indicate travel intent:
+  "go to", "head to", "walk to", "travel to", "make your way to", "get to",
+  "go home", "go back", "return to", "leave", "head out", "go outside",
+  "go upstairs", "go downstairs", "go inside", "step outside"
 
-  Examples:
-  - "go to the Bannered Mare", "head to Whiterun", "go home"
-  - "go upstairs", "go outside", "leave", "go to the back room"
-  - You decide to go somewhere on your own right now
+  If the conversation does NOT contain one of these patterns (or similar), do NOT trigger this action.
+  Simply MENTIONING a place name is NOT a travel command.
 
-  DECISION RULES:
-  - Destination is a PLACE (building, city, direction) = GoToLocation
-  - Destination is a PERSON (name or pronoun) = NEVER GoToLocation
-  - "go get him/her/them" or "bring someone" = FetchPerson, NOT this
-  - "go talk to X" or "tell X something" = DeliverMessage, NOT this
-  - "take X home" or "walk X to Y" = EscortTarget, NOT this (escorting a person)
-  - "go there LATER" or "meet me TONIGHT" = ScheduleMeeting, NOT this
-  - Just mentioning a location in conversation does NOT mean go there
+  DESTINATION must be one of these two categories:
+
+  A) SEMANTIC KEYWORDS — use ONLY these exact words (resolved by the engine):
+  - "home" or "my home" — your own residence
+  - "<Name>'s home" or "<Name>'s house" — another NPC's residence (e.g., "Camilla's house", "Alvor's home")
+  - "upstairs" or "downstairs" — vertical movement within current building
+  - "outside" or "inside" — enter or exit current building
+  - "the kitchen" or "the bedroom" or "the cellar" — rooms within current building
+  Nothing else from this category is valid. Do NOT improvise semantic keywords.
+
+  B) NAMED SKYRIM LOCATIONS — any real location that exists in the game world.
+  Examples (not exhaustive — any real Skyrim location is valid):
+  - Cities: Whiterun, Solitude, Riften, Markarth, Windhelm, Falkreath, Morthal, Dawnstar, Winterhold
+  - Towns: Riverwood, Rorikstead, Dragon Bridge, Ivarstead, Shor's Stone, Karthwasten
+  - Buildings: Dragonsreach, Bannered Mare, Bee and Barb, Blue Palace, Jorrvaskr, Arcadia's Cauldron
+  The location MUST actually exist in Skyrim. Do NOT invent location names.
+
+  INVALID destinations (NEVER use these):
+  - A person's name by itself (e.g., "Nazeem", "Camilla") — use FetchPerson or DeliverMessage
+  - Made-up locations that don't exist in Skyrim
+  - Vague descriptions like "behind the house", "near the river", "over there", "the back room"
+  - Abstract concepts like "to work", "to the market stall", "to the forge"
+
+  WHEN NOT TO USE:
+  - No travel keyword was spoken — someone just mentioned a place in conversation
+  - You want to go LATER — use ScheduleMeeting instead
+  - The destination is a PERSON — use FetchPerson or DeliverMessage instead
+  - Normal daily routine (going to work, eating, sleeping) — the game handles this
+  - You are already at the destination
+  - You are CURRENTLY fetching someone (FetchPerson), escorting someone (EscortTarget),
+    or searching for someone (SearchForActor). Complete or cancel your current task first.
+    Do NOT interrupt an active travel task with a new GoToLocation.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Travel
@@ -29,12 +55,11 @@ parameterMapping:
   - type: dynamic
     name: destination
     description: >
-      Where to travel. Can be:
-      - A named location: Whiterun, Solitude, Bannered Mare, Dragonsreach
-      - A relative term: upstairs, downstairs, outside, inside
-      - "home" or "my home" — YOUR own home
-      - "<Name>'s home" — someone's home (e.g., "Alvor's home")
-      - Just a name like "Camilla" — resolves to their home
+      Where to travel. Use ONLY:
+      - A semantic keyword from list A: "home", "upstairs", "downstairs", "outside", "inside",
+        "the kitchen", "the bedroom", "the cellar", "<Name>'s house"
+      - OR a real Skyrim location name: "Whiterun", "Bannered Mare", "Dragonsreach", etc.
+      NEVER use a person's name alone. NEVER invent locations. NEVER use vague descriptions.
   - type: dynamic
     name: speed
     description: >
@@ -43,9 +68,8 @@ parameterMapping:
   - type: dynamic
     name: waitForPlayer
     description: >
-      1 if the player asked or told you to go there (you should wait for them).
-      0 if you decided to go on your own (fresh air, errands, personal business).
-      When nobody asked you to go, use 0.
+      1 if the player asked or told you to go there.
+      0 if you decided to go on your own.
   - type: static
     value: false
     name: isScheduled
@@ -59,8 +83,6 @@ eligibilityRules:
     logicalOperator: "AND"
     required: true
 
-eventString: "{{ actor.name }} already departed for {{ destination }} (task in progress)"
-isShortLived: false
 enabled: true
-defaultPriority: 6
+defaultPriority: 5
 tags: []

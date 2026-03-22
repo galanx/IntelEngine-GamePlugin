@@ -1,0 +1,64 @@
+customCategory: intel_communication
+name: ReportPlayerConduct
+description: >
+  React to the player expressing a political opinion, faction loyalty, insult, or support.
+
+  TRIGGER: The player says something that reveals their stance toward a faction.
+
+  Examples:
+  - Player praises or insults a faction: "The Empire is corrupt", "Long live the Stormcloaks"
+  - Player expresses loyalty: "I fight for the Legion", "The Companions are my brothers"
+  - Player threatens a faction: "The Thalmor will pay", "Your guild is finished"
+  - Player shows support: "I donated to the College", "Maven has my respect"
+  - Player takes sides in a political dispute: "Ulfric was right", "Tullius should hang"
+
+  DECISION RULES:
+  - ONLY select this when the player explicitly states a faction opinion
+  - Do NOT select for generic compliments/insults about individuals
+  - Do NOT select for questions about factions ("what do you think of the Empire?")
+  - The faction must be one from the political system (military, guild, or political family)
+  - If the player discusses multiple factions, pick the MOST relevant one
+
+  You are forming an opinion about the player based on what they said. This may
+  reach the ears of faction leadership and affect how the faction treats the player.
+
+questEditorId: IntelEngine
+scriptName: IntelEngine_Politics
+executionFunctionName: ReportPlayerConduct
+
+parameterMapping:
+  - type: speaker
+    name: akNPC
+    description: You (the NPC who heard the player's statement)
+  - type: dynamic
+    name: factionId
+    description: >
+      The faction the player expressed an opinion about.
+      Must be one of: ImperialFaction, StormcloakFaction, ThalmorFaction,
+      CompanionsFaction, ThievesGuildFaction, CollegeOfWinterholdFaction,
+      DarkBrotherhoodFaction, SilverBloodFamily, BlackBriarFamily
+  - type: dynamic
+    name: sentiment
+    description: >
+      How the player feels about this faction based on what they said.
+      Must be one of: "strongly_positive", "positive", "negative", "strongly_negative"
+  - type: dynamic
+    name: reason
+    description: >
+      Brief summary of what the player said. One sentence.
+      Example: "praised the Legion's role in keeping order"
+
+eligibilityRules:
+  - conditions:
+      - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+    logicalOperator: "AND"
+    required: true
+
+eventString: "{{ actor.name }} noted the player's {{ sentiment }} sentiment toward {{ factionId }}: {{ reason }}"
+isShortLived: true
+enabled: true
+defaultPriority: 3
+tags: []

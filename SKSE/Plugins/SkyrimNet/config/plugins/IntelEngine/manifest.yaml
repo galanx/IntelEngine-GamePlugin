@@ -1,6 +1,6 @@
 plugin:
   name: IntelEngine
-  version: "1.0"
+  version: "3.0"
   description: "NPC task & story automation engine"
   icon: "\U0001F9E0"
 
@@ -57,6 +57,28 @@ schema:
       path: "story.npc_blocklist"
       type: "string"
       description: "Comma-separated NPC display names to exclude from story candidates (e.g., 'Nazeem,Heimskr'). Case-insensitive. Blocked NPCs will never be picked by the Dungeon Master."
+      defaultValue: ""
+      category: "Story Engine"
+
+    # ── Whitelists (empty = everything allowed; non-empty = only listed entries pass) ──
+    - name: "Faction Whitelist"
+      path: "story.faction_whitelist"
+      type: "string"
+      description: "Comma-separated faction EditorIDs. If non-empty, ONLY NPCs in these factions can be dispatched. Empty = all factions allowed."
+      defaultValue: ""
+      category: "Story Engine"
+
+    - name: "Location Whitelist"
+      path: "story.location_whitelist"
+      type: "string"
+      description: "Comma-separated location names. If non-empty, NPCs can only visit you when you are in one of these locations. Empty = all locations allowed."
+      defaultValue: ""
+      category: "Story Engine"
+
+    - name: "NPC Whitelist"
+      path: "story.npc_whitelist"
+      type: "string"
+      description: "Comma-separated NPC display names. If non-empty, ONLY these NPCs can be dispatched. Empty = all NPCs allowed."
       defaultValue: ""
       category: "Story Engine"
 

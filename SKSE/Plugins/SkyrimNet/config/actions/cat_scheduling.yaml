@@ -1,0 +1,4 @@
+customCategory: intel_scheduling
+name: Scheduling
+description: "Plan for later — SELECT THIS when {{ npc.name }} agrees to: meet somewhere later, fetch someone at a future time, or deliver a message at a scheduled time. The NPC stays put now and acts when the time comes."
+enabled: true
