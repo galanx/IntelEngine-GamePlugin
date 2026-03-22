@@ -410,6 +410,7 @@ IntelEngine is under active development. The following features are planned for 
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)
+- [Papyrus MessageBox](https://www.nexusmods.com/skyrimspecialedition/mods/83578) (confirmation prompts)
 
 ### Optional
 
