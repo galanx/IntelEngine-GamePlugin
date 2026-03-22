@@ -40,6 +40,9 @@ description: >
   - The destination is a PERSON — use FetchPerson or DeliverMessage instead
   - Normal daily routine (going to work, eating, sleeping) — the game handles this
   - You are already at the destination
+  - You are CURRENTLY fetching someone (FetchPerson), escorting someone (EscortTarget),
+    or searching for someone (SearchForActor). Complete or cancel your current task first.
+    Do NOT interrupt an active travel task with a new GoToLocation.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Travel

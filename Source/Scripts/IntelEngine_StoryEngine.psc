@@ -86,7 +86,7 @@ Int Property ConfirmEscortTarget = 1 Auto Hidden
 Int Property ConfirmSearchForActor = 1 Auto Hidden
 Int Property ConfirmScheduleFetch = 1 Auto Hidden
 Int Property ConfirmScheduleDelivery = 1 Auto Hidden
-Int Property ConfirmScheduleMeeting = 1 Auto Hidden
+Int Property ConfirmScheduleMeeting = 2 Auto Hidden
 
 ; === NPC Social Tick (independent of player-centric tick) ===
 Float Property LastNPCTickTime = 0.0 Auto Hidden
