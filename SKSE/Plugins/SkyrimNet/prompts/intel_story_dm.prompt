@@ -172,21 +172,22 @@ The Political Climate section shows wars, events, and faction tensions. Most sto
    - **"aware"** — has seen {{ playerName }} around but never spoken. Knows the face, may know the name from hearsay. Cautious introduction: "I've seen you around..." or "You're {{ playerName }}, aren't you?"
    - **"acquainted"** — knows {{ playerName }} personally. Can use their name, reference past conversations and shared events. msgContent can be direct and personal.
 5. **Candidate data is your ONLY source of truth** — every claim must trace to the candidate's Memories, Recent events, Last conversation, Bio, or the Recent Gossip section. NEVER invent history. For stranger NPCs, use their Bio, archetype, and the Rumors section to craft a plausible approach.
-6. **Match type to character** — a priest stays at their temple, a guard patrols their hold. CIVILIAN class NPCs stay near cities. Combat-capable classes travel more freely.
-7. **Time of day** — midnight visits need urgent motivation. Early morning suggests routine. Evening allows social encounters.
-8. **DANGEROUS locations** — only combat-capable classes with strong motive. CIVILIAN NPCs NEVER enter danger zones.
-9. **Past tense narration only** — describe what the NPC decided to do, not what they will do. Under 120 characters.
-10. **Narration reflects familiarity** — the narration should convey HOW the NPC approaches {{ playerName }} based on their "Knows player" status:
+6. **Never duplicate vanilla quests** — do NOT generate stories that replicate quests already in Skyrim. Examples: Amren asking for his family sword, Andurs wanting his Amulet of Arkay, Carlotta asking to deal with Mikael, Adrianne delivering a sword to the Jarl. Create ORIGINAL stories for these NPCs instead. However, you MAY reference completed vanilla quests if they appear in the NPC's memories — "grateful since you found his sword" or "trusts you after what you did" are great hooks for NEW stories.
+7. **Match type to character** — a priest stays at their temple, a guard patrols their hold. CIVILIAN class NPCs stay near cities. Combat-capable classes travel more freely.
+8. **Time of day** — midnight visits need urgent motivation. Early morning suggests routine. Evening allows social encounters.
+9. **DANGEROUS locations** — only combat-capable classes with strong motive. CIVILIAN NPCs NEVER enter danger zones.
+10. **Past tense narration only** — describe what the NPC decided to do, not what they will do. Under 120 characters.
+11. **Narration reflects familiarity** — the narration should convey HOW the NPC approaches {{ playerName }} based on their "Knows player" status:
    - **stranger**: hint at unfamiliarity — "approached cautiously after hearing rumors of a capable warrior", "sought out the newcomer after hearing tales of dragon-slaying"
    - **aware**: hint at recognition — "finally worked up the courage to approach after seeing {{ playerName }} around town"
    - **acquainted**: hint at personal connection — "tracked {{ playerName }} down after what happened last time", "came looking for {{ playerName }} with unfinished business"
    Narration is a past-tense verb phrase WITHOUT subject prefix. Include WHO and WHY. Under 120 characters.
-11. **Location consistency** — if you mention a location in narration or msgContent, it MUST exactly match the questLocation field. NEVER mention a different location than questLocation. If the quest is at "Windhelm", do NOT say "Kynesgrove" or any other place in the narration or msgContent. Prefer narrating MOTIVE over location — let the quest marker handle where.
+12. **Location consistency** — if you mention a location in narration or msgContent, it MUST exactly match the questLocation field. NEVER mention a different location than questLocation. If the quest is at "Windhelm", do NOT say "Kynesgrove" or any other place in the narration or msgContent. Prefer narrating MOTIVE over location — let the quest marker handle where.
 {% if show_quest == "1" %}
-12. **Quest variety{% if show_quest_rescue == "1" %} and rescue validation{% endif %}** — check "Recent Quest History" and pick DIFFERENT locations{% if show_quest_find_item == "1" %}, items{% endif %}{% if show_quest_rescue == "1" %}, and victims{% endif %}.{% if show_quest_rescue == "1" %} Rescue victim MUST be from quest giver's Relationships or In-game connections.{% endif %}
+13. **Quest variety{% if show_quest_rescue == "1" %} and rescue validation{% endif %}** — check "Recent Quest History" and pick DIFFERENT locations{% if show_quest_find_item == "1" %}, items{% endif %}{% if show_quest_rescue == "1" %}, and victims{% endif %}.{% if show_quest_rescue == "1" %} Rescue victim MUST be from quest giver's Relationships or In-game connections.{% endif %}
 {% endif %}
 {% if world_quiet == "1" %}
-13. **The world has been silent for days** — lower your threshold significantly and dispatch a story. A stranger with a rumor, a guard with news, a merchant needing help, or a faction call to arms are all valid. First meetings create future stories.
+14. **The world has been silent for days** — lower your threshold significantly and dispatch a story. A stranger with a rumor, a guard with news, a merchant needing help, or a faction call to arms are all valid. First meetings create future stories.
 {% endif %}
 
 [ user ]

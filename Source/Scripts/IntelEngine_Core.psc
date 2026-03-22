@@ -962,6 +962,14 @@ EndFunction
 ; SHARED TASK HELPERS (DRY — called by Travel, NPCTasks, Schedule)
 ; =============================================================================
 
+String Function GetNPCTaskType(Actor npc)
+    {Returns the current task type for an NPC, or "" if not on a task.}
+    If !npc || !npc.IsInFaction(IntelEngine_TaskFaction)
+        Return ""
+    EndIf
+    Return StorageUtil.GetStringValue(npc, "Intel_TaskType")
+EndFunction
+
 Bool Function IsDuplicateTask(Actor npc, String taskType, String target)
     {Returns true if NPC is already doing the exact same task. Caller should return false.}
     If !npc.IsInFaction(IntelEngine_TaskFaction)
@@ -1851,6 +1859,7 @@ Function RegisterDashboardEvents()
     RegisterForModEvent("IntelEngine_DashboardSetting", "OnDashboardSetting")
     RegisterForModEvent("IntelEngine_DashboardRemovePackages", "OnDashboardRemovePackages")
     RegisterForModEvent("IntelEngine_DashboardDispatchStory", "OnDashboardDispatchStory")
+    RegisterForModEvent("IntelEngine_DashboardDispatchNpcSocial", "OnDashboardDispatchNpcSocial")
     RegisterForModEvent("IntelEngine_DashboardExecuteAction", "OnDashboardExecuteAction")
     DebugMsg("Dashboard ModEvent listeners registered")
 EndFunction
@@ -2167,6 +2176,64 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     PushDashboardState()
 EndEvent
 
+
+; =============================================================================
+; DIRECTOR MODE: NPC Social Dispatch
+; =============================================================================
+Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg, Form sender)
+    ; strArg = socialType (npc_interaction or npc_gossip)
+    String socialType = strArg
+    String npc1Name = IntelEngine.GetPendingDirectorParam("npc1Name")
+    String npc2Name = IntelEngine.GetPendingDirectorParam("npc2Name")
+    String narration = IntelEngine.GetPendingDirectorParam("narration")
+    String response = IntelEngine.GetPendingDirectorParam("response")
+    IntelEngine.ClearPendingDirectorParams()
+
+    Actor npc1 = IntelEngine.FindNPCByName(npc1Name)
+    Actor npc2 = IntelEngine.FindNPCByName(npc2Name)
+    If !npc1 || npc1.IsDead()
+        DebugMsg("Director: Could not find NPC 1 '" + npc1Name + "' for social dispatch")
+        Return
+    EndIf
+    If !npc2 || npc2.IsDead()
+        DebugMsg("Director: Could not find NPC 2 '" + npc2Name + "' for social dispatch")
+        Return
+    EndIf
+
+    DebugMsg("Director: NPC Social " + socialType + " — " + npc1Name + " -> " + npc2Name + ": " + narration)
+
+    If socialType == "npc_interaction"
+        String fact1 = StoryEngine.ExtractJsonField(response, "fact1")
+        String fact2 = StoryEngine.ExtractJsonField(response, "fact2")
+        If fact1 != ""
+            InjectFact(npc1, fact1)
+        EndIf
+        If fact2 != ""
+            InjectFact(npc2, fact2)
+        EndIf
+        StoryEngine.AddNPCSocialLog("npc_interaction", npc1Name, npc2Name, narration, npc1)
+        StoryEngine.AddRecentStoryEvent("npc_interaction: " + npc1Name + " and " + npc2Name + " — " + narration)
+
+    ElseIf socialType == "npc_gossip"
+        String gossip = StoryEngine.ExtractJsonField(response, "gossip")
+        If gossip != ""
+            InjectFact(npc1, "told " + npc2Name + " that someone " + gossip)
+            InjectFact(npc2, "heard from " + npc1Name + " that someone " + gossip)
+        EndIf
+        StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, narration, npc1)
+        StoryEngine.AddRecentStoryEvent("npc_gossip: " + npc1Name + " told " + npc2Name + " — " + narration)
+    EndIf
+
+    ; If NPCs are close enough, dispatch physical travel for face-to-face
+    Float dist = npc1.GetDistance(npc2)
+    If dist < 5000.0 && dist > 200.0
+        StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType)
+    Else
+        DebugMsg("Director: NPCs too far apart or already close — applied off-screen")
+    EndIf
+
+    PushDashboardState()
+EndEvent
 
 ; =============================================================================
 ; DIRECTOR MODE: Action Execution

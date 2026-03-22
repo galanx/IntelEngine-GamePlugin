@@ -181,6 +181,16 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
         Return false
     EndIf
 
+    ; Block GoToLocation while NPC is on a multi-step task (fetch, escort, search).
+    ; These tasks have their own travel logic — GoToLocation would interrupt mid-task.
+    If !isScheduled
+        String currentTaskType = Core.GetNPCTaskType(akNPC)
+        If currentTaskType == "fetch_npc" || currentTaskType == "escort_target" || currentTaskType == "search_for_actor"
+            Core.DebugMsg("GoToLocation: Blocked — " + akNPC.GetDisplayName() + " is busy with " + currentTaskType)
+            Return false
+        EndIf
+    EndIf
+
     ; MCM task confirmation prompt (skip for scheduled meetings - player already agreed)
     If !isScheduled
         Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, akNPC.GetDisplayName() + " wants to travel to " + destination + ".", "GoToLocation")
