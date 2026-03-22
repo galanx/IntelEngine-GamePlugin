@@ -866,6 +866,9 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(192 132 252 / var(--tw-bg-opacity, 1));
 }
+.bg-purple-500\/20 {
+  background-color: rgb(168 85 247 / 0.2);
+}
 .bg-red-500 {
   --tw-bg-opacity: 1;
   background-color: rgb(239 68 68 / var(--tw-bg-opacity, 1));
@@ -1240,6 +1243,9 @@ body {
 }
 .hover\:bg-emerald-500\/30:hover {
   background-color: rgb(16 185 129 / 0.3);
+}
+.hover\:bg-purple-500\/30:hover {
+  background-color: rgb(168 85 247 / 0.3);
 }
 .hover\:bg-red-500\/30:hover {
   background-color: rgb(239 68 68 / 0.3);
