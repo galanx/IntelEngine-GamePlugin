@@ -1,6 +1,6 @@
 Scriptname IntelEngine Hidden
 {
-    IntelEngine Native API v1.0
+    IntelEngine Native API v3.0
 
     SKSE DLL providing high-performance functions for intelligent NPC tasks:
     - Fuzzy NPC name search with Levenshtein distance
