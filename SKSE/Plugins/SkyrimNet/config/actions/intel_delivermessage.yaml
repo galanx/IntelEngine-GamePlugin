@@ -20,6 +20,8 @@ description: >
 
   If {{ player.name }} did not directly ask you to go relay words to someone, do NOT pick this action.
 
+  CRITICAL: The target must be a DIFFERENT NPC, NEVER {{ player.name }}. You cannot deliver a message to the person who is standing right in front of you. If someone wants to tell {{ player.name }} something, they should just say it directly.
+
   If the message asks the target to meet somewhere, fill meetLocation and meetTime.
 
 questEditorId: IntelEngine
@@ -34,9 +36,10 @@ parameterMapping:
     name: targetName
     description: >
       Who to deliver the message to. Must be a named NPC or a hold guard.
+      NEVER {{ player.name }} — you cannot deliver a message to the player.
       Valid: "Jarl Balgruuf", "Nazeem", "Adrianne Avenicci", "Whiterun Guard"
-      INVALID: made-up roles like "Stormcloak Messenger", "Imperial Soldier", "Bandit",
-      "Courier", "Traveler", "Merchant", "Stranger" — these are NOT resolvable NPCs.
+      INVALID: "{{ player.name }}", made-up roles like "Stormcloak Messenger", "Imperial Soldier",
+      "Bandit", "Courier", "Traveler", "Merchant", "Stranger" — these are NOT resolvable NPCs.
       If you cannot identify a specific named NPC or guard, do NOT use this action.
   - type: dynamic
     name: msgContent
