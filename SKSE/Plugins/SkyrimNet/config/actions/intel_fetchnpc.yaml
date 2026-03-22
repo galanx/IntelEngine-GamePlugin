@@ -19,6 +19,8 @@ description: >
 
   If {{ player.name }} did not directly ask you to bring someone, do NOT pick this action.
 
+  CRITICAL: The target must be a DIFFERENT NPC, NEVER {{ player.name }}. You cannot fetch the person who is standing right in front of you asking you to fetch someone.
+
 questEditorId: IntelEngine
 scriptName: IntelEngine_NPCTasks
 executionFunctionName: FetchNPC
@@ -31,8 +33,9 @@ parameterMapping:
     name: targetName
     description: >
       The person to fetch. Must be a named NPC or hold guard.
+      NEVER {{ player.name }} — you cannot fetch the player.
       Valid: "Ysolda", "Nazeem", "Whiterun Guard"
-      INVALID: "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
+      INVALID: "{{ player.name }}", "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
       If you cannot name a specific person, do NOT use this action.
   - type: dynamic
     name: failReason

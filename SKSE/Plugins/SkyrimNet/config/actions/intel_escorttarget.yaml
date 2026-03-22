@@ -6,8 +6,10 @@ description: >
   Examples:
   - "take Alvor home", "walk Ysolda to the inn", "escort her to safety"
 
+  CRITICAL: The target must be a DIFFERENT NPC, NEVER {{ player.name }}. You escort OTHER people — if {{ player.name }} wants to go somewhere, that is GoToLocation or SearchForActor, not EscortTarget.
+
   DECISION RULES:
-  - "take X to Y" or "walk X to Y" = EscortTarget
+  - "take X to Y" or "walk X to Y" = EscortTarget (X must NOT be {{ player.name }})
   - "bring X here" or "get X" = FetchPerson
   - "tell X to come" = DeliverMessage
 
@@ -23,9 +25,10 @@ parameterMapping:
     name: targetName
     description: >
       The person to escort. Must be a named NPC or a hold guard.
+      NEVER {{ player.name }} — you cannot escort the player.
       Valid: "Nazeem", "Adrianne Avenicci", "Whiterun Guard"
-      INVALID: "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
-      NEVER use {{ player.name }}. If you cannot name a specific person, do NOT use this action.
+      INVALID: "{{ player.name }}", "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
+      If you cannot name a specific person, do NOT use this action.
   - type: dynamic
     name: destination
     description: >
