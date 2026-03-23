@@ -874,6 +874,10 @@ Function RestorePlayerCrimeFactions() Global Native
 ; Get the player's current battle side (empty = spectator/not participating).
 String Function GetPlayerBattleSide() Global Native
 
+; Get the ESP battle side ("A" or "B") for a political faction ID.
+; Uses the normalized mapping where the player's allied faction is always SideA.
+String Function GetFactionBattleSide(String factionId) Global Native
+
 ; Check if the player participated in the current battle at any point.
 Bool Function HasPlayerParticipatedInBattle() Global Native
 
