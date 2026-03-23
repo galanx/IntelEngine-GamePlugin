@@ -189,6 +189,10 @@ Function Maintenance(Bool isFirstLoad = false)
         isFirstLoad = true when mod is first installed (OnInit on alias)
         isFirstLoad = false on subsequent loads (OnPlayerLoadGame on alias)
     }
+    ; ModEvent registrations must run EVERY load — never guarded by duplicate check.
+    ; Papyrus ModEvent listeners don't persist across save/load.
+    RegisterDashboardEvents()
+
     Float now = Utility.GetCurrentRealTime()
     If !isFirstLoad && (now - LastMaintenanceRealTime) < 2.0 && LastMaintenanceRealTime > 0.0
         DebugMsg("IntelEngine Maintenance skipped (duplicate call within 2s)")
@@ -1860,6 +1864,7 @@ Function RegisterDashboardEvents()
     RegisterForModEvent("IntelEngine_DashboardRemovePackages", "OnDashboardRemovePackages")
     RegisterForModEvent("IntelEngine_DashboardDispatchStory", "OnDashboardDispatchStory")
     RegisterForModEvent("IntelEngine_DashboardDispatchNpcSocial", "OnDashboardDispatchNpcSocial")
+    RegisterForModEvent("IntelEngine_DashboardDispatchPolitics", "OnDashboardDispatchPolitics")
     RegisterForModEvent("IntelEngine_DashboardExecuteAction", "OnDashboardExecuteAction")
     DebugMsg("Dashboard ModEvent listeners registered")
 EndFunction
@@ -2227,6 +2232,23 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
         DebugMsg("Director: NPCs too far apart or already close — applied off-screen")
     EndIf
 
+    PushDashboardState()
+EndEvent
+
+; =============================================================================
+; DIRECTOR MODE: Political Event Dispatch
+; =============================================================================
+Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg, Form sender)
+    ; strArg = fake Political DM response JSON (built by C++ from UI fields)
+    ; Feed it directly to ProcessPoliticalDMResponse — same path as a real DM response
+    DebugMsg("Director: Political event received — eventName=" + eventName + " strArg length=" + StringUtil.GetLength(strArg))
+    If Politics
+        DebugMsg("Director: Forwarding to Politics.OnPoliticalDMResponse")
+        Politics.OnPoliticalDMResponse(strArg, 1)
+        DebugMsg("Director: Politics.OnPoliticalDMResponse returned")
+    Else
+        DebugMsg("Director: Politics script not available (property is None)")
+    EndIf
     PushDashboardState()
 EndEvent
 

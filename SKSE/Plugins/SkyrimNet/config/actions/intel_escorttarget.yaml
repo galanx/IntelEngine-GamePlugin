@@ -6,7 +6,7 @@ description: >
   Examples:
   - "take Alvor home", "walk Ysolda to the inn", "escort her to safety"
 
-  CRITICAL: The target must be a DIFFERENT NPC, NEVER {{ player.name }}. You escort OTHER people — if {{ player.name }} wants to go somewhere, that is GoToLocation or SearchForActor, not EscortTarget.
+  CRITICAL: The target must be a DIFFERENT NPC, NEVER {{ player.name }} and NEVER yourself. You escort OTHER people — if {{ player.name }} wants YOU to go somewhere, that is GoToLocation, not EscortTarget. If {{ player.name }} says "go to the inn" or "head to Dragonsreach", use GoToLocation. EscortTarget is ONLY for when {{ player.name }} explicitly asks you to take/walk/escort ANOTHER NAMED NPC somewhere.
 
   DECISION RULES:
   - "take X to Y" or "walk X to Y" = EscortTarget (X must NOT be {{ player.name }})
