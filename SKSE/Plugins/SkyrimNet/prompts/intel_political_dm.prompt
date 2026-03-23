@@ -86,16 +86,32 @@ The `status` field in the relations data uses these labels (mapped from the nume
 - **Hostile** (-40 to war_threshold+1) — e.g., -40 to -49 for default threshold of -50
 - **Critical** (at or below war_threshold) — war-eligible. If no active war exists and no cooldown applies, war_declaration MUST be your next event for this pair
 
-## Player Proximity Awareness
+## Faction Leader Awareness
 
-If `player_nearby_leaders` is present in the political state, the player is physically standing near those faction leaders right now. This changes what events feel believable:
+If `faction_leaders` is present in the political state, it contains faction leaders the player has recently interacted with or is physically near. Each entry has a `nearby` field:
+- **`nearby: true`** — the player is physically standing near this leader right now.
+- **`nearby: false`** — the player recently spoke with this leader but isn't near them now. The conversation still happened and should influence the DM's decisions.
 
-- **If leaders from TWO different factions are both nearby**, prefer face-to-face events between their factions — the player can witness a direct confrontation. `diplomatic_gift`, `alliance_proposal`, `mutual_defense_pact`, `peace_offer`, or `political_marriage` work when both parties are present. For conflict: use the appropriate event for their faction type (see Faction-Specific Conflict Styles) if relations are Tense or worse. **Exception:** if the spread rule (Rule 8) says this pair was used recently, treat it as a one-leader scenario instead.
-- **If only ONE faction's leader is nearby**, avoid events that describe a direct meeting between that leader and an absent leader. Events like `diplomatic_gift`, `alliance_proposal`, `mutual_defense_pact`, `peace_offer`, and `political_marriage` imply both leaders are physically together — don't use these when one is absent. Instead:
+**Proximity rules for face-to-face events:**
+- **If leaders from TWO different factions are both `nearby: true`**, prefer face-to-face events between their factions — the player can witness a direct confrontation. `diplomatic_gift`, `alliance_proposal`, `mutual_defense_pact`, `peace_offer`, or `political_marriage` work when both parties are present. For conflict: use the appropriate event for their faction type (see Faction-Specific Conflict Styles) if relations are Tense or worse. **Exception:** if the spread rule (Rule 8) says this pair was used recently, treat it as a one-leader scenario instead.
+- **If only ONE faction's leader is `nearby: true`**, avoid events that describe a direct meeting between that leader and an absent leader. Events like `diplomatic_gift`, `alliance_proposal`, `mutual_defense_pact`, `peace_offer`, and `political_marriage` imply both leaders are physically together — don't use these when one is absent. Instead:
   - **Agent-based events are always fine:** `insult` (delivered by herald), `espionage`, `sabotage`, `trade_dispute`, `tariff`, `embargo`, and `proxy_attack` happen through intermediaries and don't require both leaders present.
   - **Conflict events** work well thematically near the player if the pair's relations are Tense or worse. Use the appropriate type for the faction (see Faction-Specific Conflict Styles above) — not all factions use the same conflict style.
   - **Or pick a different faction pair entirely.** The political world is bigger than what's in front of the player.
+- **Leaders with `nearby: false`** should NOT trigger face-to-face event preferences — their influence comes from the conversation content, not physical presence.
 - **Proximity is a soft preference.** Agent-based events are always available regardless of leader locations. Only use `should_act:false` if no valid event exists for other reasons (relations, spread rotation, etc.) — not because of proximity constraints alone.
+
+## Leader Context
+
+`faction_leaders` entries may include personal context: `bio` (personality, leadership style), `relationships` (canonical allies/rivals), `memories` (what they remember), `recent_dialogue` (this specific leader's conversations with the player — distinct from the global `recent_player_dialogues` field), and `recent_events` (what they've been doing). Fields are plain text strings. If a field is absent from an entry, that information is unknown — apply no influence in that direction.
+
+**Use this to shape political decisions:**
+- If a leader's `recent_dialogue` shows the player urged peace, diplomacy, or restraint → that leader's faction is more likely to generate positive events (peace_offer, trade_deal) this tick.
+- If the player insulted a faction or its leader in dialogue → that faction may escalate (insult, tariff, border_skirmish).
+- A leader's `bio` and `relationships` reveal their temperament — a cautious leader resists war at Hostile or Tense standing, while an aggressive one pushes for conflict. **Exception: once status reaches Critical, Rule 3's mandatory war_declaration overrides all temperament modifiers.**
+- Leader `memories` and `recent_events` show what they've personally experienced — a leader who just survived an assassination_attempt is primed for retaliation.
+
+**This is influence, not control.** The player talking to one leader shifts probabilities but doesn't override faction-level tensions. A peace plea to Ulfric won't stop or delay a war_declaration if Stormcloak-Imperial relations are Critical — Rule 3 is absolute. Leader influence shapes events only when the pair has not yet reached Critical status.
 
 ## Rules
 

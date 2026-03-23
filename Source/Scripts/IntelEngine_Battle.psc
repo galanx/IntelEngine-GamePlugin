@@ -882,14 +882,14 @@ Function JoinBattleSide(String factionId)
 
     PlayerBattleSide = factionId
 
-    ; Add player to the correct ESP battle faction for hostility
+    ; Add player to the correct ESP battle faction using C++ normalization
+    ; (ally faction is always SideA — don't assume DM ordering matches ESP sides)
     Actor player = Game.GetPlayer()
-    String side = "A"
-    If factionId == BattleFactionA
+    String side = IntelEngine.GetFactionBattleSide(factionId)
+    If side == "A"
         player.AddToFaction(Intel_BattleSideA)
     Else
         player.AddToFaction(Intel_BattleSideB)
-        side = "B"
     EndIf
 
     ; SetPlayerTeammate on existing soldiers is handled by C++ SetActorPlayerTeammate.
