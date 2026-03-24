@@ -671,6 +671,22 @@ String Function CheckEventManifestation(String factionA, String factionB, String
 ; Confirm manifestation cooldown after Papyrus verified actors spawned successfully.
 Function ConfirmManifestationCooldown() Global Native
 
+; Reset manifestation cooldown (director override — allows repeated testing).
+Function ResetManifestationCooldown() Global Native
+
+; Execute assassination: find leader, spawn assassin at nearest door, strip factions, setup.
+; Returns the spawned assassin Actor directly (None on failure).
+Actor Function ExecuteAssassination(String targetFaction, String attackerFaction) Global Native
+
+; Get the assassination target (leader) set by ExecuteAssassination.
+Actor Function GetAssassinationTarget() Global Native
+
+; Get the assassination leader's name set by ExecuteAssassination.
+String Function GetAssassinationLeaderName() Global Native
+
+; Trigger the attack phase: set aggression 2 + combat target on all tracked assassins.
+Function TriggerAssassinationAttack() Global Native
+
 ; Check if faction politics system is enabled
 Bool Function IsPoliticsEnabled() Global Native
 
@@ -756,6 +772,9 @@ String Function ExtractFactionId(String enemyType) Global Native
 
 ; Get display name for a faction ID. Returns the ID itself if not found.
 String Function GetFactionDisplayName(String factionId) Global Native
+
+; Get the Skyrim engine faction (e.g., CWSonsFaction) for a political faction ID. Returns None if not configured.
+Faction Function GetSkyrimFaction(String factionId) Global Native
 
 ; Get a rival faction ID for the given faction. Returns first rival, or "" if none.
 String Function GetFactionRival(String factionId) Global Native
