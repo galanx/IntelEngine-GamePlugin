@@ -2244,6 +2244,8 @@ Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg,
     DebugMsg("Director: Political event received — eventName=" + eventName + " strArg length=" + StringUtil.GetLength(strArg))
     If Politics
         DebugMsg("Director: Forwarding to Politics.OnPoliticalDMResponse")
+        ; Director bypasses manifestation cooldown — player is manually triggering events
+        IntelEngine.ResetManifestationCooldown()
         Politics.OnPoliticalDMResponse(strArg, 1)
         DebugMsg("Director: Politics.OnPoliticalDMResponse returned")
     Else

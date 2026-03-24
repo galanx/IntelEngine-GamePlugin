@@ -68,7 +68,7 @@ Function EnsureMonitoringAlive()
     Does NOT re-apply packages — just ensures the monitoring loop is alive.}
     Int i = 0
     While i < Core.MAX_SLOTS
-        If Core.SlotStates[i] != 0 && Core.SlotTaskTypes[i] == "travel"
+        If Core.SlotStates[i] != 0 && (Core.SlotTaskTypes[i] == "travel" || Core.SlotTaskTypes[i] == "assassination")
             RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
             Return
         EndIf
@@ -84,7 +84,7 @@ Function RestartMonitoring()
     Bool hasActive = false
     Int i = 0
     While i < Core.MAX_SLOTS
-        If Core.SlotStates[i] != 0 && Core.SlotTaskTypes[i] == "travel"
+        If Core.SlotStates[i] != 0 && (Core.SlotTaskTypes[i] == "travel" || Core.SlotTaskTypes[i] == "assassination")
             hasActive = true
             RecoverTravelPackage(i)
         EndIf
@@ -312,7 +312,7 @@ Event OnUpdate()
     Bool hasActiveTravelers = false
     Int i = 0
     While i < Core.MAX_SLOTS
-        If Core.SlotStates[i] != 0 && Core.SlotTaskTypes[i] == "travel"
+        If Core.SlotStates[i] != 0 && (Core.SlotTaskTypes[i] == "travel" || Core.SlotTaskTypes[i] == "assassination")
             hasActiveTravelers = true
         EndIf
         i += 1
@@ -325,7 +325,7 @@ Event OnUpdate()
     ; Now process slots — if this errors out, the next update is already scheduled
     i = 0
     While i < Core.MAX_SLOTS
-        If Core.SlotStates[i] != 0 && Core.SlotTaskTypes[i] == "travel"
+        If Core.SlotStates[i] != 0 && (Core.SlotTaskTypes[i] == "travel" || Core.SlotTaskTypes[i] == "assassination")
             CheckTravelSlot(i)
         EndIf
         i += 1
@@ -518,6 +518,19 @@ EndFunction
 
 Function OnArrival(Int slot, Actor npc)
     String destination = Core.SlotTargetNames[slot]
+    String taskType = Core.SlotTaskTypes[slot]
+
+    ; Assassination: assassin reached the leader — hand off to Battle for attack sequence
+    ; Note: HandleAssassinArrival contains Utility.Wait (yields), so clear slot BEFORE
+    ; calling it. CleanupManifestation handles remaining cleanup after the attack.
+    If taskType == "assassination"
+        Core.DebugMsg(npc.GetDisplayName() + " reached assassination target " + destination)
+        Core.RemoveAllPackages(npc, true)
+        npc.RemoveFromFaction(Core.IntelEngine_TaskFaction)
+        Core.ClearSlot(slot, false)  ; free slot immediately — assassin is disposable
+        Core.Battle.HandleAssassinArrival(npc, destination)
+        return
+    EndIf
 
     Core.DebugMsg(npc.GetDisplayName() + " arrived at " + destination)
     Bool isMeetingArrival = StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1

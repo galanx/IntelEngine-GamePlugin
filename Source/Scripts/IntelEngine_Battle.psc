@@ -18,6 +18,13 @@ Scriptname IntelEngine_Battle extends Quest
 ;   3. Battle ends when morale <= 20 or all actors dead on one side
 ;
 ; Requires ESP: Intel_BattleSideA, Intel_BattleSideB factions (hostile to each other)
+;
+; IMPORTANT CONVENTION — Battle Side Assignment:
+;   Intel_BattleSideA = ALWAYS the player's allied faction (friendly soldiers, guards)
+;   Intel_BattleSideB = ALWAYS the enemy faction (hostiles, infiltrators, attackers)
+; This is independent of which faction the Political DM labels as faction_a/faction_b.
+; The mapping happens at spawn time based on player standing.
+; If player has 0 standing with both factions, default assignment is used.
 ; =============================================================================
 
 ; === Properties ===
@@ -86,6 +93,8 @@ Actor[] Property ManifestActors Auto Hidden
 Int Property ManifestCount = 0 Auto Hidden
 Bool Property ManifestActive = false Auto Hidden
 Float Property ManifestStartTime = 0.0 Auto Hidden
+Actor Property ManifestLeaderTarget = None Auto Hidden  ; Leader added to BattleSideA during assassination — must be cleaned up
+Bool Property ManifestAssassinAttacked = false Auto Hidden  ; true after assassination attack triggers — gates cleanup
 Float Property ManifestCleanupDelay = 90.0 Auto Hidden  ; real seconds before cleanup
 
 ; =============================================================================
@@ -211,7 +220,47 @@ Event OnUpdate()
         Float elapsed = Utility.GetCurrentRealTime() - ManifestStartTime
         Bool combatOver = !IsAnyManifestActorInCombat()
 
-        ; Cleanup when combat has ended OR hard cap of 90s reached
+        ; Assassination: don't clean up until attack has actually triggered
+        If ManifestLeaderTarget != None && !ManifestAssassinAttacked
+            Actor hardAssassin = ManifestActors[0]
+
+            ; Player killed the assassin during tailing — immediate cleanup
+            If hardAssassin == None || hardAssassin.IsDead()
+                Core.DebugMsg("Battle: Assassin killed during tailing — assassination prevented")
+                Debug.Notification("The assassination attempt was foiled!")
+                CleanupManifestation()
+                RegisterForSingleUpdate(PollInterval)
+                return
+            EndIf
+
+            ; Hard timeout — force-trigger attack if assassin and leader are nearby
+            If elapsed >= ManifestCleanupDelay
+                If ManifestLeaderTarget != None && !ManifestLeaderTarget.IsDead()
+                    Float distToLeader = hardAssassin.GetDistance(ManifestLeaderTarget)
+                    If distToLeader < 3000.0
+                        Core.DebugMsg("Battle: Assassination hard timeout — force-attacking (dist=" + distToLeader + ")")
+                        hardAssassin.MoveTo(ManifestLeaderTarget, 0.0, 0.0, 0.0)
+                        Int hardSlot = Core.FindSlotByAgent(hardAssassin)
+                        String hardTarget = ManifestLeaderTarget.GetDisplayName()
+                        If hardSlot >= 0
+                            hardTarget = Core.SlotTargetNames[hardSlot]
+                        EndIf
+                        HandleAssassinArrival(hardAssassin, hardTarget)
+                    Else
+                        Core.DebugMsg("Battle: Assassination hard timeout — leader too far, aborting")
+                        CleanupManifestation()
+                    EndIf
+                Else
+                    Core.DebugMsg("Battle: Assassination hard timeout — cleaning up")
+                    CleanupManifestation()
+                EndIf
+            Else
+                RegisterForSingleUpdate(PollInterval)
+                return
+            EndIf
+        EndIf
+
+        ; Cleanup when combat has ended OR hard cap reached
         If (combatOver && elapsed >= 15.0) || elapsed >= ManifestCleanupDelay
             CleanupManifestation()
         Else
@@ -1181,17 +1230,32 @@ EndFunction
 ; =============================================================================
 
 Function ManifestEvent(String manifestJson)
-    ; Guard: no active battle, manifestation, or faction ambush; player must be in exterior
-    If IntelEngine.IsBattleActive() || ManifestActive
-        Core.DebugMsg("Battle: Cannot manifest — battle or manifestation already active")
+    ; Guard: no active battle or manifestation
+    ; Safety: if ManifestActive is stuck for > 2 minutes (stale save state), force-clear it
+    If ManifestActive
+        Float stuckTime = Utility.GetCurrentRealTime() - ManifestStartTime
+        If stuckTime > 120.0
+            Core.DebugMsg("Battle: ManifestActive stuck for " + stuckTime + "s — force-clearing")
+            CleanupManifestation()
+        Else
+            Core.DebugMsg("Battle: Cannot manifest — manifestation already active (" + stuckTime + "s)")
+            return
+        EndIf
+    EndIf
+    If IntelEngine.IsBattleActive()
+        Core.DebugMsg("Battle: Cannot manifest — battle active")
         return
     EndIf
     If Core != None && Core.StoryEngine != None && Core.StoryEngine.FactionAmbushActive
         Core.DebugMsg("Battle: Cannot manifest — faction ambush already active")
         return
     EndIf
-    If !IsPlayerInExterior()
-        Core.DebugMsg("Battle: Cannot manifest — player is indoors")
+
+    ; Allow assassination_attempt indoors (soldiers spawn near leader)
+    ; Other types still require exterior
+    String manifestEventType = IntelEngine.StoryResponseGetField(manifestJson, "event_type")
+    If !IsPlayerInExterior() && manifestEventType != "assassination_attempt"
+        Core.DebugMsg("Battle: Cannot manifest — player is indoors (" + manifestEventType + ")")
         return
     EndIf
 
@@ -1203,7 +1267,7 @@ Function ManifestEvent(String manifestJson)
     Bool spawnDefenders = IntelEngine.StoryResponseGetField(manifestJson, "spawn_defenders") == "true"
     Int defenderCount = IntelEngine.StoryResponseGetField(manifestJson, "defender_count") as Int
 
-    If attackerFaction == "" || spawnCount <= 0
+    If attackerFaction == "" || (spawnCount <= 0 && eventType != "assassination_attempt")
         return
     EndIf
 
@@ -1214,78 +1278,106 @@ Function ManifestEvent(String manifestJson)
     ; Pre-calculate spawn offset — actors spawn at offset, not at player position
     Float playerAngle = player.GetAngleZ()
 
-    ; Batch spawn attackers in C++, then position from Papyrus
-    Int attackCap = 12 - ManifestCount
-    If spawnCount < attackCap
-        attackCap = spawnCount
-    EndIf
-    Actor[] attackers = IntelEngine.SpawnBattleSoldiers(attackerFaction + ":" + attackCap, player)
+    ; Non-assassination events use attacker faction template for spawning
+    String spawnFaction = attackerFaction
 
     Int i = 0
-    While i < attackers.Length
-        If attackers[i]
-            ; Position behind player at distance so they approach naturally
-            Float angle = playerAngle + 180.0 + Utility.RandomFloat(-60.0, 60.0)
-            Float dist = Utility.RandomFloat(1500.0, 2500.0)
-            Float offsetX = Math.Sin(angle) * dist
-            Float offsetY = Math.Cos(angle) * dist
-            attackers[i].MoveTo(player, offsetX, offsetY, 0.0)
-            attackers[i].AddToFaction(Intel_BattleSideA)
-            ManifestActors[ManifestCount] = attackers[i]
-            ManifestCount += 1
-        EndIf
-        i += 1
-    EndWhile
 
-    ; Guard: if no attackers spawned, abort entirely
-    If ManifestCount == 0
-        Core.DebugMsg("Battle: Manifest failed — no attackers spawned")
-        return
+    ; Assassination uses dedicated C++ path — skip generic spawn entirely.
+    If eventType != "assassination_attempt"
+        ; Generic spawn for non-assassination events (brawl, border_skirmish, etc.)
+        Int attackCap = 12 - ManifestCount
+        If spawnCount < attackCap
+            attackCap = spawnCount
+        EndIf
+        Actor[] attackers = IntelEngine.SpawnBattleSoldiers(spawnFaction + ":" + attackCap, player)
+
+        i = 0
+        While i < attackers.Length
+            If attackers[i]
+                If IsPlayerInExterior()
+                    Float angle = playerAngle + 180.0 + Utility.RandomFloat(-60.0, 60.0)
+                    Float dist = Utility.RandomFloat(1500.0, 2500.0)
+                    Float offsetX = Math.Sin(angle) * dist
+                    Float offsetY = Math.Cos(angle) * dist
+                    attackers[i].MoveTo(player, offsetX, offsetY, 0.0)
+                Else
+                    Float offsetX = Utility.RandomFloat(-200.0, 200.0)
+                    Float offsetY = Utility.RandomFloat(-200.0, 200.0)
+                    attackers[i].MoveTo(player, offsetX, offsetY, 0.0)
+                EndIf
+                ; CONVENTION: BattleSideA = player's allied side, BattleSideB = enemy side.
+                attackers[i].AddToFaction(Intel_BattleSideB)
+                ManifestActors[ManifestCount] = attackers[i]
+                ManifestCount += 1
+            EndIf
+            i += 1
+        EndWhile
+
+        If ManifestCount == 0
+            Core.DebugMsg("Battle: Manifest failed — no attackers spawned")
+            return
+        EndIf
     EndIf
 
     ; Handle combat targeting based on event type
-    ; Note: ConfirmManifestationCooldown is called AFTER verifying combat can start,
-    ; not here — assassination may abort if leader isn't loaded
     If eventType == "assassination_attempt"
-        ; Find target faction leader near player
-        Actor[] leaders = IntelEngine.GetFactionLeaderActors(targetFaction)
-        Actor target = None
-        Int j = 0
-        While j < leaders.Length && target == None
-            If leaders[j] != None
-                target = leaders[j]
-            EndIf
-            j += 1
-        EndWhile
-
-        If target != None
-            ; Assassins attack the leader
-            i = 0
-            While i < ManifestCount
-                If ManifestActors[i] != None
-                    ManifestActors[i].StartCombat(target)
-                EndIf
-                i += 1
-            EndWhile
-            IntelEngine.ConfirmManifestationCooldown()
-            Core.DebugMsg("Battle: Manifest assassination — " + ManifestCount + " assassins targeting leader")
-        Else
-            ; Leader not loaded — abort manifestation, let it be an off-screen event
-            ; Player will hear about it through NPC gossip instead
-            Core.DebugMsg("Battle: Manifest assassination — leader not loaded, aborting")
-            i = 0
-            While i < ManifestCount
-                If ManifestActors[i] != None
-                    ManifestActors[i].DisableNoWait()
-                    ManifestActors[i].Delete()
-                    ManifestActors[i] = None
-                EndIf
-                i += 1
-            EndWhile
-            ManifestCount = 0
+        ; C++ spawns assassin, strips factions, sets kIgnoreFriendlyHits.
+        ; Returns Actor directly — no JSON.
+        Actor assassin = IntelEngine.ExecuteAssassination(targetFaction, attackerFaction)
+        If assassin == None
+            Core.DebugMsg("Battle: ExecuteAssassination failed — no assassin returned")
             ManifestActive = false
             return
         EndIf
+
+        Actor assTarget = IntelEngine.GetAssassinationTarget()
+        String leaderName = IntelEngine.GetAssassinationLeaderName()
+        If assTarget == None
+            Core.DebugMsg("Battle: Assassination target not found — aborting")
+            assassin.DisableNoWait()
+            assassin.Delete()
+            ManifestActive = false
+            return
+        EndIf
+
+        ManifestLeaderTarget = assTarget
+
+        ; Find a free slot
+        Int slot = Core.FindFreeAgentSlot()
+        If slot < 0
+            Core.DebugMsg("Battle: No free task slot for assassin — aborting")
+            assassin.DisableNoWait()
+            assassin.Delete()
+            ManifestActive = false
+            return
+        EndIf
+
+        ; Track assassin in ManifestActors for cleanup
+        ManifestActors[0] = assassin
+        ManifestCount = 1
+
+        ; If no door was found, C++ spawned at leader — offset 500 units behind leader
+        If IsPlayerInExterior() && assassin.GetDistance(assTarget) < 100.0
+            Float angle = assTarget.GetAngleZ() + 180.0 + Utility.RandomFloat(-30.0, 30.0)
+            Float offsetX = Math.Sin(angle) * 500.0
+            Float offsetY = Math.Cos(angle) * 500.0
+            assassin.MoveTo(assTarget, offsetX, offsetY, 0.0)
+        EndIf
+
+        ; Allocate slot — assigns quest alias + task faction (makes travel packages work)
+        Core.AllocateSlot(slot, assassin, "assassination", leaderName, 0)
+
+        ; Start travel — exact same pattern as FetchPerson
+        ; Intel_DestMarker is required for Travel.CheckForArrival to detect proximity
+        StorageUtil.SetFormValue(assassin, "Intel_DestMarker", assTarget as ObjectReference)
+        PO3_SKSEFunctions.SetLinkedRef(assassin, assTarget, Core.IntelEngine_TravelTarget)
+        ActorUtil.AddPackageOverride(assassin, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+        Utility.Wait(0.1)
+        assassin.EvaluatePackage()
+
+        Core.DebugMsg("Battle: Assassin " + assassin.GetDisplayName() + " walking toward " + leaderName + " (slot " + slot + ")")
+        ; Travel system monitors arrival → calls OnArrival → HandleAssassinArrival
 
     ElseIf spawnDefenders && defenderCount > 0
         ; Brawl / border skirmish — batch spawn defenders, then position
@@ -1348,12 +1440,10 @@ Function ManifestEvent(String manifestJson)
         EndIf
     EndIf
 
-    ; Show notification
+    ; Show notification (assassination notification deferred to HandleAssassinArrival)
     String nameA = IntelEngine.GetFactionDisplayName(attackerFaction)
     String nameB = IntelEngine.GetFactionDisplayName(targetFaction)
-    If eventType == "assassination_attempt"
-        Debug.Notification(nameA + " assassins strike!")
-    ElseIf eventType == "brawl"
+    If eventType == "brawl"
         Debug.Notification("A brawl erupts between " + nameA + " and " + nameB + "!")
     ElseIf eventType == "border_skirmish"
         Debug.Notification(nameA + " skirmishers clash with " + nameB + " forces!")
@@ -1364,8 +1454,84 @@ Function ManifestEvent(String manifestJson)
     RegisterForSingleUpdate(PollInterval)
 EndFunction
 
+; Called by Travel.OnArrival when an assassination task NPC reaches their target.
+; The assassin walked there via the task system — now trigger the attack.
+Function HandleAssassinArrival(Actor assassin, String targetName)
+    ; Re-entrancy guard — prevents double-fire from Travel.OnArrival + OnUpdate hard timeout
+    If ManifestAssassinAttacked
+        return
+    EndIf
+    ManifestAssassinAttacked = true
+
+    Core.DebugMsg("Battle: Assassin " + assassin.GetDisplayName() + " reached " + targetName + " — beginning buildup")
+
+    Actor player = Game.GetPlayer()
+    Actor target = ManifestLeaderTarget
+
+    ; Phase 1: Assassin lingers near the leader (tailing). A nearby NPC senses something off.
+    If target != None
+        Actor[] nearbyNPCs = IntelEngine.GetNearbyWitnessNPCs(player, 2000.0)
+        Actor witness = None
+        Int ni = 0
+        While ni < nearbyNPCs.Length && witness == None
+            If nearbyNPCs[ni] != None && nearbyNPCs[ni] != target && nearbyNPCs[ni] != assassin
+                witness = nearbyNPCs[ni]
+            EndIf
+            ni += 1
+        EndWhile
+        If witness != None
+            SkyrimNetApi.DirectNarration("spotted a suspicious stranger lingering near " + targetName + " and grew uneasy", witness, player)
+        EndIf
+    EndIf
+
+    ; Phase 2: Dramatic pause — assassin keeps tailing, tension builds
+    Utility.Wait(Utility.RandomFloat(5.0, 8.0))
+
+    ; Phase 3: Attack
+    If assassin.IsDead() || target == None || target.IsDead()
+        Core.DebugMsg("Battle: Assassination aborted — assassin or target dead")
+        CleanupManifestation()
+        return
+    EndIf
+
+    ; C++ sets aggression + combat target; Papyrus StartCombat initiates AI
+    IntelEngine.TriggerAssassinationAttack()
+    assassin.StartCombat(target)
+
+    ; Inject facts + SkyrimNet event
+    String infiltrationFact = "witnessed an assassination attempt on " + targetName
+    Actor[] witnesses = IntelEngine.GetNearbyWitnessNPCs(player, 3000.0)
+    Int wi = 0
+    While wi < witnesses.Length
+        If witnesses[wi] != None
+            Core.InjectFact(witnesses[wi], infiltrationFact)
+        EndIf
+        wi += 1
+    EndWhile
+    Actor eventWitness = player
+    If witnesses.Length > 0 && witnesses[0] != None
+        eventWitness = witnesses[0]
+    EndIf
+    SkyrimNetApi.RegisterEvent("political_assassination", infiltrationFact, target, eventWitness)
+
+    ; Reset manifest timer so cleanup doesn't fire immediately
+    ManifestStartTime = Utility.GetCurrentRealTime()
+    Debug.Notification("Assassin strikes at " + targetName + "!")
+    IntelEngine.ConfirmManifestationCooldown()
+    Core.DebugMsg("Battle: Assassination attack triggered on " + targetName)
+EndFunction
+
 Function CleanupManifestation()
     Core.DebugMsg("Battle: Cleaning up manifestation (" + ManifestCount + " actors)")
+
+    ; Clear assassination task slot to prevent permanent slot leak
+    If ManifestLeaderTarget != None && ManifestActors[0] != None
+        Int assSlot = Core.FindSlotByAgent(ManifestActors[0])
+        If assSlot >= 0
+            Core.ClearSlot(assSlot, false)
+        EndIf
+    EndIf
+
     Int i = 0
     While i < ManifestCount
         If ManifestActors[i] != None
@@ -1383,6 +1549,8 @@ Function CleanupManifestation()
     EndWhile
     ManifestCount = 0
     ManifestActive = false
+    ManifestAssassinAttacked = false
+    ManifestLeaderTarget = None
 EndFunction
 
 Bool Function IsAnyManifestActorInCombat()

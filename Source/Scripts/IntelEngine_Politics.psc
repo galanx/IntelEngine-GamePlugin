@@ -127,7 +127,8 @@ Function OnPoliticalDMResponse(String response, Int success)
     ; standings, decay, crime checks. Returns JSON with Papyrus-only actions.
     String resultJson = IntelEngine.ProcessPoliticalDMResponse(response, success)
 
-    Bool acted = IntelEngine.StoryResponseGetField(resultJson, "acted") == "true"
+    String actedStr = IntelEngine.StoryResponseGetField(resultJson, "acted")
+    Bool acted = actedStr == "true" || actedStr == "TRUE"
     If !acted
         return
     EndIf
@@ -170,6 +171,7 @@ Function OnPoliticalDMResponse(String response, Int success)
 
     ; Manifest political event near player if applicable (requires engine spawn operations)
     String manifestJson = IntelEngine.StoryResponseGetField(resultJson, "manifestJson")
+    Core.DebugMsg("Politics: manifest len=" + StringUtil.GetLength(manifestJson) + " Battle=" + (Battle != None))
     If manifestJson != ""
         If Battle
             Battle.ManifestEvent(manifestJson)
