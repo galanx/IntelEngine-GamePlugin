@@ -88,6 +88,22 @@ Int Property ConfirmScheduleFetch = 1 Auto Hidden
 Int Property ConfirmScheduleDelivery = 1 Auto Hidden
 Int Property ConfirmScheduleMeeting = 2 Auto Hidden
 
+; === Per-Action Follower Skip ===
+; When true, silently blocks the action for followers (checked before confirmation prompt)
+Bool Property SkipFollowerGoToLocation = false Auto Hidden
+Bool Property SkipFollowerDeliverMessage = false Auto Hidden
+Bool Property SkipFollowerFetchPerson = false Auto Hidden
+Bool Property SkipFollowerEscortTarget = false Auto Hidden
+Bool Property SkipFollowerSearchForActor = false Auto Hidden
+Bool Property SkipFollowerScheduleFetch = false Auto Hidden
+Bool Property SkipFollowerScheduleDelivery = false Auto Hidden
+Bool Property SkipFollowerScheduleMeeting = false Auto Hidden
+
+; === Auto Dynamic Bio Updates ===
+; Updates NPC dynamic bios after X dialogue lines (per-NPC tracking, reset after each update)
+Bool Property AutoBioEnabled = false Auto Hidden
+Int Property AutoBioThreshold = 20 Auto Hidden
+
 ; === NPC Social Tick (independent of player-centric tick) ===
 Float Property LastNPCTickTime = 0.0 Auto Hidden
 Float Property NPCTickIntervalHours = 1.5 Auto Hidden
@@ -272,6 +288,11 @@ Function RestartMonitoring()
     WarmStoryTypeCounts()
 
     SyncHoldRestrictionPolicies()
+
+    ; Sync auto bio settings to C++ DialogueTracker
+    IntelEngine.SetAutoBioEnabled(AutoBioEnabled)
+    IntelEngine.SetAutoBioThreshold(AutoBioThreshold)
+    WarmBioLineCounts()
 
     ; Clean up NPC Social dispatch on load (packages lost, travel state unrecoverable)
     If IsNPCStoryActive
@@ -498,34 +519,35 @@ Event OnUpdate()
     If !needsRealTime && (IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive)
         RegisterForSingleUpdate(MONITOR_INTERVAL)
     ElseIf !needsRealTime
-        ; Idle mode: real-time backup tick for low-timescale games.
-        ; Use the MINIMUM interval across all systems (same logic as StartScheduler)
-        ; so that NPC and Politics ticks also get triggered via idle-poll.
-        Float now = Utility.GetCurrentGameTime()
-        Float storyInterval = 3.0
-        If Core != None
-            storyInterval = Core.GetStoryEngineInterval()
-        EndIf
-        Float npcInterval = NPCTickIntervalHours
-        Float politicsInterval = IntelEngine.GetPoliticsTickInterval() as Float
-        If politicsInterval <= 0.0
-            politicsInterval = 6.0
-        EndIf
-        Float minInterval = storyInterval
-        If npcInterval > 0.0 && npcInterval < minInterval
-            minInterval = npcInterval
-        EndIf
-        If politicsInterval > 0.0 && politicsInterval < minInterval
-            minInterval = politicsInterval
-        EndIf
-        Float intervalDays = minInterval / 24.0
-        Float sinceLastTick = now - LastIdlePollTickTime
-        If sinceLastTick >= intervalDays
-            Core.DebugMsg("Story: OnUpdate idle-poll — triggering TickScheduler (elapsed=" + (sinceLastTick * 24.0) + "h, threshold=" + minInterval + "h)")
-            LastIdlePollTickTime = now
-            TickScheduler()
-        EndIf
         StartScheduler()
+    EndIf
+
+    ; Idle-poll: trigger TickScheduler based on game-time elapsed.
+    ; Runs in BOTH real-time and idle modes — background events (ambush, quest, linger)
+    ; must NOT block story/politics/NPC ticks from firing.
+    Float now = Utility.GetCurrentGameTime()
+    Float storyInterval = 3.0
+    If Core != None
+        storyInterval = Core.GetStoryEngineInterval()
+    EndIf
+    Float npcInterval = NPCTickIntervalHours
+    Float politicsInterval = IntelEngine.GetPoliticsTickInterval() as Float
+    If politicsInterval <= 0.0
+        politicsInterval = 6.0
+    EndIf
+    Float minInterval = storyInterval
+    If npcInterval > 0.0 && npcInterval < minInterval
+        minInterval = npcInterval
+    EndIf
+    If politicsInterval > 0.0 && politicsInterval < minInterval
+        minInterval = politicsInterval
+    EndIf
+    Float intervalDays = minInterval / 24.0
+    Float sinceLastTick = now - LastIdlePollTickTime
+    If sinceLastTick >= intervalDays
+        Core.DebugMsg("Story: OnUpdate idle-poll — triggering TickScheduler (elapsed=" + (sinceLastTick * 24.0) + "h, threshold=" + minInterval + "h)")
+        LastIdlePollTickTime = now
+        TickScheduler()
     EndIf
 
     ; Belt-and-suspenders: if nothing needs real-time AND this OnUpdate was the last one
@@ -1080,6 +1102,29 @@ Function WarmCooldownMirror()
     EndWhile
     If socialWarmed > 0
         Core.DebugMsg("Story: warmed C++ social cooldown mirror (" + socialWarmed + " NPCs)")
+    EndIf
+EndFunction
+
+Function WarmBioLineCounts()
+    {Restore per-NPC dialogue line counts from StorageUtil into C++ DialogueTracker.}
+    Int count = StorageUtil.FormListCount(self, "Intel_BioTrackActors")
+    Int warmed = 0
+    Int i = count - 1
+    While i >= 0
+        Actor npc = StorageUtil.FormListGet(self, "Intel_BioTrackActors", i) as Actor
+        If npc != None
+            Int lines = StorageUtil.GetIntValue(npc, "Intel_BioLineCount", 0)
+            If lines > 0
+                IntelEngine.SetAutoBioCount(npc, lines)
+                warmed += 1
+            EndIf
+        Else
+            StorageUtil.FormListRemoveAt(self, "Intel_BioTrackActors", i)
+        EndIf
+        i -= 1
+    EndWhile
+    If warmed > 0
+        Core.DebugMsg("Story: warmed bio line counts (" + warmed + " NPCs)")
     EndIf
 EndFunction
 
@@ -2862,6 +2907,10 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
     ObjectReference questDest = IntelEngine.ResolveAnyDestination(npc, questLocationStr)
     If questDest == None
         Core.DebugMsg("Story DM: quest location '" + questLocationStr + "' could not be resolved")
+        return
+    EndIf
+    If IntelEngine.IsLocationNonCombative(questDest)
+        Core.DebugMsg("Story DM: quest location '" + questLocationStr + "' is non-combative (temple/castle/guild) — rejecting")
         return
     EndIf
 
