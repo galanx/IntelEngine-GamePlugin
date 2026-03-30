@@ -47,6 +47,17 @@ String Function GetActorParentLocationName(Actor akNPC) Global Native
 ; All resolution intelligence is native C++ for performance and reliability
 ; Examples: "outside", "upstairs", "out of Helgen", "leave", "Bannered Mare"
 ObjectReference Function ResolveAnyDestination(Actor akNPC, String destination) Global Native
+Bool Function IsLocationNonCombative(ObjectReference ref) Global Native
+
+; Utility
+Int Function HexToInt(String hexStr) Global Native
+
+; Dialogue Tracker — Auto Bio Updates
+Function SetAutoBioEnabled(Bool enabled) Global Native
+Function SetAutoBioThreshold(Int threshold) Global Native
+Function SetAutoBioCount(Actor akActor, Int count) Global Native
+Int Function GetAutoBioCount(Actor akActor) Global Native
+String Function GetAutoBioCountsJson() Global Native
 
 ; =============================================================================
 ; LOCATION RESOLUTION FUNCTIONS

@@ -1040,6 +1040,33 @@ EndFunction
 Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String actionName)
     {Per-action confirmation prompt. Returns: 0=allow, 1=deny (narrate), 2=deny silent.
     Mode per action: 0=disabled, 1=followers only, 2=everyone.}
+
+    ; Per-action follower skip — checked BEFORE confirmation prompt
+    If npc.IsPlayerTeammate() && actionName != "" && StoryEngine != None
+        Bool skipFollower = false
+        If actionName == "GoToLocation"
+            skipFollower = StoryEngine.SkipFollowerGoToLocation
+        ElseIf actionName == "DeliverMessage"
+            skipFollower = StoryEngine.SkipFollowerDeliverMessage
+        ElseIf actionName == "FetchPerson"
+            skipFollower = StoryEngine.SkipFollowerFetchPerson
+        ElseIf actionName == "EscortTarget"
+            skipFollower = StoryEngine.SkipFollowerEscortTarget
+        ElseIf actionName == "SearchForActor"
+            skipFollower = StoryEngine.SkipFollowerSearchForActor
+        ElseIf actionName == "ScheduleFetch"
+            skipFollower = StoryEngine.SkipFollowerScheduleFetch
+        ElseIf actionName == "ScheduleDelivery"
+            skipFollower = StoryEngine.SkipFollowerScheduleDelivery
+        ElseIf actionName == "ScheduleMeeting"
+            skipFollower = StoryEngine.SkipFollowerScheduleMeeting
+        EndIf
+        If skipFollower
+            DebugMsg("Skipping " + actionName + " for follower " + npc.GetDisplayName())
+            Return 2  ; deny silent
+        EndIf
+    EndIf
+
     Int mode = 0
     If actionName != "" && StoryEngine != None
         If actionName == "GoToLocation"
@@ -1866,8 +1893,50 @@ Function RegisterDashboardEvents()
     RegisterForModEvent("IntelEngine_DashboardDispatchNpcSocial", "OnDashboardDispatchNpcSocial")
     RegisterForModEvent("IntelEngine_DashboardDispatchPolitics", "OnDashboardDispatchPolitics")
     RegisterForModEvent("IntelEngine_DashboardExecuteAction", "OnDashboardExecuteAction")
+    RegisterForModEvent("IntelEngine_AutoBioUpdate", "OnAutoBioUpdate")
+    RegisterForModEvent("IntelEngine_SaveBioCount", "OnSaveBioCount")
     DebugMsg("Dashboard ModEvent listeners registered")
 EndFunction
+
+Event OnSaveBioCount(String eventName, String strArg, Float numArg, Form sender)
+    ; strArg = "formIdHex|count" — FormID as hex string to avoid float precision loss
+    Int sep = StringUtil.Find(strArg, "|")
+    If sep < 0
+        return
+    EndIf
+    Int formId = IntelEngine.HexToInt(StringUtil.Substring(strArg, 0, sep))
+    Int count = StringUtil.Substring(strArg, sep + 1) as Int
+    Actor npc = Game.GetForm(formId) as Actor
+    If npc != None && StoryEngine != None
+        StorageUtil.SetIntValue(npc, "Intel_BioLineCount", count)
+        If !StorageUtil.FormListHas(StoryEngine, "Intel_BioTrackActors", npc)
+            StorageUtil.FormListAdd(StoryEngine, "Intel_BioTrackActors", npc)
+        EndIf
+    EndIf
+EndEvent
+
+Event OnAutoBioUpdate(String eventName, String strArg, Float numArg, Form sender)
+    ; strArg = "formIdHex|" — FormID as hex string to avoid float precision loss
+    Int sep = StringUtil.Find(strArg, "|")
+    If sep < 0
+        return
+    EndIf
+    Int formId = IntelEngine.HexToInt(StringUtil.Substring(strArg, 0, sep))
+    Actor npc = Game.GetForm(formId) as Actor
+    If npc == None
+        DebugMsg("Auto Bio Update: actor not found for FormID " + formId)
+        return
+    EndIf
+    ; Persist the reset (C++ already reset to 0, mirror in StorageUtil)
+    StorageUtil.SetIntValue(npc, "Intel_BioLineCount", 0)
+    DebugMsg("Auto Bio Update: " + npc.GetDisplayName())
+    String result = SkyrimNetApi.UpdateActorDynamicBio(npc)
+    If result != ""
+        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " — " + result)
+    Else
+        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " — failed or no changes")
+    EndIf
+EndEvent
 
 Event OnDashboardOpened(String eventName, String strArg, Float numArg, Form sender)
     PushDashboardState()
@@ -2081,6 +2150,48 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
     ElseIf strArg == "confirmScheduleDelivery"
         If StoryEngine
             StoryEngine.ConfirmScheduleDelivery = numArg as Int
+        EndIf
+    ElseIf strArg == "skipFollowerGoToLocation"
+        If StoryEngine
+            StoryEngine.SkipFollowerGoToLocation = numArg > 0.5
+        EndIf
+    ElseIf strArg == "skipFollowerDeliverMessage"
+        If StoryEngine
+            StoryEngine.SkipFollowerDeliverMessage = numArg > 0.5
+        EndIf
+    ElseIf strArg == "skipFollowerFetchPerson"
+        If StoryEngine
+            StoryEngine.SkipFollowerFetchPerson = numArg > 0.5
+        EndIf
+    ElseIf strArg == "skipFollowerEscortTarget"
+        If StoryEngine
+            StoryEngine.SkipFollowerEscortTarget = numArg > 0.5
+        EndIf
+    ElseIf strArg == "skipFollowerSearchForActor"
+        If StoryEngine
+            StoryEngine.SkipFollowerSearchForActor = numArg > 0.5
+        EndIf
+    ElseIf strArg == "skipFollowerScheduleFetch"
+        If StoryEngine
+            StoryEngine.SkipFollowerScheduleFetch = numArg > 0.5
+        EndIf
+    ElseIf strArg == "skipFollowerScheduleDelivery"
+        If StoryEngine
+            StoryEngine.SkipFollowerScheduleDelivery = numArg > 0.5
+        EndIf
+    ElseIf strArg == "skipFollowerScheduleMeeting"
+        If StoryEngine
+            StoryEngine.SkipFollowerScheduleMeeting = numArg > 0.5
+        EndIf
+    ElseIf strArg == "autoBioEnabled"
+        If StoryEngine
+            StoryEngine.AutoBioEnabled = numArg > 0.5
+            IntelEngine.SetAutoBioEnabled(numArg > 0.5)
+        EndIf
+    ElseIf strArg == "autoBioThreshold"
+        If StoryEngine
+            StoryEngine.AutoBioThreshold = numArg as Int
+            IntelEngine.SetAutoBioThreshold(numArg as Int)
         EndIf
     ElseIf strArg == "defaultWaitHours"
         SetSettingFloat("Intel_MCM_DefaultWaitHours", numArg)
@@ -2569,6 +2680,16 @@ String Function BuildDashboardStateJson()
         json += ",\"confirmScheduleMeeting\":" + StoryEngine.ConfirmScheduleMeeting
         json += ",\"confirmScheduleFetch\":" + StoryEngine.ConfirmScheduleFetch
         json += ",\"confirmScheduleDelivery\":" + StoryEngine.ConfirmScheduleDelivery
+        json += ",\"skipFollowerGoToLocation\":" + BoolToJson(StoryEngine.SkipFollowerGoToLocation)
+        json += ",\"skipFollowerDeliverMessage\":" + BoolToJson(StoryEngine.SkipFollowerDeliverMessage)
+        json += ",\"skipFollowerFetchPerson\":" + BoolToJson(StoryEngine.SkipFollowerFetchPerson)
+        json += ",\"skipFollowerEscortTarget\":" + BoolToJson(StoryEngine.SkipFollowerEscortTarget)
+        json += ",\"skipFollowerSearchForActor\":" + BoolToJson(StoryEngine.SkipFollowerSearchForActor)
+        json += ",\"skipFollowerScheduleFetch\":" + BoolToJson(StoryEngine.SkipFollowerScheduleFetch)
+        json += ",\"skipFollowerScheduleDelivery\":" + BoolToJson(StoryEngine.SkipFollowerScheduleDelivery)
+        json += ",\"skipFollowerScheduleMeeting\":" + BoolToJson(StoryEngine.SkipFollowerScheduleMeeting)
+        json += ",\"autoBioEnabled\":" + BoolToJson(StoryEngine.AutoBioEnabled)
+        json += ",\"autoBioThreshold\":" + StoryEngine.AutoBioThreshold
         json += ",\"npcTickEnabled\":" + BoolToJson(StoryEngine.NPCTickEnabled)
         json += ",\"npcTickInterval\":" + StoryEngine.NPCTickIntervalHours
         json += ",\"npcSocialCooldown\":" + StoryEngine.NPCSocialCooldownHours
@@ -2587,6 +2708,9 @@ String Function BuildDashboardStateJson()
         json += ",\"holdPolicyAmbush\":1,\"holdPolicyStalker\":1,\"holdPolicyMessage\":1,\"holdPolicyQuest\":1"
         json += ",\"confirmGoToLocation\":1,\"confirmDeliverMessage\":1,\"confirmFetchPerson\":1,\"confirmEscortTarget\":1"
         json += ",\"confirmSearchForActor\":1,\"confirmScheduleMeeting\":1,\"confirmScheduleFetch\":1,\"confirmScheduleDelivery\":1"
+        json += ",\"skipFollowerGoToLocation\":false,\"skipFollowerDeliverMessage\":false,\"skipFollowerFetchPerson\":false,\"skipFollowerEscortTarget\":false"
+        json += ",\"skipFollowerSearchForActor\":false,\"skipFollowerScheduleFetch\":false,\"skipFollowerScheduleDelivery\":false,\"skipFollowerScheduleMeeting\":false"
+        json += ",\"autoBioEnabled\":false,\"autoBioThreshold\":20"
         json += ",\"npcTickEnabled\":true,\"npcTickInterval\":1.5,\"npcSocialCooldown\":24"
         json += ",\"questCombat\":true,\"questRescue\":true,\"questFindItem\":true,\"questFactionCombat\":true,\"questFactionRescue\":true,\"questFactionBattle\":true"
         json += ",\"questTimeoutDays\":7,\"questAllowVictimDeath\":false"

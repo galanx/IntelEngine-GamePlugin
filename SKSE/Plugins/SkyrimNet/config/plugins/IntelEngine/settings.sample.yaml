@@ -1,0 +1,17 @@
+# IntelEngine Settings — sample defaults
+# To restore: copy this file as "settings.yaml" in the same folder.
+# IntelEngine reads this file for hotkey config and filter settings.
+# If missing, defaults are used but changes (hotkey, whitelists) won't persist.
+ui:
+  dashboard_hotkey: 55
+  dashboard_modifiers: 2
+story:
+  faction_whitelist: ""
+  faction_blocklist: ""
+  location_whitelist: ""
+  npc_whitelist: ""
+  npc_blocklist: ""
+politics:
+  enabled: true
+  tick_interval_hours: 6
+  min_event_interval_hours: 4

@@ -61,6 +61,16 @@ Int OID_ConfirmSearchForActor
 Int OID_ConfirmScheduleFetch
 Int OID_ConfirmScheduleDelivery
 Int OID_ConfirmScheduleMeeting
+Int OID_SkipFollowerGoToLocation
+Int OID_SkipFollowerDeliverMessage
+Int OID_SkipFollowerFetchPerson
+Int OID_SkipFollowerEscortTarget
+Int OID_SkipFollowerSearchForActor
+Int OID_SkipFollowerScheduleFetch
+Int OID_SkipFollowerScheduleDelivery
+Int OID_SkipFollowerScheduleMeeting
+Int OID_AutoBioEnabled
+Int OID_AutoBioThreshold
 Int OID_DeliveryReportBack
 Int OID_MeetingTimeoutHours
 Int OID_MeetingGracePeriod
@@ -439,6 +449,26 @@ Function ShowSettingsPage()
     ; ---- Right column: Story Types + NPC Social + Tuning ----
     SetCursorPosition(1)
 
+    AddHeaderOption("Skip Action for Followers")
+    If Core != None && Core.StoryEngine != None
+        OID_SkipFollowerGoToLocation = AddToggleOption("Go To Location", Core.StoryEngine.SkipFollowerGoToLocation)
+        OID_SkipFollowerFetchPerson = AddToggleOption("Fetch Person", Core.StoryEngine.SkipFollowerFetchPerson)
+        OID_SkipFollowerDeliverMessage = AddToggleOption("Deliver Message", Core.StoryEngine.SkipFollowerDeliverMessage)
+        OID_SkipFollowerEscortTarget = AddToggleOption("Escort Target", Core.StoryEngine.SkipFollowerEscortTarget)
+        OID_SkipFollowerSearchForActor = AddToggleOption("Search For Actor", Core.StoryEngine.SkipFollowerSearchForActor)
+        OID_SkipFollowerScheduleMeeting = AddToggleOption("Schedule Meeting", Core.StoryEngine.SkipFollowerScheduleMeeting)
+        OID_SkipFollowerScheduleFetch = AddToggleOption("Schedule Fetch", Core.StoryEngine.SkipFollowerScheduleFetch)
+        OID_SkipFollowerScheduleDelivery = AddToggleOption("Schedule Delivery", Core.StoryEngine.SkipFollowerScheduleDelivery)
+    EndIf
+
+    AddEmptyOption()
+    AddHeaderOption("Auto Dynamic Bio Updates")
+    If Core != None && Core.StoryEngine != None
+        OID_AutoBioEnabled = AddToggleOption("Enabled", Core.StoryEngine.AutoBioEnabled)
+        OID_AutoBioThreshold = AddSliderOption("Lines Before Update", Core.StoryEngine.AutoBioThreshold as Float, "{0}")
+    EndIf
+
+    AddEmptyOption()
     AddHeaderOption("Story Types (DM)")
 
     Bool tSeek = true
@@ -703,6 +733,39 @@ Function CycleConfirmMode(Int optionId, String propName)
     SetTextOptionValue(optionId, ConfirmModeLabel(next))
 EndFunction
 
+Function ToggleSkipFollower(Int optionId, String propName)
+    If Core == None || Core.StoryEngine == None
+        return
+    EndIf
+    Bool current = false
+    If propName == "GoToLocation"
+        current = Core.StoryEngine.SkipFollowerGoToLocation
+        Core.StoryEngine.SkipFollowerGoToLocation = !current
+    ElseIf propName == "DeliverMessage"
+        current = Core.StoryEngine.SkipFollowerDeliverMessage
+        Core.StoryEngine.SkipFollowerDeliverMessage = !current
+    ElseIf propName == "FetchPerson"
+        current = Core.StoryEngine.SkipFollowerFetchPerson
+        Core.StoryEngine.SkipFollowerFetchPerson = !current
+    ElseIf propName == "EscortTarget"
+        current = Core.StoryEngine.SkipFollowerEscortTarget
+        Core.StoryEngine.SkipFollowerEscortTarget = !current
+    ElseIf propName == "SearchForActor"
+        current = Core.StoryEngine.SkipFollowerSearchForActor
+        Core.StoryEngine.SkipFollowerSearchForActor = !current
+    ElseIf propName == "ScheduleFetch"
+        current = Core.StoryEngine.SkipFollowerScheduleFetch
+        Core.StoryEngine.SkipFollowerScheduleFetch = !current
+    ElseIf propName == "ScheduleDelivery"
+        current = Core.StoryEngine.SkipFollowerScheduleDelivery
+        Core.StoryEngine.SkipFollowerScheduleDelivery = !current
+    ElseIf propName == "ScheduleMeeting"
+        current = Core.StoryEngine.SkipFollowerScheduleMeeting
+        Core.StoryEngine.SkipFollowerScheduleMeeting = !current
+    EndIf
+    SetToggleOptionValue(optionId, !current)
+EndFunction
+
 Function SetHoldPolicy(String storyType, Int optionId, Int oidNone, Int oidCivilian, Int oidExceptFollower, Int oidAll, Int oidLocalCivilian, Int oidLocalExceptFollower, Int oidLocalAll)
     If Core == None || Core.StoryEngine == None
         return
@@ -832,6 +895,31 @@ Event OnOptionSelect(Int optionId)
         CycleConfirmMode(optionId, "ScheduleDelivery")
     ElseIf optionId == OID_ConfirmScheduleMeeting
         CycleConfirmMode(optionId, "ScheduleMeeting")
+
+    ElseIf optionId == OID_SkipFollowerGoToLocation
+        ToggleSkipFollower(optionId, "GoToLocation")
+    ElseIf optionId == OID_SkipFollowerDeliverMessage
+        ToggleSkipFollower(optionId, "DeliverMessage")
+    ElseIf optionId == OID_SkipFollowerFetchPerson
+        ToggleSkipFollower(optionId, "FetchPerson")
+    ElseIf optionId == OID_SkipFollowerEscortTarget
+        ToggleSkipFollower(optionId, "EscortTarget")
+    ElseIf optionId == OID_SkipFollowerSearchForActor
+        ToggleSkipFollower(optionId, "SearchForActor")
+    ElseIf optionId == OID_SkipFollowerScheduleFetch
+        ToggleSkipFollower(optionId, "ScheduleFetch")
+    ElseIf optionId == OID_SkipFollowerScheduleDelivery
+        ToggleSkipFollower(optionId, "ScheduleDelivery")
+    ElseIf optionId == OID_SkipFollowerScheduleMeeting
+        ToggleSkipFollower(optionId, "ScheduleMeeting")
+
+    ElseIf optionId == OID_AutoBioEnabled
+        If Core != None && Core.StoryEngine != None
+            Bool newVal = !Core.StoryEngine.AutoBioEnabled
+            Core.StoryEngine.AutoBioEnabled = newVal
+            IntelEngine.SetAutoBioEnabled(newVal)
+            SetToggleOptionValue(OID_AutoBioEnabled, newVal)
+        EndIf
 
     ElseIf optionId == OID_DeliveryReportBack
         Int current = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack")
@@ -993,6 +1081,15 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogDefaultValue(0.5)
         SetSliderDialogRange(0.0, 2.0)
         SetSliderDialogInterval(0.1)
+    ElseIf optionId == OID_AutoBioThreshold
+        Float currentValue = 20.0
+        If Core != None && Core.StoryEngine != None
+            currentValue = Core.StoryEngine.AutoBioThreshold as Float
+        EndIf
+        SetSliderDialogStartValue(currentValue)
+        SetSliderDialogDefaultValue(20.0)
+        SetSliderDialogRange(5.0, 1000.0)
+        SetSliderDialogInterval(5.0)
     ElseIf optionId == OID_LingerReleaseDistance
         Float currentValue = 800.0
         If Core != None
@@ -1080,6 +1177,12 @@ Event OnOptionSliderAccept(Int optionId, Float sliderValue)
             Core.MeetingGracePeriod = sliderValue
         EndIf
         SetSliderOptionValue(OID_MeetingGracePeriod, sliderValue, "{1}")
+    ElseIf optionId == OID_AutoBioThreshold
+        If Core != None && Core.StoryEngine != None
+            Core.StoryEngine.AutoBioThreshold = sliderValue as Int
+            IntelEngine.SetAutoBioThreshold(sliderValue as Int)
+        EndIf
+        SetSliderOptionValue(OID_AutoBioThreshold, sliderValue, "{0}")
     ElseIf optionId == OID_LingerReleaseDistance
         If Core != None
             Core.SetReleaseDistance(sliderValue)
@@ -1142,6 +1245,11 @@ Event OnOptionHighlight(Int optionId)
            optionId == OID_ConfirmSearchForActor || optionId == OID_ConfirmScheduleFetch || \
            optionId == OID_ConfirmScheduleDelivery || optionId == OID_ConfirmScheduleMeeting
         SetInfoText("Click to cycle: Disabled / Followers Only / Everyone. Controls whether a confirmation prompt appears before this action. Followers Only = only prompts when the acting NPC is your active follower.")
+    ElseIf optionId == OID_SkipFollowerGoToLocation || optionId == OID_SkipFollowerDeliverMessage || \
+           optionId == OID_SkipFollowerFetchPerson || optionId == OID_SkipFollowerEscortTarget || \
+           optionId == OID_SkipFollowerSearchForActor || optionId == OID_SkipFollowerScheduleFetch || \
+           optionId == OID_SkipFollowerScheduleDelivery || optionId == OID_SkipFollowerScheduleMeeting
+        SetInfoText("When enabled, silently blocks this action for active followers. The action is denied before any confirmation prompt.")
     ElseIf optionId == OID_DeliveryReportBack
         SetInfoText("When enabled, messengers return to you after delivering a message off-screen and report back.")
     ElseIf optionId == OID_MeetingTimeoutHours

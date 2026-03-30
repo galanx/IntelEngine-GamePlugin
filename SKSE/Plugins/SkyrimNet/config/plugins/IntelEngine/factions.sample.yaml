@@ -1,0 +1,135 @@
+# Faction Politics Configuration — sample defaults
+# To restore: copy this file as "factions.yaml" in the same folder.
+# If factions.yaml is missing, IntelEngine auto-creates it with these defaults on game load.
+# Modders can edit factions.yaml to add/modify factions. It will NOT be overwritten by updates.
+factions:
+  - id: "ImperialFaction"
+    name: "Imperial Legion"
+    type: "military"
+    hold: "Solitude"
+    skyrim_faction_id: "CWImperialFaction"
+    leader_names: ["General Tullius", "Legate Rikke"]
+    rivals: ["StormcloakFaction"]
+    allies: ["ThalmorFaction"]
+    base_army_strength: 30
+    war_threshold: -50
+    soldier_template: "LCharSoldierImperial"
+    prison_location: "SolitudeCastleDour"
+    prison_marker: [0, 0, 0]
+  - id: "StormcloakFaction"
+    name: "Stormcloaks"
+    type: "military"
+    hold: "Windhelm"
+    skyrim_faction_id: "CWSonsFaction"
+    leader_names: ["Ulfric Stormcloak", "Galmar Stone-Fist"]
+    rivals: ["ImperialFaction", "ThalmorFaction"]
+    allies: []
+    base_army_strength: 25
+    war_threshold: -50
+    soldier_template: "LCharSoldierSons"
+    prison_location: "WindhelmPalaceOfTheKings"
+    prison_marker: [0, 0, 0]
+  - id: "ThalmorFaction"
+    name: "Thalmor"
+    type: "military"
+    hold: "Solitude"
+    skyrim_faction_id: "ThalmorFaction"
+    leader_names: ["Elenwen", "Ondolemar"]
+    rivals: ["StormcloakFaction"]
+    allies: ["ImperialFaction"]
+    base_army_strength: 20
+    war_threshold: -50
+    soldier_template: "LCharThalmorMelee1H"
+    prison_location: "ThalmorEmbassy"
+    prison_marker: [0, 0, 0]
+  - id: "CompanionsFaction"
+    name: "The Companions"
+    type: "guild"
+    hold: "Whiterun"
+    skyrim_faction_id: "CompanionsFaction"
+    leader_names: ["Kodlak Whitemane", "Vilkas"]
+    rivals: []
+    allies: []
+    war_threshold: -60
+    conflict_style: "brawl"
+    soldier_template: "LCharBanditMeleeAny"
+    prison_location: "WhiterunJorrvaskr"
+    prison_marker: [0, 0, 0]
+  - id: "ThievesGuildFaction"
+    name: "Thieves Guild"
+    type: "guild"
+    hold: "Riften"
+    skyrim_faction_id: "ThievesGuildFaction"
+    leader_names: ["Mercer Frey", "Brynjolf"]
+    rivals: []
+    allies: ["BlackBriarFamily"]
+    war_threshold: -55
+    conflict_style: "sabotage"
+    soldier_template: "WEThiefSubChar"
+    prison_location: "RiftenRatway"
+    prison_marker: [0, 0, 0]
+  - id: "CollegeOfWinterholdFaction"
+    name: "College of Winterhold"
+    type: "guild"
+    hold: "Winterhold"
+    skyrim_faction_id: "CollegeofWinterholdFaction"
+    leader_names: ["Savos Aren", "Mirabelle Ervine"]
+    rivals: []
+    allies: []
+    war_threshold: -65
+    conflict_style: "sabotage"
+    soldier_template: "LCharBanditWizard"
+    prison_location: "CollegeOfWinterholdHallOfTheElements"
+    prison_marker: [0, 0, 0]
+  - id: "DarkBrotherhoodFaction"
+    name: "Dark Brotherhood"
+    type: "guild"
+    hold: "Falkreath"
+    skyrim_faction_id: "DarkBrotherhoodFaction"
+    leader_names: ["Astrid", "Nazir"]
+    rivals: []
+    allies: []
+    war_threshold: -50
+    conflict_style: "assassination"
+    soldier_template: "WEAssassinSubChar"
+    prison_location: "DarkBrotherhoodSanctuary"
+    prison_marker: [0, 0, 0]
+  - id: "SilverBloodFamily"
+    name: "Silver-Blood Family"
+    type: "political"
+    hold: "Markarth"
+    skyrim_faction_id: "CrimeFactionReach"
+    leader_names: ["Thongvor Silver-Blood", "Thonar Silver-Blood"]
+    rivals: []
+    allies: []
+    war_threshold: -55
+    conflict_style: "proxy"
+    soldier_template: "LCharForswornMelee1H"
+    prison_location: "MarkarthCidhnaMine"
+    prison_marker: [0, 0, 0]
+  - id: "BlackBriarFamily"
+    name: "Black-Briar Family"
+    type: "political"
+    hold: "Riften"
+    skyrim_faction_id: "CrimeFactionRift"
+    leader_names: ["Maven Black-Briar"]
+    rivals: []
+    allies: ["ThievesGuildFaction"]
+    war_threshold: -55
+    conflict_style: "assassination"
+    soldier_template: "WEThiefSubChar"
+    prison_location: "RiftenJail"
+    prison_marker: [0, 0, 0]
+default_relations:
+  - faction_a: "ImperialFaction"
+    faction_b: "ThalmorFaction"
+    relation: 50
+  - faction_a: "ImperialFaction"
+    faction_b: "StormcloakFaction"
+    relation: -30
+  - faction_a: "StormcloakFaction"
+    faction_b: "ThalmorFaction"
+    relation: -40
+  - faction_a: "BlackBriarFamily"
+    faction_b: "ThievesGuildFaction"
+    relation: 60
