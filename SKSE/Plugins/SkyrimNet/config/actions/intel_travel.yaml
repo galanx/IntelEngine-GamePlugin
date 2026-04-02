@@ -11,6 +11,10 @@ description: >
   If the conversation does NOT contain one of these patterns (or similar), do NOT trigger this action.
   Simply MENTIONING a place name is NOT a travel command.
 
+  DO NOT USE THIS ACTION when the player asks you to deliver a message, tell someone something,
+  warn someone, or relay information. Use DeliverMessage instead. Examples that are NOT travel:
+  "go tell Alvor...", "warn Adrianne...", "let Nazeem know...", "go find Lydia and tell her..."
+
   DESTINATION must be one of these two categories:
 
   A) SEMANTIC KEYWORDS — use ONLY these exact words (resolved by the engine):
@@ -77,6 +81,10 @@ parameterMapping:
 eligibilityRules:
   - conditions:
       - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+      - decoratorName: is_busy
         arguments: ["currentActor"]
         comparisonOperator: "=="
         expectedValue: false

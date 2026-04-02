@@ -294,6 +294,16 @@ Function RestartMonitoring()
     IntelEngine.SetAutoBioThreshold(AutoBioThreshold)
     WarmBioLineCounts()
 
+    ; Restore orphaned aggression changes from faction couriers (crash/save mid-dispatch)
+    If ActiveStoryNPC != None
+        Float origAggr = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_OrigAggression", -1.0)
+        If origAggr >= 0.0
+            ActiveStoryNPC.SetActorValue("Aggression", origAggr)
+            StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_OrigAggression")
+            Core.DebugMsg("Story: restored orphaned aggression on " + ActiveStoryNPC.GetDisplayName())
+        EndIf
+    EndIf
+
     ; Clean up NPC Social dispatch on load (packages lost, travel state unrecoverable)
     If IsNPCStoryActive
         Core.DebugMsg("Story: abandoning NPC Social dispatch on load")
@@ -837,7 +847,8 @@ Function OnNPCInteractionResponse(String response, Int success)
     Core.SendPersistentMemory(npc1, npc2, narration)
     Core.DebugMsg("NPC DM [" + storyType + "]: " + npc1.GetDisplayName() + " + " + npc2.GetDisplayName())
 
-    ; Inject facts
+    ; Inject facts and build detail string for dashboard log
+    String logDetail = ""
     If storyType == "npc_interaction"
         String fact1 = ExtractJsonField(response, "fact1")
         String fact2 = ExtractJsonField(response, "fact2")
@@ -847,13 +858,34 @@ Function OnNPCInteractionResponse(String response, Int success)
         If fact2 != ""
             Core.InjectFact(npc2, fact2)
         EndIf
+        If fact1 != ""
+            logDetail = npc1.GetDisplayName() + ": " + fact1
+        EndIf
+        If fact2 != ""
+            If logDetail != ""
+                logDetail += " | "
+            EndIf
+            logDetail += npc2.GetDisplayName() + ": " + fact2
+        EndIf
     ElseIf storyType == "npc_gossip"
         String gossipContent = ExtractJsonField(response, "gossip")
         If gossipContent != ""
             Core.InjectGossip(npc1, npc2, gossipContent)
+            logDetail = "Gossip: " + gossipContent
         EndIf
         SpreadGossipOffScreen(npc1, npc2, gossipContent)
     EndIf
+
+    ; Log to dashboard BEFORE visibility branch
+    ; For gossip, show the actual gossip content instead of the vague narration action
+    String dashboardText = narration
+    If storyType == "npc_gossip"
+        String gossipForDash = ExtractJsonField(response, "gossip")
+        If gossipForDash != ""
+            dashboardText = gossipForDash
+        EndIf
+    EndIf
+    AddNPCSocialLog(storyType, npc1.GetDisplayName(), npc2.GetDisplayName(), dashboardText, npc1, logDetail)
 
     ; Dispatch based on visibility. NPC Social dispatch is independent of IsActive.
     Actor player = Game.GetPlayer()
@@ -866,7 +898,6 @@ Function OnNPCInteractionResponse(String response, Int success)
         PerformVisibleInteraction(npc1, npc2, narration, storyType)
     ElseIf (npc1Visible || npc2Visible) && !IsNPCStoryActive && !npc1.IsPlayerTeammate() && !npc2.IsPlayerTeammate()
         ; One visible -- dispatch the off-screen NPC to walk over
-        ; Skip if: dispatch already active, or either is a follower
         If npc2Visible
             DispatchNPCSocial(npc1, npc2, narration, storyType)
         Else
@@ -876,7 +907,6 @@ Function OnNPCInteractionResponse(String response, Int success)
         ; Neither visible, dispatch busy, or followers -- off-screen facts only
         String summary = BuildInteractionSummary(npc1, narration, npc2)
         AddRecentStoryEvent(storyType + ": " + summary)
-        AddNPCSocialLog(storyType, npc1.GetDisplayName(), npc2.GetDisplayName(), narration, npc1)
         Core.DebugMsg("Story: " + summary)
     EndIf
 EndFunction
@@ -889,10 +919,9 @@ Function DispatchNPCSocial(Actor npc, Actor target, String narration, String sto
     {Lightweight dispatch for NPC-to-NPC travel. Uses slots but does NOT touch IsActive/ActiveStoryNPC.}
     Int slot = Core.FindFreeAgentSlot()
     If slot < 0
-        ; No free slots -- fall back to off-screen
+        ; No free slots -- fall back to off-screen (log already added before visibility branch)
         String summary = BuildInteractionSummary(npc, narration, target)
         AddRecentStoryEvent(storyType + ": " + summary)
-        AddNPCSocialLog(storyType, npc.GetDisplayName(), target.GetDisplayName(), narration, npc)
         Core.DebugMsg("NPC Social: no free slot, off-screen: " + summary)
         return
     EndIf
@@ -1600,7 +1629,7 @@ Function PerformVisibleInteraction(Actor npc1, Actor npc2, String eventText, Str
     Core.SendTaskNarration(npc1, summary, npc2)
 
     AddRecentStoryEvent(eventType + ": " + summary)
-    AddNPCSocialLog(eventType, npc1.GetDisplayName(), npc2.GetDisplayName(), eventText, npc1)
+    ; NOTE: AddNPCSocialLog is called BEFORE the visibility branch in OnNPCInteractionResponse
     Debug.Trace("[IntelEngine] StoryEngine: Visible " + eventType + " performed")
 EndFunction
 
@@ -2889,6 +2918,10 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
             return
         EndIf
         npc = factionMember
+        ; Make courier non-hostile so NPCs don't attack them on approach (e.g., Volkihar vampires)
+        ; Save original aggression for restoration after task completes
+        StorageUtil.SetFloatValue(npc, "Intel_OrigAggression", npc.GetActorValue("Aggression"))
+        npc.SetActorValue("Aggression", 0)
         ; Skip cooldown for faction couriers — they're generic/interchangeable soldiers.
         ; Rejecting a faction_battle because the nearest guard has a cooldown wastes a valid quest.
         String factionName = IntelEngine.GetFactionDisplayName(alliedFaction)
@@ -4356,11 +4389,23 @@ Function CleanupQuest()
         Core.RemoveAllPackages(ActiveStoryNPC, false)
         ; Don't call CleanupStoryDispatch here — it would recurse back into CleanupQuest.
         ; Instead, manually clear the dispatch state.
+        ; Restore courier aggression if it was modified
+        Float origAggr = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_OrigAggression", -1.0)
+        If origAggr >= 0.0
+            ActiveStoryNPC.SetActorValue("Aggression", origAggr)
+            StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_OrigAggression")
+        EndIf
         StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_IsStoryDispatch")
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_StoryNarration")
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageSender")
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageContent")
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_QuestLocation")
+        StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_SneakPhase")
+        StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_SneakStartTime")
+        StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_CombatStartTime")
+        StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_OffscreenArrival")
+        StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageDest")
+        StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageTime")
         ActiveStoryNPC = None
         ActiveNarration = ""
         ActiveStoryType = ""
@@ -4619,6 +4664,12 @@ Function CleanupStoryDispatch()
     EndIf
 
     If ActiveStoryNPC != None
+        ; Restore original aggression if it was lowered for courier approach
+        Float origAggr = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_OrigAggression", -1.0)
+        If origAggr >= 0.0
+            ActiveStoryNPC.SetActorValue("Aggression", origAggr)
+            StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_OrigAggression")
+        EndIf
         StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_IsStoryDispatch")
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_StoryNarration")
         StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_SneakPhase")
@@ -4694,7 +4745,7 @@ Function AddRecentStoryEvent(String summary)
     EndWhile
 EndFunction
 
-Function AddNPCSocialLog(String eventType, String npc1Name, String npc2Name, String narration, Actor sourceNPC = None)
+Function AddNPCSocialLog(String eventType, String npc1Name, String npc2Name, String narration, Actor sourceNPC = None, String detail = "")
     {Store structured NPC social interaction for dashboard display. Parallel StringLists, last 5.}
     Actor player = Game.GetPlayer()
     ; Get hold name from the NPC who initiated the interaction (not the player)
@@ -4706,16 +4757,25 @@ Function AddNPCSocialLog(String eventType, String npc1Name, String npc2Name, Str
         locName = IntelEngine.GetActorHoldName(player)
     EndIf
     StorageUtil.StringListAdd(player, "Intel_SocialLog_Type", eventType)
+    ; Pad Detail list if shorter than Type list (save migration: old entries lack Detail)
+    Int typeCount = StorageUtil.StringListCount(player, "Intel_SocialLog_Type")
+    Int detailCount = StorageUtil.StringListCount(player, "Intel_SocialLog_Detail")
+    While detailCount < typeCount
+        StorageUtil.StringListAdd(player, "Intel_SocialLog_Detail", "")
+        detailCount += 1
+    EndWhile
     StorageUtil.StringListAdd(player, "Intel_SocialLog_NPC1", npc1Name)
     StorageUtil.StringListAdd(player, "Intel_SocialLog_NPC2", npc2Name)
     StorageUtil.StringListAdd(player, "Intel_SocialLog_Text", narration)
     StorageUtil.StringListAdd(player, "Intel_SocialLog_Location", locName)
+    StorageUtil.StringListAdd(player, "Intel_SocialLog_Detail", detail)
     While StorageUtil.StringListCount(player, "Intel_SocialLog_Type") > 5
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Type", 0)
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_NPC1", 0)
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_NPC2", 0)
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Text", 0)
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Location", 0)
+        StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Detail", 0)
     EndWhile
 EndFunction
 

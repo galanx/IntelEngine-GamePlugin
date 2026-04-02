@@ -419,11 +419,12 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         Return false
     EndIf
 
-    ; Cancel any existing task the target is involved in (as agent or target)
-    Int existingSlot = Core.FindSlotByActor(targetNPC)
+    ; Don't interrupt if the target is actively doing their own task
+    Int existingSlot = Core.FindSlotByAgent(targetNPC)
     If existingSlot >= 0
-        Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " is in active slot " + existingSlot + " — cancelling")
-        Core.ClearSlot(existingSlot, true)
+        Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " — cannot fetch")
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " tried to fetch " + targetNPC.GetDisplayName() + " but they are busy with another task.")
+        Return false
     EndIf
 
     ; Also cancel any pending schedule for the target
@@ -894,11 +895,15 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
         Return false
     EndIf
 
-    ; Cancel any existing task the target is involved in
-    Int existingSlot = Core.FindSlotByActor(targetNPC)
+    ; Cancel any existing task where the target is the AGENT — don't cancel if
+    ; they're already doing their own task (e.g., escorting someone else).
+    ; FindSlotByAgent checks if they're the primary actor in a slot.
+    Int existingSlot = Core.FindSlotByAgent(targetNPC)
     If existingSlot >= 0
-        Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is in active slot " + existingSlot + " -- cancelling")
-        Core.ClearSlot(existingSlot, true)
+        ; Target is actively doing a task — don't interrupt, reject this escort instead
+        Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " — cannot escort")
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " tried to escort " + targetNPC.GetDisplayName() + " but they are busy with another task.")
+        Return false
     EndIf
 
     ; Cancel pending schedule for the target
@@ -1811,6 +1816,14 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
         destName = "their destination"
     EndIf
 
+    ; Wake sleeping target — sleep packages override travel at priority 0-50,
+    ; so the escort agent just stands at the bedside waiting forever.
+    If target.GetSleepState() != 0
+        Core.DebugMsg("EscortTarget: waking " + target.GetDisplayName() + " from sleep")
+        target.EvaluatePackage()
+        Utility.Wait(1.0)
+    EndIf
+
     ; Cancel SkyrimNet's FollowPlayer package on the target — without this,
     ; the accompany package fights the escort travel package and pulls the
     ; target back to the player after escort completes.
@@ -1849,6 +1862,18 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
     ; Target arrived at destination = completion
     If target.Is3DLoaded() && destMarkerRef.Is3DLoaded()
         If target.GetDistance(destMarkerRef) <= Core.ARRIVAL_DISTANCE
+            ; Check if destination is a door — teleport both NPCs through (same as GoToLocation)
+            ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destMarkerRef)
+            If doorDest != None
+                Core.DebugMsg("Escort: door reached, teleporting both through")
+                agent.MoveTo(doorDest)
+                target.MoveTo(doorDest)
+                ; Update linked refs + ReturnMarker to interior target so sandbox uses correct ref
+                PO3_SKSEFunctions.SetLinkedRef(agent, doorDest, Core.IntelEngine_TravelTarget)
+                PO3_SKSEFunctions.SetLinkedRef(target, doorDest, Core.IntelEngine_TravelTarget)
+                StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", doorDest)
+                Utility.Wait(0.5)
+            EndIf
             OnEscortComplete(slot, agent, target)
             Return
         EndIf
@@ -1856,6 +1881,15 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
         Cell targetCell = target.GetParentCell()
         Cell destCell = destMarkerRef.GetParentCell()
         If targetCell != None && destCell != None && targetCell == destCell
+            ; Off-screen arrival — teleport through door if destination is a door
+            ObjectReference doorDest2 = IntelEngine.GetDoorDestinationRef(destMarkerRef)
+            If doorDest2 != None
+                agent.MoveTo(doorDest2)
+                target.MoveTo(doorDest2)
+                PO3_SKSEFunctions.SetLinkedRef(agent, doorDest2, Core.IntelEngine_TravelTarget)
+                PO3_SKSEFunctions.SetLinkedRef(target, doorDest2, Core.IntelEngine_TravelTarget)
+                StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", doorDest2)
+            EndIf
             OnEscortComplete(slot, agent, target)
             Return
         EndIf
@@ -1867,9 +1901,18 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
         If stuckStatus == 1
             Core.SoftStuckRecovery(agent, slot, destMarkerRef)
         ElseIf stuckStatus >= 3
-            ; Teleport both to destination
-            agent.MoveTo(destMarkerRef)
-            target.MoveTo(destMarkerRef)
+            ; Teleport both to destination — through door if applicable
+            ObjectReference doorDest3 = IntelEngine.GetDoorDestinationRef(destMarkerRef)
+            If doorDest3 != None
+                agent.MoveTo(doorDest3)
+                target.MoveTo(doorDest3)
+                PO3_SKSEFunctions.SetLinkedRef(agent, doorDest3, Core.IntelEngine_TravelTarget)
+                PO3_SKSEFunctions.SetLinkedRef(target, doorDest3, Core.IntelEngine_TravelTarget)
+                StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", doorDest3)
+            Else
+                agent.MoveTo(destMarkerRef)
+                target.MoveTo(destMarkerRef)
+            EndIf
             OnEscortComplete(slot, agent, target)
             Return
         EndIf
@@ -1971,11 +2014,14 @@ Function OnEscortComplete(Int slot, Actor agent, Actor target)
         ObjectReference destRef = StorageUtil.GetFormValue(agent, "Intel_ReturnMarker") as ObjectReference
         StartEscortTargetWait(target, destRef, destName)
     Else
-        ; Player already here or no wait requested — normal release
-        Core.RemoveIntelPackages(target)
-        PO3_SKSEFunctions.SetLinkedRef(target, None, Core.IntelEngine_TravelTarget)
-        PO3_SKSEFunctions.SetLinkedRef(target, None, Core.IntelEngine_AgentLink)
-        target.EvaluatePackage()
+        ; Player already here or no wait requested — sandbox briefly before releasing.
+        ; This prevents the target from instantly teleporting home (child NPC AI, follow-parent packages)
+        ; by keeping the sandbox package active until the normal linger system releases them.
+        ObjectReference destRef = StorageUtil.GetFormValue(agent, "Intel_ReturnMarker") as ObjectReference
+        If destRef == None
+            destRef = target  ; sandbox where they are
+        EndIf
+        StartEscortTargetWait(target, destRef, destName)
     EndIf
 
     ; Narrate

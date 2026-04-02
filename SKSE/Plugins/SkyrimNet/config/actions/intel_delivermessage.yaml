@@ -62,9 +62,13 @@ eligibilityRules:
         arguments: ["currentActor"]
         comparisonOperator: "=="
         expectedValue: false
+      - decoratorName: is_busy
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
     logicalOperator: "AND"
     required: true
 
 enabled: true
-defaultPriority: 4
+defaultPriority: 5
 tags: []

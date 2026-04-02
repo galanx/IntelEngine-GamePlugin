@@ -85,15 +85,17 @@ Most NPC interactions should be personal — arguments, romance, deals, favors, 
 3. **Late night needs justification** — most NPCs sleep. Only innkeepers, guards, and night-owls interact late.
 4. **Prioritize pairs with shared history**, but fresh encounters between NPCs who share a location are also good — especially if their roles create natural friction or camaraderie.
 5. **Ground in what they know** — each NPC's memories and gossip are their personal knowledge. Build interactions from what they've actually experienced, not from events they had no part in.
-6. **Past tense narration ONLY**, verb phrase without subject, under 200 characters.
-7. **Player nearby — make it worth witnessing** — if "player nearby: yes", the player will see and hear this interaction. Make it dramatic, interesting, or revealing. Arguments, confessions, hushed gossip, heated debates — things the player would want to stop and listen to. NPC gossip about {{ playerName }} is especially compelling when the player is nearby — two NPCs whispering about the player's recent deeds while the player is within earshot creates immersive moments.
-8. **Gossip about {{ playerName }}** — NPCs can gossip about {{ playerName }} using `npc_gossip` if they have memories involving the player. The gossip field should describe what {{ playerName }} did (past-tense verb phrase). This is especially powerful when "player nearby: yes" — the player overhears NPCs talking about them. Use this sparingly but don't shy away from it when NPC memories naturally lead there.
-9. **Followers scheming** — NPCs marked "(follower)" travel with the player. When two followers interact about the player while the player is nearby, narrate it as whispered and conspiratorial ("leaned in and whispered to...", "glanced at the player, then quietly told...").
+6. **Past tense narration ONLY**, verb phrase without subject, under 150 characters.
+7. **Keep fact1/fact2/gossip SHORT** — each under 120 characters. These are memory summaries, not prose.
+8. **TOTAL JSON response MUST be under 700 characters.** The system truncates longer responses, breaking parsing. Be concise.
+9. **Player nearby — make it worth witnessing** — if "player nearby: yes", the player will see and hear this interaction. Make it dramatic, interesting, or revealing. Arguments, confessions, hushed gossip, heated debates — things the player would want to stop and listen to. NPC gossip about {{ playerName }} is especially compelling when the player is nearby — two NPCs whispering about the player's recent deeds while the player is within earshot creates immersive moments.
+10. **Gossip about {{ playerName }}** — NPCs can gossip about {{ playerName }} using `npc_gossip` if they have memories involving the player. The gossip field should describe what {{ playerName }} did (past-tense verb phrase). This is especially powerful when "player nearby: yes" — the player overhears NPCs talking about them. Use this sparingly but don't shy away from it when NPC memories naturally lead there.
+11. **Followers scheming** — NPCs marked "(follower)" travel with the player. When two followers interact about the player while the player is nearby, narrate it as whispered and conspiratorial ("leaned in and whispered to...", "glanced at the player, then quietly told...").
 
 [ user ]
 Look at the NPC groups above. Find the pair with the most interesting potential interaction based on who they are and what they've experienced. Pick one, or reject if nothing is compelling.
 
-Respond ONLY with valid JSON, nothing else.
+CRITICAL: Respond with ONLY a raw JSON object. No markdown, no explanation. The very first character MUST be {{ "{" }} and the very last MUST be }. **TOTAL response MUST be under 700 characters** — longer responses are truncated and break parsing.
 
 If nothing compelling: {{ "{" }}"should_act":false}
 {% if preferredType == "npc_gossip" %}

@@ -146,7 +146,7 @@ Study the political state above. Given current relations, recent events, and fac
 
 Also check recent_player_dialogues: if the player said anything politically relevant, include standing changes.
 
-Respond with ONLY a JSON object:
+Respond with ONLY a raw JSON object. No markdown, no explanation. **TOTAL response MUST be under 700 characters** — longer responses are truncated and break parsing:
 
 Skip: {{ "{" }}"should_act":false}
 
