@@ -733,6 +733,10 @@ Int Function CheckCrimeGoldStandings() Global Native
 ; Returns number of standings decayed
 Int Function DecayPlayerStandings(Int decayRate) Global Native
 
+; Sync vanilla faction membership with political standing.
+; If player is in a vanilla faction but has 0 standing, grants 40 (friendly threshold).
+Int Function SyncVanillaFactionStandings() Global Native
+
 ; Write political_state.json for pull-based NPC awareness
 ; Call after standing changes to make them visible to NPCs
 Function WritePoliticalStateFile() Global Native

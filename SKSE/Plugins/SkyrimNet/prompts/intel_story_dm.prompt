@@ -121,19 +121,21 @@ A faction calls on the player for aid. **ONLY the sub-types listed below are ava
 - A boss always spawns next to the treasure. Match enemy strength to item value.
 {% endif %}
 {% if show_quest_faction_combat == "1" %}
-{% if hostile_factions and hostile_factions != "" %}
+{% if hostile_factions and hostile_factions != "" and friendly_factions and friendly_factions != "" %}
 **faction_combat** — Clear enemy faction soldiers from a location. "questSubType": "faction_combat".
-- "npc" and "sender": EMPTY. "enemyType": "faction:FactionId". "alliedFaction": the allied faction ID.
+- "npc" and "sender": EMPTY. "enemyType": "faction:FactionId". "alliedFaction": the allied faction ID from friendly factions.
 - Location should be a fort/camp/outpost in or near the ENEMY faction's territory.
 - **Hostile factions**: {{ hostile_factions }}
+- **Friendly factions** (pick alliedFaction from here): {{ friendly_factions }}
 {% endif %}
 {% endif %}
 {% if show_quest_faction_rescue == "1" %}
-{% if hostile_factions and hostile_factions != "" %}
+{% if hostile_factions and hostile_factions != "" and friendly_factions and friendly_factions != "" %}
 **faction_rescue** — Rescue someone captured by enemy faction soldiers. "questSubType": "faction_rescue".
-- "npc" and "sender": EMPTY. "enemyType": "faction:FactionId". "alliedFaction": the allied faction ID.
+- "npc" and "sender": EMPTY. "enemyType": "faction:FactionId". "alliedFaction": the allied faction ID from friendly factions.
 - "victimName": a real NPC from the allied faction's territory (common person, not leaders).
 - **Hostile factions**: {{ hostile_factions }}
+- **Friendly factions** (pick alliedFaction from here): {{ friendly_factions }}
 {% endif %}
 {% endif %}
 {% if show_quest_faction_battle == "1" %}
@@ -198,7 +200,7 @@ CRITICAL: Respond with ONLY a raw JSON object. No analysis, no explanation, no m
 
 If nothing compelling: {{ "{" }}"should_act":false,"reason":"brief explanation why no candidate fits"}
 
-Otherwise use the matching format. **OMIT optional fields you are not using UNLESS the type definition explicitly requires an empty value.** Keep narration under 120 characters and msgContent under 150 characters:
+Otherwise use the matching format. **OMIT optional fields you are not using UNLESS the type definition explicitly requires an empty value.** Keep narration under 120 characters and msgContent under 150 characters. **TOTAL JSON response MUST be under 700 characters** — the system truncates longer responses, breaking parsing. Be concise:
 
 {% if show_seek_player == "1" %}
 seek_player: {{ "{" }}"should_act":true,"type":"seek_player","npc":"Name","narration":"tracked {{ playerName }} down after hearing about the dragon attack"}

@@ -718,6 +718,13 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetIntValue(agent, "Intel_IsStoryDispatch")
             StorageUtil.UnsetStringValue(agent, "Intel_StoryNarration")
 
+            ; Restore courier aggression if it was modified
+            Float origAggr = StorageUtil.GetFloatValue(agent, "Intel_OrigAggression", -1.0)
+            If origAggr >= 0.0
+                agent.SetActorValue("Aggression", origAggr)
+                StorageUtil.UnsetFloatValue(agent, "Intel_OrigAggression")
+            EndIf
+
             ; Re-evaluate AI
             agent.EvaluatePackage()
         EndIf
@@ -1885,6 +1892,7 @@ Function RegisterDashboardEvents()
     RegisterForModEvent("IntelEngine_DashboardOpened", "OnDashboardOpened")
     RegisterForModEvent("IntelEngine_DashboardRefresh", "OnDashboardRefresh")
     RegisterForModEvent("IntelEngine_DashboardCancelTask", "OnDashboardCancelTask")
+    RegisterForModEvent("IntelEngine_DashboardCancelQuest", "OnDashboardCancelQuest")
     RegisterForModEvent("IntelEngine_DashboardCancelSchedule", "OnDashboardCancelSchedule")
     RegisterForModEvent("IntelEngine_DashboardToggleStory", "OnDashboardToggleStory")
     RegisterForModEvent("IntelEngine_DashboardSetting", "OnDashboardSetting")
@@ -1899,32 +1907,23 @@ Function RegisterDashboardEvents()
 EndFunction
 
 Event OnSaveBioCount(String eventName, String strArg, Float numArg, Form sender)
-    ; strArg = "formIdHex|count" — FormID as hex string to avoid float precision loss
-    Int sep = StringUtil.Find(strArg, "|")
-    If sep < 0
+    ; sender = Actor, strArg = count as string
+    Actor npc = sender as Actor
+    If npc == None || StoryEngine == None
         return
     EndIf
-    Int formId = IntelEngine.HexToInt(StringUtil.Substring(strArg, 0, sep))
-    Int count = StringUtil.Substring(strArg, sep + 1) as Int
-    Actor npc = Game.GetForm(formId) as Actor
-    If npc != None && StoryEngine != None
-        StorageUtil.SetIntValue(npc, "Intel_BioLineCount", count)
-        If !StorageUtil.FormListHas(StoryEngine, "Intel_BioTrackActors", npc)
-            StorageUtil.FormListAdd(StoryEngine, "Intel_BioTrackActors", npc)
-        EndIf
+    Int count = strArg as Int
+    StorageUtil.SetIntValue(npc, "Intel_BioLineCount", count)
+    If !StorageUtil.FormListHas(StoryEngine, "Intel_BioTrackActors", npc)
+        StorageUtil.FormListAdd(StoryEngine, "Intel_BioTrackActors", npc)
     EndIf
 EndEvent
 
 Event OnAutoBioUpdate(String eventName, String strArg, Float numArg, Form sender)
-    ; strArg = "formIdHex|" — FormID as hex string to avoid float precision loss
-    Int sep = StringUtil.Find(strArg, "|")
-    If sep < 0
-        return
-    EndIf
-    Int formId = IntelEngine.HexToInt(StringUtil.Substring(strArg, 0, sep))
-    Actor npc = Game.GetForm(formId) as Actor
+    ; sender = Actor — no FormID encoding needed, works for all actors including mod-added
+    Actor npc = sender as Actor
     If npc == None
-        DebugMsg("Auto Bio Update: actor not found for FormID " + formId)
+        DebugMsg("Auto Bio Update: sender is not a valid actor")
         return
     EndIf
     ; Persist the reset (C++ already reset to 0, mirror in StorageUtil)
@@ -1956,6 +1955,15 @@ Event OnDashboardCancelTask(String eventName, String strArg, Float numArg, Form 
             ClearSlotRestoreFollower(slot, agent)
             PushDashboardState()
         EndIf
+    EndIf
+EndEvent
+
+Event OnDashboardCancelQuest(String eventName, String strArg, Float numArg, Form sender)
+    If StoryEngine != None && StoryEngine.QuestActive
+        DebugMsg("Dashboard: Cancelling active quest")
+        StoryEngine.CleanupQuest()
+        StoryEngine.CleanupStoryDispatch()
+        PushDashboardState()
     EndIf
 EndEvent
 
@@ -2618,6 +2626,8 @@ String Function BuildDashboardStateJson()
         json += ",\"npc1\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_NPC1", li)) + "\""
         json += ",\"npc2\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_NPC2", li)) + "\""
         json += ",\"text\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Text", li)) + "\""
+        json += ",\"location\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Location", li)) + "\""
+        json += ",\"detail\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Detail", li)) + "\""
         json += "}"
         li -= 1
     EndWhile
