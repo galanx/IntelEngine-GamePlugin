@@ -1,6 +1,6 @@
 Scriptname IntelEngine_Travel extends Quest
 {
-    IntelEngine Travel & Navigation System v1.0
+    IntelEngine Travel & Navigation System
 
     Intelligent navigation supporting:
     - Named locations (Whiterun, Bannered Mare)

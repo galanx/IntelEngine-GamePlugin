@@ -1,6 +1,6 @@
 Scriptname IntelEngine_Core extends Quest
 {
-    IntelEngine Core System v1.0
+    IntelEngine Core System
 
     Intelligent NPC Task Execution for SkyrimNet
 

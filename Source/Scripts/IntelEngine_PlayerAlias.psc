@@ -1,6 +1,6 @@
 Scriptname IntelEngine_PlayerAlias extends ReferenceAlias
 {
-    IntelEngine Player Alias Script v1.0
+    IntelEngine Player Alias Script
 
     This script is attached to the PlayerAlias on the IntelEngine quest.
     It handles:

@@ -1,4 +1,4 @@
-# IntelEngine v3.0.0
+# IntelEngine
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 *"Meet me at the Western Watchtower at sunset."*

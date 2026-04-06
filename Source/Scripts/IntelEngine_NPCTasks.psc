@@ -1,6 +1,6 @@
 Scriptname IntelEngine_NPCTasks extends Quest
 {
-    IntelEngine NPC Task System v1.0
+    IntelEngine NPC Task System
 
     Handles complex NPC-to-NPC interactions:
     - Fetch NPC: Go find someone and bring them back
