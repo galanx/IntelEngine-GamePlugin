@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
-    <moduleName>IntelEngine v3.2.1</moduleName>
+    <moduleName>IntelEngine v3.2.2</moduleName>
     <moduleImage path="fomod\screenshot.png" />
 
     <requiredInstallFiles>
         <file source="IntelEngine.esp" destination="IntelEngine.esp" />
         <folder source="Scripts" destination="Scripts" />
-        <folder source="Source" destination="Source" />
+
         <folder source="Interface" destination="Interface" />
         <folder source="SKSE" destination="SKSE" />
         <folder source="PrismaUI" destination="PrismaUI" />

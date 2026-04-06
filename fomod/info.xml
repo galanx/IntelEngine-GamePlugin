@@ -2,7 +2,7 @@
 <fomod>
     <Name>IntelEngine</Name>
     <Author>Galanx</Author>
-    <Version>3.2.1</Version>
+    <Version>3.2.2</Version>
     <Description>AI-powered NPC autonomy mod for Skyrim. Gives NPCs the ability to travel, perform tasks, create dynamic story events, and engage in faction politics and wars — all powered by SkyrimNet's LLM integration.
 
 Requirements: SKSE, SkyrimNet, PapyrusExtender (po3), PapyrusUtil, MCM Helper, Papyrus MessageBox</Description>
