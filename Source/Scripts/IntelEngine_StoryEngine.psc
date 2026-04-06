@@ -848,6 +848,7 @@ Function OnNPCInteractionResponse(String response, Int success)
     Core.DebugMsg("NPC DM [" + storyType + "]: " + npc1.GetDisplayName() + " + " + npc2.GetDisplayName())
 
     ; Inject facts and build detail string for dashboard log
+    String dashboardText = narration
     String logDetail = ""
     If storyType == "npc_interaction"
         String fact1 = ExtractJsonField(response, "fact1")
@@ -872,18 +873,9 @@ Function OnNPCInteractionResponse(String response, Int success)
         If gossipContent != ""
             Core.InjectGossip(npc1, npc2, gossipContent)
             logDetail = "Gossip: " + gossipContent
+            dashboardText = gossipContent
         EndIf
         SpreadGossipOffScreen(npc1, npc2, gossipContent)
-    EndIf
-
-    ; Log to dashboard BEFORE visibility branch
-    ; For gossip, show the actual gossip content instead of the vague narration action
-    String dashboardText = narration
-    If storyType == "npc_gossip"
-        String gossipForDash = ExtractJsonField(response, "gossip")
-        If gossipForDash != ""
-            dashboardText = gossipForDash
-        EndIf
     EndIf
     AddNPCSocialLog(storyType, npc1.GetDisplayName(), npc2.GetDisplayName(), dashboardText, npc1, logDetail)
 
@@ -4756,14 +4748,19 @@ Function AddNPCSocialLog(String eventType, String npc1Name, String npc2Name, Str
     If locName == ""
         locName = IntelEngine.GetActorHoldName(player)
     EndIf
-    StorageUtil.StringListAdd(player, "Intel_SocialLog_Type", eventType)
-    ; Pad Detail list if shorter than Type list (save migration: old entries lack Detail)
+    ; Align Detail list with Type list (handles both save migration and prior off-by-one bug)
+    ; Must run BEFORE adding the new Type entry, otherwise it pads the current entry's slot
     Int typeCount = StorageUtil.StringListCount(player, "Intel_SocialLog_Type")
     Int detailCount = StorageUtil.StringListCount(player, "Intel_SocialLog_Detail")
     While detailCount < typeCount
         StorageUtil.StringListAdd(player, "Intel_SocialLog_Detail", "")
         detailCount += 1
     EndWhile
+    While detailCount > typeCount
+        StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Detail", 0)
+        detailCount -= 1
+    EndWhile
+    StorageUtil.StringListAdd(player, "Intel_SocialLog_Type", eventType)
     StorageUtil.StringListAdd(player, "Intel_SocialLog_NPC1", npc1Name)
     StorageUtil.StringListAdd(player, "Intel_SocialLog_NPC2", npc2Name)
     StorageUtil.StringListAdd(player, "Intel_SocialLog_Text", narration)
