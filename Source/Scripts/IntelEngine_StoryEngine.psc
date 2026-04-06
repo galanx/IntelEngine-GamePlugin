@@ -639,6 +639,18 @@ Function TickScheduler()
         return
     EndIf
 
+    If IsActive
+        ; C++ watchdog: 6h timeout (stories legitimately run for hours, but not this long).
+        ; Also catches stale flags from save reloads (DLL loads fresh, has no record).
+        If IntelEngine.ShouldResetPending("storyDM", 6.0, Utility.GetCurrentGameTime())
+            Core.DebugMsg("Story: watchdog reset IsActive (stuck or stale)")
+            CleanupStoryDispatch()
+            ; Don't fall through to dispatch a new story in the same tick —
+            ; let the next scheduled tick handle it after the system settles.
+            return
+        EndIf
+    EndIf
+
     If !IsActive
         Actor player = Game.GetPlayer()
         If !player.IsInCombat()
@@ -772,11 +784,17 @@ Function TickNPCInteractions()
     If !TypeNPCInteractionEnabled && !TypeNPCGossipEnabled
         return
     EndIf
+    Float currentTime = Utility.GetCurrentGameTime()
+
     If NPCTickPending
-        return
+        If IntelEngine.ShouldResetPending("npcInteraction", 1.0, currentTime)
+            Core.DebugMsg("NPC DM: watchdog reset NPCTickPending (stuck or stale)")
+            NPCTickPending = false
+        Else
+            return
+        EndIf
     EndIf
 
-    Float currentTime = Utility.GetCurrentGameTime()
     Float intervalDays = NPCTickIntervalHours / 24.0
     If LastNPCTickTime > 0.0 && (currentTime - LastNPCTickTime) < intervalDays
         return
@@ -784,10 +802,12 @@ Function TickNPCInteractions()
 
     LastNPCTickTime = currentTime
     NPCTickPending = true
+    IntelEngine.MarkSystemPending("npcInteraction", currentTime)
 
     String npcContext = IntelEngine.BuildNPCInteractionContext(4)
     If npcContext == ""
         NPCTickPending = false
+        IntelEngine.ClearSystemPending("npcInteraction")
         return
     EndIf
 
@@ -796,6 +816,7 @@ Function TickNPCInteractions()
         npcContext = IntelEngine.BuildNPCInteractionContext(4)
         If npcContext == ""
             NPCTickPending = false
+            IntelEngine.ClearSystemPending("npcInteraction")
             return
         EndIf
     EndIf
@@ -806,6 +827,7 @@ EndFunction
 
 Function OnNPCInteractionResponse(String response, Int success)
     NPCTickPending = false
+    IntelEngine.ClearSystemPending("npcInteraction")
 
     If success != 1
         Debug.Trace("[IntelEngine] StoryEngine: NPC DM LLM response failed")
@@ -1591,6 +1613,7 @@ Function DispatchToTarget(Actor npc, Actor target, String narration, String slot
     ActiveStoryNPC = npc
     ActiveNarration = narration
     IsActive = true
+    IntelEngine.MarkSystemPending("storyDM", Utility.GetCurrentGameTime())
     StorageUtil.SetIntValue(npc, "Intel_IsStoryDispatch", 1)
     StorageUtil.SetStringValue(npc, "Intel_StoryNarration", narration)
 
@@ -3230,6 +3253,7 @@ Function BeginQuestGuide(Actor guideNPC)
     ActiveStoryType = "quest_guide"
     ActiveStoryNPC = guideNPC
     IsActive = true
+    IntelEngine.MarkSystemPending("storyDM", Utility.GetCurrentGameTime())
 
     ; Nuke ALL overrides (SkyrimNet follow/talk packages from conversation)
     ; so the jog package is the only one active.
@@ -4699,6 +4723,7 @@ Function CleanupStoryDispatch()
     ActiveNarration = ""
     ActiveStoryType = ""
     IsActive = false
+    IntelEngine.ClearSystemPending("storyDM")
     ClearPending()
     ; Re-register game-time scheduling so TickScheduler keeps firing.
     ; DispatchToTarget calls StopScheduler (kills game-time timer) then registers
