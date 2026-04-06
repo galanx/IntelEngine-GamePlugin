@@ -149,6 +149,7 @@ ObjectReference Property QuestItemChest = None Auto Hidden ; Spawned chest (find
 String Property QuestVictimName = "" Auto Hidden           ; Display name for narration
 String Property QuestItemDesc = "" Auto Hidden             ; LLM-provided item description
 String Property QuestItemName = "" Auto Hidden             ; Resolved actual item name (from ItemIndex)
+String Property QuestBriefing = "" Auto Hidden             ; DM's msgContent — persists for save/load decorator re-push
 Bool Property QuestVictimFreed = false Auto Hidden         ; Has victim been unrestrained
 Bool Property QuestDeferredToInterior = false Auto Hidden    ; Dungeon entrance found — defer spawning until player enters
 Actor Property QuestBossNPC = None Auto Hidden             ; Boss enemy near treasure (find_item)
@@ -288,6 +289,17 @@ Function RestartMonitoring()
     WarmStoryTypeCounts()
 
     SyncHoldRestrictionPolicies()
+
+    ; Re-push active quest state to C++ (singleton resets on game load)
+    If QuestActive && QuestLocationName != ""
+        String giverName = ""
+        If QuestGiver != None
+            giverName = QuestGiver.GetDisplayName()
+        EndIf
+        IntelEngine.NotifyQuestActive(QuestLocationName, QuestSubType, QuestEnemyType, \
+            giverName, QuestBriefing, QuestVictimName, QuestItemName, QuestAlliedFaction)
+        Core.DebugMsg("Story: re-pushed quest state to C++ decorator")
+    EndIf
 
     ; Sync auto bio settings to C++ DialogueTracker
     IntelEngine.SetAutoBioEnabled(AutoBioEnabled)
@@ -3051,6 +3063,7 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
 
     ; Set sub-type state
     QuestSubType = questSubTypeStr
+    QuestBriefing = msgContent
     QuestVictimNPC = victimActor
     QuestVictimName = victimName
     QuestItemDesc = itemDesc
@@ -3072,6 +3085,10 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
     StorageUtil.SetStringValue(npc, "Intel_MessageSender", senderName)
     StorageUtil.SetStringValue(npc, "Intel_MessageContent", msgContent)
     StorageUtil.SetStringValue(npc, "Intel_QuestLocation", questLocationStr)
+
+    ; Push quest state to C++ for SkyrimNet decorator
+    IntelEngine.NotifyQuestActive(QuestLocationName, QuestSubType, QuestEnemyType, \
+        questGiverActor.GetDisplayName(), msgContent, victimName, itemName, alliedFaction)
 
     ActiveStoryType = "quest"
     DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
@@ -4462,6 +4479,7 @@ Function CleanupQuest()
     EndIf
 
     QuestActive = false
+    IntelEngine.NotifyQuestCleared()
     QuestGiver = None
     QuestGuideNPC = None
     QuestGuideActive = false
@@ -4478,6 +4496,7 @@ Function CleanupQuest()
 
     ; Reset sub-type state
     QuestSubType = ""
+    QuestBriefing = ""
     QuestVictimName = ""
     QuestItemDesc = ""
     QuestItemName = ""
