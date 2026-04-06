@@ -540,6 +540,12 @@ Function NotifyRescueVictimUsed(String victimName) Global Native
 ; Record that a quest location was used (for rotation — avoids repeats).
 Function NotifyQuestLocationUsed(String locationName) Global Native
 
+; Push active quest state to C++ for SkyrimNet decorator exposure.
+Function NotifyQuestActive(String locationName, String subType, String enemyType, String giverName, String briefing, String victimName, String itemName, String alliedFaction) Global Native
+
+; Clear quest state when quest completes, fails, or expires.
+Function NotifyQuestCleared() Global Native
+
 ; =============================================================================
 ; MEMORYDB FUNCTIONS (SkyrimNet SQLite reader)
 ; =============================================================================
