@@ -8,6 +8,11 @@
 - Timeouts: 1 game-hour for politics/NPC ticks, 6 game-hours for story DM (which legitimately runs for hours)
 - Works on existing saves without ReSaver — no manual intervention needed
 
+### Improvement: Political director faction dropdowns
+- Replaced text inputs with dropdown selectors for faction A and faction B in the political event director
+- Dropdown shows all factions from `factions.yaml` with display name and ID
+- Prevents silent failures from typos in faction IDs
+
 ### Fix: JSON escaping for non-ASCII names
 - Rewrote `EscapeJsonString` to properly handle UTF-8 multibyte characters (Cyrillic, CJK, etc.)
 - Non-ASCII characters are now emitted as `\uXXXX` JSON escapes, preventing broken JSON when NPC names contain special characters
