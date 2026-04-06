@@ -1,6 +1,6 @@
 Scriptname IntelEngine_MCM extends SKI_ConfigBase
 {
-    IntelEngine MCM Menu v1.0
+    IntelEngine MCM Menu
 
     Provides configuration and management options:
     - View active task status

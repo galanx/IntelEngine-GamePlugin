@@ -1,6 +1,6 @@
 Scriptname IntelEngine_Schedule extends Quest
 {
-    IntelEngine Scheduling System v1.0
+    IntelEngine Scheduling System
 
     Handles time-based task scheduling:
     - "Meet me after sunset"
