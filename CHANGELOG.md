@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.2.1 — 2026-04-06
+
+### Fix: Stuck tick watchdog (C++ DLL)
+- **Politics, NPC interactions, and Story DM** could permanently stop ticking if an LLM callback was lost (SkyrimNet crash, save reload mid-request, etc.)
+- Added C++ watchdog system that tracks pending state in the DLL — since the DLL loads fresh every game start, stale flags from saves are automatically detected and reset
+- Timeouts: 1 game-hour for politics/NPC ticks, 6 game-hours for story DM (which legitimately runs for hours)
+- Works on existing saves without ReSaver — no manual intervention needed
+
+### Fix: JSON escaping for non-ASCII names
+- Rewrote `EscapeJsonString` to properly handle UTF-8 multibyte characters (Cyrillic, CJK, etc.)
+- Non-ASCII characters are now emitted as `\uXXXX` JSON escapes, preventing broken JSON when NPC names contain special characters
+- Applied consistently across NPC index and dashboard JSON builders
+
 ## v3.0.0 — 2026-03-22
 
 ### New: Faction Politics System

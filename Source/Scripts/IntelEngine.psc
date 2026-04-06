@@ -49,6 +49,11 @@ String Function GetActorParentLocationName(Actor akNPC) Global Native
 ObjectReference Function ResolveAnyDestination(Actor akNPC, String destination) Global Native
 Bool Function IsLocationNonCombative(ObjectReference ref) Global Native
 
+; System Pending Watchdog (C++ tracks timestamps, DLL loads fresh every time)
+Function MarkSystemPending(String system, Float gameTime) Global Native
+Function ClearSystemPending(String system) Global Native
+Bool Function ShouldResetPending(String system, Float timeoutHours, Float currentGameTime) Global Native
+
 ; Utility
 Int Function HexToInt(String hexStr) Global Native
 

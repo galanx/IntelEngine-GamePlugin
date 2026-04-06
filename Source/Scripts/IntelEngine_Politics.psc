@@ -70,11 +70,19 @@ Event OnUpdateGameTime()
         return
     EndIf
 
+    Float currentTime = Utility.GetCurrentGameTime()
+
     If TickPending
-        return
+        ; C++ watchdog: DLL loads fresh every time, so it knows if the pending flag
+        ; is stale (from a previous session or lost callback). 1h timeout.
+        If IntelEngine.ShouldResetPending("politics", 1.0, currentTime)
+            Core.DebugMsg("Politics: watchdog reset TickPending (stuck or stale)")
+            TickPending = false
+        Else
+            return
+        EndIf
     EndIf
 
-    Float currentTime = Utility.GetCurrentGameTime()
     Float intervalHours = IntelEngine.GetPoliticsTickInterval() as Float
     Float elapsed = (currentTime - LastTickGameTime) * 24.0  ; days to hours
 
@@ -91,6 +99,7 @@ EndEvent
 
 Function RunPoliticalTick(Float currentGameTime)
     TickPending = true
+    IntelEngine.MarkSystemPending("politics", currentGameTime)
     LastTickGameTime = currentGameTime
 
     ; Process active wars first (morale decay, surrender checks)
@@ -102,6 +111,7 @@ Function RunPoliticalTick(Float currentGameTime)
     If contextJson == "{}"
         Core.DebugMsg("Politics: Empty context, skipping tick")
         TickPending = false
+        IntelEngine.ClearSystemPending("politics")
         return
     EndIf
 
@@ -113,6 +123,7 @@ Function RunPoliticalTick(Float currentGameTime)
     If result < 0
         Core.DebugMsg("Politics: LLM call failed, code " + result)
         TickPending = false
+        IntelEngine.ClearSystemPending("politics")
     EndIf
 EndFunction
 
@@ -122,6 +133,7 @@ EndFunction
 
 Function OnPoliticalDMResponse(String response, Int success)
     TickPending = false
+    IntelEngine.ClearSystemPending("politics")
 
     ; C++ handles ALL logic: parsing, validation, event recording, war/surrender/battle,
     ; standings, decay, crime checks. Returns JSON with Papyrus-only actions.
