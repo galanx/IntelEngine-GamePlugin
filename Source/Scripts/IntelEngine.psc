@@ -331,6 +331,18 @@ Function UpdateSlotState(Int slot, Actor agent, Int newState, String taskType, S
 ; Clear a slot in C++ SlotTracker. Called by ClearSlot.
 Function ClearSlotState(Int slot) Global Native
 
+; Set per-slot fields in C++ SlotTracker for co-save persistence.
+Function SetSlotSpeed(Int slot, Int speed) Global Native
+Function SetSlotDeadline(Int slot, Float deadline) Global Native
+Function SetSlotOffscreenArrival(Int slot, Float arrival) Global Native
+
+; Returns true if slot state was recovered from SKSE co-save (skip StorageUtil recovery).
+Bool Function HasCoSaveTaskData() Global Native
+
+; Push C++ SlotTracker state to Papyrus arrays (reverse of SyncSlotTrackerFromArrays).
+; Called from Maintenance when co-save data exists.
+Function SyncArraysFromSlotTracker() Global Native
+
 ; Check if an actor is available for new tasks (no active task + no cooldown).
 ; Used as backend for SkyrimNet tag eligibility check.
 Bool Function IsActorAvailable(Actor akActor) Global Native

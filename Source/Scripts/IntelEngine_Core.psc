@@ -224,9 +224,22 @@ Function Maintenance(Bool isFirstLoad = false)
 
     LoadDatabases()
 
-    ; Only recover tasks on subsequent loads, not first install
+    ; Recover active tasks on subsequent loads (not first install)
     If !isFirstLoad
-        RecoverActiveTasks()
+        If IntelEngine.HasCoSaveTaskData()
+            ; Fast path: C++ SlotTracker loaded from co-save, push to Papyrus arrays.
+            ; No StorageUtil reads — avoids contention with RealNames Extended on load.
+            ; NOTE: Do NOT call SyncSlotTrackerFromArrays() here — the C++ SlotTracker
+            ; is already authoritative from LoadCallback. Reverse-syncing would overwrite
+            ; speed/deadline/offscreenArrival with zeroes (UpdateSlotState doesn't set those).
+            IntelEngine.SyncArraysFromSlotTracker()
+            DebugMsg("Task recovery: co-save path (no StorageUtil)")
+        Else
+            ; Legacy fallback: pre-upgrade saves without co-save data.
+            ; Reads StorageUtil keys to rebuild slot state.
+            RecoverActiveTasks()
+            DebugMsg("Task recovery: StorageUtil legacy path")
+        EndIf
     EndIf
 
     ; Self-heal script references if CK properties were lost (e.g. after
@@ -581,8 +594,9 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
     StorageUtil.SetIntValue(akAgent, "Intel_State", 1)
     StorageUtil.SetIntValue(akAgent, "Intel_Speed", speed)
 
-    ; Push to C++ SlotTracker for SkyrimNet decorators/eligibility
+    ; Push to C++ SlotTracker for SkyrimNet decorators/eligibility + co-save persistence
     IntelEngine.UpdateSlotState(slot, akAgent, 1, taskType, targetName)
+    IntelEngine.SetSlotSpeed(slot, speed)
 
     DebugMsg("Allocated slot " + slot + " to " + akAgent.GetDisplayName() + " for " + taskType)
 EndFunction
@@ -840,23 +854,25 @@ Function SetSlotState(Int slot, Actor akAgent, Int newState)
 EndFunction
 
 Function SetSlotSpeed(Int slot, Actor akAgent, Int newSpeed)
-    {Update travel speed — writes both array and StorageUtil.}
+    {Update travel speed — writes array, StorageUtil, and C++ SlotTracker.}
     If slot < 0 || slot >= MAX_SLOTS
         Return
     EndIf
     SlotSpeeds[slot] = newSpeed
+    IntelEngine.SetSlotSpeed(slot, newSpeed)
     If akAgent != None
         StorageUtil.SetIntValue(akAgent, "Intel_Speed", newSpeed)
     EndIf
 EndFunction
 
 Function SetSlotDeadline(Int slot, Float deadline)
-    {Update wait deadline — persisted to StorageUtil so it survives save/load.}
+    {Update wait deadline — persisted via C++ co-save + StorageUtil legacy.}
     If slot < 0 || slot >= MAX_SLOTS
         Return
     EndIf
     SlotDeadlines[slot] = deadline
-    ; Persist to agent so RecoverActiveTasks can restore it
+    IntelEngine.SetSlotDeadline(slot, deadline)
+    ; Legacy StorageUtil persistence (for pre-upgrade saves)
     ReferenceAlias agentAlias = GetAgentAlias(slot)
     If agentAlias
         Actor agent = agentAlias.GetActorReference()
@@ -1149,6 +1165,7 @@ Function InitOffScreenTracking(Int slot, Actor npc, ObjectReference dest)
     EndIf
     Float estimatedArrival = IntelEngine.CalculateDeadlineFromDistance(npc, dest, false, 0.5, 18.0)
     IntelEngine.InitOffScreenTravel(slot, estimatedArrival, npc)
+    IntelEngine.SetSlotOffscreenArrival(slot, estimatedArrival)
     StorageUtil.SetFloatValue(npc, "Intel_OffscreenArrival", estimatedArrival)
     DebugMsg(npc.GetDisplayName() + " off-screen tracking: est. arrival in " + ((estimatedArrival - Utility.GetCurrentGameTime()) * 24.0) + "h")
 EndFunction
@@ -1388,7 +1405,7 @@ EndFunction
 
 Function SyncSlotTrackerFromArrays()
     {Push current Papyrus slot state to C++ SlotTracker per-slot.
-    Called after RecoverActiveTasks to re-sync on game load.}
+    Called after RecoverActiveTasks (legacy StorageUtil path) to re-sync on game load.}
     Int i = 0
     While i < MAX_SLOTS
         If SlotStates[i] != 0
@@ -1397,6 +1414,8 @@ Function SyncSlotTrackerFromArrays()
                 Actor agent = slotAlias.GetActorReference()
                 If agent
                     IntelEngine.UpdateSlotState(i, agent, SlotStates[i], SlotTaskTypes[i], SlotTargetNames[i])
+                    IntelEngine.SetSlotSpeed(i, SlotSpeeds[i])
+                    IntelEngine.SetSlotDeadline(i, SlotDeadlines[i])
                 EndIf
             EndIf
         Else

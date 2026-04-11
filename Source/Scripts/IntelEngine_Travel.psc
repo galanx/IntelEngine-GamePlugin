@@ -133,10 +133,13 @@ Function RecoverTravelPackage(Int slot)
     ; Re-initialize stuck tracking so detection starts fresh
     Core.InitializeStuckTrackingForSlot(slot, npc)
 
-    ; Re-init off-screen tracking from persisted data
-    Float offscreenArrival = StorageUtil.GetFloatValue(npc, "Intel_OffscreenArrival", 0.0)
-    If offscreenArrival > 0.0
-        IntelEngine.InitOffScreenTravel(slot, offscreenArrival, npc)
+    ; Re-init off-screen tracking from persisted data (only on legacy path;
+    ; co-save path already initialized this in SyncArraysFromSlotTracker)
+    If !IntelEngine.HasCoSaveTaskData()
+        Float offscreenArrival = StorageUtil.GetFloatValue(npc, "Intel_OffscreenArrival", 0.0)
+        If offscreenArrival > 0.0
+            IntelEngine.InitOffScreenTravel(slot, offscreenArrival, npc)
+        EndIf
     EndIf
 
     Core.DebugMsg("Recovered travel package for " + npc.GetDisplayName())
