@@ -343,6 +343,26 @@ Bool Function HasCoSaveTaskData() Global Native
 ; Called from Maintenance when co-save data exists.
 Function SyncArraysFromSlotTracker() Global Native
 
+; --- ProximityMonitor: C++ frame-rate distance/deadline checking ---
+; All watches fire ModEvent "IntelEngine_ProximityEvent" with strArg=eventType, numArg=watchId.
+
+; Register a distance watch between two refs. Fires when distance crosses threshold.
+; greaterThan=false: fires when dist < threshold. greaterThan=true: fires when dist > threshold.
+; zTolerance > 0: also checks vertical distance (multi-floor interiors).
+Function RegisterDistanceWatch(Int watchId, Actor source, ObjectReference target, Float threshold, String eventType, Bool greaterThan = false, Float zTolerance = 0.0) Global Native
+
+; Register a distance-to-player watch. Fires when source-to-player distance crosses threshold.
+Function RegisterPlayerWatch(Int watchId, Actor source, Float threshold, String eventType, Bool greaterThan = false) Global Native
+
+; Register a game-time deadline watch. Fires when currentGameTime >= gameTime.
+Function RegisterDeadlineWatch(Int watchId, Float gameTime, String eventType) Global Native
+
+; Clear all watches for a given ID (slot index).
+Function ClearProximityWatches(Int watchId) Global Native
+
+; Clear a specific watch by ID + event type.
+Function ClearProximityWatch(Int watchId, String eventType) Global Native
+
 ; Check if an actor is available for new tasks (no active task + no cooldown).
 ; Used as backend for SkyrimNet tag eligibility check.
 Bool Function IsActorAvailable(Actor akActor) Global Native

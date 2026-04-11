@@ -87,6 +87,10 @@ Function RestartMonitoring()
     RegisterForSingleUpdate is per-script and doesn't survive save/load.
     Without this, tasks loaded from a save would never be monitored.
     Also re-applies AI packages which are runtime-only and don't persist.}
+
+    ; Register for C++ ProximityMonitor events
+    RegisterForModEvent("IntelEngine_ProximityEvent", "OnNPCTaskProximityEvent")
+
     Bool hasActive = false
     Int i = 0
     While i < Core.MAX_SLOTS
@@ -94,12 +98,57 @@ Function RestartMonitoring()
         If Core.SlotStates[i] != 0 && IsNPCTaskType(taskType)
             hasActive = true
             RecoverSlotPackages(i)
+            ; Register C++ proximity watches for this slot
+            RegisterNPCTaskWatches(i)
         EndIf
         i += 1
     EndWhile
     If hasActive
         RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
-        Core.DebugMsg("NPCTasks monitoring restarted")
+        Core.DebugMsg("NPCTasks monitoring restarted (with C++ proximity watches)")
+    EndIf
+EndFunction
+
+Function RegisterNPCTaskWatches(Int slot)
+    {Register C++ ProximityMonitor watches for NPC task slots.
+    Called on state transitions and after save/load recovery.}
+    ReferenceAlias agentAlias = Core.GetAgentAlias(slot)
+    If agentAlias == None
+        Return
+    EndIf
+    Actor agent = agentAlias.GetActorReference()
+    If agent == None
+        Return
+    EndIf
+
+    Int taskState = Core.SlotStates[slot]
+
+    ; Don't clear all watches — Travel may have watches on other slots.
+    ; Just clear this slot's task-specific watches.
+    IntelEngine.ClearProximityWatch(slot, "task_arrival")
+    IntelEngine.ClearProximityWatch(slot, "task_return")
+    IntelEngine.ClearProximityWatch(slot, "task_deadline")
+
+    If taskState == 1
+        ; Traveling to target — watch for arrival at target NPC
+        Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
+        If target != None
+            IntelEngine.RegisterDistanceWatch(slot, agent, target as ObjectReference, Core.ARRIVAL_DISTANCE, "task_arrival")
+        Else
+            ; No target actor — use dest marker
+            ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
+            If dest != None
+                IntelEngine.RegisterDistanceWatch(slot, agent, dest, Core.ARRIVAL_DISTANCE, "task_arrival")
+            EndIf
+        EndIf
+        ; Deadline watch
+        Float deadline = Core.SlotDeadlines[slot]
+        If deadline > 0.0
+            IntelEngine.RegisterDeadlineWatch(slot, deadline, "task_deadline")
+        EndIf
+    ElseIf taskState == 3
+        ; Returning to player — watch for player proximity
+        IntelEngine.RegisterPlayerWatch(slot, agent, Core.ARRIVAL_DISTANCE, "task_return")
     EndIf
 EndFunction
 
@@ -499,7 +548,8 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     ; Set distance-based deadline (round trip: go to target + return to player)
     SetDistanceBasedDeadline(slot, akAgent, targetNPC, true)
 
-    ; Start monitoring
+    ; Start monitoring + C++ proximity watches
+    RegisterNPCTaskWatches(slot)
     RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
 
     Return true
@@ -655,6 +705,8 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     Bool isRoundTrip = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack") == 1
     SetDistanceBasedDeadline(slot, akAgent, targetNPC, isRoundTrip)
 
+    ; Start monitoring + C++ proximity watches
+    RegisterNPCTaskWatches(slot)
     RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
 
     Return true
@@ -794,7 +846,8 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
     Core.InitializeDepartureTracking(slot, akAgent)
     Core.InitOffScreenTracking(slot, akAgent, targetNPC)
 
-    ; Start monitoring
+    ; Start monitoring + C++ proximity watches
+    RegisterNPCTaskWatches(slot)
     RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
 
     Return true
@@ -994,7 +1047,8 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     ; One-way deadline (not round trip)
     SetDistanceBasedDeadline(slot, akAgent, destMarkerRef, false)
 
-    ; Start monitoring
+    ; Start monitoring + C++ proximity watches
+    RegisterNPCTaskWatches(slot)
     RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
 
     Return true
@@ -1002,6 +1056,61 @@ EndFunction
 
 ; =============================================================================
 ; UPDATE LOOP
+; =============================================================================
+
+; =============================================================================
+; C++ PROXIMITY EVENTS (fires at ~500ms from ProximityMonitor)
+; =============================================================================
+
+Event OnNPCTaskProximityEvent(string eventName, string strArg, float numArg, Form sender)
+    Int slot = numArg as Int
+    String eventType = strArg
+
+    If slot < 0 || slot >= Core.MAX_SLOTS
+        Return
+    EndIf
+
+    ReferenceAlias agentAlias = Core.GetAgentAlias(slot)
+    If agentAlias == None
+        Return
+    EndIf
+    Actor agent = agentAlias.GetActorReference()
+    If agent == None || agent.IsDead()
+        Return
+    EndIf
+
+    Core.DebugMsg("NPCTask ProximityEvent: " + eventType + " for slot " + slot + " (" + agent.GetDisplayName() + ")")
+
+    If eventType == "task_arrival"
+        ; Agent reached target NPC or destination marker
+        If Core.SlotStates[slot] == 1
+            Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
+            If target != None && !target.IsDead()
+                OnArrivedAtTarget(slot, agent, target)
+            Else
+                ; Dest-marker-only arrival (deliver_message going to location, etc.)
+                ; Fall through to the normal OnUpdate handler which has full task-type routing
+                String taskType = Core.SlotTaskTypes[slot]
+                CheckNPCTaskSlot(slot)
+            EndIf
+        EndIf
+    ElseIf eventType == "task_return"
+        ; Agent returning — run the full return arrival check
+        ; (includes target-first completion for fetch, grace period, etc.)
+        If Core.SlotStates[slot] == 3
+            Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
+            CheckReturnArrival(slot, agent, target)
+        EndIf
+    ElseIf eventType == "task_deadline"
+        ; Task deadline reached
+        String taskType = Core.SlotTaskTypes[slot]
+        Int taskState = Core.SlotStates[slot]
+        HandleTaskTimeout(slot, agent, taskType, taskState)
+    EndIf
+EndEvent
+
+; =============================================================================
+; UPDATE LOOP - Fallback (off-screen, combat, stuck detection)
 ; =============================================================================
 
 Event OnUpdate()
@@ -1307,6 +1416,9 @@ Function OnArrivedAtTarget(Int slot, Actor agent, Actor target)
 
     Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName())
 
+    ; Clear stale deadline watch from state 1 (no longer traveling)
+    IntelEngine.ClearProximityWatch(slot, "task_deadline")
+
     ; Remove travel package, apply sandbox near target to hold agent in place
     ; during interaction. Without this, NPCs with schedule AI (innkeepers, etc.)
     ; revert to default packages and walk home before interaction completes.
@@ -1433,6 +1545,7 @@ Function HandleFetchFailure(Int slot, Actor agent, Actor target)
 
     Core.SetSlotState(slot, agent, 3)  ; returning (alone)
     Core.InitializeStuckTrackingForSlot(slot, agent)
+    RegisterNPCTaskWatches(slot)
     Core.DebugMsg(agentName + " returning alone after " + targetName + " refused")
 EndFunction
 
@@ -1479,6 +1592,7 @@ Function BeginReturn(Int slot, Actor agent, Actor target, Actor player)
     StorageUtil.SetIntValue(agent, "Intel_ReturnCycles", 0)
     Core.SetSlotState(slot, agent, 3)  ; returning
     Core.InitializeStuckTrackingForSlot(slot, agent)
+    RegisterNPCTaskWatches(slot)
     Core.SendTransientEvent(agent, target, agent.GetDisplayName() + " found " + target.GetDisplayName() + " and began heading back.")
 EndFunction
 
@@ -1849,6 +1963,7 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
 
     Core.SetSlotState(slot, agent, 3)
     Core.InitializeStuckTrackingForSlot(slot, agent)
+    RegisterNPCTaskWatches(slot)
     Core.SendTransientEvent(agent, target, agent.GetDisplayName() + " began walking " + target.GetDisplayName() + " to " + destName + ".")
 EndFunction
 
@@ -2176,6 +2291,7 @@ Function BeginDeliveryReturn(Int slot, Actor agent)
 
     Core.SetSlotState(slot, agent, 3)  ; returning
     Core.InitializeStuckTrackingForSlot(slot, agent)
+    RegisterNPCTaskWatches(slot)
     Core.DebugMsg(agent.GetDisplayName() + " returning to player after delivery")
 EndFunction
 
