@@ -81,74 +81,18 @@ Function RestartMonitoring()
     RegisterForSingleUpdate is per-script and doesn't survive save/load.
     Without this, travel tasks loaded from a save would never be monitored.
     Also re-applies AI packages which are runtime-only and don't persist.}
-
-    ; Register for C++ ProximityMonitor events (fires at ~500ms, not 3s)
-    RegisterForModEvent("IntelEngine_ProximityEvent", "OnProximityEvent")
-
     Bool hasActive = false
     Int i = 0
     While i < Core.MAX_SLOTS
         If Core.SlotStates[i] != 0 && (Core.SlotTaskTypes[i] == "travel" || Core.SlotTaskTypes[i] == "assassination")
             hasActive = true
             RecoverTravelPackage(i)
-            ; Register C++ proximity watches for this slot based on current state
-            RegisterTravelWatches(i)
         EndIf
         i += 1
     EndWhile
     If hasActive
-        ; Keep OnUpdate as fallback at reduced frequency (off-screen, combat, stuck detection)
         RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
-        Core.DebugMsg("Travel monitoring restarted (with C++ proximity watches)")
-    EndIf
-EndFunction
-
-Function RegisterTravelWatches(Int slot)
-    {Register C++ ProximityMonitor watches based on current slot state.
-    Called on state transitions and after save/load recovery.}
-    ReferenceAlias slotAlias = Core.GetAgentAlias(slot)
-    If slotAlias == None
-        Return
-    EndIf
-    Actor npc = slotAlias.GetActorReference()
-    If npc == None
-        Return
-    EndIf
-
-    Int taskState = Core.SlotStates[slot]
-
-    ; Clear any existing watches for this slot first
-    IntelEngine.ClearProximityWatches(slot)
-
-    If taskState == 1
-        ; Traveling — watch for arrival at destination
-        ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
-        If dest != None
-            IntelEngine.RegisterDistanceWatch(slot, npc, dest, Core.ARRIVAL_DISTANCE, "travel_arrival", false, 150.0)
-        EndIf
-        ; Also watch for deadline timeout
-        Float deadline = Core.SlotDeadlines[slot]
-        If deadline > 0.0
-            IntelEngine.RegisterDeadlineWatch(slot, deadline, "travel_deadline")
-        EndIf
-    ElseIf taskState == 2
-        ; Check if NPC is in linger phase (post-arrival, player already met them)
-        Bool isLingering = StorageUtil.GetIntValue(npc, "Intel_MeetingLingering") == 1 || StorageUtil.GetIntValue(npc, "Intel_TravelLingering") == 1
-        If isLingering
-            ; Linger release — fires when player walks 800+ units away
-            IntelEngine.RegisterPlayerWatch(slot, npc, Core.LINGER_RELEASE_DISTANCE, "linger_release", true)
-        Else
-            ; At destination — watch for player proximity
-            Bool isWaitingForPlayer = StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") == 1 || StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
-            If isWaitingForPlayer
-                IntelEngine.RegisterPlayerWatch(slot, npc, 1000.0, "player_near")
-            EndIf
-        EndIf
-        ; Watch for wait deadline
-        Float deadline = Core.SlotDeadlines[slot]
-        If deadline > 0.0
-            IntelEngine.RegisterDeadlineWatch(slot, deadline, "wait_deadline")
-        EndIf
+        Core.DebugMsg("Travel monitoring restarted")
     EndIf
 EndFunction
 
@@ -336,11 +280,13 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
         Core.InitializeDepartureTracking(slot, akNPC)
     EndIf
 
-    ; Start monitoring (OnUpdate fallback for off-screen/stuck detection)
-    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+    ; Fast-path arrival detection. C++ polls every 150ms and fires
+    ; OnProximityArrived the instant the NPC enters range — eliminates
+    ; face-bumping caused by the 3s Papyrus poll.
+    IntelEngine.ArmProximityArrival(slot, akNPC as ObjectReference, destMarker, Self, "IntelEngine_Travel", "OnProximityArrived")
 
-    ; Register C++ proximity watches for instant arrival detection
-    RegisterTravelWatches(slot)
+    ; Start monitoring
+    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
 
     Core.DebugMsg(akNPC.GetDisplayName() + " traveling to " + destination)
     Return true
@@ -366,71 +312,7 @@ ObjectReference Function ResolveDestination(Actor akNPC, String destination)
 EndFunction
 
 ; =============================================================================
-; C++ PROXIMITY EVENTS (fires at ~500ms from ProximityMonitor, not 3s OnUpdate)
-; =============================================================================
-
-Event OnProximityEvent(string eventName, string strArg, float numArg, Form sender)
-    Int slot = numArg as Int
-    String eventType = strArg
-
-    If slot < 0 || slot >= Core.MAX_SLOTS
-        Return
-    EndIf
-
-    ReferenceAlias slotAlias = Core.GetAgentAlias(slot)
-    If slotAlias == None
-        Return
-    EndIf
-    Actor npc = slotAlias.GetActorReference()
-    If npc == None || npc.IsDead()
-        Return
-    EndIf
-
-    Int taskState = Core.SlotStates[slot]
-    Core.DebugMsg("ProximityEvent: " + eventType + " for slot " + slot + " (" + npc.GetDisplayName() + ")")
-
-    If eventType == "travel_arrival"
-        ; NPC reached destination — run arrival handler
-        If taskState == 1
-            OnArrival(slot, npc)
-        EndIf
-    ElseIf eventType == "player_near"
-        ; Player entered proximity while NPC is waiting
-        If taskState == 2
-            ; Stop approaching if we were
-            If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
-                StopApproachingPlayer(npc)
-            EndIf
-            OnPlayerArrived(slot, npc)
-        EndIf
-    ElseIf eventType == "travel_deadline"
-        ; Game-time deadline reached while traveling
-        If taskState == 1
-            Core.DebugMsg("Travel deadline (C++ watch) for " + npc.GetDisplayName() + " — force-arriving")
-            Core.NotifyPlayer(npc.GetDisplayName() + " took too long — teleporting to destination")
-            ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
-            If dest != None
-                npc.MoveTo(dest)
-            EndIf
-            OnArrival(slot, npc)
-        EndIf
-    ElseIf eventType == "wait_deadline"
-        ; Wait deadline reached at destination
-        If taskState == 2
-            OnWaitTimeout(slot, npc)
-        EndIf
-    ElseIf eventType == "linger_release"
-        ; Player walked away from lingering NPC
-        If StorageUtil.GetIntValue(npc, "Intel_MeetingLingering") == 1
-            CompleteMeeting(slot, npc)
-        ElseIf StorageUtil.GetIntValue(npc, "Intel_TravelLingering") == 1
-            CompleteTravelLinger(slot, npc)
-        EndIf
-    EndIf
-EndEvent
-
-; =============================================================================
-; UPDATE LOOP - Fallback (off-screen, combat, stuck detection — runs at 3s)
+; UPDATE LOOP - Arrival Detection
 ; =============================================================================
 
 Event OnUpdate()
@@ -642,7 +524,43 @@ Function TeleportToExterior(Actor npc)
     Core.DebugMsg(npc.GetDisplayName() + " multi-hop: no exterior door found in cell")
 EndFunction
 
+; Callback invoked by the C++ ProximityMonitor the instant the NPC enters
+; arrival range. Routes through the normal CheckForArrival path so door
+; teleporting, floor-Z verification, and state transitions all behave
+; identically to the 3s poll's arrival branch.
+Function OnProximityArrived(String slotStr)
+    Int slot = slotStr as Int
+    If slot < 0 || slot >= Core.MAX_SLOTS
+        Return
+    EndIf
+    ; Only act for travel/assassination tasks still in the traveling state.
+    Int taskState = Core.SlotStates[slot]
+    String taskTypeStr = Core.SlotTaskTypes[slot]
+    If taskState != 1 || (taskTypeStr != "travel" && taskTypeStr != "assassination")
+        Return
+    EndIf
+    ReferenceAlias agentAlias = Core.GetAgentAlias(slot)
+    If agentAlias == None
+        Return
+    EndIf
+    Actor npc = agentAlias.GetActorReference()
+    If npc == None || npc.IsDead()
+        Return
+    EndIf
+    CheckForArrival(slot, npc)
+EndFunction
+
 Function OnArrival(Int slot, Actor npc)
+    ; Idempotency guard — C++ proximity fast path and Papyrus 3s poll can race.
+    ; Only the first caller should run the arrival logic.
+    If Core.SlotStates[slot] != 1
+        Core.DebugMsg(npc.GetDisplayName() + " OnArrival skipped (state=" + Core.SlotStates[slot] + ")")
+        Return
+    EndIf
+
+    ; Proximity watch is no longer needed once we are past state 1.
+    IntelEngine.DisarmProximityArrival(slot)
+
     String destination = Core.SlotTargetNames[slot]
     String taskType = Core.SlotTaskTypes[slot]
 
@@ -713,9 +631,6 @@ Function OnArrival(Int slot, Actor npc)
 
     ; Update state
     Core.SetSlotState(slot, npc, 2)  ; at_destination
-
-    ; Register C++ proximity watches for waiting state
-    RegisterTravelWatches(slot)
 
     If isMeetingArrival
         ; Scheduled meeting: NPC arrived at meeting spot to wait — no narration
@@ -1442,10 +1357,6 @@ Function StartMeetingLinger(Int slot, Actor npc)
     StorageUtil.SetIntValue(npc, "Intel_MeetingLingering", 1)
     StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
 
-    ; Register linger release watch — fires when player walks 800+ units away
-    IntelEngine.ClearProximityWatches(slot)
-    IntelEngine.RegisterPlayerWatch(slot, npc, Core.LINGER_RELEASE_DISTANCE, "linger_release", true)
-
     ; Update schedule slot to meeting_active
     If Core.Schedule
         Int schedSlot = Core.Schedule.FindScheduleSlotByAgent(npc)
@@ -1496,10 +1407,6 @@ Function StartTravelLinger(Int slot, Actor npc)
     StorageUtil.SetIntValue(npc, "Intel_TravelLingering", 1)
     StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
     StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
-
-    ; Register linger release watch — fires when player walks 800+ units away
-    IntelEngine.ClearProximityWatches(slot)
-    IntelEngine.RegisterPlayerWatch(slot, npc, Core.LINGER_RELEASE_DISTANCE, "linger_release", true)
 EndFunction
 
 Function StartStayAtDestLinger(Int slot, Actor npc)
@@ -1515,10 +1422,6 @@ Function StartStayAtDestLinger(Int slot, Actor npc)
     StorageUtil.SetIntValue(npc, "Intel_TravelLingering", 1)
     StorageUtil.SetIntValue(npc, "Intel_StayAtDest", 1)
     StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
-
-    ; Register linger release watch — fires when player walks 800+ units away
-    IntelEngine.ClearProximityWatches(slot)
-    IntelEngine.RegisterPlayerWatch(slot, npc, Core.LINGER_RELEASE_DISTANCE, "linger_release", true)
 EndFunction
 
 Function CompleteTravelLinger(Int slot, Actor npc)

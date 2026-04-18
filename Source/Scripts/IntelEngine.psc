@@ -294,6 +294,28 @@ Int Function CheckOffScreenProgress(Int slot, Actor npc, Float currentGameTime) 
 Function ResetOffScreenSlot(Int slot) Global Native
 
 ; =============================================================================
+; PROXIMITY MONITOR (fast-path arrival detection)
+; Native worker ticks every 150ms on the main thread and fires a Papyrus
+; callback when the agent enters `threshold` horizontal units of the target
+; with |dZ| <= zTolerance. Eliminates face-bumping from the 3s Papyrus poll.
+; The callback receives the slot index as a String ("0".."4").
+; =============================================================================
+
+; Arm proximity arrival for a slot. Overwrites any existing watch.
+; C++ auto-selects thresholds based on target kind: 150u horizontal + 120u Z for
+; Actor targets (face-to-face conversational), 300u horizontal + 200u Z for
+; markers (doors/furniture).
+; callbackQuest: quest holding the target script (pass Self from a quest script).
+; scriptName: Papyrus script on the quest (e.g. "IntelEngine_Travel").
+; callbackFn: function to invoke with slot index as a String arg.
+Function ArmProximityArrival(Int slot, ObjectReference agent, ObjectReference target, Quest callbackQuest, String callbackScript, String callbackFunction) Global Native
+
+; Disarm proximity for a slot. Safe to call on an unarmed slot.
+; Always call from OnArrival / ClearSlot to prevent stale fire after the
+; agent's state advances past the traveling phase.
+Function DisarmProximityArrival(Int slot) Global Native
+
+; =============================================================================
 ; WAYPOINT NAVIGATION
 ; Finds nearest BGSLocation worldLocMarker toward a destination for stuck
 ; recovery. Returns a known-good navmesh position at a settlement entrance.
@@ -488,6 +510,18 @@ String Function BuildNPCInteractionContext(Int maxPairs = 4) Global Native
 ; npcContext is pre-escaped from BuildNPCInteractionContext.
 String Function BuildNPCInteractionRequestJson(String npcContext) Global Native
 
+; Async NPC DM tick. Captures engine state on the main thread (fast), builds the
+; markdown context + JSON on a worker thread, then invokes the named callback on
+; the quest with the prepared JSON string ("" if no eligible groups).
+; Callback signature: Function <callbackFunction>(String contextJson)
+Function BeginAsyncNPCDMTick(Int maxPairs, Quest callbackQuest, String callbackScript, String callbackFunction) Global Native
+
+; Async Story DM tick. Same async pattern as BeginAsyncNPCDMTick — main-thread
+; snapshot + worker-thread context+JSON build + callback dispatch.
+; Eliminates ~30-60ms of synchronous SQL+actor-scan stutter per tick.
+; Callback signature: Function <callbackFunction>(String contextJson)
+Function BeginAsyncStoryDMTick(Int maxCandidates, Float absenceDays, String excludedTypes, Quest callbackQuest, String callbackScript, String callbackFunction) Global Native
+
 ; Mirror story cooldown to C++ so candidate builders can filter before LLM call.
 ; gameTime: the Intel_StoryLastPicked timestamp (NOT current time on rejection).
 Function NotifyStoryCooldown(Actor akActor, Float gameTime) Global Native
@@ -567,6 +601,11 @@ ObjectReference Function ScanAheadForAnchor(Actor akActor) Global Native
 ; Check if a specific named item is still inside a container.
 ; Used to detect when the player retrieves the quest item from the chest.
 Bool Function IsQuestItemInChest(ObjectReference container, String itemName) Global Native
+
+; Re-populate a quest chest on cell-load. Fixes the "first-open invisible" quirk
+; for chests created via PlaceObjectAtMe in unloaded cells — script-added items
+; don't sync to the inventory UI until the chest is first initialized.
+Bool Function EnsureQuestItemInChest(ObjectReference container, String itemName) Global Native
 
 ; Record that a quest item was used (for rotation — avoids repeats).
 Function NotifyQuestItemUsed(String itemName) Global Native
@@ -711,6 +750,12 @@ String Function GetRelationStatus(String factionA, String factionB) Global Nativ
 
 ; Build comprehensive political context JSON for LLM prompts
 String Function BuildPoliticalContext(Float gameTime) Global Native
+
+; Async Political DM tick. Captures faction-leader engine state on the main thread,
+; then runs all DB queries + JSON build on a worker thread. Callback fires with the
+; prepared political context JSON ("{}" if no eligible context).
+; Callback signature: Function <callbackFunction>(String contextJson)
+Function BeginAsyncPoliticalTick(Float currentGameTime, Quest callbackQuest, String callbackScript, String callbackFunction) Global Native
 
 ; Build compact political dashboard JSON for PrismaUI
 String Function BuildPoliticalDashboardJson() Global Native
