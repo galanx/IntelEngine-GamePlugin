@@ -49,23 +49,24 @@ EndFunction
 ; =============================================================================
 
 Function StartScheduler()
-    ; Politics NO LONGER registers its own game-time timer.
-    ; All scripts share the same quest — RegisterForSingleUpdateGameTime is per-quest.
-    ; StoryEngine owns the shared timer and uses the shortest interval across all systems.
-    ; Politics is ticked via OnUpdateGameTime (which fires for ALL scripts on the quest).
+    ; Politics does not own a timer. Ticking is driven by StoryEngine.TickScheduler
+    ; which calls Politics.TickNow() alongside Story DM and NPC DM. This way the
+    ; idle-poll backup that drives those two systems also drives Politics.
     If !Initialized || !IntelEngine.IsPoliticsEnabled()
         return
     EndIf
-    Core.DebugMsg("Politics: Scheduler ready (driven by shared quest timer)")
+    Core.DebugMsg("Politics: Scheduler ready (driven by StoryEngine TickScheduler)")
 EndFunction
 
 Function StopScheduler()
-    ; No-op — StoryEngine owns the timer. Politics self-gates via elapsed time.
+    ; No-op — Politics self-gates via elapsed time in TickNow.
     Core.DebugMsg("Politics: Scheduler stopped (self-gate will skip ticks)")
 EndFunction
 
-Event OnUpdateGameTime()
-    ; Shared quest timer fires for all scripts. Politics self-gates via elapsed time.
+; Evaluate whether a politics tick should fire and run it if due.
+; Called from StoryEngine.TickScheduler on every scheduler poll. Self-gates
+; on the configured politics interval so it's safe to call at any cadence.
+Function TickNow()
     If !Initialized || !IntelEngine.IsPoliticsEnabled()
         return
     EndIf
@@ -87,11 +88,10 @@ Event OnUpdateGameTime()
     Float elapsed = (currentTime - LastTickGameTime) * 24.0  ; days to hours
 
     If elapsed >= intervalHours
+        Core.DebugMsg("Politics: interval reached (" + elapsed + "h >= " + intervalHours + "h) — ticking")
         RunPoliticalTick(currentTime)
     EndIf
-    ; Do NOT call StartScheduler/RegisterForSingleUpdateGameTime here —
-    ; StoryEngine owns the shared timer and will re-register it.
-EndEvent
+EndFunction
 
 ; =============================================================================
 ; POLITICAL TICK — CORE LOOP
@@ -102,21 +102,25 @@ Function RunPoliticalTick(Float currentGameTime)
     IntelEngine.MarkSystemPending("politics", currentGameTime)
     LastTickGameTime = currentGameTime
 
-    ; Process active wars first (morale decay, surrender checks)
+    ; Process active wars first (morale decay, surrender checks) — fast, stays inline
     ProcessActiveWars(currentGameTime)
 
-    ; Build context in C++ (reads factions.yaml + IntelEngine.db)
-    String contextJson = IntelEngine.BuildPoliticalContext(currentGameTime)
+    ; Async path: snapshot leader/player state on main thread (fast),
+    ; build the political DM context JSON on a worker thread, then fire
+    ; OnPoliticsDMContextReady which dispatches the LLM call.
+    ; Eliminates main-thread stutter from the political context build.
+    IntelEngine.BeginAsyncPoliticalTick(currentGameTime, Self, "IntelEngine_Politics", "OnPoliticsDMContextReady")
+EndFunction
 
-    If contextJson == "{}"
+Function OnPoliticsDMContextReady(String contextJson)
+    If contextJson == "" || contextJson == "{}"
         Core.DebugMsg("Politics: Empty context, skipping tick")
         TickPending = false
         IntelEngine.ClearSystemPending("politics")
         return
     EndIf
 
-    ; Send to LLM via SkyrimNet
-    Core.DebugMsg("Politics: Sending DM request")
+    Core.DebugMsg("Politics: Sending DM request (async)")
     Int result = SkyrimNetApi.SendCustomPromptToLLM("intel_political_dm", \
         "intel_story_dm", contextJson, Self, "IntelEngine_Politics", "OnPoliticalDMResponse")
 

@@ -392,7 +392,8 @@ Function RestartMonitoring()
                 QuestVictimNPC.SetDontMove(true)
                 Core.DebugMsg("Story: re-applied furniture DontMove on load for " + QuestVictimNPC.GetDisplayName())
             Else
-                ; Bleedout victim: re-apply bleedout only (no SetRestrained/SetDontMove — they override bleedout anim)
+                ; Bleedout victim on save-load: DamageActorValue + EvaluatePackage
+                ; re-triggers the bleedout state transition. No SetDontMove — blocks anim.
                 QuestVictimNPC.SetNoBleedoutRecovery(true)
                 QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
                 QuestVictimNPC.EvaluatePackage()
@@ -612,6 +613,15 @@ Function TickScheduler()
     ; NPC-to-NPC tick (self-gates via own interval)
     TickNPCInteractions()
 
+    ; Politics tick (self-gates via own interval). Politics used to rely on
+    ; OnUpdateGameTime, but StartScheduler re-registering RegisterForSingleUpdateGameTime
+    ; on every idle-poll meant the game-time timer kept getting reset and never fired.
+    ; Driving Politics from the shared TickScheduler matches how Story DM and NPC DM
+    ; already work and makes politics ticks fire reliably during real-time play.
+    If Core != None && Core.Politics != None
+        Core.Politics.TickNow()
+    EndIf
+
     ; Safety net: return stranded fake encounter NPCs
     CleanupStrandedEncounters()
 
@@ -678,29 +688,23 @@ Function TickScheduler()
                 IntelEngine.SetRecentGossipContext("")
             EndIf
 
-            ; C++ builds world state + candidate pool in a single call
-            String dmContext = IntelEngine.BuildDungeonMasterContext(7, LongAbsenceDaysConfig)
-            If dmContext != ""
-                ; Pre-warm C++ cooldown mirror from StorageUtil for all pool candidates.
-                ; Prevents wasted LLM turns on NPCs that Papyrus would reject.
-                If WarmCooldownsForPool()
-                    ; Some candidates were on cooldown ? rebuild context without them
-                    dmContext = IntelEngine.BuildDungeonMasterContext(7, LongAbsenceDaysConfig)
-                    If dmContext == ""
-                        return
-                    EndIf
-                EndIf
-
-                PendingStoryType = "dm_analysis"
-
-                ; Build exclude list from per-type toggles + environment
-                String excludeList = BuildExcludeList(player)
-
-                String contextJson = IntelEngine.BuildStoryDMRequestJson(dmContext, excludeList)
-                SendStoryLLMRequest("intel_story_dm", "OnDungeonMasterResponse", contextJson)
-            EndIf
+            ; Async path: snapshot on main thread (fast), then build context+JSON on
+            ; worker thread. OnStoryDMContextReady fires the LLM call on completion.
+            ; Eliminates ~30-60ms main-thread stutter from synchronous SQL + actor scans.
+            PendingStoryType = "dm_analysis"
+            String excludeList = BuildExcludeList(player)
+            IntelEngine.BeginAsyncStoryDMTick(7, LongAbsenceDaysConfig, excludeList, \
+                Self, "IntelEngine_StoryEngine", "OnStoryDMContextReady")
         EndIf
     EndIf
+EndFunction
+
+Function OnStoryDMContextReady(String contextJson)
+    If contextJson == ""
+        ClearPending()
+        return
+    EndIf
+    SendStoryLLMRequest("intel_story_dm", "OnDungeonMasterResponse", contextJson)
 EndFunction
 
 Bool Function IsNPCToNPCType()
@@ -804,25 +808,28 @@ Function TickNPCInteractions()
     NPCTickPending = true
     IntelEngine.MarkSystemPending("npcInteraction", currentTime)
 
-    String npcContext = IntelEngine.BuildNPCInteractionContext(4)
-    If npcContext == ""
+    ; Async path: snapshot on main thread (fast), build context+JSON on worker thread,
+    ; OnNPCDMContextReady fires the LLM call once the prepared JSON is ready.
+    ; Eliminates ~20-50ms main-thread stutter from synchronous SQL + actor scans.
+    IntelEngine.BeginAsyncNPCDMTick(4, Self, "IntelEngine_StoryEngine", "OnNPCDMContextReady")
+EndFunction
+
+Function OnNPCDMContextReady(String contextJson)
+    If contextJson == ""
         NPCTickPending = false
         IntelEngine.ClearSystemPending("npcInteraction")
         return
     EndIf
-
-    ; Warm social cooldowns from StorageUtil into C++ mirror, then rebuild if any found
-    If WarmSocialCooldownsForPool()
-        npcContext = IntelEngine.BuildNPCInteractionContext(4)
-        If npcContext == ""
-            NPCTickPending = false
-            IntelEngine.ClearSystemPending("npcInteraction")
-            return
-        EndIf
+    ; Inline the LLM request so we can clear NPCTickPending on failure.
+    ; SendStoryLLMRequest only clears PendingStoryType (storyDM watchdog), not the
+    ; npcInteraction watchdog — we'd otherwise leak pending state for ~1h on failure.
+    Int result = SkyrimNetApi.SendCustomPromptToLLM("intel_story_npc_dm", "intel_story_dm", contextJson, \
+        Self, "IntelEngine_StoryEngine", "OnNPCInteractionResponse")
+    If result < 0
+        Debug.Trace("[IntelEngine] StoryEngine: NPC DM LLM call failed code " + result)
+        NPCTickPending = false
+        IntelEngine.ClearSystemPending("npcInteraction")
     EndIf
-
-    String contextJson = IntelEngine.BuildNPCInteractionRequestJson(npcContext)
-    SendStoryLLMRequest("intel_story_npc_dm", "OnNPCInteractionResponse", contextJson)
 EndFunction
 
 Function OnNPCInteractionResponse(String response, Int success)
@@ -1365,8 +1372,40 @@ Function OnDungeonMasterResponse(String response, Int success)
     If !isFactionQuest
         npc = IntelEngine.ResolveStoryCandidate(npcName)
         If npc == None || npc.IsDead() || npc.IsDisabled()
-            Core.DebugMsg("Story DM: NPC '" + npcName + "' not found or invalid")
-            return
+            ; Vanilla "Courier" / "Messenger" refs are kept .Disable()'d between
+            ; CourierQuest deliveries, so they exist in the index but IsDisabled
+            ; rejects them. Substitute with a real actor who can physically walk:
+            ;   - alliedFaction → FindFactionMember (faction guard/soldier)
+            ;   - sender → FindMessengerForSender (household/associate/guard/civilian
+            ;     near the sender, same cascade real messages use)
+            String lowerNpcName = IntelEngine.StringToLower(npcName)
+            If lowerNpcName == "courier" || lowerNpcName == "messenger"
+                ; Clear the disabled/dead Courier so the fallback paths overwrite it.
+                npc = None
+                String substFaction = ExtractJsonField(response, "alliedFaction")
+                If substFaction != ""
+                    npc = IntelEngine.FindFactionMember(substFaction)
+                    If npc != None
+                        Core.DebugMsg("Story DM: substituting disabled '" + npcName + "' with " + substFaction + " member " + npc.GetDisplayName())
+                    EndIf
+                EndIf
+                If npc == None
+                    String substSender = ExtractJsonField(response, "sender")
+                    If substSender != ""
+                        Actor senderActor = IntelEngine.FindNPCByName(substSender)
+                        If senderActor != None && !senderActor.IsDead() && !senderActor.IsDisabled()
+                            npc = IntelEngine.FindMessengerForSender(senderActor)
+                            If npc != None
+                                Core.DebugMsg("Story DM: substituting disabled '" + npcName + "' with " + npc.GetDisplayName() + " (messenger near " + substSender + ")")
+                            EndIf
+                        EndIf
+                    EndIf
+                EndIf
+            EndIf
+            If npc == None || npc.IsDead() || npc.IsDisabled()
+                Core.DebugMsg("Story DM: NPC '" + npcName + "' not found or invalid")
+                return
+            EndIf
         EndIf
     EndIf
     ; Cooldown and NPC-specific checks only apply when we have a resolved NPC
@@ -1639,7 +1678,29 @@ Function DispatchToTarget(Actor npc, Actor target, String narration, String slot
     EndIf
 
     StopScheduler()
+
+    ; Fast-path proximity arrival. The C++ monitor ticks every 150ms and
+    ; fires OnProximityArrived the instant the NPC enters range of the
+    ; story target (player or second NPC). Eliminates the face-bumping
+    ; that the 3s MONITOR_INTERVAL otherwise creates.
+    IntelEngine.ArmProximityArrival(slot, npc as ObjectReference, target as ObjectReference, Self, "IntelEngine_StoryEngine", "OnProximityArrived")
+
     RegisterForSingleUpdate(MONITOR_INTERVAL)
+EndFunction
+
+; Callback invoked by the C++ ProximityMonitor when a dispatched story NPC
+; enters arrival range of its target. Routes through CheckStoryNPCArrival
+; so all abort checks (danger zone, blocked location, player-in-combat,
+; player-home restrictions) run identically to the 3s poll's path.
+Function OnProximityArrived(String slotStr)
+    If !IsActive
+        Return
+    EndIf
+    ; ActiveStoryNPC gates the arrival handler; don't attempt if cleaned up.
+    If ActiveStoryNPC == None
+        Return
+    EndIf
+    CheckStoryNPCArrival()
 EndFunction
 
 ; =============================================================================
@@ -1857,6 +1918,26 @@ Function CheckStoryLingerCleanup()
             EndIf
             StorageUtil.FormListRemoveAt(player, "Intel_StoryLingerActors", i)
         Else
+            ; Approach phase — swap TravelPackage_Walk for SandboxNearPlayerPackage
+            ; once close. Matches the Travel/Meeting linger pattern (same flag name).
+            If StorageUtil.GetIntValue(npc, "Intel_MeetingLingerApproaching") == 1
+                Bool closeEnough = false
+                If npc.Is3DLoaded() && player.Is3DLoaded()
+                    closeEnough = npc.GetDistance(player) <= Core.LINGER_APPROACH_DISTANCE
+                ElseIf npc.GetParentCell() == player.GetParentCell()
+                    closeEnough = true
+                EndIf
+                If closeEnough
+                    ; Add sandbox BEFORE removing travel — no gap for default AI to kick in
+                    ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
+                    ActorUtil.RemovePackageOverride(npc, Core.TravelPackage_Walk)
+                    Utility.Wait(0.1)
+                    npc.EvaluatePackage()
+                    StorageUtil.UnsetIntValue(npc, "Intel_MeetingLingerApproaching")
+                    Core.DebugMsg("Story [quest/rescue]: " + npc.GetDisplayName() + " reached player, sandboxing")
+                EndIf
+            EndIf
+
             ; Deferred rescue narration: fire when victim reaches the player
             String pendingNarration = StorageUtil.GetStringValue(npc, "Intel_RescueNarration", "")
             If pendingNarration != ""
@@ -2909,6 +2990,13 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
             Core.DebugMsg("Story DM: quest/rescue rejected -- victim '" + victimName + "' is the quest giver")
             return
         EndIf
+        ; Can't kidnap the player's active teammate — even if bleedout applied, the
+        ; follower framework continuously re-asserts combat readiness and overrides
+        ; Aggression/Confidence, so the passive enforcement can't take effect.
+        If victimActor.IsPlayerTeammate()
+            Core.DebugMsg("Story DM: quest/rescue rejected -- victim '" + victimName + "' is the player's teammate")
+            return
+        EndIf
         ; Hard cooldown — victim was recently used in a quest or story dispatch
         If IntelEngine.IsActorOnStoryCooldown(victimActor)
             Core.DebugMsg("Story DM: quest/rescue rejected -- victim '" + victimName + "' is on story cooldown")
@@ -3444,43 +3532,53 @@ Function PrePlaceQuestTargets()
     Core.DebugMsg("Story [quest/" + QuestSubType + "]: pre-placing at boss anchor in '" + QuestLocationName + "'")
 
     ; === RESCUE: place victim at boss room ===
+    ; Package override (sandbox at anchor) keeps her at the anchor in unloaded cells.
+    ; Essential + NoBleedoutRecovery + HP=1: the first bandit hit drops her to 0 HP,
+    ; triggering the engine's native bleedout state (kneel pose, unable to act, unable
+    ; to die, unable to recover). Per-tick re-pins HP to 1 in case of natural regen.
     If QuestSubType == "rescue" && QuestVictimNPC != None
         Core.RemoveAllPackages(QuestVictimNPC, false)
-        QuestVictimNPC.MoveTo(bossAnchor, Utility.RandomFloat(-150.0, 150.0), Utility.RandomFloat(-150.0, 150.0), 0.0)
+        QuestVictimNPC.MoveTo(bossAnchor, 0.0, 0.0, 0.0)
+        ; Package override prevents persistent NPCs' template package from walking
+        ; them home while the cell is unloaded.
+        PO3_SKSEFunctions.SetLinkedRef(QuestVictimNPC, bossAnchor, Core.IntelEngine_TravelTarget)
+        ActorUtil.AddPackageOverride(QuestVictimNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
         StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
         QuestVictimNPC.GetActorBase().SetEssential(true)
         QuestVictimNPC.SetNoBleedoutRecovery(true)
+        ; DamageActorValue past current HP + EvaluatePackage is the pattern that
+        ; reliably triggers the bleedout state + kneel anim on essential actors.
+        ; This is what the committed version used — it works flawlessly when the
+        ; cell is loaded, and first-3D-load re-applies for the unloaded case.
         QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
         QuestVictimNPC.EvaluatePackage()
         IntelEngine.NotifyStoryCooldown(QuestVictimNPC, Utility.GetCurrentGameTime())
         Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimNPC.GetDisplayName() + " placed at boss room in bleedout")
     EndIf
 
-    ; === FIND_ITEM: spawn chest near player, then MoveTo boss room ===
-    ; PlaceObjectAtMe needs a loaded cell, so spawn at player (in dialogue — invisible)
-    ; then immediately move to the unloaded boss anchor. Same pattern as victim MoveTo.
+    ; === FIND_ITEM: spawn chest directly at boss anchor ===
+    ; PlaceObjectAtMe on a persistent XMarker creates the ref inside the anchor's
+    ; cell natively, even when that cell is unloaded. Avoids the
+    ; spawn-at-player-then-MoveTo pattern which is unreliable for non-persistent refs.
     If QuestSubType == "find_item" && QuestItemName != ""
-        Actor player = Game.GetPlayer()
-        ObjectReference chest = IntelEngine.SpawnQuestChest(player, QuestItemName)
+        ObjectReference chest = IntelEngine.SpawnQuestChest(bossAnchor, QuestItemName)
         If chest != None
-            chest.MoveTo(bossAnchor, Utility.RandomFloat(-100.0, 100.0), Utility.RandomFloat(-100.0, 100.0), 0.0)
             QuestItemChest = chest
-            Core.DebugMsg("Story [quest/find_item]: chest with " + QuestItemName + " placed at boss room")
+            Core.DebugMsg("Story [quest/find_item]: chest with " + QuestItemName + " spawned at boss anchor")
         EndIf
     EndIf
 
-    ; === COMBAT: spawn boss near player, then MoveTo boss room ===
-    ; Same pattern as find_item chest — PlaceObjectAtMe at player, then MoveTo anchor.
-    ; Boss serves as the compass target so the marker leads INSIDE the dungeon.
+    ; === COMBAT: spawn boss directly at boss anchor ===
+    ; Same rationale as find_item chest — spawn at anchor so PlaceObjectAtMe
+    ; places the new ref in the anchor's cell. Boss is the compass target, so
+    ; the marker leads straight to where the enemies will spawn on cell load.
     If QuestSubType == "combat"
-        Actor player = Game.GetPlayer()
-        Actor boss = IntelEngine.SpawnQuestBoss(player, QuestEnemyType)
+        Actor boss = IntelEngine.SpawnQuestBoss(bossAnchor, QuestEnemyType)
         If boss != None
-            boss.MoveTo(bossAnchor, Utility.RandomFloat(-150.0, 150.0), Utility.RandomFloat(-150.0, 150.0), 0.0)
             QuestBossNPC = boss
-            StorageUtil.FormListAdd(player, "Intel_QuestSpawnedNPCs", boss)
+            StorageUtil.FormListAdd(Game.GetPlayer(), "Intel_QuestSpawnedNPCs", boss)
             QuestSpawnCount += 1
-            Core.DebugMsg("Story [quest/combat]: boss placed at boss room")
+            Core.DebugMsg("Story [quest/combat]: boss spawned at boss anchor")
         EndIf
     EndIf
 
@@ -3574,6 +3672,25 @@ Function CheckQuestProximity()
                     EndIf
                 EndIf
 
+                ; Apply bleedout BEFORE enabling enemies — generic NPCs can't survive a
+                ; bandit room in combat. Order: lock passive + damage + pin + anim, THEN
+                ; activate hostiles so they spawn into a room with a downed captive.
+                If QuestSubType == "rescue" && QuestVictimNPC != None && !QuestVictimFreed && !QuestVictimInFurniture
+                    QuestVictimNPC.SetNoBleedoutRecovery(true)
+                    QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
+                    QuestVictimNPC.EvaluatePackage()
+                    Core.DebugMsg("Story [quest/rescue]: re-applied bleedout on first 3D load")
+                EndIf
+
+                ; Find_item: chests created via PlaceObjectAtMe in unloaded cells
+                ; don't sync script-added items to the inventory UI until first-open.
+                ; Re-add the item now that the cell is loaded so the player sees it
+                ; on their very first interaction.
+                If QuestSubType == "find_item" && QuestItemChest != None && QuestItemName != ""
+                    IntelEngine.EnsureQuestItemInChest(QuestItemChest, QuestItemName)
+                    Core.DebugMsg("Story [quest/find_item]: ensured '" + QuestItemName + "' is in chest on first 3D load")
+                EndIf
+
                 ; Enable all enemies at their final positions (after all moves complete)
                 i = 0
                 While i < enemies.Length
@@ -3593,15 +3710,6 @@ Function CheckQuestProximity()
                     Core.DebugMsg("Story [quest/" + QuestSubType + "]: spawned " + QuestSpawnCount + " " + QuestEnemyType + " at boss room")
                 Else
                     Core.DebugMsg("Story [quest]: WARNING - no enemies spawned at boss room, falling back to deferred")
-                EndIf
-
-                ; Re-apply bleedout NOW — dispatch-time state doesn't survive unloaded cells.
-                ; Without this, the victim walks normally when their cell first loads.
-                If QuestSubType == "rescue" && QuestVictimNPC != None && !QuestVictimFreed && !QuestVictimInFurniture
-                    QuestVictimNPC.SetNoBleedoutRecovery(true)
-                    QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
-                    QuestVictimNPC.EvaluatePackage()
-                    Core.DebugMsg("Story [quest/rescue]: re-applied bleedout on first 3D load")
                 EndIf
             EndIf
             return  ; Pre-placed quests don't use the proximity-based spawn path below
@@ -3782,13 +3890,19 @@ Function CheckQuestProximity()
                     Core.DebugMsg("Story [quest]: anchor found ahead! Placing victim + enemies")
                     QuestBossAnchor = aheadAnchor
 
-                    ; Place victim at anchor (rescue)
+                    ; Place victim at anchor (rescue). Cell is loaded here (player is
+                    ; inside the dungeon), so SetDontMove + damage apply reliably. Package
+                    ; override for consistency with dispatch-time placement.
                     If QuestSubType == "rescue" && QuestVictimNPC != None
                         Core.RemoveAllPackages(QuestVictimNPC, false)
-                        QuestVictimNPC.MoveTo(aheadAnchor, Utility.RandomFloat(-100.0, 100.0), Utility.RandomFloat(-100.0, 100.0), 0.0)
+                        QuestVictimNPC.MoveTo(aheadAnchor, 0.0, 0.0, 0.0)
+                        PO3_SKSEFunctions.SetLinkedRef(QuestVictimNPC, aheadAnchor, Core.IntelEngine_TravelTarget)
+                        ActorUtil.AddPackageOverride(QuestVictimNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
                         StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
                         QuestVictimNPC.GetActorBase().SetEssential(true)
                         QuestVictimNPC.SetNoBleedoutRecovery(true)
+                        ; DamageActorValue + EvaluatePackage reliably triggers bleedout
+                        ; state + kneel animation on essential actors.
                         QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
                         QuestVictimNPC.EvaluatePackage()
                         IntelEngine.NotifyStoryCooldown(QuestVictimNPC, Utility.GetCurrentGameTime())
@@ -3923,11 +4037,11 @@ Function CheckQuestProximity()
                         QuestVictimNPC.EvaluatePackage()
                     EndIf
                 EndIf
-                ; Per-tick state re-apply (runtime state can be lost anytime)
+                ; Per-tick state re-apply. SetDontMove only for furniture — on bleedout
+                ; victims it blocks the fall-to-kneel animation.
                 If QuestVictimInFurniture
                     QuestVictimNPC.SetDontMove(true)
                 Else
-                    ; Bleedout: only SetNoBleedoutRecovery. No SetRestrained/SetDontMove — they override bleedout anim.
                     QuestVictimNPC.SetNoBleedoutRecovery(true)
                     If QuestVictimNPC.GetActorValue("Health") > 1.0
                         QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
@@ -4020,11 +4134,15 @@ Function SpawnQuestEnemies()
         ; Strip all packages BEFORE teleport+restrain (packages can override restraint)
         Core.RemoveAllPackages(QuestVictimNPC, false)
         QuestVictimNPC.MoveTo(victimAnchor, 0.0, 0.0, 0.0, false)
+        ; Package override pins her at victimAnchor so her template package can't
+        ; pull her home. No SetDontMove — it blocks the bleedout fall-to-kneel
+        ; transition; bleedout is self-immobilizing via engine.
+        PO3_SKSEFunctions.SetLinkedRef(QuestVictimNPC, victimAnchor, Core.IntelEngine_TravelTarget)
+        ActorUtil.AddPackageOverride(QuestVictimNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
         ; Protect victim from death — always make essential for bleedout
         StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
         QuestVictimNPC.GetActorBase().SetEssential(true)
-        ; Trigger natural bleedout: damage to 0 HP while essential → engine bleedout animation
-        ; No SetRestrained/SetDontMove — they override the bleedout kneel animation
+        ; DamageActorValue + EvaluatePackage triggers bleedout state + kneel anim on essentials.
         QuestVictimNPC.SetNoBleedoutRecovery(true)
         QuestVictimNPC.DamageActorValue("Health", QuestVictimNPC.GetActorValue("Health") + 100.0)
         QuestVictimNPC.EvaluatePackage()
@@ -4185,7 +4303,8 @@ Function FreeQuestVictim()
         QuestVictimNPC.EvaluatePackage()
         Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimNPC.GetDisplayName() + " freed from furniture")
     Else
-        ; Bleedout victim: recover from bleedout
+        ; Bleedout victim: unpin and recover from bleedout
+        QuestVictimNPC.SetDontMove(false)
         QuestVictimNPC.SetNoBleedoutRecovery(false)
         Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimNPC.GetDisplayName() + " freed from bleedout")
     EndIf
@@ -4255,11 +4374,15 @@ Function OnQuestComplete()
                     StorageUtil.FormListAdd(trackedPlayer, "Intel_RecentlyRescuedNPCs", QuestVictimNPC as Form)
                 EndIf
             EndIf
-            ; Pathfind to player — sandbox with linked ref = player.
-            ; Narration deferred until NPC reaches player (CheckStoryLingerCleanup fires it).
+            ; Two-phase walk-to-player: Phase 1 TravelPackage_Walk actively paths her
+            ; toward the player; Phase 2 swaps to SandboxNearPlayerPackage once she's
+            ; within LINGER_APPROACH_DISTANCE. Handled by CheckStoryLingerCleanup, same
+            ; approach flag Travel uses so the behavior matches "wait for player" arrivals.
+            ; Narration fires on proximity (~400 units) regardless of which package is active.
             Core.RemoveAllPackages(QuestVictimNPC, false)
             PO3_SKSEFunctions.SetLinkedRef(QuestVictimNPC, Game.GetPlayer() as ObjectReference, Core.IntelEngine_TravelTarget)
-            ActorUtil.AddPackageOverride(QuestVictimNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+            ActorUtil.AddPackageOverride(QuestVictimNPC, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+            StorageUtil.SetIntValue(QuestVictimNPC, "Intel_MeetingLingerApproaching", 1)
             Utility.Wait(0.1)
             QuestVictimNPC.EvaluatePackage()
             StartStoryLinger(QuestVictimNPC)

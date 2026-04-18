@@ -675,10 +675,10 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetStringValue(agent, "Intel_DeliveryMeetLocation")
             StorageUtil.UnsetStringValue(agent, "Intel_DeliveryMeetTime")
 
-            ; Reset C++ trackers for this slot
+            ; Reset C++ departure detector, off-screen tracker, and proximity monitor for this slot
             IntelEngine.ResetDepartureSlot(slot, None)
             IntelEngine.ResetOffScreenSlot(slot)
-            IntelEngine.ClearProximityWatches(slot)
+            IntelEngine.DisarmProximityArrival(slot)
             StorageUtil.UnsetFloatValue(agent, "Intel_OffscreenArrival")
 
             ; Clear current meeting flag (always — this task is done)
