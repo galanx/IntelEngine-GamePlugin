@@ -22,11 +22,26 @@ Study the candidate pool below. Each NPC has a bio, archetype, location, distanc
 
 {% if show_seek_player == "1" %}
 ### seek_player
-NPC travels to the player with purpose. The NPC's data must provide a genuine reason to seek {{ playerName }} out.
-- CIVILIAN class NPCs must NOT enter DANGEROUS locations.
-- Combat-capable classes CAN track the player into danger IF they have strong motive.
-- Late night visits need urgent justification.
-- Narrate WHY the NPC set out (motivation, what they heard). Do NOT assert where {{ playerName }} is.
+NPC travels to the player with purpose. They must have a genuine reason — and **"missed them after a long absence"** is a genuine reason when the memories support it.
+
+**PRIME candidates for seek_player — strongly prefer these over other types:**
+- **Intimate companions / lovers / close allies with long absence.** If an "acquainted" NPC's memories show a close personal bond (travel companion, lover, sworn friend, family, long-term associate) AND "Last interaction" is 2+ days ago, they have STRONG natural motive. Worry, longing, unanswered questions, an unfinished conversation, impatience, a shared routine broken — all are valid. They do NOT need a fresh crisis to justify walking out the door.
+- **NPCs left behind** at a known location (inn, camp, home) while {{ playerName }} moved on — checking on the player IS the reason.
+- **NPCs with unresolved memories** — a debt, a promise, a question left hanging, an argument unfinished.
+
+A candidate sitting at #1–#3 of the ranked pool with deep memories and a multi-day gap is almost always a better pick than a stranger‑courier faction quest. Use them.
+
+**Gates:**
+- CIVILIAN class NPCs must NOT enter DANGEROUS locations (they turn back at the threshold if motive is weak).
+- Combat-capable classes CAN track {{ playerName }} into danger IF motive is strong.
+- Late-night visits need urgent justification — but an intimate companion's impatience past midnight IS urgent.
+
+**Narration (past tense, under 120 chars, WHY they set out — NEVER where {{ playerName }} is):**
+- Good: "gave up waiting at the inn and set out to find {{ playerName }} after days of silence"
+- Good: "couldn't shake the worry and left to look for {{ playerName }}"
+- Good: "had questions that wouldn't wait and went looking"
+- Bad: "went to Whiterun to find {{ playerName }}" (asserts location)
+- Bad: "will try to find {{ playerName }} tomorrow" (future tense)
 {% endif %}
 
 {% if show_informant == "1" %}
@@ -174,6 +189,7 @@ The Political Climate section shows wars, events, and faction tensions. Most sto
    - **"stranger"** — NEVER met {{ playerName }}. Does NOT know {{ playerName }}'s name. They would approach asking "Are you the one they call {{ playerName }}?" or describe the player by appearance/reputation. Narration must reflect first contact. Must NOT act familiar, use {{ playerName }}'s name casually, or reference shared history. The NPC's msgContent should NOT address {{ playerName }} by name — use "you" or a description instead.
    - **"aware"** — has seen {{ playerName }} around but never spoken. Knows the face, may know the name from hearsay. Cautious introduction: "I've seen you around..." or "You're {{ playerName }}, aren't you?"
    - **"acquainted"** — knows {{ playerName }} personally. Can use their name, reference past conversations and shared events. msgContent can be direct and personal.
+   - **Long-absence "acquainted" NPCs are PRIME seek_player material.** If an acquainted NPC has deep memories with {{ playerName }} (intimate bond, travel companionship, shared trials) AND "Last interaction" is 2+ days ago, **prefer `seek_player` for them over any other type**. Their absence-driven motive is self-evident and almost always beats dispatching a stranger courier with a fabricated pretext. A long-absent lover or sworn companion walking in the door IS the compelling moment — don't skip it to dispatch another faction quest.
 5. **Candidate data is your ONLY source of truth** — every claim must trace to the candidate's Memories, Recent events, Last conversation, Bio, or the Recent Gossip section. NEVER invent history. For stranger NPCs, use their Bio, archetype, and the Rumors section to craft a plausible approach.
 6. **Never duplicate vanilla quests** — do NOT generate stories that replicate quests already in Skyrim. Examples: Amren asking for his family sword, Andurs wanting his Amulet of Arkay, Carlotta asking to deal with Mikael, Adrianne delivering a sword to the Jarl. Create ORIGINAL stories for these NPCs instead. However, you MAY reference completed vanilla quests if they appear in the NPC's memories — "grateful since you found his sword" or "trusts you after what you did" are great hooks for NEW stories.
 7. **Match type to character** — a priest stays at their temple, a guard patrols their hold. CIVILIAN class NPCs stay near cities. Combat-capable classes travel more freely.
@@ -203,7 +219,8 @@ If nothing compelling: {{ "{" }}"should_act":false,"reason":"brief explanation w
 Otherwise use the matching format. **OMIT optional fields you are not using UNLESS the type definition explicitly requires an empty value.** Keep narration under 120 characters and msgContent under 150 characters. **TOTAL JSON response MUST be under 700 characters** — the system truncates longer responses, breaking parsing. Be concise:
 
 {% if show_seek_player == "1" %}
-seek_player: {{ "{" }}"should_act":true,"type":"seek_player","npc":"Name","narration":"tracked {{ playerName }} down after hearing about the dragon attack"}
+seek_player (absence-driven, acquainted): {{ "{" }}"should_act":true,"type":"seek_player","npc":"Name","narration":"gave up waiting at the inn and set out to find {{ playerName }} after days of silence"}
+seek_player (event-driven): {{ "{" }}"should_act":true,"type":"seek_player","npc":"Name","narration":"tracked {{ playerName }} down after hearing about the dragon attack"}
 {% endif %}
 {% if show_informant == "1" %}
 informant: {{ "{" }}"should_act":true,"type":"informant","npc":"Name","narration":"overheard Sven boasting about Camilla","subject":"SubjectName","gossip":"was seen arguing with...","sender":"Sven"}
