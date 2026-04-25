@@ -194,6 +194,13 @@ Function Maintenance(Bool isFirstLoad = false)
     RegisterDashboardEvents()
 
     Float now = Utility.GetCurrentRealTime()
+    ; GetCurrentRealTime() resets each Skyrim launch, but LastMaintenanceRealTime
+    ; is saved. A stale saved value from a prior session is always larger than
+    ; `now`, making the duplicate-call guard fire on the first load of every
+    ; new session — skipping RestartMonitoring and leaving C++ singletons unsynced.
+    If now < LastMaintenanceRealTime
+        LastMaintenanceRealTime = 0.0
+    EndIf
     If !isFirstLoad && (now - LastMaintenanceRealTime) < 2.0 && LastMaintenanceRealTime > 0.0
         DebugMsg("IntelEngine Maintenance skipped (duplicate call within 2s)")
         return

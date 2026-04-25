@@ -1605,6 +1605,22 @@ EndFunction
 ; =============================================================================
 
 Function OnGameReload()
+    ; Session rollover: Utility.GetCurrentRealTime() resets each Skyrim launch
+    ; but these properties are saved. A stale saved value (> current real time)
+    ; comes from a prior session and would break timeout/elapsed checks (the
+    ; elapsed diff goes negative, so "stuck" watchdogs never trip). Snap stale
+    ; stamps forward to `now` so the countdown restarts from load.
+    Float now = Utility.GetCurrentRealTime()
+    If BattleStartRealTime > now
+        BattleStartRealTime = now
+    EndIf
+    If DeferredCleanupStart > now
+        DeferredCleanupStart = now
+    EndIf
+    If ManifestStartTime > now
+        ManifestStartTime = now
+    EndIf
+
     ; Clean up any active manifestation from pre-reload
     If ManifestActive
         CleanupManifestation()

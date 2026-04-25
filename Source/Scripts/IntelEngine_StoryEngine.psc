@@ -288,6 +288,9 @@ Function RestartMonitoring()
     WarmCooldownMirror()
     WarmStoryTypeCounts()
 
+    ; Repair real-time timers carried over from a prior Skyrim session.
+    ClearStaleRealTimeTimers()
+
     SyncHoldRestrictionPolicies()
 
     ; Re-push active quest state to C++ (singleton resets on game load)
@@ -1164,6 +1167,63 @@ Function WarmCooldownMirror()
     EndWhile
     If socialWarmed > 0
         Core.DebugMsg("Story: warmed C++ social cooldown mirror (" + socialWarmed + " NPCs)")
+    EndIf
+EndFunction
+
+Function ClearStaleRealTimeTimers()
+    {Reset real-time timer stamps whose saved values exceed current real time.
+     Utility.GetCurrentRealTime() resets each Skyrim launch, but StorageUtil
+     floats and save-persistent properties don't — so a saved value from a
+     prior session is always larger than `now` and makes `now - saved` negative,
+     which means `elapsed > TIMEOUT_SECONDS` watchdogs never fire and NPCs get
+     stuck in linger/greet/sneak/combat states. Snap stale stamps forward to
+     `now` so the countdown restarts from load.}
+    Float now = Utility.GetCurrentRealTime()
+    Actor player = Game.GetPlayer()
+
+    If FactionAmbushStartTime > now
+        FactionAmbushStartTime = now
+    EndIf
+
+    ; Per-NPC linger timers
+    Int lingerCount = StorageUtil.FormListCount(player, "Intel_StoryLingerActors")
+    Int i = lingerCount - 1
+    While i >= 0
+        Actor npc = StorageUtil.FormListGet(player, "Intel_StoryLingerActors", i) as Actor
+        If npc != None
+            Float t = StorageUtil.GetFloatValue(npc, "Intel_StoryLingerStart", 0.0)
+            If t > now
+                StorageUtil.SetFloatValue(npc, "Intel_StoryLingerStart", now)
+            EndIf
+        EndIf
+        i -= 1
+    EndWhile
+
+    ; Per-NPC road-encounter greet timers
+    Int encCount = StorageUtil.IntListCount(player, "Intel_FakeEncounterNPCs")
+    i = encCount - 1
+    While i >= 0
+        Int formId = StorageUtil.IntListGet(player, "Intel_FakeEncounterNPCs", i)
+        Actor npc = Game.GetForm(formId) as Actor
+        If npc != None
+            Float t = StorageUtil.GetFloatValue(npc, "Intel_FakeEncounterGreetTime", 0.0)
+            If t > now
+                StorageUtil.SetFloatValue(npc, "Intel_FakeEncounterGreetTime", now)
+            EndIf
+        EndIf
+        i -= 1
+    EndWhile
+
+    ; Active story NPC sneak/combat timers
+    If ActiveStoryNPC != None
+        Float sneakStart = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_SneakStartTime", 0.0)
+        If sneakStart > now
+            StorageUtil.SetFloatValue(ActiveStoryNPC, "Intel_SneakStartTime", now)
+        EndIf
+        Float combatStart = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_CombatStartTime", 0.0)
+        If combatStart > now
+            StorageUtil.SetFloatValue(ActiveStoryNPC, "Intel_CombatStartTime", now)
+        EndIf
     EndIf
 EndFunction
 
