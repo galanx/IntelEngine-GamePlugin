@@ -1389,6 +1389,7 @@ Function OnDungeonMasterResponse(String response, Int success)
     ; Faction ambush doesn't use a candidate NPC — handle separately before NPC validation
     If storyType == "faction_ambush"
         IntelEngine.NotifyStoryTypePicked(storyType)
+        IntelEngine.RecordStoryDispatch(storyType, ExtractJsonField(response, "ambushFaction"), narration)
         HandleFactionAmbushDispatch(narration, response)
         return
     EndIf
@@ -1425,6 +1426,10 @@ Function OnDungeonMasterResponse(String response, Int success)
     Else
         IntelEngine.NotifyStoryTypePicked(storyType)
     EndIf
+
+    ; Record full dispatch detail for the rolling history block in the next DM tick prompt.
+    ; Lets the DM verify "vary type/dispatcher" and "don't strike at the same beloved NPC twice".
+    IntelEngine.RecordStoryDispatch(storyType, npcName, narration)
 
     ; Resolve primary NPC from candidate pool (exact FormID, no name ambiguity)
     ; For faction quests with empty npc, FindFactionMember provides the NPC in HandleQuestDispatch
