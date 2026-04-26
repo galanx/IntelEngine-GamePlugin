@@ -1469,6 +1469,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             EndIf
             If npc == None || npc.IsDead() || npc.IsDisabled()
                 Core.DebugMsg("Story DM: NPC '" + npcName + "' not found or invalid")
+                IntelEngine.MarkLastDispatchFailed("npc not found / dead / disabled")
                 return
             EndIf
         EndIf
@@ -1482,16 +1483,19 @@ Function OnDungeonMasterResponse(String response, Int success)
         ; Block: seek_player, informant, road_encounter, ambush, stalker
         If IntelEngine.IsHighStatusNPC(npc) && storyType != "message" && storyType != "quest"
             Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " is high-status — rejected (should use courier mode)")
+            IntelEngine.MarkLastDispatchFailed("high-status NPC cannot physically travel")
             return
         EndIf
         ; Hold restriction enforcement — the LLM may ignore the Eligible line.
         ; Server-side reject if the NPC doesn't pass hold restriction for this type.
         If !IntelEngine.CheckHoldRestriction(npc, storyType)
             Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " rejected — hold restriction for " + storyType)
+            IntelEngine.MarkLastDispatchFailed("hold restriction")
             return
         EndIf
         If !ApplyCooldownCheck(npc)
             Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " on cooldown")
+            IntelEngine.MarkLastDispatchFailed("npc on story cooldown")
             return
         EndIf
 
@@ -1502,6 +1506,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             Cell playerCell = Game.GetPlayer().GetParentCell()
             If npcCell != None && playerCell != None && npcCell == playerCell
                 Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " already in player's cell, skipping " + storyType)
+                IntelEngine.MarkLastDispatchFailed("npc already in player's cell")
                 return
             EndIf
         EndIf
@@ -1511,6 +1516,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             Cell playerCell2 = Game.GetPlayer().GetParentCell()
             If playerCell2 != None && playerCell2.IsInterior()
                 Core.DebugMsg("Story DM: rejecting " + storyType + " -- player is in interior")
+                IntelEngine.MarkLastDispatchFailed("interior cell rejects stalker/ambush")
                 return
             EndIf
         EndIf
@@ -1528,13 +1534,16 @@ Function OnDungeonMasterResponse(String response, Int success)
     Int envFlags = PackEnvFlags(Game.GetPlayer())
     String validateJson = IntelEngine.ValidateStoryResponse(response, toggles, envFlags)
     If IntelEngine.StoryResponseGetField(validateJson, "valid") != "true"
-        Core.DebugMsg("Story DM: C++ validation rejected -- " + IntelEngine.StoryResponseGetField(validateJson, "reason"))
+        String validationReason = IntelEngine.StoryResponseGetField(validateJson, "reason")
+        Core.DebugMsg("Story DM: C++ validation rejected -- " + validationReason)
+        IntelEngine.MarkLastDispatchFailed("validation: " + validationReason)
         return
     EndIf
 
     ; Papyrus-only checks: Jarl (requires Actor), quest active state
     If npc != None && IntelEngine.IsJarl(npc) && storyType != "message" && storyType != "quest"
         Core.DebugMsg("Story DM: rejecting " + storyType + " for Jarl " + npc.GetDisplayName())
+        IntelEngine.MarkLastDispatchFailed("Jarl cannot physically travel")
         return
     EndIf
 
@@ -1542,12 +1551,14 @@ Function OnDungeonMasterResponse(String response, Int success)
     If storyType == "quest"
         If QuestActive
             Core.DebugMsg("Story DM: quest rejected -- one already active")
+            IntelEngine.MarkLastDispatchFailed("a quest is already active")
             return
         EndIf
         ; Field validation handled by C++ ValidateStoryResponse above
     ElseIf storyType == "message"
         If ExtractJsonField(response, "msgContent") == ""
             Core.DebugMsg("Story DM: message rejected -- missing msgContent")
+            IntelEngine.MarkLastDispatchFailed("missing msgContent")
             return
         EndIf
     EndIf

@@ -535,10 +535,15 @@ Bool Function IsActorOnStoryCooldown(Actor akActor) Global Native
 ; Record that the LLM picked a story type. Used for DM prompt balancing.
 Function NotifyStoryTypePicked(String storyType) Global Native
 
-; Record a successful Story DM dispatch with full beat detail (type + dispatcher
-; NPC + brief narration). Maintains a rolling history the DM uses to vary types
-; and dispatchers and avoid back-to-back beloved-NPC targeting.
+; Record a Story DM dispatch with full beat detail (type + dispatcher NPC +
+; brief narration). The entry starts as DISPATCHED; if any validation gate
+; aborts the dispatch, call MarkLastDispatchFailed with a reason and the head
+; entry flips to REJECTED for the next DM tick to see.
 Function RecordStoryDispatch(String storyType, String npcName, String narration) Global Native
+
+; Flip the most recent RecordStoryDispatch entry to REJECTED with a short
+; reason. Called from any early-return path after RecordStoryDispatch.
+Function MarkLastDispatchFailed(String reason) Global Native
 
 Function WarmStoryTypeCountsFromCSV(String csv) Global Native
 Function SetRecentGossipContext(String gossipLines) Global Native
