@@ -1415,21 +1415,21 @@ Function OnDungeonMasterResponse(String response, Int success)
         return
     EndIf
 
-    ; Track quest subtypes separately so "quest/rescue" doesn't block "quest/faction_battle"
+    ; Track quest subtypes separately so "quest/rescue" doesn't block "quest/faction_battle".
+    ; Build typeWithSub once and reuse it for BOTH NotifyStoryTypePicked (counts) and
+    ; RecordStoryDispatch (history) — single source of truth for sub-type derivation.
+    String typeWithSub = storyType
     If storyType == "quest"
         String subTypeForTracking = ExtractJsonField(response, "questSubType")
         If subTypeForTracking != ""
-            IntelEngine.NotifyStoryTypePicked("quest/" + subTypeForTracking)
-        Else
-            IntelEngine.NotifyStoryTypePicked(storyType)
+            typeWithSub = "quest/" + subTypeForTracking
         EndIf
-    Else
-        IntelEngine.NotifyStoryTypePicked(storyType)
     EndIf
+    IntelEngine.NotifyStoryTypePicked(typeWithSub)
 
     ; Record full dispatch detail for the rolling history block in the next DM tick prompt.
     ; Lets the DM verify "vary type/dispatcher" and "don't strike at the same beloved NPC twice".
-    IntelEngine.RecordStoryDispatch(storyType, npcName, narration)
+    IntelEngine.RecordStoryDispatch(typeWithSub, npcName, narration)
 
     ; Resolve primary NPC from candidate pool (exact FormID, no name ambiguity)
     ; For faction quests with empty npc, FindFactionMember provides the NPC in HandleQuestDispatch
