@@ -1495,7 +1495,7 @@ Function OnDungeonMasterResponse(String response, Int success)
         EndIf
         If !ApplyCooldownCheck(npc)
             Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " on cooldown")
-            IntelEngine.MarkLastDispatchFailed("npc on story cooldown")
+            IntelEngine.MarkLastDispatchFailed("on story cooldown")
             return
         EndIf
 
@@ -1543,7 +1543,9 @@ Function OnDungeonMasterResponse(String response, Int success)
     ; Papyrus-only checks: Jarl (requires Actor), quest active state
     If npc != None && IntelEngine.IsJarl(npc) && storyType != "message" && storyType != "quest"
         Core.DebugMsg("Story DM: rejecting " + storyType + " for Jarl " + npc.GetDisplayName())
-        IntelEngine.MarkLastDispatchFailed("Jarl cannot physically travel")
+        ; Reuse the high-status reason — a Jarl is semantically a high-status NPC; collapsing
+        ; the two strings keeps Rule 14's bullet count tight and avoids drift.
+        IntelEngine.MarkLastDispatchFailed("high-status NPC cannot physically travel")
         return
     EndIf
 
@@ -1558,7 +1560,9 @@ Function OnDungeonMasterResponse(String response, Int success)
     ElseIf storyType == "message"
         If ExtractJsonField(response, "msgContent") == ""
             Core.DebugMsg("Story DM: message rejected -- missing msgContent")
-            IntelEngine.MarkLastDispatchFailed("missing msgContent")
+            ; Prefix with "validation: " so it falls under Rule 14's existing validation bullet
+            ; instead of being a one-off undocumented reason.
+            IntelEngine.MarkLastDispatchFailed("validation: missing msgContent")
             return
         EndIf
     EndIf
