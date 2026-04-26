@@ -81,11 +81,10 @@ Most NPC interactions should be personal — arguments, romance, deals, favors, 
 
 ## Rules
 1. **REJECT if nothing compelling.** Return should_act:false. Quality over quantity. NPCs don't need to interact every tick — silence is natural.
-2. **Ground narration in real memories or shared world knowledge** — do not fabricate history or events.
+2. **Ground narration in real memories** — do not fabricate history or events.
 3. **Late night needs justification** — most NPCs sleep. Only innkeepers, guards, and night-owls interact late.
 4. **Prioritize pairs with shared history**, but fresh encounters between NPCs who share a location are also good — especially if their roles create natural friction or camaraderie.
-5a. **Knows = legitimate gossip ground.** The inline `Knows:` line under each NPC packs world-canonical facts separated by periods (faction leader deaths, dragon attacks, completed quests, destroyed places). Each sentence is a distinct fact. NPCs MAY gossip about a Knows fact even when neither personally witnessed the event — these are public truths the world is aware of. Memories and gossip in scope are the other valid grounds; build interactions from what NPCs have experienced or what the world knows.
-5b. **Knows = contradiction blocker.** NPCs MUST NOT gossip about people or events as if current when their Knows line says otherwise. Do NOT whisper "I wonder if Ulfric will win the war" when Knows says Ulfric is dead — they would gossip the death, the succession, or the war's new course instead.
+5. **`Knows:` is a CONSTRAINT, not a topic.** The inline `Knows:` line lists world-canonical facts (faction leader deaths, completed quests, destroyed places). Use it ONLY to filter out contradicting gossip — NPCs MUST NOT gossip about people or events as if current when Knows says otherwise (do not whisper "I wonder if Ulfric will win the war" when Knows says Ulfric is dead). Knows lines are NOT a primary gossip topic — those facts are common knowledge that everyone has already absorbed; if NPCs retold them every tick the world would feel like a broken record. Build gossip from each NPC's individual Memories and the wider gossip section in scope, then quietly fact-check the result against the Knows line and reject any contradiction.
 6. **Past tense narration ONLY**, verb phrase without subject, under 150 characters.
 7. **Keep fact1/fact2/gossip SHORT** — each under 120 characters. These are memory summaries, not prose.
 8. **TOTAL JSON response MUST be under 700 characters.** The system truncates longer responses, breaking parsing. Be concise.
