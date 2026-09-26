@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.5.1 — 2026-09-12
+
+### SkyrimNet Beta 25 migration
+- Moved IntelEngine's 11 executable actions and three category containers into the `galanx.intelengine` external content bundle.
+- Moved four custom prompts and seven character-bio submodules into the same external bundle.
+- Preserved all action names, Papyrus mappings, category IDs, and prompt lookup names.
+- Removed the retired loose `config/actions` and `prompts` copies to prevent duplicate registration.
+- Updated the native dashboard to enumerate and toggle actions in the external bundle.
+- Preserved `config/plugins/IntelEngine` separately so plugin settings and user-managed faction configuration continue to work.
+- Requires SkyrimNet Beta 25 or newer.
+
 ## v3.2.1 — 2026-04-06
 
 ### Fix: Stuck tick watchdog (C++ DLL)

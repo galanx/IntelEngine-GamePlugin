@@ -1,6 +1,11 @@
 # IntelEngine
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
+> [!IMPORTANT]
+> **Compatibility:** IntelEngine 3.5.1 and later requires **SkyrimNet Beta 25 or newer**. It is not compatible with SkyrimNet Beta 24 or earlier.
+>
+> This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
+
 *"Meet me at the Western Watchtower at sunset."*
 *She agrees. Hours pass. The sun dips. You arrive — and she's already there.*
 
@@ -354,9 +359,9 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 - Save/load recovery with full package and linked-ref reconstruction
 - MCM management interface
 
-**SkyrimNet Action YAMLs** — ten AI-selectable actions with eligibility rules, typed parameters, and event strings that feed context back into NPC awareness for future decisions.
+**SkyrimNet External Bundle** — IntelEngine's 11 AI-selectable actions, three category containers, four custom LLM prompts, and seven character-bio submodules ship under `SKSE/Plugins/SkyrimNet/external/galanx.intelengine/`. Action identities and Papyrus entry points remain unchanged.
 
-**SkyrimNet Plugin Manifest** — IntelEngine registers as a SkyrimNet plugin with its own settings file, allowing separate LLM configuration (model, endpoint, API key, temperature, token limit) for the Story Engine DM. Also exposes faction and location blocklists for fine-grained control over story candidates.
+**SkyrimNet Plugin Configuration** — IntelEngine's LLM variant, settings schema, generated `settings.yaml`, and user-editable `factions.yaml` remain under `SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`. This configuration path is separate from the Beta 25 external content bundle.
 
 ---
 
@@ -400,13 +405,15 @@ IntelEngine is under active development. The following features are planned for 
 >
 > **If you use another SkyrimNet mod that provides similar actions** (travel, fetch, deliver, cancel, etc.), you must **disable the overlapping actions** in either IntelEngine or the other mod. Each action YAML has an `enabled: true/false` flag — set conflicting actions to `enabled: false` in whichever mod you want to defer.
 
+> **SkyrimNet Beta 25 / IntelEngine 3.5.1 migration:** IntelEngine content now loads from external plugin id `galanx.intelengine`. After upgrading, review its enablement and priority in SkyrimNet. Existing action names are unchanged, so per-action settings retain their keys, but should still be reviewed after the content-layer migration. Do not move or delete `config/plugins/IntelEngine`; it continues to own IntelEngine settings and faction configuration.
+
 ---
 
 ## Requirements
 
 - Skyrim Special Edition / Skyrim VR
 - [SKSE](https://skse.silverlock.org/)
-- [SkyrimNet](https://github.com/MinLL/SkyrimNet-GamePlugin)
+- [SkyrimNet Beta 25 or newer](https://github.com/MinLL/SkyrimNet-GamePlugin)
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)

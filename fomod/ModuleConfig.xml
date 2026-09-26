@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
-    <moduleName>IntelEngine v3.5.0</moduleName>
+    <moduleName>IntelEngine v3.5.1</moduleName>
     <moduleImage path="fomod\screenshot.png" />
 
     <requiredInstallFiles>
@@ -27,7 +27,7 @@ Features:
 - Autonomous NPC social interactions (npc_interaction, npc_gossip)
 - All features configurable via MCM
 
-Requirements: SKSE, SkyrimNet, PapyrusExtender (po3), PapyrusUtil, MCM Helper</description>
+Requirements: SKSE, SkyrimNet Beta 25 or newer, PapyrusExtender (po3), PapyrusUtil, MCM Helper</description>
                             <files />
                             <typeDescriptor>
                                 <type name="Required"/>
