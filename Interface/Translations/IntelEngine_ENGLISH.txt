@@ -1,0 +1,8 @@
+$IntelEngine_ModName	IntelEngine
+$IntelEngine_ResetConfirm	Reset all active tasks? NPCs will return to their normal routines.
+$IntelEngine_ResetComplete	All tasks have been reset.
+$IntelEngine_ClearMessagesInfo	Message clearing will be available in a future update.
+$IntelEngine_TaskCleared	Task cleared.
+$IntelEngine_NoActiveTasks	No active tasks.
+$IntelEngine_DebugOn	Debug mode enabled.
+$IntelEngine_DebugOff	Debug mode disabled.

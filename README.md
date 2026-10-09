@@ -407,11 +407,13 @@ IntelEngine is under active development. The following features are planned for 
 
 > **SkyrimNet Beta 25 / IntelEngine 3.5.1 migration:** IntelEngine content now loads from external plugin id `galanx.intelengine`. After upgrading, review its enablement and priority in SkyrimNet. Existing action names are unchanged, so per-action settings retain their keys, but should still be reviewed after the content-layer migration. Do not move or delete `config/plugins/IntelEngine`; it continues to own IntelEngine settings and faction configuration.
 
+**v3.5.2 Skyrim compatibility update:** the full package uses the corrected MinLL/CommonLibVR native build with VS 2022 flags. Tested on Skyrim **1.6.1170**, with Epicrob also confirming success on his affected **1.7.x** setup. Use matching SKSE and Address Library; VR is not supported by this build. The release/package version is 3.5.2; the tested DLL retains native version 3.5.1. This release does not include the deferred Papyrus/translation fixes or a claimed fix for CTD issue #15.
+
 ---
 
 ## Requirements
 
-- Skyrim Special Edition / Skyrim VR
+- Skyrim Special Edition / Anniversary Edition; this native build does not support VR
 - [SKSE](https://skse.silverlock.org/)
 - [SkyrimNet Beta 25 or newer](https://github.com/MinLL/SkyrimNet-GamePlugin)
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)

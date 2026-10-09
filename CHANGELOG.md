@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.5.2 — 2026-10-09
+
+### Skyrim compatibility update
+- Uses the pinned MinLL/CommonLibVR native build with the audited non-VR ABI correction.
+- Rebuilds with the corrected VS 2022 compiler flags, retaining C++23 without `/O2`, `/std:c++latest`, or `/d2ReducedOptimizeHugeFunctions`.
+- Includes the freshly compiled Papyrus scripts and rebuilt dashboard in the full package.
+- Verified on Skyrim 1.6.1170; Epicrob confirmed success on his affected 1.7.x setup.
+- Requires SkyrimNet Beta 25 or newer and matching SKSE/Address Library; VR is not supported by this build.
+- Release/package version is 3.5.2; the tested native DLL remains byte-identical and reports 3.5.1.
+- Papyrus/translation backlog fixes and CTD issue #15 remain outside this release.
+
 ## v3.5.1 — 2026-09-12
 
 ### SkyrimNet Beta 25 migration

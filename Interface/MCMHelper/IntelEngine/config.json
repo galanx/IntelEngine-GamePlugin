@@ -144,12 +144,12 @@
       ]
     },
     {
-      "pageDisplayName": "Scheduled Meetings",
+      "pageDisplayName": "Scheduled Tasks",
       "content": [
         {
           "id": "headerScheduled",
           "type": "header",
-          "text": "Scheduled Meetings"
+          "text": "Scheduled Tasks"
         },
         {
           "id": "sSchedule0:Schedule",
