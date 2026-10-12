@@ -404,7 +404,7 @@ Function SaveTaskToHistory(Actor akAgent, String taskType, String target, String
     String[] histArr = StorageUtil.StringListToArray(akAgent, "Intel_TaskHistory")
     Float[] histTimes = StorageUtil.FloatListToArray(akAgent, "Intel_TaskHistoryTime")
     String rendered = IntelEngine.RenderTaskHistorySection(histArr, histTimes, currentTime)
-    StorageUtil.SetStringValue(akAgent, "Intel_TaskHistoryRendered", rendered)
+    StorageUtil.SetStringValue(akAgent, "Intel_TaskHistoryRendered", IntelEngine.EncodeRenderedCache(rendered))
 
     ; Track NPC in interacted list for Story Engine weighted selection
     Actor player = Game.GetPlayer()
@@ -1512,7 +1512,7 @@ Function InjectFact(Actor akNPC, String factText)
     String[] factsArr = StorageUtil.StringListToArray(akNPC, "Intel_Facts")
     Float[] timesArr = StorageUtil.FloatListToArray(akNPC, "Intel_FactTimes")
     String rendered = IntelEngine.RenderFactsSection(factsArr, timesArr, currentTime)
-    StorageUtil.SetStringValue(akNPC, "Intel_FactsRendered", rendered)
+    StorageUtil.SetStringValue(akNPC, "Intel_FactsRendered", IntelEngine.EncodeRenderedCache(rendered))
 
     ; Track NPC in global fact registry for Maintenance sweep
     Actor player = Game.GetPlayer()
@@ -1578,7 +1578,7 @@ Function InjectGossip(Actor akGiver, Actor akReceiver, String gossipText)
     String[] recvToldTo = StorageUtil.StringListToArray(akReceiver, "Intel_GossipToldTo")
     Float[] recvToldTimes = StorageUtil.FloatListToArray(akReceiver, "Intel_GossipToldTimes")
     String recvToldRendered = IntelEngine.RenderGossipToldSection(recvToldTexts, recvToldTo, recvToldTimes, currentTime)
-    StorageUtil.SetStringValue(akReceiver, "Intel_GossipRendered", heardRendered + recvToldRendered)
+    StorageUtil.SetStringValue(akReceiver, "Intel_GossipRendered", IntelEngine.EncodeRenderedCache(heardRendered + recvToldRendered))
 
     ; Giver's told section changed:
     String[] giverToldTexts = StorageUtil.StringListToArray(akGiver, "Intel_GossipTold")
@@ -1590,7 +1590,7 @@ Function InjectGossip(Actor akGiver, Actor akReceiver, String gossipText)
     String[] giverHeardFrom = StorageUtil.StringListToArray(akGiver, "Intel_GossipHeardFrom")
     Float[] giverHeardTimes = StorageUtil.FloatListToArray(akGiver, "Intel_GossipHeardTimes")
     String giverHeardRendered = IntelEngine.RenderGossipHeardSection(giverHeardTexts, giverHeardFrom, giverHeardTimes, currentTime)
-    StorageUtil.SetStringValue(akGiver, "Intel_GossipRendered", giverHeardRendered + giverToldRendered)
+    StorageUtil.SetStringValue(akGiver, "Intel_GossipRendered", IntelEngine.EncodeRenderedCache(giverHeardRendered + giverToldRendered))
 
     DebugMsg("Gossip: " + giverName + " told " + receiverName + ": " + gossipText)
 EndFunction

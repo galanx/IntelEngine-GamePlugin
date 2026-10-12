@@ -449,6 +449,64 @@ All functions are thread-safe and can be called from multiple Papyrus threads si
 
 ---
 
+## Rendered Cache Persistence
+
+```papyrus
+String Function EncodeRenderedCache(String text) Global Native
+```
+
+The Native-owned encoder preserves plain Markdown renderer APIs and the scalar-cache workaround for immediate same-session visibility. Core calls it exactly once immediately before the four complete writes: task history, shared `InjectFact`, receiver gossip and giver gossip. Join each participant's heard+told sections first. Existing list storage/rendering and render-mode gates are unchanged.
+
+One bytewise pass maps `%` → `%25`, BEL → `%07`, TAB → `%09`, LF → `%0A`, VT → `%0B`, FF → `%0C`, CR → `%0D`, ESC → `%1B`. Empty input stays empty; spaces, UTF-8, quotes and backslashes are unchanged. Embedded NUL/binary text is unsupported. The three cached readers reverse the seven control tokens, then `%25` **LAST**, once, before checking emptiness/output. This is neither URI decoding nor an idempotent encoder.
+
+**BREAKING / fresh-new-game-only:** retain the existing keys but start a new game with the repaired DLL, both freshly compiled `IntelEngine.pex`/`IntelEngine_Core.pex` and all three repaired prompts already winning. Existing saves, including apparently cache-free saves, are unsupported: old values can poison restoration before scripts run or ambiguously decode literal percent text. No migration, raw fallback, original-name recovery or post-load safety guarantee is implemented.
+
+Native owns C++/PSC/templates; Game is the Data-layout mirror. Keep both PSC files and all three prompt pairs byte-identical, and mirror this API document explicitly (root staging does not copy docs). Source equality does not prove DLL/PEX freshness, packaged equality does not identify installed winners, and neither proves runtime behavior. Stop on new PEX/old DLL missing binding, old Core PEX/new DLL raw writes, old templates/new encoded caches, or ambiguous providers; do not assume an unbound call's result.
+
+Rollback requires the complete old DLL/PEX/template set and its separately preserved pre-cutover save lineage. Do not load repaired saves under old components or rewrite evidence saves.
+
+### Source-level checks
+
+From Native in a VS2022 amd64 developer shell, create the detached check directory and run:
+
+```powershell
+New-Item -ItemType Directory -Path SKSE/build-cache-check -Force | Out-Null
+cl /nologo /std:c++20 /EHsc /UNDEBUG /I SKSE/src SKSE/tests/RenderedCacheCodecCheck.cpp /Fo:SKSE/build-cache-check/ /Fe:SKSE/build-cache-check/RenderedCacheCodecCheck.exe
+if ($LASTEXITCODE -ne 0) { throw "Codec check compilation failed" }
+& ./SKSE/build-cache-check/RenderedCacheCodecCheck.exe
+if ($LASTEXITCODE -ne 0) { throw "Codec check failed" }
+```
+
+The permanent stdlib-only check uses the real production helper, remains active with `DNDEBUG`, and verifies byte mappings, legacy space/empty transport and full scalar token grammar with unrelated names. Complete consumption means every written record parses with no leftover tokens: the pinned serializer declares its map size then skips empty maps, so record declared/written counts and their gap separately, not as codec failure. Partial records, extra tokens and expected-field mismatches fail; installed unresolved-form discards are a separate observation.
+
+Every decoder-template edit additionally requires a temporary smoke of the actual files through revision-identified SkyrimNet/Inja and verified JSON headers. Only fixture-backed actor/getter/time inputs may be stubbed; never `replace`, literal parsing or output. Do not add Inja to Native dependencies. The DLL retains C++23/MinLL/ABI/release controls; this C++20 source check is not a plugin build or installed-game test.
+
+### Offline verification checkpoint — 2026-10-12
+
+Private ADT / Skyrim 1.6.1170 fresh-lineage B/C companion inspection consumed all 12 SKSE v1 plugin blocks and the complete PapyrusUtil STRV v1 payloads. The whole-span TAB/LF/VT/FF/CR scan ran before key extraction and found zero hits; checked scalar grammar consumed every field with no trailing tokens or empty-map count gap.
+
+| Saved field coverage | B | C |
+|---|---:|---:|
+| Declared / parsed STRV objects | 23 / 23 | 29 / 29 |
+| Stored RNE names | 21 | 27 |
+| Encoded facts caches | 2 | 2 |
+| Encoded gossip caches | 0 | 0 |
+| Encoded task-history caches | 0 | 1 |
+
+All 21 common saved RNE values are unchanged; both encoded facts values are byte-identical. C adds six names and one encoded history cache. User-observed targeted nameplate checks passed after B/C loads; C's indexed SDK record also matches the original reference/name/UUID. Original saves and companions remain unchanged. These are scoped saved-data and name observations, not independently observed immediate prompt decoding or complete four-write acceptance.
+
+An exact-path sweep of every enabled ADT mod, overwrite and physical Data found all six repaired runtime candidates winning from the private override and byte-matching the staged Game set; base ESP/config/dashboard assets remain supplied by the enabled full base. Loaded DLL memory identity and directly exercised encoder binding remain separate runtime gates. PapyrusUtil 46's preserved C-session log reports 29 STRV objects; installed source-revision correspondence is unknown.
+
+Source-qualified generation uses Director Story Dispatch / Informant for facts. Director NPC Social / Gossip writes facts, **not** the receiver/giver gossip caches; those require an eligible autonomous NPC Social gossip event. Completed history requires a non-cancelled task result before slot clearing; FetchPerson has a source-traced success route. Actual prompt verification must enter the scalar branches: task history is scalar only in outer `full` mode (`static` uses lists); inner mode expressions do not widen the outer gate. Do not prescribe guessed console calls or treat incidental logs as decoded-output proof.
+
+Remaining gates: eligible receiver/giver gossip coverage, expected full Markdown/literal-percent equality in actual immediate prompts, loaded module/native-binding identity, and complete warm/cold plus fresh-post-load round trips. Other scalar/list writers and legacy BEL/ESC fidelity remain outside the repair; existing-save migration stays **BLOCKED**. Private fixtures and raw logs are excluded from repository commits.
+
+### Known limitations / deferred: existing-save migration
+
+**BLOCKED.** Other Intel narration/message/reason scalars (including rescue narration), names/destinations and string-list control handling remain outside this repair. They can still expose persistence defects; this is not general Intel/PapyrusUtil storage safety. For future authorized A/B acceptance, scan the whole framed STRV span for raw TAB/LF/VT/FF/CR before key extraction, attribute only unambiguous boundaries and require expected-field/name equality. Original BEL/space and lone-ESC/empty fidelity in other scalars is unknown from serialized bytes alone.
+
+Migration remains blocked until production codec/grammar and real-template checks, a coherent fresh package, installed winner/module/native-binding identity, immediate rendering, unchanged clean-A warm and independent cold loads, and fresh post-load cache B reload all pass with layered evidence. Source checks alone cannot unblock it. Even all passing gates permit only separately requested planning of an approved follow-up; no automatic migration or discarded-name recovery. The local OpenSpec record is gitignored; local docs/handoffs are not commit/push/publication evidence.
+
 ## Building the DLL
 
 Use the repository helper rather than cloning CommonLib or configuring CMake manually. From the repository root, choose a new, repository-local build directory that does not already contain a build (use a distinct name for each fresh build):
@@ -475,6 +533,29 @@ The root `build.ps1` retains its existing toolkit/Data/deployment defaults. Pass
 ## Verification Evidence
 
 Evidence must be described at the state actually observed; a source declaration or successful compile does not show installation, deployment, or runtime behavior.
+
+### Rendered-cache source checkpoint (2026-10-12)
+
+- Production stdlib check passed: all 255 supported non-NUL bytes, exact percent/control mapping, UTF-8/quotes/backslash/empty transport, all three families and both gossip joins, unrelated names, full grammar, declared/written empty-map gap and malformed/raw controls.
+- Actual Native and Game prompt files each passed 47 temporary real-Inja checks (SkyrimNet `87eccda247690c3b29c403e9e15b44f6747f159d`, Inja `affabd9fb6e679b2535382063e11ac9cc5ff860c`, JSON 3.12.0): byte recovery, percent-last literals, empty caches, list ordering, actor/mode gates and current-task behavior. The old gossip reader failed the same decoded-byte check before its repair.
+- All five PSC/template mirrors and this API document matched byte-for-byte. `verify.ps1 -SkipDeployTargets -Quiet` passed 79 source-asset checks, not DLL/PEX freshness or runtime checks.
+- **At the source-stage checkpoint:** canonical/package DLL and PEX files were still the old generation; source checks did not establish compiled/package/runtime acceptance. The detached build attempt below supersedes only the compiled-artifact status. Existing-save migration stays BLOCKED.
+
+### Historical detached build attempt — prerequisite stop (2026-10-12)
+
+- Detached Native DLL build completed 513/513 steps with VS2022 MSVC 19.44.35229.0, existing clean pinned CommonLib and installed static vcpkg dependencies. All 511 generated compiler commands retain `/Od /Ob0 /DNDEBUG /std:c++23preview -MT`; SE/AE enabled, VR disabled, audited ABI correction preserved. Manifest installation disabled and FetchContent disconnected; no downloads or deployment hooks.
+- Fresh `SKSE/build-cache-persistence-20261012/IntelEngine.dll`: 5,639,680 bytes, SHA-256 `6eef089112311aba26a5d95af3fad1c506b6ab3923a8a2b3b29e9da6a76ddfb3`; expected SKSE exports inspected. Native canonical `SKSE/build/Release/IntelEngine.dll` remains unchanged at `4f8eec94da652362cabca0a3f45c323baaef92bb03cf7e8567863ba6d1bc6c17`.
+- Original compiler built current `IntelEngine.psc` into detached `SKSE/build-papyrus-cache-persistence-20261012/IntelEngine.pex`: 18,229 bytes, SHA-256 `555892ac9a632c29a1d21f290e2892c93bf20a43e451bd5c21f1b0cbd1fdafc2`, zero warnings/errors. Read-only disassembly confirms the new String-returning Global Native encoder with one String parameter. This is not runtime native-binding proof.
+- **Stopped:** Core compilation exited 255 because configured imports lack `SkyMessage` and `MiscUtil` declarations (Core 1140; transitive StoryEngine 1685,2086,3367,3369,4362). No fresh Core PEX, retry, stub headers or unrelated source repair. Read-only discovery found genuine SkyMessage source at `D:/git/MessageBox/Scripts/Source/SkyMessage.psc`; genuine MiscUtil header provenance remains unresolved in the inspected repositories.
+- Per-run integrity checks preserved 130 compiler/source/header input files and all 61 Game payload files. **No compiled Game staging:** the DLL/two-PEX set is incomplete, so packaged binaries remain old. No installation, loaded module/binding, immediate rendering or clean-A/B Skyrim acceptance is claimed; migration remains BLOCKED. Resolve real headers and obtain continuation authority before retrying.
+
+### Verified local rendered-cache candidate — not deployed (2026-10-12)
+
+- The supplied `D:/gerkgit/SkyrimNet_iPrompts/_build_tools/config.bat:29,37` resolved genuine local PapyrusUtil MiscUtil and Papyrus MessageBox SkyMessage headers. The authorized Core-only retry appended those two read-only folders to the explicit compiler import list, without editing config/shared headers, source or installed mods. Original compiler completed with zero errors/warnings; both PEX files exist only in the detached Native output before staging.
+- Fresh `SKSE/build-papyrus-cache-persistence-20261012/IntelEngine_Core.pex`: 91,043 bytes, SHA-256 `77b5dfc9b7d390a77e9f6291a4be19a12ddf88c17289005612f01bb961860718`. Disassembly verifies all four completed scalar writes use the encoder exactly once, with heard+told joins before both gossip encoder calls. The prior successful DLL/API PEX were preserved, not rebuilt.
+- Game `SKSE/Plugins/IntelEngine.dll`, `Scripts/IntelEngine.pex` and `Scripts/IntelEngine_Core.pex` now match the three fresh detached artifacts and hashes above. Payload integrity comparison found exactly those three changed files; unrelated package assets and 137 compiler/source/header inputs were preserved. All five PSC/template mirror pairs and this API document match; no extra matching affected DLL/PEX/prompt providers were found inside Game's repository.
+- `verify.ps1 -SkipDeployTargets -Quiet` passed 79 source-asset checks; fresh/package SHA-256 equality separately covers the DLL/two PEX omitted by that flag. Native's canonical DLL intentionally remains the old hash above: do not run root staging, which would copy that old DLL back into Game. A full canonical-equality verifier is not the acceptance route for this authorized detached candidate.
+- **Source, compiled and locally staged candidate only.** No installed/VFS winners, loaded module/native binding, immediate prompts, clean-A warm/cold or fresh-B reload were verified. Deployment/provider inspection and bounded gameplay require separate authority. Existing saves remain unsupported, other scalar/list writers remain outside scope, and migration remains BLOCKED until the remaining base gates pass.
 
 ### Historical RC1/RC2 checks (2026-10-05)
 

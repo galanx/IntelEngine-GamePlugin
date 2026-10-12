@@ -669,7 +669,7 @@ Int Function GetPlayerInteractionCount(Actor akNPC) Global Native
 ; =============================================================================
 
 ; Pre-render facts section (first person). Returns "## Things I Know\n- I ..."
-; Store result with StorageUtil.SetStringValue(npc, "Intel_FactsRendered", ...)
+; Encode the complete result once before StorageUtil.SetStringValue.
 String Function RenderFactsSection(String[] facts, Float[] factTimes, Float currentGameDays) Global Native
 
 ; Pre-render gossip heard section (first person). Returns "## Rumors I've Heard\n..."
@@ -680,6 +680,10 @@ String Function RenderGossipToldSection(String[] rumors, String[] recipients, Fl
 
 ; Pre-render task history section (first person). Returns "### Past Tasks\nWhat I've done:\n..."
 String Function RenderTaskHistorySection(String[] descs, Float[] times, Float currentGameDays) Global Native
+
+; Lossless rendered-cache storage encoding; join gossip before calling once.
+; Cached prompt readers reverse control tokens, then %25 LAST. Fresh games only.
+String Function EncodeRenderedCache(String text) Global Native
 
 ; =============================================================================
 ; DASHBOARD FUNCTIONS

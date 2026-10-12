@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Rendered-cache persistence — packaged candidate, limited verification
+- Adds Native-owned `EncodeRenderedCache` at all four complete writes (history, shared facts, receiver/giver joined gossip), with control-token decoding and `%25` last in all three mirrored cached prompt readers. Plain Markdown renderer APIs, immediate scalar visibility, list branches and mode gates are preserved.
+- **Breaking: fresh-new-game lineage only**, begun with the repaired DLL, both fresh PEX files and repaired prompts already winning. Existing saves remain unsupported; no migration or original-name recovery. Stop on mixed DLL/PEX/template generations. Rollback requires the complete old set and a separately preserved compatible save lineage.
+- Production stdlib codec/grammar and real-Inja template checks pass. The repaired DLL and both affected PEX files were built into detached Native outputs; a Core-only retry with verified real header folders resolved the initial missing-import stop. Game's DLL/two PEX match fresh-output hashes; all five source/template pairs and API docs match, and the source verifier passed 79 checks. Only those three compiled payloads changed; no downloads, shared-header/config edits, canonical Native DLL overwrite or unrelated package mutation. Current ADT disk-provider checks identify the coherent six-file override; loaded memory/native binding and full cache acceptance remain gated. No release/publication is claimed.
+- Other Intel narration/message/reason scalars (including rescue narration), name/destination text and string-list controls remain outside this repair. This is not general Intel/PapyrusUtil persistence safety.
+- Offline fresh-lineage ADT companions pass complete SKSE framing, whole-STRV control scanning and scalar grammar: 23/29 objects, 21/27 stored names, all 21 common names unchanged, two encoded facts byte-identical, one new encoded task-history cache in the later checkpoint, and no gossip caches yet. Targeted user-observed name checks passed; actual immediate prompt decoding and all-family warm/cold/post-load persistence remain unverified. Original fixtures and logs remain private and unchanged; see mirrored API verification checkpoint.
+
+### Known limitations / deferred: existing-save migration
+- **BLOCKED** until production codec/grammar and actual-template checks, coherent fresh packaging, installed winner/module/native-binding identity, immediate rendering, unchanged clean-A warm and independent cold loads, and fresh post-load cache B reload all pass with layered evidence. A/B must pass full-span delimiter scanning and expected-field/name equality; source checks or builds alone cannot unblock migration.
+- All gates passing allows separately requested planning only, with a separately approved follow-up. No automatic migration/change creation or discarded-name recovery. Keep both Native/Game API docs mirrored. Local gitignored OpenSpec files and saved handoffs are not committed, remote or published evidence.
+
 ## v3.5.2 — 2026-10-09
 
 ### Skyrim compatibility update
