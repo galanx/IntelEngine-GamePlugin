@@ -223,7 +223,7 @@ Function Maintenance(Bool isFirstLoad = false)
     EndIf
 
     ; Initialize arrays if needed (split check — Papyrus doesn't short-circuit ||)
-    If SlotStates == None
+    If !SlotStates
         InitializeSlotArrays()
     ElseIf SlotStates.Length != MAX_SLOTS
         InitializeSlotArrays()
