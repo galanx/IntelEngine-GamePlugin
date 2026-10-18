@@ -501,14 +501,14 @@ Core `Maintenance` uses `If !SlotStates`; Schedule `RestartMonitoring` uses `If 
 
 ### Verification status
 
-Verified on Skyrim 1.6.1170 with the coherent repaired DLL, PEX and prompt set, starting from a fresh new game:
+Verified on Skyrim 1.6.1170 and 1.7.104 with the coherent repaired DLL, PEX and prompt set, starting from a fresh new game:
 
 - Facts, giver/receiver gossip and completed task history are written encoded and render decoded in actual prompts.
 - A saved checkpoint keeps all rendered caches, stored RNE names and on-screen names identical across a warm reload (return to Main Menu in the same process) and an independent cold-process reload.
 - Saved co-save streams parse completely with no raw delimiter bytes in rendered caches.
 - Repaired scripts compile and disassemble cleanly; maintenance, recovery and populated-schedule retention were exercised across save/reload.
 
-Not separately verified on 1.7.x for this repair. Detailed run evidence is kept in the maintainer's private evidence log.
+On 1.7.104, generated on-screen names can take a moment to reappear after a load; the stored names are unaffected. Detailed run evidence is kept in the maintainer's private evidence log.
 
 ### Known limitations
 
