@@ -11,7 +11,7 @@
 - Replace one Core and two Schedule array-null comparisons with boolean guards, preserving initialization, length validation, restored state, recovery and monitoring.
 
 ### Verification and support
-- Verified on Skyrim 1.6.1170 from a fresh new game: caches, stored RNE names and on-screen names survive warm and independent cold reloads; repaired scripts compile and disassemble cleanly, and maintenance and populated-schedule retention were exercised across save/reload. Not separately verified on 1.7.x.
+- Verified on Skyrim 1.6.1170 and 1.7.104 from a fresh new game: caches, stored RNE names and on-screen names survive warm and independent cold reloads; repaired scripts compile and disassemble cleanly, and maintenance and populated-schedule retention were exercised across save/reload. On 1.7.104, on-screen names can take a moment to reappear after loading.
 - **Fresh-new-game lineage only.** Existing-save migration is planned as a separate change. See [DLL API documentation](docs/DLL_API.md#rendered-cache-persistence).
 
 ## v3.5.2 — 2026-10-09
