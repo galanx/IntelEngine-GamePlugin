@@ -449,6 +449,73 @@ All functions are thread-safe and can be called from multiple Papyrus threads si
 
 ---
 
+## Rendered Cache Persistence
+
+```papyrus
+String Function EncodeRenderedCache(String text) Global Native
+```
+
+The Native-owned encoder preserves plain Markdown renderer APIs and the scalar-cache workaround for immediate same-session visibility. Core calls it exactly once immediately before the four complete writes: task history, shared `InjectFact`, receiver gossip and giver gossip. Join each participant's heard+told sections first. Existing list storage/rendering and render-mode gates are unchanged.
+
+One bytewise pass maps `%` → `%25`, BEL → `%07`, TAB → `%09`, LF → `%0A`, VT → `%0B`, FF → `%0C`, CR → `%0D`, ESC → `%1B`. Empty input stays empty; spaces, UTF-8, quotes and backslashes are unchanged. Embedded NUL/binary text is unsupported. The three cached readers reverse the seven control tokens, then `%25` **LAST**, once, before checking emptiness/output. This is neither URI decoding nor an idempotent encoder.
+
+**BREAKING / fresh-new-game-only:** retain the existing keys but start a new game with the repaired DLL, both freshly compiled `IntelEngine.pex`/`IntelEngine_Core.pex` and all three repaired prompts already winning. Existing saves, including apparently cache-free saves, are unsupported: old values can poison restoration before scripts run or ambiguously decode literal percent text. No migration, raw fallback, original-name recovery or post-load safety guarantee is implemented.
+
+Native owns C++/PSC/templates; Game is the Data-layout mirror. Keep both PSC files and all three prompt pairs byte-identical, and mirror this API document explicitly (root staging does not copy docs). Source equality does not prove DLL/PEX freshness, packaged equality does not identify installed winners, and neither proves runtime behavior. Stop on new PEX/old DLL missing binding, old Core PEX/new DLL raw writes, old templates/new encoded caches, or ambiguous providers; do not assume an unbound call's result.
+
+Rollback requires the complete old DLL/PEX/template set and its separately preserved pre-cutover save lineage. Do not load repaired saves under old components or rewrite evidence saves.
+
+### Source-level checks
+
+From Native in a VS2022 amd64 developer shell, create the detached check directory and run:
+
+```powershell
+New-Item -ItemType Directory -Path SKSE/build-cache-check -Force | Out-Null
+cl /nologo /std:c++20 /EHsc /UNDEBUG /I SKSE/src SKSE/tests/RenderedCacheCodecCheck.cpp /Fo:SKSE/build-cache-check/ /Fe:SKSE/build-cache-check/RenderedCacheCodecCheck.exe
+if ($LASTEXITCODE -ne 0) { throw "Codec check compilation failed" }
+& ./SKSE/build-cache-check/RenderedCacheCodecCheck.exe
+if ($LASTEXITCODE -ne 0) { throw "Codec check failed" }
+```
+
+The permanent stdlib-only check uses the real production helper, remains active with `DNDEBUG`, and verifies byte mappings, legacy space/empty transport and full scalar token grammar with unrelated names. Complete consumption means every written record parses with no leftover tokens: the pinned serializer declares its map size then skips empty maps, so record declared/written counts and their gap separately, not as codec failure. Partial records, extra tokens and expected-field mismatches fail; installed unresolved-form discards are a separate observation.
+
+Every decoder-template edit additionally requires a temporary smoke of the actual files through revision-identified SkyrimNet/Inja and verified JSON headers. Only fixture-backed actor/getter/time inputs may be stubbed; never `replace`, literal parsing or output. Do not add Inja to Native dependencies. The DLL retains C++23/MinLL/ABI/release controls; this C++20 source check is not a plugin build or installed-game test.
+
+### Papyrus API declarations and array guards
+
+Native owns the three repaired PSC files; Game's source mirrors are byte-identical. `IntelEngine.psc` now declares the existing registered implementations with these signatures; no native implementation, consumer dispatch or compatibility alias was added:
+
+```papyrus
+String Function ClaimPendingDirectorParams() Global Native
+String Function BuildSafetyNetContextJson(Actor akActor, Int keywordHint) Global Native
+Int Function HasScheduleKeywords(Actor akActor) Global Native
+Actor Function GetLastConversationPartner() Global Native
+Actor Function GetSafetyNetNPC() Global Native
+Function NotifyNewDialogue() Global Native
+Int Function RunSafetyNetCheck() Global Native
+```
+
+Schedule hints are `0=none`, `1=meeting`, `2=fetch`, `3=delivery`. `GetSafetyNetNPC` returns the last stored positive-check NPC if still resolvable; a negative check does not clear it. `NotifyNewDialogue` resets unchanged-dialogue backoff, not the cooldown timestamp. Context JSON is escaped and empty for unavailable actor/dialogue. Director claim atomically consumes pending parameters as JSON, returning empty when already claimed. Literal source consumers were not found in either repository; external/dynamic callers remain unexcluded.
+
+Core `Maintenance` uses `If !SlotStates`; Schedule `RestartMonitoring` uses `If !ScheduledAgents` twice. Initialization, Core's separate length validation, restored arrays, co-save/legacy recovery, recount and monitoring remain unchanged. The encoder declaration, four complete writes and three mirrored readers are preserved.
+
+### Verification status
+
+Verified on Skyrim 1.6.1170 with the coherent repaired DLL, PEX and prompt set, starting from a fresh new game:
+
+- Facts, giver/receiver gossip and completed task history are written encoded and render decoded in actual prompts.
+- A saved checkpoint keeps all rendered caches, stored RNE names and on-screen names identical across a warm reload (return to Main Menu in the same process) and an independent cold-process reload.
+- Saved co-save streams parse completely with no raw delimiter bytes in rendered caches.
+- Repaired scripts compile and disassemble cleanly; maintenance, recovery and populated-schedule retention were exercised across save/reload.
+
+Not separately verified on 1.7.x for this repair. Detailed run evidence is kept in the maintainer's private evidence log.
+
+### Known limitations
+
+- **Fresh new games only.** Existing saves are unsupported. Existing-save migration is planned as a separate change and is not part of this repair; already-lost names or history cannot be recovered.
+- Exact binary-to-source provenance for the installed PapyrusUtil is unavailable; acceptance rests on observed behavior of the installed DLL.
+- Other Intel narration/message/reason scalars (including rescue narration), names/destinations and string-list control handling remain outside this repair. This is not general Intel/PapyrusUtil storage safety.
+
 ## Building the DLL
 
 Use the repository helper rather than cloning CommonLib or configuring CMake manually. From the repository root, choose a new, repository-local build directory that does not already contain a build (use a distinct name for each fresh build):
@@ -466,40 +533,35 @@ The root `build.ps1` is an asset staging/deployment pipeline, not an isolated DL
 
 ```powershell
 .\verify.ps1 -Quiet
-.\verify.ps1 -DataDir D:\git\IntelEngine-GamePlugin -SkipDeployTargets
-.\verify.ps1 -TestDest D:\Modlists\Example\mods\IntelEngine
+.\verify.ps1 -DataDir "<IntelEngine-GamePlugin checkout>" -SkipDeployTargets
+.\verify.ps1 -TestDest "<MO2 instance>\mods\<IntelEngine mod>"
 ```
 
-The root `build.ps1` retains its existing toolkit/Data/deployment defaults. Pass its paths and opt-out flags explicitly; the verifier's defaults do not configure or authorize staging.
+The root `build.ps1` reads optional machine-specific defaults from gitignored `build.local.psd1`, a PowerShell data-file hashtable with `DataDir`, `ToolkitRoot`, `TestDest`, `VanillaDest` and `CKDest` keys. Explicit parameters override local defaults. Without local defaults, supply `-DataDir`, `-ToolkitRoot` when compiling, and all three deployment targets unless using `-SkipDeploy`. The verifier does not read this file; its defaults do not configure or authorize staging.
 
 ## Verification Evidence
 
 Evidence must be described at the state actually observed; a source declaration or successful compile does not show installation, deployment, or runtime behavior.
 
+### Rendered-cache source checkpoint (2026-10-12)
+
+Source and template verification evidence is kept in the maintainer's private evidence log.
+
+### Historical detached build attempt — prerequisite stop (2026-10-12)
+
+Historical detached-build verification evidence is kept in the maintainer's private evidence log.
+
+### Historical local rendered-cache packaging checkpoint — before deployment (2026-10-12)
+
+Historical local-packaging verification evidence is kept in the maintainer's private evidence log.
+
 ### Historical RC1/RC2 checks (2026-10-05)
 
-- **Source/configuration:** the plugin declares Independent struct compatibility and Address Library mode, with minimum SKSE version 0. The build enables Skyrim SE and AE and disables VR.
-- **Original RC1 build:** the initial Ninja Release build in `SKSE/build-minll-989d4fb1` completed 513 steps and exported the expected SKSE entry points and Address Library metadata. Its DLL was 3,818,496 bytes, SHA-256 `69ce3e0c2797a561eb9311d8f3c398849d3513d6de1af642a64b792cea5fa2eb`. It was packaged as `IntelEngine-v3.5.2-rc1-dll.zip` and is now named `IntelEngine-v3.5.2-rc1-dllOnly.zip`; the archive still contains the original failing DLL, whose native metadata/log version is 3.5.1. This candidate is rejected for testing after the startup crash; successful compilation and metadata inspection did not establish ABI safety.
-- **Installed RC1 incident artifact (historical):** at the time of the startup crash, the DLL in ADT's `IntelEngine-v3.5.2-rc1-dllOnly/SKSE/Plugins` folder matched the original RC1 hash. Read-only inspection established the selected `SkyrimNet_iActions_dev` profile with that mod enabled. This records the incident's installed-folder provenance, not the folder's later contents or a memory-image hash. No installed DLL was changed by the assistant.
-- **Observed 1170 failure:** `crash-2026-10-05-20-17-52.log` faults in engine `TESObjectCELL::GetLocation` through `LocationHasKeyword` condition evaluation. The bad cell pointer is the actor's `SetParentCell` function address. Disassembly of the RC1 DLL shows saved-cell reads dispatching to slot `0x98`; the actual 1170 engine getter is at `0x97`. One compiled call loads the setter address into `RDX` before invoking it, matching the code-pointer-as-cell corruption.
-- **Offline correction smoke:** the same engine-compatible saved-cell fixture compiled against the original header reported `FAIL: getter=0 setter=1 returned_expected=0 parent_unchanged=0`; with the generated corrected header it reported `PASS: getter=1 setter=0 returned_expected=1 parent_unchanged=1`. No Skyrim executable or plugin DLL was loaded by this fixture. The generated header SHA-256 is `066933f1dd09d4d2f0b681f90de4f9a4562a704bcbc3275178690afbfaf181ca`; the original LF-normalized header SHA-256 is `98a8a1cb24f51b893b4343c4c552e363d9bc90ee7a611c05f7719c2479bec2b6`.
-- **Corrected compiled artifact:** all 513 source-build steps were attempted; the last link initially failed because the output DLL was held by the assistant's PE-inspection mapping. After closing that mapping, the remaining link succeeded. Fresh `SKSE/build-minll-989d4fb1/IntelEngine.dll` and canonical `SKSE/build/Release/IntelEngine.dll` are byte-identical: 3,818,496 bytes, SHA-256 `914d280e60f2183f627d1ca4fbbcaa89ea80f82d9fe9a39d673c8072f50a6ead`. Linked getter sites use `0x4B8` (slot `0x97`), not the former `0x4C0` (setter slot `0x98`); this was checked at the same four incident-relevant RVAs and across 24 indirect-call/load candidates. The three SKSE exports, native version 3.5.1, struct/address-library flags, and minimum SKSE 0 remain unchanged.
-- **Corrected DLL-only package:** `SKSE/build/Release/IntelEngine-v3.5.2-rc2-dllOnly.zip` contains the corrected DLL plus ten license/notice files, without scripts or other gameplay assets. All eleven members were verified by byte comparison, ZIP CRC checks, and independent Windows ZIP extraction/hashing. The archive is 1,684,848 bytes, SHA-256 `09ffc0c11ccbe2883126738a8e2b09bbbfa1dce4dfab9e8091dbcfb1038e5f82`. RC2 is the package label; native metadata remains 3.5.1. The original RC1 archive still contains the rejected DLL.
-- **Installed corrected artifact:** after the user's successful run, read-only inspection of the DLL in ADT's still-RC1-named enabled mod folder found the corrected `914d280e...` SHA-256 above. Folder/package names do not establish DLL identity. This is an installed-file hash, not a loaded-memory-image hash; the assistant did not replace the installed DLL or launch the game.
-- **Observed corrected 1170 run:** the user's `SkyrimNetOutput_ADT_2026-10-05_21-23-25-556_7d79f3d1.zip`, correlated with separately captured native and SKSE logs, establishes Skyrim 1.6.1170.0, SKSE 2.2.6, and SkyrimNet Beta 26/API 12. IntelEngine loaded, registered 285 Papyrus functions, completed NPC/location indexing, and loaded a save. A dashboard FetchPerson request reached `ProximityMonitor::Arm`. Task arrival/completion and a serialized task save/reload round trip were not established by this capture.
-- **IntelEngine runtime-audit limits:** the same session reports seven unavailable native static bindings and `None`-to-array cast errors in Core/Schedule Papyrus paths. Their cause and functional impact are not established; the loaded/VFS-winning script bytes were not captured. These findings are not proof of a new CommonLib ABI regression, and a DLL-only package does not update scripts.
-- **Full runtime verification:** all five full NPC/location/action/save-load smoke scenarios remain incomplete. The corrected DLL has partial user-run evidence on 1.6.1170.0, not a full smoke pass; it has no established game run on 1.5.97.0, 1.6.640.0, 1.7.99.0, or 1.7.104.0. The separate original-RC1 user-reported 1.7.104.0 crash has no supplied crash log and no established shared signature. Further installation, game actions, deployment, commits, and publishing require separate authorization.
+Historical ABI, package and partial runtime verification evidence is kept in the maintainer's private evidence log; the original RC1 candidate is rejected.
 
-### VS 2022 flags-off full build and ADT checkpoint (2026-10-09)
+### VS 2022 flags-off full build and runtime checkpoint (2026-10-09)
 
-- **Source/build:** PR #1 baseline `247290858f69eb0a270f928db10795f5ab51e2c1` plus the approved local CMake flag correction, without the parked VS 2026 or NPC tick phase-A changes. VS 2022 MSVC 19.44.35229 / toolset 14.44.35207 completed 513 build steps; all 511 compiler invocations use `/Od /Ob0 /std:c++23preview`, without `/O2`, `/std:c++latest`, `/d2ReducedOptimizeHugeFunctions`, `/GL`, or `/LTCG`. Ten cached vcpkg dependencies were restored; their compiler detection was VS 18, not proof that every dependency was rebuilt with VS 2022.
-- **Packaged artifact:** `SKSE/build/Release/IntelEngine-PR1-2472908-vs2022-flags-off-full.zip`, 5,372,037 bytes, SHA-256 `043969edb3dc7f030d82d83698f143c0d86fe549887efd149f073e2e9ea75299`. The DLL is 5,638,144 bytes, SHA-256 `4f8eec94da652362cabca0a3f45c323baaef92bb03cf7e8567863ba6d1bc6c17`, native version 3.5.1. The full package includes all 11 freshly compiled PEX files and the rebuilt dashboard; 80 asset checks and independent extraction/byte checks passed. The adjacent manifest preserves build-time source and ZIP-member hashes; this checkpoint was added after packaging and does not change the ZIP.
-- **Installed files:** the user's enabled ADT `SkyrimNet_iActions_dev` profile selects `IntelEngine-PR1-2472908-vs2022-flags-off-full`; the older candidates are disabled. All 48 installed FOMOD runtime payload files match the staged package, including the DLL hash above. This is installed-file evidence, not a loaded-memory-image hash. The assistant did not install the mod or launch/control the game.
-- **Runtime observation:** the user reported "Seems to have worked for me" and supplied `SkyrimNetOutput_ADT_2026-10-09_18-34-29-330_c31f306f.zip`. Its validated indexed snapshot `c31f306f-ba81-481e-8e62-bccabf6a0101` selects the 13:32:14.379–13:34:18.420 session; `SkyrimNet.log:6` identifies Skyrim **1.6.1170.0**. Captured SKSE/native logs show IntelEngine loaded, registered 285 functions, refreshed the NPC index after save loading, opened the dashboard, and dispatched Saadia's message through Hulda with a proximity monitor armed.
-- **Contributor confirmation:** the user subsequently reported that Epicrob confirmed the corrected build worked on his affected **1.7.x** setup. This closes the reported black-screen compatibility check for his setup as contributor-reported success. The exact patch version, installed DLL hash, and logs for his run were not supplied; this is not independently log-verified coverage of every 1.7.x runtime.
-- **Save evidence and limits:** native loading recovered one active Amren story slot from the co-save; a later save wrote active-slot state. This is serialization evidence, not proof that every task must resume: `seek_player` story dispatch is deliberately abandoned on load by the existing Papyrus code. The ADT capture does not establish Hulda's message arrival/completion, a new dispatched task's save/reload round trip, or a fix for CTD issue #15. Existing Papyrus and translation backlog fixes remain excluded; SKSE still reports the English translation encoding warning.
-- **Supplemental log identity:** bounded copies captured at 18:37:41 UTC preserve native log SHA-256 `488144e167f22804c999d360c1fe847b5319c7fc674b76adb43cf3a8aaff3677` (180,659 bytes) and SKSE log SHA-256 `53e83934b8c85c94f3e0a3f4d2df7d83bf288dc08b66a3dd0c889b88d3bf5867` (47,150 bytes). Native lines 1754–1758 record save/index recovery; 1797–1803 record dashboard/message dispatch; SKSE line 186 records plugin acceptance. These are the captured logs, not an unbounded audit of a later live file.
-
+Historical build, package and scoped runtime verification evidence is kept in the maintainer's private evidence log.
 
 ## Testing
 

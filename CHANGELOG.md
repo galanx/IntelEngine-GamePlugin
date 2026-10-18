@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Rendered-cache persistence
+- Encode rendered history, facts and joined gossip caches for co-save storage; decode them before prompt rendering. Preserve plain-Markdown renderer APIs and existing list/mode behavior.
+- **Fresh-new-game lineage only:** existing saves remain unsupported; already-lost names cannot be recovered. Other Intel text scalars and string-list writers remain outside this repair.
+
+### Papyrus API and array guards
+- Align the Papyrus API with seven existing native functions; no new native implementation or compatibility aliases.
+- Replace one Core and two Schedule array-null comparisons with boolean guards, preserving initialization, length validation, restored state, recovery and monitoring.
+
+### Verification and support
+- Verified on Skyrim 1.6.1170 from a fresh new game: caches, stored RNE names and on-screen names survive warm and independent cold reloads; repaired scripts compile and disassemble cleanly, and maintenance and populated-schedule retention were exercised across save/reload. Not separately verified on 1.7.x.
+- **Fresh-new-game lineage only.** Existing-save migration is planned as a separate change. See [DLL API documentation](docs/DLL_API.md#rendered-cache-persistence).
+
 ## v3.5.2 — 2026-10-09
 
 ### Skyrim compatibility update

@@ -74,12 +74,12 @@ Function RestartMonitoring()
     {Restart the schedule update loop after game load. Called by Core.Maintenance().
     Quest scripts don't receive OnPlayerLoadGame ? this is the equivalent.
     Script-level arrays survive save/load, so scheduled tasks are still intact.}
-    If ScheduledAgents == None
+    If !ScheduledAgents
         InitializeScheduleArrays()
     EndIf
 
     ; Safety: if arrays still None after init attempt (shouldn't happen), bail
-    If ScheduledAgents == None
+    If !ScheduledAgents
         Core.DebugMsg("Schedule: arrays still None after init — skipping recount")
         ScheduledCount = 0
         RegisterForNextDispatch()
