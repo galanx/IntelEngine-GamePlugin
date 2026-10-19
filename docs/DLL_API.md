@@ -459,11 +459,51 @@ The Native-owned encoder preserves plain Markdown renderer APIs and the scalar-c
 
 One bytewise pass maps `%` → `%25`, BEL → `%07`, TAB → `%09`, LF → `%0A`, VT → `%0B`, FF → `%0C`, CR → `%0D`, ESC → `%1B`. Empty input stays empty; spaces, UTF-8, quotes and backslashes are unchanged. Embedded NUL/binary text is unsupported. The three cached readers reverse the seven control tokens, then `%25` **LAST**, once, before checking emptiness/output. This is neither URI decoding nor an idempotent encoder.
 
-**BREAKING / fresh-new-game-only:** retain the existing keys but start a new game with the repaired DLL, both freshly compiled `IntelEngine.pex`/`IntelEngine_Core.pex` and all three repaired prompts already winning. Existing saves, including apparently cache-free saves, are unsupported: old values can poison restoration before scripts run or ambiguously decode literal percent text. No migration, raw fallback, original-name recovery or post-load safety guarantee is implemented.
+**BREAKING / coherent providers required:** start a fresh new game with the repaired DLL, freshly compiled `IntelEngine.pex`/`IntelEngine_Core.pex` and all three repaired prompts already winning, or use only an eligible offline-converted copy as described below. Unconverted existing saves, including apparently cache-free saves, remain unsupported: old values can poison restoration before scripts run or ambiguously decode literal percent text. There is no raw fallback or general post-load safety guarantee.
 
 Native owns C++/PSC/templates; Game is the Data-layout mirror. Keep both PSC files and all three prompt pairs byte-identical, and mirror this API document explicitly (root staging does not copy docs). Source equality does not prove DLL/PEX freshness, packaged equality does not identify installed winners, and neither proves runtime behavior. Stop on new PEX/old DLL missing binding, old Core PEX/new DLL raw writes, old templates/new encoded caches, or ambiguous providers; do not assume an unbound call's result.
 
 Rollback requires the complete old DLL/PEX/template set and its separately preserved pre-cutover save lineage. Do not load repaired saves under old components or rewrite evidence saves.
+
+### Offline legacy-save conversion
+
+The standalone Windows converter supports a narrowly qualified IntelEngine **3.5.2** writer lineage on Skyrim **1.6.1170.0**, not arbitrary existing saves. One real legacy save passed converted-copy acceptance: 28/28 sampled surviving cache values matched exact UTF-8, plus one explicitly policy-derived facts field; a separate checkpoint retained these and two naturally generated fresh caches (31 fields) through warm and independent cold reloads. Named production facts/gossip templates passed for two sampled actors. All 42 resolvable original names matched; two temporary-actor name spans were preserved byte-for-byte but **not live-verified**. This is not full-HUD or general form-resolution qualification. **Migration on 1.7 is not yet verified**; fresh-new-game repair evidence on 1.7.104 does not establish migration support.
+
+#### Eligibility and refusal policy
+
+- Require complete supported SKSE/STRV framing, exact counts and EOF, canonical lowercase keys, pinned provider/runtime/codec provenance and evidence covering **every** target: `intel_factsrendered`, `intel_gossiprendered`, `intel_taskhistoryrendered`. Inspection alone never grants eligibility.
+- `actor-in-place` requires explicit `legacy_writer: "IE-3.5.2"`, `actor_bel_policy: "space"` and `preserve_rne_name_bel: true` in both the evidence and qualification basis. It preserves serialized identities without resolving/remapping forms. Only qualified actor identities are eligible; temporary cache targets refuse. Temporary holders containing only supported unchanged names may be preserved, not declared runtime-qualified.
+- In that actor policy, serialized BEL means space and LF is allowed within a complete value. Genuine original BEL, ESC, other C0 controls and DEL refuse; non-cache `rne_name` BEL spans remain unchanged. `legacy` fields require independently established original bytes; `legacy-policy` fields additionally declare `original_basis: "owner-policy"` rather than claiming independent originals.
+- Global mode remains stricter: every identity must be global, legacy BEL/ESC collisions refuse, and every target needs independent original-byte evidence. Neither mode guesses unknown sentinel meanings. Already-encoded fields require a pinned writer codec and exact expected original bytes; literal percent text or a filename does not prove encoding.
+- Refuse the whole candidate on truncation, ambiguous framing, declared/written count gaps (including skipped empty maps), unsupported owner/version/identity/key, duplicate or noncanonical keys, missing/duplicate/extraneous field evidence, mismatched spans/hashes, unknown representation or unpinned encoded generation. No partial salvage or force switch.
+- Refuse unmatched companion pairs, source drift, existing/overlapping destinations, unsafe aliases/reparse paths and protected save-directory destinations. Copy-only checks do not prove installation or runtime behavior.
+
+#### Copy-only procedure
+
+1. Close the game. Preserve a matching same-directory, same-stem `.ess` + `.skse` pair and any source archive; work on copies outside live save directories. Back up IntelEngine backing data, including `IntelEngine-<id>.db` and any `-wal`/`-shm` companions, **and SkyrimNet backing databases/data**. The converter backs up only the save pair; neither engine's external database is inside that pair. Loading an earlier save can permanently rewind the playthrough's shared political timeline.
+2. Use the Native repository's standalone `SKSE/migration` build, independent of the DLL. On Windows, configure it with CMake and the existing `nlohmann_json` package via `CMAKE_PREFIX_PATH`, then build `LegacyCacheMigration` and `LegacyCacheMigrationCheck`. Do not substitute a different production codec header.
+3. Inspect the copied co-save:
+
+   ```powershell
+   & ./LegacyCacheMigration.exe inspect --skse ./input/checkpoint.skse
+   ```
+
+4. Obtain source-specific, qualified `evidence.json` and `qualification.json`; these are not generated by `inspect`. Evidence schema 1 binds pair/provider/runtime/codec/qualification hashes and scope. Each field binds decimal-string `object`, exact `key`, byte `start`/`end`, provenance `evidence`, `original_hex` and `representation` (`legacy`, `legacy-policy` or `encoded`); encoded fields also pin `writer_codec_sha256`. The qualification receipt binds provider/runtime/scope and `owner_authorized_offline: true`. Do not copy another save's receipt or invent provenance to bypass a refusal.
+5. Convert with **new**, separate backup/output directories outside all protected/input directories. Replace the example live-save directory with the actual one; repeat `--protected-dir` for every other protected directory:
+
+   ```powershell
+   & ./LegacyCacheMigration.exe convert --ess ./input/checkpoint.ess --skse ./input/checkpoint.skse --evidence ./proof/evidence.json --qualification ./proof/qualification.json --codec ./SKSE/src/RenderedCacheCodec.h --backup ./migration-backup --output ./migration-output --protected-dir "$liveSaveDirectory"
+   ```
+
+   Set `$liveSaveDirectory` to your existing live save directory before running. Optional `--archive FILE` requires matching archive/member hashes and independent membership evidence; the tool hashes but does not extract/authenticate archive membership.
+6. Require successful `verified_offline_conversion` output and a published directory containing `converted.ess`, `converted.skse` and `manifest.json`. Originals are read-locked; `original.ess`/`original.skse` backups are hash-verified and made read-only. Output uses verified staging and no-replace publication; the ESS is unchanged, only qualified co-save spans and necessary enclosing lengths change. Encoded-only `no_conversion` publishes nothing. On refusal/failure, retain diagnostics/backups and do not load staging or incomplete output.
+7. Install the **complete repaired** DLL/PEX/prompt set before manually copying the new pair into an isolated test save location. The tool never installs or loads it. Compare pre-frozen surviving names/text and actual named prompts, then a separate checkpoint's retained and freshly generated caches through warm and independent cold reloads before adopting that lineage. **Never load a converted save with IntelEngine 3.5.2.**
+
+**Rollback:** with the game closed, select the preserved original `.ess`/`.skse` pair with its complete matching old providers, and restore the corresponding IntelEngine/SkyrimNet backing-data snapshot when reverting that timeline. Keep the converted/repaired lineage separate; do not downgrade its saves or mix a pair from different checkpoints. Conversion preserves surviving serialized values, not already-lost names/history, truncated suffixes or unsaved session state; it cannot infer unknown sentinel meanings.
+
+#### Converter checks
+
+The Native source check `SKSE/tests/LegacyCacheMigrationCheck.cpp` uses the production codec and actual converter/transaction code. Run `LegacyCacheMigrationCheck.exe <new-unused-scratch-directory>` after building the standalone targets. It covers global/actor all-family bytes, policy/control/identity/count/framing refusals, mixed/encoded preservation, unchanged names/opaque bytes, exclusive backups and interrupted/failed publication. `SKSE/tests/RenderedCacheCodecCheck.cpp` covers the codec contract. Synthetic byte fixtures are not loadable saves; these checks do not replace the bounded runtime observations above.
 
 ### Source-level checks
 
@@ -512,7 +552,7 @@ On 1.7.104, generated on-screen names can take a moment to reappear after a load
 
 ### Known limitations
 
-- **Fresh new games only.** Existing saves are unsupported. Existing-save migration is planned as a separate change and is not part of this repair; already-lost names or history cannot be recovered.
+- **No blanket existing-save support.** Only the qualified offline conversion above extends the fresh-new-game baseline; already-lost names/history and unsaved state cannot be recovered.
 - Exact binary-to-source provenance for the installed PapyrusUtil is unavailable; acceptance rests on observed behavior of the installed DLL.
 - Other Intel narration/message/reason scalars (including rescue narration), names/destinations and string-list control handling remain outside this repair. This is not general Intel/PapyrusUtil storage safety.
 

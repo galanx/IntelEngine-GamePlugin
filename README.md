@@ -84,6 +84,8 @@ A living political system where 9 factions (configurable) scheme, trade, and wag
 - **Political awareness** — NPCs know about recent political events and react to them in conversation
 - **Prisma UI dashboard** with a Politics tab showing all faction relations, active wars, and player standings
 
+**One political timeline per playthrough:** `IntelEngine-<id>.db` is one database shared by all saves in that playthrough, not a separate database per save. Loading an earlier save permanently removes later political events, wars, battles and standing history, and re-opens wars that ended after that save (`CleanupFutureEvents`). To keep a later timeline, back up the database and its `-wal`/`-shm` companions with the game closed before loading an earlier save; the `.ess`/`.skse` pair alone does not preserve it.
+
 No teleportation. No console commands. No hardcoded location lists. IntelEngine dynamically indexes every actor and location across every cell in the game — every inn, every home, every NPC is discoverable because the index is built from your actual load order.
 
 ---
@@ -395,6 +397,7 @@ IntelEngine is under active development. The following features are planned for 
 - **Lockpick Door** — send an NPC to pick a locked door, gaining access to restricted areas without doing the dirty work yourself.
 - **Steal Item** — task an NPC with stealing something from someone's inventory or home. Risk and reward — their skill determines success.
 - **Background events in SkyrimNet History — backlog, not implemented:** show actual NPC social interactions, rumor/gossip exchanges and political outcomes in the UI event history with meaningful categories, participants and summaries, rather than only travel-oriented `intel_task_event` entries. Owner screenshot/request captured 2026-10-14. Investigate IntelEngine event emission versus SkyrimNet history/schema/filter support before choosing the implementation owner; distinguish executed outcomes from model proposals, rejections and cooldown blocks.
+- **Timeline-rewind notification — backlog, not implemented:** when loading an earlier save removes later political history (`CleanupFutureEvents` > 0), show a top-left `RE::DebugNotification` hint with the count, deferred until the load completes. Separate native feature, not part of the migration release.
 
 ---
 
@@ -408,7 +411,7 @@ IntelEngine is under active development. The following features are planned for 
 
 > **SkyrimNet Beta 25 / IntelEngine 3.5.1 migration:** IntelEngine content now loads from external plugin id `galanx.intelengine`. After upgrading, review its enablement and priority in SkyrimNet. Existing action names are unchanged, so per-action settings retain their keys, but should still be reviewed after the content-layer migration. Do not move or delete `config/plugins/IntelEngine`; it continues to own IntelEngine settings and faction configuration.
 
-> **Unreleased rendered-cache repair:** rendered facts, gossip and task-history caches are now stored encoded, so saved text can no longer corrupt later co-save values such as stored NPC names. Verified on Skyrim 1.6.1170 and 1.7.104: caches, stored RNE names and on-screen names survive warm and independent cold reloads (on-screen names can take a moment to reappear after loading). **Requires a fresh new game** with the complete repaired DLL, both affected PEX files and all three prompts; existing saves are unsupported, and existing-save migration is planned separately. Never mix old and new components. See [protocol, verification and limits](docs/DLL_API.md#rendered-cache-persistence).
+> **Unreleased rendered-cache repair:** rendered facts, gossip and task-history caches are now stored encoded, so saved text can no longer corrupt later co-save values such as stored NPC names. Fresh-new-game repair verified on Skyrim 1.6.1170 and 1.7.104, including warm and independent cold reloads (on-screen names can take a moment to reappear). A bounded offline converter now exists for eligible **IntelEngine 3.5.2 saves**: verified on **one real Skyrim 1.6.1170 legacy save**, with 28/28 sampled surviving caches matching exactly and fresh caches retained through warm/cold reloads. It refuses ambiguous/truncated streams, unknown provenance or sentinel meanings, unsupported identities and unqualified controls; it cannot restore already-lost values. Temporary-actor name bytes were preserved but **not live-verified**. **Migration on 1.7 is not yet verified.** Use the complete repaired DLL, both affected PEX files and all three prompts; never mix components or **load a converted save with 3.5.2**. See [converter eligibility, procedure, tests and limits](docs/DLL_API.md#offline-legacy-save-conversion).
 >
 > **Papyrus API and array guards:** seven existing native functions are now declared in `IntelEngine.psc`, and three array-null checks use boolean guards. Maintenance, recovery and schedule retention were exercised across save/reload.
 
