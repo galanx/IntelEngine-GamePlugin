@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-### Rendered-cache persistence
-- Encode rendered history, facts and joined gossip caches for co-save storage; decode them before prompt rendering. Preserve plain-Markdown renderer APIs and existing list/mode behavior.
-- Add bounded offline conversion for qualified IntelEngine 3.5.2 save copies; refuse ambiguous or unsupported inputs. Already-lost names/history cannot be recovered; other Intel text scalars and string-list writers remain outside this repair.
+### Offline legacy-save fix mode
+- Add a player-oriented one-save fix command for qualifying IntelEngine 3.5.2 serialization, accepting co-save runtimes 1.6.1170.0 and 1.7.104.0 only. It is an offline format/runtime gate, not a claim that all legacy saves qualify.
+- Offline checks passed: both preserved original pairs reproduced their verified converted co-saves byte-for-byte through the production fix entry with a no-game test predicate; original ESS and source metadata remained unchanged. Real Inja/production-codec smoke passed on all three templates, including legacy percent substitutions and encoded literal preservation. The shipped CLI correctly refused while Skyrim was running; closed-game CLI success was not exercised. Migration/codec, refusal, backup-locking, incomplete-publication and Unicode/single-file launcher checks passed.
+- Historical writer provenance cannot be proved from the file. BEL-to-space is an owner policy, not independently established original text.
+- Fix-mode backup covers only the save pair. Rollback also requires matching old providers and corresponding IntelEngine/SkyrimNet external-data backups; do not mix or repeat conversion, load an incomplete output pair, or expect recovery of lost names/history.
 
 ### Papyrus API and array guards
 - Align the Papyrus API with seven existing native functions; no new native implementation or compatibility aliases.
