@@ -4,7 +4,7 @@
 
 ### Rendered-cache persistence
 - Encode rendered history, facts and joined gossip caches for co-save storage; decode them before prompt rendering. Preserve plain-Markdown renderer APIs and existing list/mode behavior.
-- **Fresh-new-game lineage only:** existing saves remain unsupported; already-lost names cannot be recovered. Other Intel text scalars and string-list writers remain outside this repair.
+- Add bounded offline conversion for qualified IntelEngine 3.5.2 save copies; refuse ambiguous or unsupported inputs. Already-lost names/history cannot be recovered; other Intel text scalars and string-list writers remain outside this repair.
 
 ### Papyrus API and array guards
 - Align the Papyrus API with seven existing native functions; no new native implementation or compatibility aliases.
@@ -12,7 +12,7 @@
 
 ### Verification and support
 - Verified on Skyrim 1.6.1170 and 1.7.104 from a fresh new game: caches, stored RNE names and on-screen names survive warm and independent cold reloads; repaired scripts compile and disassemble cleanly, and maintenance and populated-schedule retention were exercised across save/reload. On 1.7.104, on-screen names can take a moment to reappear after loading.
-- **Fresh-new-game lineage only.** Existing-save migration is planned as a separate change. See [DLL API documentation](docs/DLL_API.md#rendered-cache-persistence).
+- Legacy migration verified on one real Skyrim 1.6.1170 save: 28/28 sampled surviving caches exact, plus fresh caches through warm and independent cold reloads. Temporary-actor names preserved byte-for-byte, not live-verified; migration on 1.7 not yet verified. Never load a converted save with 3.5.2. See [converter procedure and limits](docs/DLL_API.md#offline-legacy-save-conversion).
 
 ## v3.5.2 — 2026-10-09
 
@@ -64,7 +64,7 @@
 - **Player standing** — per-faction reputation based on actions, crime, and battle participation
 - **Political awareness** — NPCs know about recent political events and react in conversation
 - **Configurable** — edit `factions.yaml` to add custom factions, change thresholds, set conflict styles
-- **Per-save SQLite database** — political state persists independently per save file
+- **Per-playthrough SQLite database** — all saves in a playthrough share one political timeline; loading an earlier save removes later history and re-opens later-ended wars
 
 ### New: Battle System
 - **Player-present battles** with 5 waves of spawned soldiers (up to 22 per side)
