@@ -32,13 +32,13 @@ Nine factions form alliances, negotiate trade deals, spy on each other, declare 
 
 MCM or Prisma Dashboard → Settings → Skip Action for Followers. Toggle ON for any actions you want blocked ~~(`Go To Location`, `Fetch Person`, `Deliver Message`, `Escort Target`)~~. ~~Followers will still talk, gossip, and interact — they just won't physically leave your side.~~
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM or Dashboard -> Settings -> Skip Action for Followers: turn ON each action you want blocked, including Search For Actor and all three scheduling actions. These default OFF; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
+> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM or Dashboard → Settings → Skip Action for Followers: turn ON each action you want blocked, including Search For Actor and all three scheduling actions. These default OFF; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
 
 **Q: Can I get a confirmation prompt instead of blocking entirely?**
 
 Under Action Confirmation Prompts, set actions to `Followers Only`. You'll get ~~a yes/no popup before any follower departs~~ (this is the default for most actions).
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM -> Settings -> Action Confirmation Prompts -> Followers Only lets you choose Allow, Deny or Deny (Silent). Most actions default to Followers Only, Schedule Meeting defaults to Everyone, and any follower-skip toggle blocks the action without asking.
+> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → Action Confirmation Prompts → Followers Only lets you choose Allow, Deny or Deny (Silent). Most actions default to Followers Only, Schedule Meeting defaults to Everyone, and any follower-skip toggle blocks the action without asking.
 
 **Q:Nothing is happening. No NPCs are approaching me.**
 
@@ -52,7 +52,7 @@ Adjust Check Interval (default 3 hours, range 0.5–168). Lower = more frequent.
 
 Increase ~~NPC Cooldown~~ (default 24 hours, range 6–72).
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM -> Settings -> Story NPC Cooldown (hours): default 24, range 6–72. For NPC-to-NPC activity, adjust NPC Social Cooldown instead.
+> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → Story NPC Cooldown (hours): default 24, range 6–72. For NPC-to-NPC activity, adjust NPC Social Cooldown instead.
 
 **Q: I don't want hostile encounters (ambushes, stalkers).**
 
@@ -62,7 +62,7 @@ MCM → Story Types (DM) → toggle OFF `Ambush`, `Stalker`, or `Faction Ambush`
 
 MCM → Hold Restrictions → ~~set each story type to `Same Town` or `Same Hold`~~.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM -> Hold Restrictions -> choose Same town (everyone) or Same hold (everyone) for each listed story type you want kept local. The civilian-only and follower-exempt options let some NPCs travel farther.
+> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Hold Restrictions → choose Same town (everyone) or Same hold (everyone) for each listed story type you want kept local. The civilian-only and follower-exempt options let some NPCs travel farther.
 
 **Q: Does IntelEngine conflict with SeverActions?**
 
@@ -102,7 +102,7 @@ MCM or Dashboard → Quest Types → toggle OFF what you don't want (Combat, Res
 
 ~~Only if you enable Allow NPC Death (Rescue) (OFF by default).~~ ⚠️ This can permanently kill named NPCs and break other quests.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM -> Settings -> Quest Types -> Allow NPC death in rescue is OFF by default. Leave it OFF to protect rescue victims during the quest; other mods and what happens afterward can still put them at risk.
+> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → Quest Types → Allow NPC death in rescue is OFF by default. Leave it OFF to protect rescue victims during the quest; other mods and what happens afterward can still put them at risk.
 
 **Q: How long do I have to complete a quest?**
 
@@ -116,7 +116,7 @@ Prisma Dashboard (`Shift+7`) → **Politics** tab. Shows faction grid, active wa
 
 Dashboard → Director tab → ~~Political Director. Pick factions, event type, and dispatch.~~
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** Dashboard -> Director -> Political Event: pick both factions and the event type, add a description and a nonzero relation change, then click Dispatch Political Event.
+> **Updated 2026-10-19 (fork dev, after 3.5.2):** Dashboard → Director → Political Event: pick both factions and the event type, add a description and a nonzero relation change, then click Dispatch Political Event.
 
 **Q: Can I add custom factions?**
 
@@ -128,13 +128,13 @@ Edit `factions.yaml` in `SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`. If
 
 Increase Interaction Interval (default 1.5 hours). Or toggle OFF `NPC Gossip` / `NPC Interaction` ~~under Story Types~~.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM -> Settings -> NPC Social Life -> raise NPC Interaction Interval (hours), or turn OFF NPC Gossip / NPC Interaction. The dashboard calls it Interaction Interval; default 1.5 hours, range 0.5–168.
+> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → NPC Social Life → raise NPC Interaction Interval (hours), or turn OFF NPC Gossip / NPC Interaction. The dashboard calls it Interaction Interval; default 1.5 hours, range 0.5–168.
 
 **Q: Can I trigger NPC interactions manually?**
 
 Dashboard → Director tab → ~~NPC Social Director~~.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** Dashboard -> Director -> NPC Social: choose two NPCs, pick Interaction or Gossip, and add the narration.
+> **Updated 2026-10-19 (fork dev, after 3.5.2):** Dashboard → Director → NPC Social: choose two NPCs, pick Interaction or Gossip, and add the narration.
 
 **Q: NPCs take forever to get somewhere.**
 
@@ -144,7 +144,7 @@ Lower Max Travel Time (default 1 day). NPCs exceeding this teleport or give up.
 
 ~~Teleport When Stuck~~ is ON by default. Check Active Tasks in MCM to see and manage ~~all tasks~~.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM -> Settings -> Teleport on stuck/timeout is ON by default. Manage player tasks in MCM -> Active Tasks, or inspect and remove stuck AI packages in Dashboard -> Packages.
+> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → Teleport on stuck/timeout is ON by default. Manage player tasks in MCM → Active Tasks, or inspect and remove stuck AI packages in Dashboard → Packages.
 
 **Q: Too many NPCs doing tasks at once.**
 
@@ -162,7 +162,7 @@ MCM or Dashboard → Auto Dynamic Bio  → toggle ON. Set "Lines Before Update" 
 
 `Shift+7` (default). Change the hotkey in SkyrimNet → Plugin Configurations.
 
-> **Note 2026-10-19:** Hotkey defaults disagree, so set yours in SkyrimNet -> Plugin Configurations -> IntelEngine -> Dashboard Hotkey / Dashboard Modifiers; you'll also need PrismaUI.
+> **Note 2026-10-19:** Hotkey defaults disagree, so set yours in SkyrimNet → Plugin Configurations → IntelEngine → Dashboard Hotkey / Dashboard Modifiers; you'll also need PrismaUI.
 
 **Q: Dashboard too small on 4K?**
 
@@ -192,7 +192,7 @@ If you are continuing a 3.5.2 playthrough, use the release's save converter befo
 
 **Q: What is this fork, and where does it live?**
 
-It's an independently maintained version of Galanx's IntelEngine, with fixes for newer SkyrimNet releases. You'll find it at [Gerkinfeltser/IntelEngine-GamePlugin](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin) and [Gerkinfeltser/IntelEngine-NativePlugin](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin); you'll need SkyrimNet Beta 25 or newer, and VR isn't supported. Galanx created the original mod — please don't treat this fork as endorsed or reviewed by him.
+It's an independently maintained version of Galanx's IntelEngine, with fixes for newer SkyrimNet releases. You'll find it at [Gerkinfeltser/IntelEngine-GamePlugin](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin) and [Gerkinfeltser/IntelEngine-NativePlugin](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin); you'll need SkyrimNet Beta 25 or newer, and VR isn't supported. Galanx created the original mod — please don't treat this fork as endorsed or reviewed by Galanx.
 
 **Q: What changes after Galanx's 3.5.2?**
 
