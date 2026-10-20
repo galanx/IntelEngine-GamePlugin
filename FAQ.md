@@ -2,6 +2,8 @@
 
 By Galanx 3/2026
 
+> **New in this fork:** upgrading a 3.5.2 playthrough? Run the save converter first. See [This fork vs the original IntelEngine](#this-fork-vs-the-original-intelengine) for what changed, how to convert your save, and where to report bugs.
+
 Original answers are preserved below; ~~struck text~~ is superseded by the dated fork-dev update immediately after it, and dated notes qualify unverified claims.
 
 **Q: What is IntelEngine?**
