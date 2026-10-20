@@ -6,6 +6,8 @@
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 
+Read the [player FAQ](FAQ.md) for Galanx's original answers, dated fork-dev corrections, and migration guidance.
+
 *"Meet me at the Western Watchtower at sunset."*
 *She agrees. Hours pass. The sun dips. You arrive — and she's already there.*
 
