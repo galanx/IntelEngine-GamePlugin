@@ -417,6 +417,8 @@ IntelEngine is under active development. The following features are planned for 
 
 Close Skyrim and keep the matching same-directory `.ess` / `.skse` pair together. Run the standalone tool from anywhere with `LegacyCacheMigration.exe fix --save "<path-to-save.ess>"`, or drag one ESS onto the adjacent `Convert-IE-Save.bat`. Fix mode only accepts SKSE co-save format version 1 with IntelEngine owner `0x424510A2`, one STRV v1 block with complete unique framing, and runtimes **1.6.1170.0** or **1.7.104.0**; eligibility does not guarantee every legacy save qualifies.
 
+If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
+
 It preserves the originals in `<stem>_IEbackup/` and creates sibling `<stem>_IEconverted.ess` / `<stem>_IEconverted.skse` without replacing existing files. Exit **0** means both outputs were published; **2** is a usage, eligibility or safety refusal; **3** is an I/O, verification or publication failure. If the second rename fails, the first converted file may remain; do not load an incomplete pair. Install the complete repaired DLL, both affected PEX files and all three prompts before using the converted pair, and never load it with IntelEngine 3.5.2.
 
 Do not repeat conversion or mix original and converted companions. Writer provenance cannot be proved from the save; BEL-to-space is owner policy. Rollback requires the original pair, matching old components and corresponding IntelEngine/SkyrimNet external-data backups; the converter backs up only the pair.
