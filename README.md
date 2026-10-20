@@ -413,21 +413,25 @@ IntelEngine is under active development. The following features are planned for 
 
 > **SkyrimNet Beta 25 / IntelEngine 3.5.1 migration:** IntelEngine content now loads from external plugin id `galanx.intelengine`. After upgrading, review its enablement and priority in SkyrimNet. Existing action names are unchanged, so per-action settings retain their keys, but should still be reviewed after the content-layer migration. Do not move or delete `config/plugins/IntelEngine`; it continues to own IntelEngine settings and faction configuration.
 
-> **Unreleased rendered-cache repair:** new rendered caches use delimiter-safe encoding. Fresh-new-game repair was verified on Skyrim 1.6.1170 and 1.7.104; eligible IE-3.5.2 legacy pairs can use the offline converter below. Already-lost names/history cannot be recovered.
+> **Unreleased rendered-cache repair:** new rendered caches use delimiter-safe encoding. Fresh-new-game repair was verified on Skyrim 1.6.1170 and 1.7.104; eligible saves from IntelEngine 3.5.2 or earlier can use the offline converter below. Already-lost names/history cannot be recovered.
 >
 ### How to convert an old save
 
-Close Skyrim and keep the matching same-directory `.ess` / `.skse` pair together. Run the standalone tool from anywhere with `LegacyCacheMigration.exe fix --save "<path-to-save.ess>"`, or drag one ESS onto the adjacent `Convert-IE-Save.bat`. Fix mode only accepts SKSE co-save format version 1 with IntelEngine owner `0x424510A2`, one STRV v1 block with complete unique framing, and runtimes **1.6.1170.0** or **1.7.104.0**; eligibility does not guarantee every legacy save qualifies.
+For saves from IntelEngine 3.5.2 or earlier. Tested on 3.5.2 saves; saves from older versions convert if their format matches and are refused otherwise. Fix mode does not read the IntelEngine version; qualification is based on co-save format and runtime.
+
+Rendered caches were first stored in IntelEngine 2.0.0; this history does not establish conversion testing on older versions.
+
+Close Skyrim and keep the matching same-directory `.ess` / `.skse` pair together. Run the standalone tool from anywhere with `LegacyCacheMigration.exe fix --save "<path-to-save.ess>"`, or drag one ESS onto the adjacent `Convert-IE-Save.bat`. Fix mode only accepts SKSE co-save format version 1 with IntelEngine owner `0x424510A2`, one STRV v1 block with complete unique framing, and the exact SKSE/runtime header pairs **0x02020060 / 1.6.1170.0** or **0x02030010 / 1.7.104.0**; eligibility does not guarantee every legacy save qualifies.
 
 If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
 
-It preserves the originals in `<stem>_IEbackup/` and creates sibling `<stem>_IEconverted.ess` / `<stem>_IEconverted.skse` without replacing existing files. Exit **0** means both outputs were published; **2** is a usage, eligibility or safety refusal; **3** is an I/O, verification or publication failure. If the second rename fails, the first converted file may remain; do not load an incomplete pair. Install the complete repaired DLL, both affected PEX files and all three prompts before using the converted pair, and never load it with IntelEngine 3.5.2.
+It preserves the originals in `<stem>_IEbackup/` and creates sibling `<stem>_IEconverted.ess` / `<stem>_IEconverted.skse` without replacing existing files. Exit **0** means both outputs were published; **2** is a usage, eligibility or safety refusal; **3** is an I/O, verification or publication failure. If the second rename fails, the first converted file may remain; do not load an incomplete pair. Install the complete repaired DLL, both affected PEX files and all three prompts before using the converted pair. Never load a converted save with 3.5.2 or earlier.
 
 Do not repeat conversion or mix original and converted companions. Writer provenance cannot be proved from the save; BEL-to-space is owner policy. Rollback requires the original pair, matching old components and corresponding IntelEngine/SkyrimNet external-data backups; the converter backs up only the pair.
 
 **If you skip conversion:** fixed templates interpret recognized literal percent escapes as controls (for example, `%0A` becomes a newline); `%250A` becomes literal `%0A` without recursion. This does not make native restoration of raw legacy saves safe. See the [API conversion record](docs/DLL_API.md#player-fix-mode-how-to-convert-an-old-save) for exact decoder results and offline byte comparisons.
 
-Both preserved legacy pairs reproduced their verified converted bytes through the production fix entry with an offline no-game test predicate. The production CLI correctly refused while Skyrim was running; closed-game CLI success was not exercised in this session.
+Both preserved legacy pairs reproduced their verified converted bytes through the unmodified shipped batch and production CLI with Skyrim closed, on ASCII and Unicode/space scratch paths. The production CLI also correctly refused while Skyrim was running. These offline results do not establish general existing-save safety.
 
 > **Papyrus API and array guards:** seven existing native functions are now declared in `IntelEngine.psc`, and three array-null checks use boolean guards. Maintenance, recovery and schedule retention were exercised across save/reload.
 
@@ -443,7 +447,7 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)
-- [Papyrus MessageBox](https://www.nexusmods.com/skyrimspecialedition/mods/83578) (confirmation prompts)
+- Papyrus MessageBox (confirmation prompts): [Papyrus MessageBox - SKSE NG](https://www.nexusmods.com/skyrimspecialedition/mods/83578) for Skyrim 1.6 and earlier, or [PapyrusMessageBox-1.7.104](https://www.nexusmods.com/skyrimspecialedition/mods/193932) for Skyrim 1.7
 
 ### Optional
 

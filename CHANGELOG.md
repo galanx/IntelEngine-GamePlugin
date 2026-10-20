@@ -2,8 +2,10 @@
 
 ## Unreleased
 
+- Install the player FAQ for everyone and add an optional, initially unselected FOMOD upgrade step with the legacy save converter and drag-and-drop launcher for eligible saves from IntelEngine 3.5.2 or earlier; keep the installer instructions short and put limits, warnings and troubleshooting in the FAQ.
+
 ### Offline legacy-save fix mode
-- Add a player-oriented one-save fix command for qualifying IntelEngine 3.5.2 serialization, accepting co-save runtimes 1.6.1170.0 and 1.7.104.0 only. It is an offline format/runtime gate, not a claim that all legacy saves qualify.
+- Add a player-oriented one-save fix command for eligible saves from IntelEngine 3.5.2 or earlier, accepting co-save runtimes 1.6.1170.0 and 1.7.104.0 only. Tested on 3.5.2 saves; saves from older versions convert if their format matches and are refused otherwise. It is an offline co-save format/runtime gate, not an IntelEngine version check or a claim that all legacy saves qualify. Rendered-cache storage first appeared in IntelEngine 2.0.0.
 - Offline checks passed: both preserved original pairs reproduced their verified converted co-saves byte-for-byte through the production fix entry with a no-game test predicate; original ESS and source metadata remained unchanged. Real Inja/production-codec smoke passed on all three templates, including legacy percent substitutions and encoded literal preservation. The shipped CLI correctly refused while Skyrim was running; closed-game CLI success was not exercised. Migration/codec, refusal, backup-locking, incomplete-publication and Unicode/single-file launcher checks passed.
 - Historical writer provenance cannot be proved from the file. BEL-to-space is an owner policy, not independently established original text.
 - Fix-mode backup covers only the save pair. Rollback also requires matching old providers and corresponding IntelEngine/SkyrimNet external-data backups; do not mix or repeat conversion, load an incomplete output pair, or expect recovery of lost names/history.
@@ -14,7 +16,7 @@
 
 ### Verification and support
 - Verified on Skyrim 1.6.1170 and 1.7.104 from a fresh new game: caches, stored RNE names and on-screen names survive warm and independent cold reloads; repaired scripts compile and disassemble cleanly, and maintenance and populated-schedule retention were exercised across save/reload. On 1.7.104, on-screen names can take a moment to reappear after loading.
-- Legacy migration verified on one real Skyrim 1.6.1170 save: 28/28 sampled surviving caches exact, plus fresh caches through warm and independent cold reloads. Temporary-actor names preserved byte-for-byte, not live-verified; migration on 1.7 not yet verified. Never load a converted save with 3.5.2. See [converter procedure and limits](docs/DLL_API.md#offline-legacy-save-conversion).
+- Legacy migration verified on one real Skyrim 1.6.1170 save: 28/28 sampled surviving caches exact, plus fresh caches through warm and independent cold reloads. Temporary-actor names preserved byte-for-byte, not live-verified. One bounded 1.7.104 converted-copy acceptance retained 11 sampled caches, two owner-policy fields and 24 qualified live names through warm and independent cold reloads; four other name holders remain unverified. Never load a converted save with 3.5.2 or earlier. See [converter procedure and limits](docs/DLL_API.md#offline-legacy-save-conversion).
 
 ## v3.5.2 — 2026-10-09
 

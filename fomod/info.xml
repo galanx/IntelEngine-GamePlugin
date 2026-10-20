@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <fomod>
     <Name>IntelEngine</Name>
-    <Author>Galanx</Author>
+    <Author>PhospheneOD (Original by Galanx)</Author>
     <Version>3.5.2</Version>
+    <Website>https://github.com/Gerkinfeltser/IntelEngine-GamePlugin</Website>
     <Description>AI-powered NPC autonomy mod for Skyrim. Gives NPCs the ability to travel, perform tasks, create dynamic story events, and engage in faction politics and wars — all powered by SkyrimNet's LLM integration.
 
-Requirements: SKSE, SkyrimNet Beta 25 or newer, PapyrusExtender (po3), PapyrusUtil, MCM Helper, Papyrus MessageBox</Description>
+Requirements: SKSE, SkyrimNet Beta 25 or newer, PapyrusExtender (po3), PapyrusUtil, SkyUI, Papyrus MessageBox (SKSE NG for Skyrim 1.6 and earlier, 1.7.104 build for Skyrim 1.7)</Description>
     <Groups>
         <element>SkyrimNet</element>
         <element>AI</element>
