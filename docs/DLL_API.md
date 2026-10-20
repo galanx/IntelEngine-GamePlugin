@@ -465,6 +465,29 @@ Native owns C++/PSC/templates; Game is the Data-layout mirror. Keep both PSC fil
 
 Rollback requires the complete old DLL/PEX/template set and its separately preserved pre-cutover save lineage. Do not load repaired saves under old components or rewrite evidence saves.
 
+### Player fix mode: How to convert an old save
+
+The standalone Windows tool includes a one-save `fix` command for eligible IntelEngine 3.5.2 saves. Run it from anywhere: no installed PapyrusUtil hash, VFS or game-root placement is required. Qualification uses SKSE co-save format 1, owner `0x424510A2`, exactly one STRV v1 block with complete unique framing, and co-save runtime **1.6.1170.0** or **1.7.104.0** only. Other formats/runtimes refuse. Existing expert `convert`/`inspect` behavior is unchanged.
+
+Offline production fix-entry comparisons passed after safety corrections: run12 produced 29 caches / 44 name spans and SKSE SHA-256 `645dd18910bac6c3f43f613cf2b16e700b36f235fb76eb40bc6dc49a70a3ea0b`; run15 produced 13 caches / 28 name spans and `224340e1407404d0a4c93f29dbae5a3cfb31654a355a884bcb7c589ef28b9441`. Both ESS outputs were unchanged and preserved-source hashes/metadata matched. These checks used the production fix entry with an injected no-game test predicate: the actual CLI correctly refused while Skyrim was running, so closed-game production CLI success is not claimed. Migration/codec checks, Unicode-path launcher checks and refusal/partial-publication regressions passed.
+
+1. Close Skyrim. Keep the same-directory, same-stem `.ess` and `.skse` pair together. Make sure you have a backup of IntelEngine and SkyrimNet external data as well if you may need timeline rollback.
+2. Put `LegacyCacheMigration.exe` beside `Convert-IE-Save.bat`, or run it directly from any working directory. Drag exactly one `.ess` onto the adjacent batch file, or run:
+
+   ```powershell
+   & "C:\path with spaces\LegacyCacheMigration.exe" fix --save "C:\path with spaces\My Save.ess"
+   ```
+
+3. Success creates `<stem>_IEbackup/` containing the original `.ess` and `.skse`, plus sibling `<stem>_IEconverted.ess` and `<stem>_IEconverted.skse`. The tool does not overwrite existing backup/output files. It leaves the original pair unchanged.
+4. Exit **0** means both verified converted files were published; **2** means usage, eligibility or safety refusal; **3** means I/O, verification or publication failure. If publishing the second file fails, the first converted file may remain. This is an incomplete pair: do not load it, and retain the backup and all remaining files for diagnosis.
+5. Install the complete repaired providers (DLL, both affected PEX files and all three prompts) before using the converted pair. Never load a converted save with IntelEngine 3.5.2. Do not convert again, mix original and converted companions, or assume already-lost names/history can be recovered.
+
+If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
+
+Rollback means restoring the preserved original pair with its matching old providers and the corresponding IntelEngine/SkyrimNet external-data snapshot. The pair backup does not include external databases or their `-wal`/`-shm` files. Do not mix saves/providers or claim general legacy-save safety.
+
+The historical writer's identity/provenance cannot be proved from the file. Treating serialized BEL as a space is owner policy, not recovered original text. The required real-template smoke rendered all three full fixed prompts through Inja commit `affabd9fb6e679b2535382063e11ac9cc5ff860c`. Legacy literal `%07%09%0A%0B%0C%0D%1B%25%250A%0a%41%07` produced payload bytes `07090A0B0C0D1B2525304125306125343107`: the upper-case control tokens became their control bytes, `%25` became `%`, `%250A` became literal `%0A` without recursion, and lowercase `%0a` / unknown `%41` remained literal. Encoding that same literal input with the production codec preserved it through all three templates. This measured decoder behavior does not establish that native restoration of legacy percent text is safe.
+
 ### Offline legacy-save conversion
 
 The standalone Windows converter supports a narrowly qualified IntelEngine **3.5.2** writer lineage on Skyrim **1.6.1170.0**, not arbitrary existing saves. One real legacy save passed converted-copy acceptance: 28/28 sampled surviving cache values matched exact UTF-8, plus one explicitly policy-derived facts field; a separate checkpoint retained these and two naturally generated fresh caches (31 fields) through warm and independent cold reloads. Named production facts/gossip templates passed for two sampled actors. All 42 resolvable original names matched; two temporary-actor name spans were preserved byte-for-byte but **not live-verified**. This is not full-HUD or general form-resolution qualification. **Migration on 1.7 is not yet verified**; fresh-new-game repair evidence on 1.7.104 does not establish migration support.
