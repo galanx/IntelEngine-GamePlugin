@@ -217,6 +217,8 @@ Yes — if you're continuing a 3.5.2 playthrough, run the included converter fir
 3. Keep `LegacyCacheMigration.exe` beside `Convert-IE-Save.bat`, then drag your `.ess` onto `Convert-IE-Save.bat` — leave its matching `.skse` beside the save.
 4. Once conversion succeeds, install this release's full package and load the new `_IEconverted` save, keeping its matching `_IEconverted.skse` alongside it.
 
+If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
+
 This works on **Skyrim 1.6.1170 and 1.7.104 only**. It refuses saves it can't qualify and can't recover already-lost names; skipping it means old names may show up wrong. Your originals stay untouched — don't load an incomplete converted pair or mix old and converted files. **Never load a converted save with IntelEngine 3.5.2.**
 
 Advanced users can read the [native offline-conversion documentation](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/dev/docs/DLL_API.md#offline-legacy-save-conversion).
