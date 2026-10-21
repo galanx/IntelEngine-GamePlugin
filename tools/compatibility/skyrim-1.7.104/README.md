@@ -17,7 +17,7 @@ address-library binary is distributed by this change.
 Python 3.11 or newer; standard library only. From the repository root:
 
 ```console
-python -m unittest discover -s tools/compatibility/skyrim-1.7.104 -p test_patch_intelengine.py -v
+python -m unittest discover -s tools/compatibility/skyrim-1.7.104 -p "test_*.py" -v
 python tools/compatibility/skyrim-1.7.104/patch_intelengine.py --dll SKSE/Plugins/IntelEngine.dll --address-library /path/to/versionlib-1-7-104-0.bin --output /path/to/NEW-private-candidate
 ```
 
@@ -95,15 +95,50 @@ no existing character was imported. Original installed mods stayed unchanged.
   unsavable-callback warning, and UIExtensions/DLC binding warnings after load.
   Their origin has not been established. Successful restoration of one task
   does not establish persistence of every callback.
-- PrismaUI was omitted from the minimal native test profile. The dashboard and
-  UI were not validated. No LLM-originated command, autonomous political event,
-  battle, long playthrough, or compatibility with other NPC controllers was
-  validated. Other changed engine layouts may still require work.
+- PrismaUI was omitted from the initial minimal native profile. Later forced
+  political and combined-controller trials are described below; dashboard/menu
+  operation, automatic LLM dispatch, and long playthroughs remain unvalidated.
+  Other changed engine layouts may still require work.
+
+## Localized politics and combined-profile follow-up
+
+The same native candidate was tested with a French game. Two input mismatches
+prevented political consequences: city labels used where the native manifestation
+gate expects territory names, and canonical English battle locations that the
+localized native resolver cannot find. This update adds a small Papyrus adapter,
+a separate-output faction-config generator, an observed French name example,
+and nine more stdlib tests (17 total). See [POLITICS-LOCALE.md](POLITICS-LOCALE.md)
+for source/build steps, engine regressions, and unresolved defects.
+
+After the corrections, a forced Director border skirmish produced six new
+soldiers. Engine samples showed five living combatants with opposing targets
+and health loss; one other actor was already dead, with cause undetermined.
+In a private combined profile, an IntelEngine travel task and a SeverActions
+follow task remained separately owned during the fight and both restored from
+a save after explicit live cancellation. The relation change -30 to -38 also
+survived reload. These are bounded cases, not general compatibility or proof
+of autonomous LLM decisions. The off-screen battle relation replay defect,
+MessageBox dependency, and additional warnings remain open.
+
+## Existing rebuilt 3.5.2 fork
+
+[Gerkinfeltser's v3.5.2](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/releases/tag/v3.5.2)
+already supplies a source-rebuilt compatibility release and the SkyrimNet Beta25+
+external bundle migration. Prefer investigating that maintained source build
+before using this historical 3.5.0 binary fallback. The accompanying
+[native source](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/tree/v3.5.2)
+is available; do not apply the hash-pinned 3.5.0 patch to its different DLL.
+Our locale work and original-binary persistence diagnosis are complementary,
+not a claim that this older binary patch is the better general release.
+See the version-pinned comparison in POLITICS-LOCALE.md. No runtime test of the
+fork's release is claimed by this report.
 
 ## Upstream source references
 
-The public repository has no C++ build source, so this proposal records a
-reproducible binary experiment rather than claiming to rebuild IntelEngine.
+The original galanx package repository has no C++ build source; the binary
+part of this proposal therefore records a reproducible experiment rather than
+claiming to rebuild IntelEngine. The newer fork linked above does publish its
+native source and should be considered separately.
 A maintainer rebuild against current CommonLib, with an audit of the actual
 engine accesses, is preferable for an official release.
 
@@ -112,4 +147,6 @@ engine accesses, is preferable for an official release.
 - [Current address-library reader](https://github.com/alandtse/CommonLibSSE-NG/blob/ng/src/REL/IDDB.cpp)
 
 This proposal grants no redistribution permission for IntelEngine or the Address
-Library. It adds only the patch/conversion tool, tests, and this report.
+Library. The change contains source, patch/configuration tools, tests, an example name
+mapping, and reports. It does not publish an additional DLL, address table, PEX,
+private configuration, save, or decompiled source.
