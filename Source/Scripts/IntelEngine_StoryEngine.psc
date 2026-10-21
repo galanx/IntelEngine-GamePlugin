@@ -667,6 +667,12 @@ Function TickScheduler()
     If !IsActive
         Actor player = Game.GetPlayer()
         If !player.IsInCombat()
+            String excludeList = BuildExcludeList(player)
+            If AllStoryTypesExcluded(excludeList)
+                Core.DebugMsg("Story: TickScheduler — all player-facing types excluded, skipping DM call")
+                return
+            EndIf
+
             ; Populate recent gossip for DM context (read from StorageUtil, pass to C++)
             Int gossipCount = StorageUtil.StringListCount(player, "Intel_SocialLog_Type")
             If gossipCount > 0
@@ -695,7 +701,6 @@ Function TickScheduler()
             ; worker thread. OnStoryDMContextReady fires the LLM call on completion.
             ; Eliminates ~30-60ms main-thread stutter from synchronous SQL + actor scans.
             PendingStoryType = "dm_analysis"
-            String excludeList = BuildExcludeList(player)
             IntelEngine.BeginAsyncStoryDMTick(7, LongAbsenceDaysConfig, excludeList, \
                 Self, "IntelEngine_StoryEngine", "OnStoryDMContextReady")
         EndIf
@@ -778,6 +783,19 @@ String Function BuildExcludeList(Actor player)
     String result = IntelEngine.BuildExcludeList(toggles, envFlags)
     Core.DebugMsg("BuildExcludeList: [" + result + "] (ambush=" + TypeAmbushEnabled + " message=" + TypeMessageEnabled + " quest=" + TypeQuestEnabled + ")")
     return result
+EndFunction
+
+Bool Function AllStoryTypesExcluded(String excludeList)
+    ; Match whole tokens in the native ", "-separated list, not quest sub-types.
+    String types = ", " + excludeList + ", "
+    return StringUtil.Find(types, ", seek_player, ") >= 0 && \
+        StringUtil.Find(types, ", informant, ") >= 0 && \
+        StringUtil.Find(types, ", road_encounter, ") >= 0 && \
+        StringUtil.Find(types, ", ambush, ") >= 0 && \
+        StringUtil.Find(types, ", stalker, ") >= 0 && \
+        StringUtil.Find(types, ", message, ") >= 0 && \
+        StringUtil.Find(types, ", quest, ") >= 0 && \
+        StringUtil.Find(types, ", faction_ambush, ") >= 0
 EndFunction
 
 ; =============================================================================
