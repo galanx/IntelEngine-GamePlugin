@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v3.6.0 — Unreleased
 
 - Install the player FAQ for everyone and add an optional, initially unselected FOMOD upgrade step with the legacy save converter and drag-and-drop launcher for eligible saves from IntelEngine 3.5.2 or earlier; keep the installer instructions short and put limits, warnings and troubleshooting in the FAQ.
 - Story DM skips ticks when all eight player-facing types are excluded, lists only currently allowed types in the prompt, and discourages repeated seek-player NPCs and long-absence motives. Rebuilt the StoryEngine script from source; offline exclusion and prompt-render checks passed, with in-game qualification still pending.
@@ -16,6 +16,7 @@
 - Replace one Core and two Schedule array-null comparisons with boolean guards, preserving initialization, length validation, restored state, recovery and monitoring.
 
 ### Verification and support
+- Tested on official SkyrimNet Beta 28 on Skyrim 1.6.1170 and 1.7.104.
 - Verified on Skyrim 1.6.1170 and 1.7.104 from a fresh new game: caches, stored RNE names and on-screen names survive warm and independent cold reloads; repaired scripts compile and disassemble cleanly, and maintenance and populated-schedule retention were exercised across save/reload. On 1.7.104, on-screen names can take a moment to reappear after loading.
 - Legacy migration verified on one real Skyrim 1.6.1170 save: 28/28 sampled surviving caches exact, plus fresh caches through warm and independent cold reloads. Temporary-actor names preserved byte-for-byte, not live-verified. One bounded 1.7.104 converted-copy acceptance retained 11 sampled caches, two owner-policy fields and 24 qualified live names through warm and independent cold reloads; four other name holders remain unverified. Never load a converted save with 3.5.2 or earlier. See [converter procedure and limits](docs/DLL_API.md#offline-legacy-save-conversion).
 
