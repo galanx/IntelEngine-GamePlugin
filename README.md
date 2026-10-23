@@ -5,6 +5,7 @@
 > **Compatibility:** IntelEngine 3.5.1 and later requires **SkyrimNet Beta 25 or newer**. It is not compatible with SkyrimNet Beta 24 or earlier.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
+> **Found a bug?** Report it at [IntelEngine issues](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/issues) with your Skyrim, SKSE, SkyrimNet and IntelEngine versions and your logs.
 
 Read the [player FAQ](FAQ.md) for Galanx's original answers, dated fork-dev corrections, and migration guidance.
 
