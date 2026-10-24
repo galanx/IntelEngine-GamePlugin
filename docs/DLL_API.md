@@ -16,8 +16,10 @@ The `IntelEngine.dll` SKSE plugin provides high-performance functions that would
 - Visual Studio 2022 (the supported script uses the VS 2022 Community developer shell), CMake, Ninja, and PowerShell on Windows.
 - MSVC Release builds use `/Od /Ob0 /DNDEBUG` and `/std:c++23preview` for the native plugin and source-built CommonLib. `/O2`, `/std:c++latest`, and `/d2ReducedOptimizeHugeFunctions` are not used. This profile was rebuilt with VS 2022 MSVC 19.44 / toolset 14.44; the language mode retains MinLL's required C++23 support. These build settings do not by themselves establish a runtime black-screen fix.
 - Dependencies are resolved through the repository's vcpkg manifest and baseline. CommonLibSSE is built from source at the enforced MinLL/CommonLibVR commit `550cc4fb9114649dcf526d1f3d73d710c5d7003b` (v4.39.5, MIT); the build verifies the Git revision, clean checkout, and license rather than accepting an imported prebuilt CommonLib target.
-- The build applies one audited SE/AE header correction without modifying that checkout: generated `commonlib-abi/include/RE/T/TESObjectREFR.h` omits the VR-only `Unk_8C` virtual declaration. CMake verifies the upstream header's LF-normalized SHA-256 and places the generated include ahead of the upstream header for both CommonLib and IntelEngine. This corrects the pinned fork's non-VR virtual-slot shift; it is not a general patch or alternate-dependency mechanism.
-- The native plugin is configured for Skyrim SE and AE with Address Library compatibility. The documented runtime targets are **1.5.97.0, 1.6.640.0, 1.6.1170.0, 1.7.99.0, and 1.7.104.0**. Address Library is the compatibility mechanism; this is not a fixed-version whitelist. VR is disabled and unsupported.
+- The shared SE/AE/VR build uses the pinned fork's cross-VR wrappers: `GetSaveParentCell` selects slot `0x97` on SE/AE and `0x98` on VR. CMake retains the upstream header fingerprint guard and the flat-only `Unk_8C` correction for non-VR configurations; the mixed configuration does not apply that virtual-table transformation. Both targets inherit the same declarations.
+- The 3.6.0 shared build includes Skyrim SE, AE and VR with Address Library compatibility. The documented SE/AE targets are **1.5.97.0, 1.6.640.0, 1.6.1170.0, 1.7.99.0, and 1.7.104.0**; Skyrim VR **1.4.15 / SKSEVR 2.0.12** should work and was partly tested. Tested runtimes: **1.6.1170.0 and 1.7.104.0**. Skyrim SE **1.5.x**: untested. Other listed targets are untested. Partial testing does not establish full VR qualification or every gameplay scenario.
+- Offline synthetic-vtable checks and linked dispatch/import inspection passed. Packaged startup and fresh/converted-save smoke passed on 1.6.1170 and 1.7.104; VR coverage remains partial.
+- Offline getter regression: build and run `ReferenceGetterDispatchCheck` from your configured build directory. It invokes the production CommonLib getter on synthetic SE, AE and VR vtables, checks the returned cell and unchanged parent/setter count, and exits nonzero on failure. `--wrong-slot` deliberately moves the fixture getter onto the adjacent setter slot and must exit 1.
 
 ## Papyrus API
 
@@ -465,11 +467,36 @@ Native owns C++/PSC/templates; Game is the Data-layout mirror. Keep both PSC fil
 
 Rollback requires the complete old DLL/PEX/template set and its separately preserved pre-cutover save lineage. Do not load repaired saves under old components or rewrite evidence saves.
 
+### 3.6.0 NPC Social DM scheduling repair
+
+`BeginAsyncNPCDMTick` queues Phase A through SKSE tasks; Papyrus invocation is not a main-thread guarantee. Quest editor-ID inspection, actor/player/cell/race/faction reads, cooldown/calendar reads, inn detection and the empty callback run in that task. Only owned strings/scalars/IDs cross to Phase B. Phase C publishes the result's candidate pool and dispatches the callback on the main thread after validating `SlotTracker::loadGeneration`; revert invalidates queued snapshots/results and clears the social pool. The worker no longer publishes that pool.
+
+Phase B still calls SkyrimNet's FormID/value APIs and reads bio files; this change does not establish the external provider's internal thread safety. No faction-name null/vtable workaround, Papyrus signature, serialization change, synchronous-API scheduling repair, Story/Political tick change or request-isolation contract is included. A discarded old-save tick intentionally does not call into the newly loaded save. Existing pending recovery remains in use (watchdog timeout: one game hour); task-interface failure still logs and drops the tick.
+
+Offline check: compile `SKSE/tests/NPCTickGenerationCheck.cpp` in a VS2022 amd64 developer shell with `/std:c++20 /EHsc /W4 /WX /I SKSE/src`, then run the executable. It exercises production result publication: current/empty pools, duplicate names, revert clearing and stale results after subsequent loads. It does not exercise SKSE task dispatch or prove engine thread safety.
+
+SE/AE soaks passed. Instrumented thread identity and stale-result drop on reload remain unverified; 1.5.97 remains untested. To verify on 1.6.1170, use a symbolized build with independently verified loaded DLL identity; enable debug logging and compare debugger thread IDs at `[NPCTick] Phase A snapshot`, the existing `async context` worker log, and `Phase C callback`. Phase A/C and the empty callback must match the engine main thread, not the Papyrus VM job thread; Phase B must differ. Exercise nonempty/empty ticks, named/unnamed factions, non-ASCII names, cell transitions, and loads with Phase A queued, Phase B blocked and Phase C queued. Expect generation-change drop logs and no old pool/callback; verify pending recovery and fresh ticks. On 1.5.97, the reporter should repeat Aela/Jenassa/Torvar contexts with NPC interactions enabled, retain DLL/PDB identity and collect logs/minidumps if faction-name dispatch still faults. A finite crash-free run is not proof of the exact CTD's cause or cure.
+
+### 3.6.0 Story DM type filtering (#3)
+
+The async Story DM path parses exclusions once and shares that set between prompt visibility flags and the session-count formatter. Excluded types are omitted from "Story Type Picks This Session"; NPC Social DM counts are unchanged. This does not remove type names from dispatch history or general guidance, and response validation remains the dispatch gate.
+
+Offline check (requires `clang++`): `python SKSE/tests/RunStoryTypeCountFilterCheck.py`. It compiles the production formatter without the game ABI and checks allowed/excluded counts, empty/all exclusions, exact top-level matching and unchanged NPC counts. No in-game qualification is implied.
+
+
 ### Player fix mode: How to convert an old save
 
-The standalone Windows tool includes a one-save `fix` command for eligible saves from IntelEngine 3.5.2 or earlier. Tested on 3.5.2 saves; saves from older versions convert if their format matches and are refused otherwise. Fix mode does not read the IntelEngine version; qualification is based on co-save format and runtime. Run it from anywhere: no installed PapyrusUtil hash, VFS or game-root placement is required. Qualification uses SKSE co-save format 1, owner `0x424510A2`, exactly one STRV v1 block with complete unique framing, and exact SKSE/runtime header pairs **0x02020060 / 1.6.1170.0** or **0x02030010 / 1.7.104.0** only. Other formats/header pairs refuse. Existing expert `convert`/`inspect` behavior is unchanged.
+The standalone Windows tool includes a one-save `fix` command for eligible SE/AE saves from IntelEngine 3.5.2 or earlier and VR 1.4.15 saves from VR-capable IntelEngine 3.5.1 or earlier. One real 3.5.2 save per qualified SE/AE runtime and one real 3.5.1 VR fixture passed bounded acceptance; older versions are format-gated, not separately tested. Fix does not read the IntelEngine version. Run it from anywhere: no installed PapyrusUtil hash, VFS or game-root placement is required. Qualification uses SKSE co-save format 1, PapyrusUtil owner `0x424510A2`, complete unique framing and, when present, exactly one STRV v1 block. Exact SKSE/runtime pairs: **0x02000140 / 1.5.97.0** (SKSE64 2.0.20; runtime DWORD `0x01050610`, untested), **0x02020060 / 1.6.1170.0**, **0x02030010 / 1.7.104.0**, or **0x020000C0 / VR 1.4.15** (runtime DWORD `0x010400F1`, SKSEVR 2.0.12). VR also requires a bounded `TESV_SAVEGAME` ESS version-12 header. Other formats/header pairs refuse. Expert 1.5.97 and VR `convert` remain refused: no historical PapyrusUtil provider hash is qualified for either. `inspect` recognizes the VR tuple but never grants conversion eligibility.
 
-Offline production comparisons passed after safety corrections: run12 produced 29 caches / 44 name spans and SKSE SHA-256 `645dd18910bac6c3f43f613cf2b16e700b36f235fb76eb40bc6dc49a70a3ea0b`; run15 produced 13 caches / 28 name spans and `224340e1407404d0a4c93f29dbae5a3cfb31654a355a884bcb7c589ef28b9441`. Both ESS outputs were unchanged and preserved-source hashes matched. The unmodified shipped batch and production CLI succeeded with Skyrim closed on ASCII and Unicode/space scratch paths; the actual CLI also correctly refused while Skyrim was running. Migration/codec checks and refusal/partial-publication regressions passed. Offline byte reproduction is distinct from the bounded historical converted-copy runtime acceptance below.
+Source derivation: [SKSE64 v2.0.20](https://github.com/ianpatt/skse64/blob/0d6c91dc84f1d384da113bec9e298867a5c86ce1/skse64_common/skse_version.h) defines `MAKE_EXE_VERSION_EX`/`PACKED_SKSE_VERSION` and `RUNTIME_VERSION_1_5_97`, yielding SKSE `0x02000140` and runtime `0x01050610`; `Serialization.cpp` writes those version words.
+
+**Convert before loading an old save with 3.6.0.** An unconverted VR copy restored and progressed its Travel task, but three of four original populated facts caches read back empty, the fourth only as a header, and both original rendered histories read back empty despite some raw history remaining. An earlier process crashed with cause unproven; the evidence does not establish that it read the unconverted pair. Task recovery does not establish safe unconverted loading.
+
+Only the three rendered-cache keys are rewritten. Non-cache values, including BEL-bearing names and task destinations, pass through without decoding, normalization or re-encoding. Cache expansion adjusts enclosing STRV/plugin lengths; reverse-patch verification proves every other byte unchanged.
+
+When STRV is absent, player `fix` permits a verified byte-identical cache-free pair only if the PapyrusUtil owner exists and its other record types/versions are recognized: MODS/PLGN v0 or INTV/FLOV/FORV/INTL/FLOL/STRL/FORL/PKGO v1. It verifies outer framing/counts/EOF and runtime/ESS gates, not opaque-record semantics, and uses the same exclusive backup/staging/publication path. Unknown records/versions, missing owner, malformed STRV or a present STRV without eligible cache targets refuse. This is a copy, not a repair; expert mode retains its STRV/provenance requirement.
+
+Offline production byte comparisons passed after safety corrections on two preserved save pairs: one produced 29 caches / 44 name spans, the other 13 caches / 28 name spans. Both ESS outputs were unchanged and preserved-source hashes matched. The unmodified shipped batch and production CLI succeeded with Skyrim closed on ASCII and Unicode/space scratch paths; the actual CLI also correctly refused while Skyrim was running. Migration/codec checks and refusal/partial-publication regressions passed. Offline byte reproduction is distinct from the bounded historical converted-copy runtime acceptance below; detailed evidence is maintained privately.
 
 1. Close Skyrim. Keep the same-directory, same-stem `.ess` and `.skse` pair together. Make sure you have a backup of IntelEngine and SkyrimNet external data as well if you may need timeline rollback.
 2. Put `LegacyCacheMigration.exe` beside `Convert-IE-Save.bat`, or run it directly from any working directory. Drag exactly one `.ess` onto the adjacent batch file, or run:
@@ -490,15 +517,17 @@ The historical writer's identity/provenance cannot be proved from the file. Trea
 
 ### Offline legacy-save conversion
 
-The standalone Windows converter supports eligible saves from IntelEngine 3.5.2 or earlier on Skyrim **1.6.1170.0** and **1.7.104.0**, not arbitrary existing saves. Tested on 3.5.2 saves; saves from older versions convert if their format matches and are refused otherwise. One real 1.6.1170 legacy save passed converted-copy acceptance: 28/28 sampled surviving cache values matched exact UTF-8, plus one explicitly policy-derived facts field; a separate checkpoint retained these and two naturally generated fresh caches (31 fields) through warm and independent cold reloads. Named production facts/gossip templates passed for two sampled actors. All 42 resolvable original names matched; two temporary-actor name spans were preserved byte-for-byte but **not live-verified**. This is not full-HUD or general form-resolution qualification.
+The standalone Windows converter's player `fix` mode supports eligible SE/AE saves from IntelEngine 3.5.2 or earlier on Skyrim **1.5.97 / SKSE64 2.0.20**, **1.6.1170.0** and **1.7.104.0**, and eligible VR-capable IE 3.5.1-or-earlier saves on **VR 1.4.15 / SKSEVR 2.0.12**; it does not support arbitrary existing saves. Real-save acceptance covers 3.5.2 SE/AE saves and one 3.5.1 VR fixture; 1.5.97 has synthetic coverage only. Older versions remain format-gated and are refused otherwise. Expert `convert` remains limited to the separately qualified 1.6.1170.0 and 1.7.104.0 provider/runtime pairs. One real 1.6.1170 legacy save passed converted-copy acceptance: 28/28 sampled surviving cache values matched exact UTF-8, plus one explicitly policy-derived facts field; a separate checkpoint retained these and two naturally generated fresh caches (31 fields) through warm and independent cold reloads. Named production facts/gossip templates passed for two sampled actors. All 42 resolvable original names matched; two temporary-actor name spans were preserved byte-for-byte but **not live-verified**. This is not full-HUD or general form-resolution qualification.
 
 The 1.7.104 qualification covers **one bounded converted-copy acceptance**: a uniquely framed co-save, 11/11 independently sampled caches and two explicitly owner-policy fields retained exactly through a new checkpoint, warm reload and independent cold reload. All 24 qualified live names matched; four other holders remain unverified and were omitted from the new checkpoint, while all 28 original/converted name spans were preserved. Natural UTF-8 survived storage/reloads and actual facts/gossip/task-history prompt checks; the API's blank-line normalization is reported separately from stored-byte equality. Its runtime, SKSE header and provider hash remain a separate exact tuple; mismatches still refuse. An initial attempt crashed with causation unresolved; the authorized recovery passed these migration checks, not a general stability or unrelated-feature qualification. This does not qualify arbitrary saves, unreadable holders, fresh-cache generation in that checkpoint, or every 1.7 configuration.
+
+VR `fix` reuses the shared repair path for eligible VR-capable IE 3.5.1-or-earlier saves; IE 3.5.2 disabled VR. One real 3.5.1 VR fixture passed repair of six facts/task-history caches with all non-cache bytes preserved, task recovery/progression, a roughly 39-minute sampled soak and one cold reload. All 66 cold cache comparisons matched; 76/77 state fields matched, with a small scalar deadline difference and unexplained SkyrimNet timeline differences. Three actor mappings were absent before and after, not demonstrated cold-reload loss. The fixture had no gossip caches or stored names, so populated gossip/name migration is synthetic-only on VR. The original SkyrimNet database baseline, historical database restoration and native name index were not established. This does not close full VR/core-action, package/MCM, real-headset or general old-save qualification.
 
 #### Eligibility and refusal policy
 
 - Require complete supported SKSE/STRV framing, exact counts and EOF, canonical lowercase keys, pinned provider/runtime/codec provenance and evidence covering **every** target: `intel_factsrendered`, `intel_gossiprendered`, `intel_taskhistoryrendered`. Inspection alone never grants eligibility.
 - `actor-in-place` requires explicit `legacy_writer: "IE-3.5.2"`, `actor_bel_policy: "space"` and `preserve_rne_name_bel: true` in both the evidence and qualification basis. It preserves serialized identities without resolving/remapping forms. Only qualified actor identities are eligible; temporary cache targets refuse. Temporary holders containing only supported unchanged names may be preserved, not declared runtime-qualified.
-- In that actor policy, serialized BEL means space and LF is allowed within a complete value. Genuine original BEL, ESC, other C0 controls and DEL refuse; non-cache `rne_name` BEL spans remain unchanged. `legacy` fields require independently established original bytes; `legacy-policy` fields additionally declare `original_basis: "owner-policy"` rather than claiming independent originals.
+- In the actor cache policy, serialized BEL means space and LF is allowed within a complete cache value. Genuine original cache BEL, ESC, other C0 controls and DEL refuse. Non-cache values, including `rne_name` and task destinations, preserve BEL bytes without interpreting them; raw delimiters/ESC and existing malformed/UTF-8/control checks still refuse. `legacy` cache fields require independent original-byte evidence; `legacy-policy` cache fields additionally declare `original_basis: "owner-policy"`.
 - Global mode remains stricter: every identity must be global, legacy BEL/ESC collisions refuse, and every target needs independent original-byte evidence. Neither mode guesses unknown sentinel meanings. Already-encoded fields require a pinned writer codec and exact expected original bytes; literal percent text or a filename does not prove encoding.
 - Refuse the whole candidate on truncation, ambiguous framing, declared/written count gaps (including skipped empty maps), unsupported owner/version/identity/key, duplicate or noncanonical keys, missing/duplicate/extraneous field evidence, mismatched spans/hashes, unknown representation or unpinned encoded generation. No partial salvage or force switch.
 - Refuse unmatched companion pairs, source drift, existing/overlapping destinations, unsafe aliases/reparse paths and protected save-directory destinations. Copy-only checks do not prove installation or runtime behavior.
@@ -529,6 +558,54 @@ The 1.7.104 qualification covers **one bounded converted-copy acceptance**: a un
 #### Converter checks
 
 The Native source check `SKSE/tests/LegacyCacheMigrationCheck.cpp` uses the production codec and actual converter/transaction code. Run `LegacyCacheMigrationCheck.exe <new-unused-scratch-directory>` after building the standalone targets. It covers global/actor all-family bytes, policy/control/identity/count/framing refusals, mixed/encoded preservation, unchanged names/opaque bytes, exclusive backups and interrupted/failed publication. `SKSE/tests/RenderedCacheCodecCheck.cpp` covers the codec contract. Synthetic byte fixtures are not loadable saves; these checks do not replace the bounded runtime observations above.
+
+### 3.6.0 NPC bio Content Library lookup (#18)
+
+`MemoryDB::GetNPCBioSummary` and `GetNPCBioRelationships` read the same selected bio.
+SkyrimNet's public API returns the template name, not resolved content; the optional
+`PublicGetSaveUniqueID` export supplies the current playthrough ID. No new required
+export, dependency, game ABI, or save format is introduced.
+
+The reader makes a dynamic pass, then a static pass. Each pass checks the current
+save (only with a usable ID), overlay, sorted external directories, then sorted
+library directories with `skyrimnet.base` last. Missing save identity never triggers
+an all-save Content Library search. Legacy roots and fuzzy matching remain the
+last resort, retaining the existing legacy-only all-save fallback when identity is
+unavailable.
+
+This release-week resolver deliberately ignores registry priority, pins, provider
+enable/missing state, activation and semantic versions. When two bio packs define
+the same NPC, sorted-name order may differ from SkyrimNet's registry priority;
+disabled or superseded on-disk copies can also be selected. It is not SkyrimNet's
+content resolver. A future supported public content-reading API is the replacement
+path, not another local mirror of SkyrimNet internals.
+
+The existing new/load `ClearCaches` hooks sample the optional save-ID export on the
+main thread and atomically replace a mutex-guarded identity snapshot, clear both bio
+caches and advance their generation. Workers use only that snapshot (initially empty);
+in-flight lookups cannot publish positive or negative entries after a clear.
+File edits or newly generated bios are not promised visible until cache invalidation.
+This is a raw block reader, not a profile renderer: it does not evaluate Inja,
+decorators or submodules. Filesystem reads do not provide SkyrimNet's immutable
+in-memory snapshot or reproduce its package compatibility gate.
+
+Offline check, from Native in a VS2022 amd64 developer shell:
+
+```powershell
+New-Item -ItemType Directory -Path SKSE/build-bio-check -Force | Out-Null
+cl /nologo /std:c++20 /EHsc /W4 /WX /I SKSE/src SKSE/tests/BioContentCheck.cpp /Fo:SKSE/build-bio-check/ /Fe:SKSE/build-bio-check/BioContentCheck.exe
+if ($LASTEXITCODE -ne 0) { throw "Bio check compilation failed" }
+& ./SKSE/build-bio-check/BioContentCheck.exe
+if ($LASTEXITCODE -ne 0) { throw "Bio check failed" }
+```
+
+The check creates/removes a temporary tree and exercises both ordered passes,
+base-last behavior, current-save selection, legacy exact/fuzzy fallback and literal
+block extraction. Offline output is not a `Bio loaded` runtime observation. Base bios
+were verified on SE/AE and VR; overlay precedence was verified on SE/AE only.
+Dynamic save-layer bios remain offline-only. File edits or newly generated bios are
+not promised visible until cache invalidation.
+Cache invalidation across save loads remains to be qualified.
 
 ### Source-level checks
 

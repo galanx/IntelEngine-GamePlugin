@@ -6,7 +6,7 @@
     <Website>https://github.com/Gerkinfeltser/IntelEngine-GamePlugin</Website>
     <Description>AI-powered NPC autonomy mod for Skyrim. Gives NPCs the ability to travel, perform tasks, create dynamic story events, and engage in faction politics and wars — all powered by SkyrimNet's LLM integration.
 
-Requirements: SKSE, SkyrimNet Beta 25 or newer, PapyrusExtender (po3), PapyrusUtil, SkyUI, Papyrus MessageBox (SKSE NG for Skyrim 1.6 and earlier, 1.7.104 build for Skyrim 1.7)</Description>
+Requirements: SKSE, SkyrimNet Beta 25 minimum (tested with official Beta 28), PapyrusExtender (po3), PapyrusUtil, SkyUI, Papyrus MessageBox (SKSE NG for Skyrim 1.6 and earlier, 1.7.104 build for Skyrim 1.7)</Description>
     <Groups>
         <element>SkyrimNet</element>
         <element>AI</element>

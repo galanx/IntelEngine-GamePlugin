@@ -31,7 +31,7 @@ Features:
 
 Requirements:
 - SKSE
-- SkyrimNet Beta 25 or newer
+- SkyrimNet Beta 25 minimum (tested with official Beta 28)
 - PapyrusExtender (po3)
 - PapyrusUtil
 - SkyUI (MCM)
@@ -49,24 +49,22 @@ Requirements:
         </installStep>
         <installStep name="Upgrading from IntelEngine 3.5.2 or earlier">
             <optionalFileGroups order="Explicit">
-                <group name="Upgrade tools" type="SelectAny">
+                <group name="Upgrade tools" type="SelectAll">
                     <plugins order="Explicit">
                         <plugin name="Legacy save converter">
-                            <description>New game? Skip this!
-Playthrough from IntelEngine 3.5.2 or earlier? Tick "Legacy save converter".
-Help and warnings: FAQ.md in the "IntelEngineTools" folder.
-
-After installing:
+                            <description>Starting a fresh game? You don't need the converter.
+Upgrading a save from IntelEngine 3.5.2 or earlier:
 1. Close Skyrim and back up the save's .ess and .skse.
 2. Drag the .ess onto Convert-IE-Save.bat in "IntelEngineTools" (MO2: right-click IntelEngine → Open in Explorer).
-3. Start Skyrim and load the new "..._IEconverted" save.</description>
-                            <image path="fomod\IE-cover.jpg" />
+3. Start Skyrim and load the new "..._IEconverted" save.
+See FAQ.md in IntelEngineTools for more.</description>
+                            <image path="fomod\IE-converter.jpg" />
                             <files>
                                 <file source="IntelEngineTools\LegacyCacheMigration.exe" destination="IntelEngineTools\LegacyCacheMigration.exe" />
                                 <file source="IntelEngineTools\Convert-IE-Save.bat" destination="IntelEngineTools\Convert-IE-Save.bat" />
                             </files>
                             <typeDescriptor>
-                                <type name="Optional"/>
+                                <type name="Required"/>
                             </typeDescriptor>
                         </plugin>
                     </plugins>
