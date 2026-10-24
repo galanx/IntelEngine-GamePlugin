@@ -54,7 +54,8 @@ Requirements:
                         <plugin name="Legacy save converter">
                             <description>Tools are installed for everyone. Fresh games don't need conversion.
 Convert before loading an old save with 3.6.0.
-Eligible IE 3.5.2-or-earlier saves: Skyrim 1.6.1170/1.7.104; VR-capable IE 3.5.1-or-earlier saves: VR 1.4.15.
+Eligible IE 3.5.2-or-earlier saves: Skyrim 1.5.97 / SKSE64 2.0.20 (SKSE/runtime pair 0x02000140 / 0x01050610, untested), 1.6.1170/1.7.104; VR-capable IE 3.5.1-or-earlier saves: VR 1.4.15.
+Skyrim 1.5.97 / SKSE64 2.0.20 saves should convert, untested; your original save is never changed.
 1. Close Skyrim and back up the save's .ess and .skse.
 2. Drag the .ess onto Convert-IE-Save.bat in "IntelEngineTools" (MO2: right-click IntelEngine → Open in Explorer).
 3. Start Skyrim and load the new "..._IEconverted" save.

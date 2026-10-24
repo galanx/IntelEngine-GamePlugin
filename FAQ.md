@@ -188,7 +188,7 @@ IntelEngine DM prompts are long and complex, which means, you need a smart model
 
 **Q: Can I migrate a save from IntelEngine 3.5.2 or earlier to this fork?**
 
-Use the release's save converter **before loading the old save with this fork**. Conversion supports eligible IE 3.5.2-or-earlier saves on Skyrim 1.6.1170/1.7.104 and VR-capable IE 3.5.1-or-earlier saves on VR 1.4.15. See [this fork's migration instructions](#this-fork-vs-the-original-intelengine) for the bounded acceptance and limits. **Never load a converted save with 3.5.2 or earlier.**
+Use the release's save converter **before loading the old save with this fork**. Conversion supports eligible IE 3.5.2-or-earlier saves on Skyrim 1.6.1170/1.7.104, the exact Skyrim 1.5.97 / SKSE64 2.0.20 pair (untested), and VR-capable IE 3.5.1-or-earlier saves on VR 1.4.15. See [this fork's migration instructions](#this-fork-vs-the-original-intelengine) for the bounded acceptance and limits. **Never load a converted save with 3.5.2 or earlier.**
 
 ## This fork vs the original IntelEngine
 
@@ -206,13 +206,13 @@ This release adds the following changes after 3.5.2:
 - **Script fixes:** corrects script checks and keeps the scripts talking properly to the native plugin.
 - **Story NPC selection:** matches story NPCs against the current candidates instead of searching the whole world.
 - **NPC social safety:** makes background NPC activity safer around loading saves; the open 1.5.97 crash report (#15) is not confirmed fixed.
-- **Save converter:** supports eligible IE 3.5.2-or-earlier saves on Skyrim 1.6.1170/1.7.104 and VR-capable IE 3.5.1-or-earlier saves on VR 1.4.15. Convert before loading the old save.
+- **Save converter:** supports eligible IE 3.5.2-or-earlier saves on Skyrim 1.6.1170/1.7.104, the exact Skyrim 1.5.97 / SKSE64 2.0.20 pair (untested), and VR-capable IE 3.5.1-or-earlier saves on VR 1.4.15. Convert before loading the old save.
 
 See the [Game changelog](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/blob/main/CHANGELOG.md) and [native compatibility notes](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/main/README.md#compatibility) for details.
 
 **Q: Can I switch a playthrough from IntelEngine 3.5.2 or earlier to this fork?**
 
-Yes, for eligible saves on the supported conversion runtimes — **convert before loading the old save with 3.6.0**. One real 3.5.2 save per qualified SE/AE runtime and one real 3.5.1 VR fixture passed bounded acceptance; older versions are format-gated, not separately tested. Starting a fresh game? You do not need conversion.
+Yes, for eligible saves on the supported conversion runtimes — **convert before loading the old save with 3.6.0**. One real 3.5.2 save per qualified SE/AE runtime and one real 3.5.1 VR fixture passed bounded acceptance; Skyrim 1.5.97 / SKSE64 2.0.20 conversion is untested; older versions are format-gated, not separately tested. Starting a fresh game? You do not need conversion.
 
 Find the IntelEngineTools folder in your installed mod: in MO2, right-click IntelEngine → Open in Explorer. In Vortex, it's in your game's Data folder. The FAQ, save converter executable and launcher are installed automatically for everyone; no installer selection is needed.
 
@@ -223,11 +223,13 @@ Find the IntelEngineTools folder in your installed mod: in MO2, right-click Inte
 
 If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
 
-Supported conversion runtimes: **Skyrim 1.6.1170, 1.7.104 and VR 1.4.15 / SKSEVR 2.0.12**. VR conversion is for eligible saves from VR-capable **IE 3.5.1 or earlier**, not IE 3.5.2, which disabled VR. One real VR fixture passed six-cache repair, task recovery/progression, a roughly 39-minute sampled soak and one cold reload. It had no gossip caches or stored names; those real-fixture migration cases remain untested. All 66 cold cache comparisons matched, but only 76/77 state fields matched; a scalar deadline difference and SkyrimNet timeline differences remain unexplained, three mappings were absent both before and after, and the original SkyrimNet database baseline and native name index were not established. This is not general old-save safety or full VR acceptance.
+Supported conversion runtimes: **Skyrim 1.5.97 / SKSE64 2.0.20** (SKSE/runtime pair `0x02000140 / 0x01050610`, untested), **1.6.1170, 1.7.104 and VR 1.4.15 / SKSEVR 2.0.12**. VR conversion is for eligible saves from VR-capable **IE 3.5.1 or earlier**, not IE 3.5.2, which disabled VR. One real VR fixture passed six-cache repair, task recovery/progression, a roughly 39-minute sampled soak and one cold reload. It had no gossip caches or stored names; those real-fixture migration cases remain untested. All 66 cold cache comparisons matched, but only 76/77 state fields matched; a scalar deadline difference and SkyrimNet timeline differences remain unexplained, three mappings were absent both before and after, and the original SkyrimNet database baseline and native name index were not established. This is not general old-save safety or full VR acceptance.
 
 **Do not skip conversion:** an unconverted VR copy restored/progressed its Travel task, but three original facts caches read back empty, another only as a header, and both original rendered histories were empty despite some raw history remaining. One earlier process crashed with cause unproven; the evidence does not establish that it read the unconverted pair. Task recovery does not prove an unconverted load is safe.
 
-Skyrim SE **1.5.x**: untested. Save conversion is not supported for 1.5.x saves.
+Skyrim SE **1.5.x**: untested.
+
+Skyrim 1.5.97 / SKSE64 2.0.20 saves should convert, untested; your original save is never changed.
 
 The converter refuses saves it cannot qualify and cannot recover already-lost names. Originals stay untouched. Do not load an incomplete converted pair, mix original/converted companions or convert the same save again. **Never load a converted save with 3.5.2 or earlier.**
 
