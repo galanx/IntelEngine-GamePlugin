@@ -31,7 +31,7 @@ Features:
 
 Requirements:
 - SKSE
-- SkyrimNet Beta 25 or newer
+- SkyrimNet Beta 25 minimum (tested with official Beta 28; Beta 25–27 not qualified for 3.6.0)
 - PapyrusExtender (po3)
 - PapyrusUtil
 - SkyUI (MCM)
@@ -54,7 +54,8 @@ Requirements:
                         <plugin name="Legacy save converter">
                             <description>New game? Skip this!
 Playthrough from IntelEngine 3.5.2 or earlier? Tick "Legacy save converter".
-Help and warnings: FAQ.md in the "IntelEngineTools" folder.
+Eligible Skyrim 1.6.1170 and 1.7.104 saves only; not VR.
+Before converting, read FAQ.md in the "IntelEngineTools" folder.
 
 After installing:
 1. Close Skyrim and back up the save's .ess and .skse.

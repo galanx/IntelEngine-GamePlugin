@@ -2,12 +2,12 @@
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 > [!IMPORTANT]
-> **Compatibility:** IntelEngine 3.5.1 and later requires **SkyrimNet Beta 25 or newer**. It is not compatible with SkyrimNet Beta 24 or earlier.
+> **Compatibility:** IntelEngine 3.6.0 declares SkyrimNet Beta 25 as its minimum; it was tested with official Beta 28. Beta 25–27 were not qualified for 3.6.0; Beta 24 and earlier are incompatible.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 > **Found a bug?** Report it at [IntelEngine issues](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/issues) with your Skyrim, SKSE, SkyrimNet and IntelEngine versions and your logs.
 
-Read the [player FAQ](FAQ.md) for Galanx's original answers, dated fork-dev corrections, and migration guidance.
+Read the [player FAQ](FAQ.md) for Galanx's original answers, dated 3.6.0 updates, and migration guidance.
 
 *"Meet me at the Western Watchtower at sunset."*
 *She agrees. Hours pass. The sun dips. You arrive — and she's already there.*
@@ -322,7 +322,7 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 ## In-Game Dashboard (PrismaUI)
 
-When the optional [PrismaUI](https://github.com/psc-87/PrismaUI) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
+When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
 
 ### Tabs
 
@@ -414,7 +414,7 @@ IntelEngine is under active development. The following features are planned for 
 
 > **SkyrimNet Beta 25 / IntelEngine 3.5.1 migration:** IntelEngine content now loads from external plugin id `galanx.intelengine`. After upgrading, review its enablement and priority in SkyrimNet. Existing action names are unchanged, so per-action settings retain their keys, but should still be reviewed after the content-layer migration. Do not move or delete `config/plugins/IntelEngine`; it continues to own IntelEngine settings and faction configuration.
 
-> **Unreleased rendered-cache repair:** new rendered caches use delimiter-safe encoding. Fresh-new-game repair was verified on Skyrim 1.6.1170 and 1.7.104; eligible saves from IntelEngine 3.5.2 or earlier can use the offline converter below. Already-lost names/history cannot be recovered.
+> **3.6.0 rendered-cache repair:** new rendered caches use delimiter-safe encoding. Fresh-new-game repair was verified on Skyrim 1.6.1170 and 1.7.104; eligible saves from IntelEngine 3.5.2 or earlier can use the offline converter below. Already-lost names/history cannot be recovered.
 >
 ### How to convert an old save
 
@@ -436,15 +436,15 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 > **Papyrus API and array guards:** seven existing native functions are now declared in `IntelEngine.psc`, and three array-null checks use boolean guards. Maintenance, recovery and schedule retention were exercised across save/reload.
 
-**v3.5.2 Skyrim compatibility update:** the full package uses the corrected MinLL/CommonLibVR native build with VS 2022 flags. Tested on Skyrim **1.6.1170**, with Epicrob also confirming success on his affected **1.7.x** setup. Use matching SKSE and Address Library; VR is not supported by this build. The release/package version is 3.5.2; the tested DLL retains native version 3.5.1. This release does not include the deferred Papyrus/translation fixes or a claimed fix for CTD issue #15.
+**Historical 3.5.2 Skyrim compatibility update:** the full package used the corrected MinLL/CommonLibVR native build with VS 2022 flags. Tested on Skyrim **1.6.1170**, with Epicrob also confirming success on his affected **1.7.x** setup. Use matching SKSE and Address Library; VR was not supported by this build. The release/package version was 3.5.2; the tested DLL retained native version 3.5.1. This release did not include the deferred Papyrus/translation fixes or a claimed fix for CTD issue #15.
 
 ---
 
 ## Requirements
 
-- Skyrim Special Edition / Anniversary Edition; this native build does not support VR
+- Skyrim Special Edition / Anniversary Edition: 3.6.0 tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested; SE 1.5.97 was built but not runtime-tested.
 - [SKSE](https://skse.silverlock.org/)
-- [SkyrimNet Beta 25 or newer](https://github.com/MinLL/SkyrimNet-GamePlugin)
+- [SkyrimNet Beta 28](https://github.com/MinLL/SkyrimNet-GamePlugin) was used for 3.6.0 testing. Declared minimum: Beta 25; Beta 25–27 were not qualified.
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)
@@ -452,7 +452,7 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 ### Optional
 
-- [PrismaUI](https://github.com/psc-87/PrismaUI) — in-game overlay framework. Enables the real-time dashboard with task monitoring, story engine controls, director mode, and full settings management. IntelEngine works without it — you just won't have the overlay.
+- [PrismaUI](https://www.prismaui.dev/) — in-game overlay framework. Enables the real-time dashboard with task monitoring, story engine controls, director mode, and full settings management. IntelEngine works without it — you just won't have the overlay.
 
 ---
 

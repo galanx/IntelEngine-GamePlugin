@@ -4,7 +4,7 @@ By Galanx 3/2026
 
 > **New in this fork:** upgrading a playthrough from IntelEngine 3.5.2 or earlier? Run the save converter first. Tested on 3.5.2 saves; saves from older versions convert if their format matches and are refused otherwise. See [This fork vs the original IntelEngine](#this-fork-vs-the-original-intelengine) for what changed, how to convert your save, and where to report bugs.
 
-Original answers are preserved below; ~~struck text~~ is superseded by the dated fork-dev update immediately after it, and dated notes qualify unverified claims.
+Original answers are preserved below; ~~struck text~~ is superseded by the dated update immediately after it, and dated notes qualify unverified claims.
 
 **Q: What is IntelEngine?**
 
@@ -14,7 +14,7 @@ IntelEngine is a Skyrim mod that gives NPCs the ability to act independently in 
 
 You can give NPCs orders through natural conversation — things like "go find Ysolda and bring her here," "tell the Jarl I'll meet him at the inn at sunset," or "escort Adrianne to Dragonsreach." NPCs physically walk to their destination, ~~no teleporting~~. They calculate travel time, leave early enough to arrive on schedule, and wait naturally when they get there. Missed meetings and late arrivals are tracked and remembered.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** Your NPCs normally walk, but they can teleport through doors or when they get stuck or take too long.
+> **Updated 2026-10-19 (3.6.0 update):** Your NPCs normally walk, but they can teleport through doors or when they get stuck or take too long.
 
 **Q: Do NPCs do things on their own?**
 
@@ -28,19 +28,19 @@ Nine factions form alliances, negotiate trade deals, spy on each other, declare 
 
 ~~Every completed task, delivered message, failed meeting, and overheard rumor persists in an NPC's memory and shapes how they interact with you going forward. Betray someone and they hold a grudge. Be reliable and they trust you more.~~
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** Yes — NPCs remember tasks, messages, meetings and gossip, but some facts fade over time. How they react still depends on the AI.
+> **Updated 2026-10-19 (3.6.0 update):** Yes — NPCs remember tasks, messages, meetings and gossip, but some facts fade over time. How they react still depends on the AI.
 
 **Q: My followers keep leaving to do tasks. How do I stop this?**
 
 MCM or Prisma Dashboard → Settings → Skip Action for Followers. Toggle ON for any actions you want blocked ~~(`Go To Location`, `Fetch Person`, `Deliver Message`, `Escort Target`)~~. ~~Followers will still talk, gossip, and interact — they just won't physically leave your side.~~
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM or Dashboard → Settings → Skip Action for Followers: turn ON each action you want blocked, including Search For Actor and all three scheduling actions. These default OFF; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
+> **Updated 2026-10-19 (3.6.0 update):** MCM or Dashboard → Settings → Skip Action for Followers: turn ON each action you want blocked, including Search For Actor and all three scheduling actions. These default OFF; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
 
 **Q: Can I get a confirmation prompt instead of blocking entirely?**
 
 Under Action Confirmation Prompts, set actions to `Followers Only`. You'll get ~~a yes/no popup before any follower departs~~ (this is the default for most actions).
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → Action Confirmation Prompts → Followers Only lets you choose Allow, Deny or Deny (Silent). Most actions default to Followers Only, Schedule Meeting defaults to Everyone, and any follower-skip toggle blocks the action without asking.
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Action Confirmation Prompts → Followers Only lets you choose Allow, Deny or Deny (Silent). Most actions default to Followers Only, Schedule Meeting defaults to Everyone, and any follower-skip toggle blocks the action without asking.
 
 **Q:Nothing is happening. No NPCs are approaching me.**
 
@@ -54,7 +54,7 @@ Adjust Check Interval (default 3 hours, range 0.5–168). Lower = more frequent.
 
 Increase ~~NPC Cooldown~~ (default 24 hours, range 6–72).
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → Story NPC Cooldown (hours): default 24, range 6–72. For NPC-to-NPC activity, adjust NPC Social Cooldown instead.
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Story NPC Cooldown (hours): default 24, range 6–72. For NPC-to-NPC activity, adjust NPC Social Cooldown instead.
 
 **Q: I don't want hostile encounters (ambushes, stalkers).**
 
@@ -64,13 +64,13 @@ MCM → Story Types (DM) → toggle OFF `Ambush`, `Stalker`, or `Faction Ambush`
 
 MCM → Hold Restrictions → ~~set each story type to `Same Town` or `Same Hold`~~.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Hold Restrictions → choose Same town (everyone) or Same hold (everyone) for each listed story type you want kept local. The civilian-only and follower-exempt options let some NPCs travel farther.
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Hold Restrictions → choose Same town (everyone) or Same hold (everyone) for each listed story type you want kept local. The civilian-only and follower-exempt options let some NPCs travel farther.
 
 **Q: Does IntelEngine conflict with SeverActions?**
 
 ~~No — they complement each other. We encourage using both. SeverActions features actions like `GiveItem` which pairs perfectly with IntelEngine's `find_item` quest — the NPC physically hands items and rewards to you and vice-versa. They share the same SkyrimNet action system with zero conflicts.~~
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** They can conflict if both offer the same travel, fetch, delivery or cancel actions — disable the duplicates in one mod. See the [compatibility guide](README.md#compatibility) before using them together.
+> **Updated 2026-10-19 (3.6.0 update):** They can conflict if both offer the same travel, fetch, delivery or cancel actions — disable the duplicates in one mod. See the [compatibility guide](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/blob/main/README.md#compatibility) before using them together.
 
 **Q: Does it work with follower frameworks (AFT, NFF, etc.)?**
 
@@ -104,7 +104,7 @@ MCM or Dashboard → Quest Types → toggle OFF what you don't want (Combat, Res
 
 ~~Only if you enable Allow NPC Death (Rescue) (OFF by default).~~ ⚠️ This can permanently kill named NPCs and break other quests.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → Quest Types → Allow NPC death in rescue is OFF by default. Leave it OFF to protect rescue victims during the quest; other mods and what happens afterward can still put them at risk.
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Quest Types → Allow NPC death in rescue is OFF by default. Leave it OFF to protect rescue victims during the quest; other mods and what happens afterward can still put them at risk.
 
 **Q: How long do I have to complete a quest?**
 
@@ -118,25 +118,25 @@ Prisma Dashboard (`Shift+7`) → **Politics** tab. Shows faction grid, active wa
 
 Dashboard → Director tab → ~~Political Director. Pick factions, event type, and dispatch.~~
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** Dashboard → Director → Political Event: pick both factions and the event type, add a description and a nonzero relation change, then click Dispatch Political Event.
+> **Updated 2026-10-19 (3.6.0 update):** Dashboard → Director → Political Event: pick both factions and the event type, add a description and a nonzero relation change, then click Dispatch Political Event.
 
 **Q: Can I add custom factions?**
 
 Edit `factions.yaml` in `SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`. If missing, copy `factions.sample.yaml` and remove `.sample`. ~~Be sure to remove factions.yaml from MO2 overwrite folder if adding your own.~~ ~~Also make sure the faction EditorId actually exists in Skyrim.~~
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** Keep your custom factions — merge any MO2 Overwrite copy instead of deleting it, and check which copy your mod manager uses. Use a real faction EditorID for `skyrim_faction_id`; for example, `ImperialFaction` uses `CWImperialFaction`.
+> **Updated 2026-10-19 (3.6.0 update):** Keep your custom factions — merge any MO2 Overwrite copy instead of deleting it, and check which copy your mod manager uses. Use a real faction EditorID for `skyrim_faction_id`; for example, `ImperialFaction` uses `CWImperialFaction`.
 
 **Q: NPCs gossip and argue too much.**
 
 Increase Interaction Interval (default 1.5 hours). Or toggle OFF `NPC Gossip` / `NPC Interaction` ~~under Story Types~~.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → NPC Social Life → raise NPC Interaction Interval (hours), or turn OFF NPC Gossip / NPC Interaction. The dashboard calls it Interaction Interval; default 1.5 hours, range 0.5–168.
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → NPC Social Life → raise NPC Interaction Interval (hours), or turn OFF NPC Gossip / NPC Interaction. The dashboard calls it Interaction Interval; default 1.5 hours, range 0.5–168.
 
 **Q: Can I trigger NPC interactions manually?**
 
 Dashboard → Director tab → ~~NPC Social Director~~.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** Dashboard → Director → NPC Social: choose two NPCs, pick Interaction or Gossip, and add the narration.
+> **Updated 2026-10-19 (3.6.0 update):** Dashboard → Director → NPC Social: choose two NPCs, pick Interaction or Gossip, and add the narration.
 
 **Q: NPCs take forever to get somewhere.**
 
@@ -146,7 +146,7 @@ Lower Max Travel Time (default 1 day). NPCs exceeding this teleport or give up.
 
 ~~Teleport When Stuck~~ is ON by default. Check Active Tasks in MCM to see and manage ~~all tasks~~.
 
-> **Updated 2026-10-19 (fork dev, after 3.5.2):** MCM → Settings → Teleport on stuck/timeout is ON by default. Manage player tasks in MCM → Active Tasks, or inspect and remove stuck AI packages in Dashboard → Packages.
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Teleport on stuck/timeout is ON by default. Manage player tasks in MCM → Active Tasks, or inspect and remove stuck AI packages in Dashboard → Packages.
 
 **Q: Too many NPCs doing tasks at once.**
 
@@ -194,7 +194,7 @@ If you are continuing a playthrough from IntelEngine 3.5.2 or earlier, use the r
 
 **Q: What is this fork, and where does it live?**
 
-It's an independently maintained version of Galanx's IntelEngine, with fixes for newer SkyrimNet releases. You'll find it at [Gerkinfeltser/IntelEngine-GamePlugin](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin) and [Gerkinfeltser/IntelEngine-NativePlugin](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin); you'll need SkyrimNet Beta 25 or newer, and VR isn't supported. Galanx created the original mod — please don't treat this fork as endorsed or reviewed by Galanx.
+It's an independently maintained version of Galanx's IntelEngine, with fixes for newer SkyrimNet releases. You'll find it at [Gerkinfeltser/IntelEngine-GamePlugin](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin) and [Gerkinfeltser/IntelEngine-NativePlugin](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin); 3.6.0 declares SkyrimNet Beta 25 as its minimum and was tested with official Beta 28. Beta 25–27 were not qualified for 3.6.0. VR 1.4.15 should work and was partly tested. Galanx created the original mod — please don't treat this independently maintained version as endorsed or reviewed by him.
 
 **Q: What changes after Galanx's 3.5.2?**
 
@@ -206,7 +206,7 @@ This release adds the following changes after 3.5.2:
 - **NPC social crash fixes:** makes background NPC activity safer around loading saves, though the reported 1.5.97 crash still needs confirmation.
 - **Save converter:** lets you bring eligible saves from IntelEngine 3.5.2 or earlier forward on Skyrim 1.6.1170 and 1.7.104.
 
-See the [Game changelog](CHANGELOG.md#unreleased) and [native compatibility notes](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/dev/README.md#compatibility) for details.
+See the [Game changelog](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/blob/main/CHANGELOG.md) and [native compatibility notes](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/main/README.md#compatibility) for details.
 
 **Q: Can I switch a playthrough from IntelEngine 3.5.2 or earlier to this fork?**
 
@@ -225,7 +225,7 @@ This works on **Skyrim 1.6.1170 and 1.7.104 only**; VR saves are not convertible
 
 Windows SmartScreen may warn because the tool is unsigned: choose More info → Run anyway.
 
-Advanced users can read the [native offline-conversion documentation](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/dev/docs/DLL_API.md#offline-legacy-save-conversion).
+Advanced users can read the [native offline-conversion documentation](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/main/docs/DLL_API.md#offline-legacy-save-conversion).
 
 **Q: Where should I report bugs in this fork?**
 
