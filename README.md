@@ -422,6 +422,8 @@ For saves from IntelEngine 3.5.2 or earlier. Tested on 3.5.2 saves; saves from o
 
 Rendered caches were first stored in IntelEngine 2.0.0; this history does not establish conversion testing on older versions.
 
+The installer always includes `LegacyCacheMigration.exe`, `Convert-IE-Save.bat` and the FAQ in `IntelEngineTools`; no converter selection is needed. Starting a fresh game does not require running the converter.
+
 Close Skyrim and keep the matching same-directory `.ess` / `.skse` pair together. Run the standalone tool from anywhere with `LegacyCacheMigration.exe fix --save "<path-to-save.ess>"`, or drag one ESS onto the adjacent `Convert-IE-Save.bat`. Fix mode only accepts SKSE co-save format version 1 with IntelEngine owner `0x424510A2`, one STRV v1 block with complete unique framing, and the exact SKSE/runtime header pairs **0x02020060 / 1.6.1170.0** or **0x02030010 / 1.7.104.0**; eligibility does not guarantee every legacy save qualifies.
 
 If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.

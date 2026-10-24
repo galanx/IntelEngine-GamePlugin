@@ -49,11 +49,11 @@ Requirements:
         </installStep>
         <installStep name="Upgrading from IntelEngine 3.5.2 or earlier">
             <optionalFileGroups order="Explicit">
-                <group name="Upgrade tools" type="SelectAny">
+                <group name="Upgrade tools" type="SelectAll">
                     <plugins order="Explicit">
                         <plugin name="Legacy save converter">
-                            <description>New game? Skip this!
-Playthrough from IntelEngine 3.5.2 or earlier? Tick "Legacy save converter".
+                            <description>The save converter and launcher are installed automatically.
+Starting a fresh game? You do not need to run the converter.
 Eligible Skyrim 1.6.1170 and 1.7.104 saves only; not VR.
 Before converting, read FAQ.md in the "IntelEngineTools" folder.
 
@@ -61,13 +61,13 @@ After installing:
 1. Close Skyrim and back up the save's .ess and .skse.
 2. Drag the .ess onto Convert-IE-Save.bat in "IntelEngineTools" (MO2: right-click IntelEngine → Open in Explorer).
 3. Start Skyrim and load the new "..._IEconverted" save.</description>
-                            <image path="fomod\IE-cover.jpg" />
+                            <image path="fomod\IE-converter.jpg" />
                             <files>
                                 <file source="IntelEngineTools\LegacyCacheMigration.exe" destination="IntelEngineTools\LegacyCacheMigration.exe" />
                                 <file source="IntelEngineTools\Convert-IE-Save.bat" destination="IntelEngineTools\Convert-IE-Save.bat" />
                             </files>
                             <typeDescriptor>
-                                <type name="Optional"/>
+                                <type name="Required"/>
                             </typeDescriptor>
                         </plugin>
                     </plugins>
