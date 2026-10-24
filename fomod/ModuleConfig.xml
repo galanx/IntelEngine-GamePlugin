@@ -52,11 +52,13 @@ Requirements:
                 <group name="Upgrade tools" type="SelectAll">
                     <plugins order="Explicit">
                         <plugin name="Legacy save converter">
-                            <description>Starting a fresh game? You don't need the converter.
-Upgrading a save from IntelEngine 3.5.2 or earlier:
+                            <description>Tools are installed for everyone. Fresh games don't need conversion.
+Convert before loading an old save with 3.6.0.
+Eligible IE 3.5.2-or-earlier saves: Skyrim 1.6.1170/1.7.104; VR-capable IE 3.5.1-or-earlier saves: VR 1.4.15.
 1. Close Skyrim and back up the save's .ess and .skse.
 2. Drag the .ess onto Convert-IE-Save.bat in "IntelEngineTools" (MO2: right-click IntelEngine → Open in Explorer).
 3. Start Skyrim and load the new "..._IEconverted" save.
+Use the complete 3.6.0 package. Never load converted saves with IE 3.5.2 or earlier.
 See FAQ.md in IntelEngineTools for more.</description>
                             <image path="fomod\IE-converter.jpg" />
                             <files>
