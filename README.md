@@ -2,7 +2,7 @@
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 > [!IMPORTANT]
-> **Compatibility:** IntelEngine 3.6.0 declares SkyrimNet Beta 25 as its minimum; it was tested with official Beta 28. Beta 25–27 were not qualified for 3.6.0; Beta 24 and earlier are incompatible.
+> **Compatibility:** IntelEngine 3.6.0 declares SkyrimNet Beta 25 as its minimum; it was tested with official Beta 28. Beta 24 and earlier are incompatible.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 > **Found a bug?** Report it at [IntelEngine issues](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/issues) with your Skyrim, SKSE, SkyrimNet and IntelEngine versions and your logs.
@@ -420,13 +420,11 @@ IntelEngine is under active development. The following features are planned for 
 
 For eligible SE/AE saves from IntelEngine 3.5.2 or earlier, or VR 1.4.15 saves from VR-capable IntelEngine 3.5.1 or earlier. Tested on one real 3.5.2 save per qualified SE/AE runtime and one real 3.5.1 VR fixture; older versions are format-gated, not separately tested. Fix mode does not read the IntelEngine version.
 
-Skyrim 1.5.97 / SKSE64 2.0.20 saves should convert, untested; your original save is never changed.
-
 Rendered caches were first stored in IntelEngine 2.0.0; this history does not establish conversion testing on older versions.
 
 The installer always includes `LegacyCacheMigration.exe`, `Convert-IE-Save.bat` and the FAQ in `IntelEngineTools`; no converter selection is needed. Starting a fresh game does not require running the converter.
 
-**Convert before loading an old save with 3.6.0.** Close Skyrim and keep the matching same-directory `.ess` / `.skse` pair together. Run `LegacyCacheMigration.exe fix --save "<path-to-save.ess>"`, or drag one ESS onto the adjacent `Convert-IE-Save.bat`. Fix mode accepts SKSE co-save format 1 with PapyrusUtil data, complete unique framing and, when present, exactly one STRV v1 block. Supported conversion runtimes: **Skyrim 1.5.97 / SKSE64 2.0.20**, **1.6.1170**, **1.7.104**, or **VR 1.4.15 / SKSEVR 2.0.12**. VR also requires a bounded `TESV_SAVEGAME` version-12 ESS header. Eligibility does not guarantee every legacy save qualifies.
+**Convert before loading an old save with 3.6.0.** Close Skyrim and keep the matching same-directory `.ess` / `.skse` pair together. Run `LegacyCacheMigration.exe fix --save "<path-to-save.ess>"`, or drag one ESS onto the adjacent `Convert-IE-Save.bat`. Fix mode accepts SKSE co-save format 1 with PapyrusUtil data, complete unique framing and, when present, exactly one STRV v1 block. Tested conversion runtimes: **1.6.1170**, **1.7.104**, or **VR 1.4.15 / SKSEVR 2.0.12**. Skyrim 1.5.97 / SKSE64 2.0.20 conversion: untested. VR also requires a bounded `TESV_SAVEGAME` version-12 ESS header. Eligibility does not guarantee every legacy save qualifies.
 
 One real VR fixture passed bounded converted-copy acceptance: six repaired facts/task-history caches, recovered task progression, a roughly 39-minute sampled soak and one cold reload. It contained no gossip caches or stored names, so those migration cases remain untested on a real VR fixture. Cold comparisons matched all 66 cache comparisons and 76/77 state fields; a small scalar deadline difference and SkyrimNet timeline differences remain unexplained, three actor mappings were absent both before and after, and the original SkyrimNet database baseline and native name index were not established. This is not full VR, historical database restoration or general old-save qualification. Expert VR `convert` still refuses because no historical VR PapyrusUtil provider hash is qualified; `inspect` alone grants no eligibility.
 
@@ -446,7 +444,7 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 > **Papyrus API and array guards:** seven existing native functions are now declared in `IntelEngine.psc`, and three array-null checks use boolean guards. Maintenance, recovery and schedule retention were exercised across save/reload.
 
-**Historical 3.5.2 Skyrim compatibility update:** the full package used the corrected MinLL/CommonLibVR native build with VS 2022 flags. Tested on Skyrim **1.6.1170**, with Epicrob also confirming success on his affected **1.7.x** setup. Use matching SKSE and Address Library; VR was not supported by this build. The release/package version was 3.5.2; the tested DLL retained native version 3.5.1. This release did not include the deferred Papyrus/translation fixes or a claimed fix for CTD issue #15.
+**Historical 3.5.2 Skyrim compatibility update:** the full package used the corrected MinLL/CommonLibVR native build with VS 2022 flags. Tested on Skyrim **1.6.1170**, with Epicrob also confirming success on his affected **1.7.x** setup. Use matching SKSE and Address Library; VR was not supported by this build. The release/package version was 3.5.2; the tested DLL retained native version 3.5.1. This release did not include the deferred Papyrus/translation fixes or a claimed fix for the 1.5.97 crash report on the original IntelEngine repo.
 
 ---
 
@@ -454,7 +452,7 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 - Skyrim Special Edition / Anniversary Edition: 3.6.0 tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested. Skyrim SE 1.5.x: untested.
 - [SKSE](https://skse.silverlock.org/)
-- [SkyrimNet Beta 28](https://github.com/MinLL/SkyrimNet-GamePlugin) was used for 3.6.0 testing. Declared minimum: Beta 25; Beta 25–27 were not qualified.
+- [SkyrimNet Beta 28](https://github.com/MinLL/SkyrimNet-GamePlugin) was used for 3.6.0 testing. Declared minimum: Beta 25.
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)

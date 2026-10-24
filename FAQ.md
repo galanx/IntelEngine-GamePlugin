@@ -194,7 +194,7 @@ Use the release's save converter **before loading the old save with this fork**.
 
 **Q: What is this fork, and where does it live?**
 
-It's an independently maintained version of Galanx's IntelEngine, with fixes for newer SkyrimNet releases. You'll find it at [Gerkinfeltser/IntelEngine-GamePlugin](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin) and [Gerkinfeltser/IntelEngine-NativePlugin](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin); 3.6.0 declares SkyrimNet Beta 25 as its minimum and was tested with official Beta 28. Beta 25–27 were not qualified for 3.6.0. VR 1.4.15 should work and was partly tested. Galanx created the original mod — please don't treat this independently maintained version as endorsed or reviewed by him.
+It's an independently maintained version of Galanx's IntelEngine, with fixes for newer SkyrimNet releases. You'll find it at [Gerkinfeltser/IntelEngine-GamePlugin](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin) and [Gerkinfeltser/IntelEngine-NativePlugin](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin); 3.6.0 declares SkyrimNet Beta 25 as its minimum and was tested with official Beta 28. VR 1.4.15 should work and was partly tested. Galanx created the original mod — please don't treat this independently maintained version as endorsed or reviewed by him.
 
 This fork has no Nexus page; use the two GitHub repositories above.
 
@@ -205,7 +205,7 @@ This release adds the following changes after 3.5.2:
 - **NPC names and memories:** fixes how memories are saved so they don't corrupt stored NPC names.
 - **Script fixes:** corrects script checks and keeps the scripts talking properly to the native plugin.
 - **Story NPC selection:** matches story NPCs against the current candidates instead of searching the whole world.
-- **NPC social safety:** makes background NPC activity safer around loading saves; the open 1.5.97 crash report (#15) is not confirmed fixed.
+- **NPC social safety:** makes background NPC activity safer around loading saves; the 1.5.97 crash report on the original IntelEngine repo remains open and is not confirmed fixed.
 - **Save converter:** supports eligible legacy saves; see the migration instructions below. Convert before loading the old save.
 
 See the [Game changelog](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/blob/main/CHANGELOG.md) and [native compatibility notes](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/main/README.md#compatibility) for details.
@@ -223,13 +223,11 @@ Find the IntelEngineTools folder in your installed mod: in MO2, right-click Inte
 
 If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
 
-Supported conversion runtimes: **Skyrim 1.5.97 / SKSE64 2.0.20**, **1.6.1170, 1.7.104 and VR 1.4.15 / SKSEVR 2.0.12**. VR conversion is for eligible saves from VR-capable **IE 3.5.1 or earlier**, not IE 3.5.2, which disabled VR. One real VR fixture passed six-cache repair, task recovery/progression, a roughly 39-minute sampled soak and one cold reload. It had no gossip caches or stored names; those real-fixture migration cases remain untested. All 66 cold cache comparisons matched, but only 76/77 state fields matched; a scalar deadline difference and SkyrimNet timeline differences remain unexplained, three mappings were absent both before and after, and the original SkyrimNet database baseline and native name index were not established. This is not general old-save safety or full VR acceptance.
+Tested conversion runtimes: **1.6.1170, 1.7.104 and VR 1.4.15 / SKSEVR 2.0.12**. Skyrim 1.5.97 / SKSE64 2.0.20 conversion: untested. VR conversion is for eligible saves from VR-capable **IE 3.5.1 or earlier**, not IE 3.5.2, which disabled VR. One real VR fixture passed six-cache repair, task recovery/progression, a roughly 39-minute sampled soak and one cold reload. It had no gossip caches or stored names; those real-fixture migration cases remain untested. All 66 cold cache comparisons matched, but only 76/77 state fields matched; a scalar deadline difference and SkyrimNet timeline differences remain unexplained, three mappings were absent both before and after, and the original SkyrimNet database baseline and native name index were not established. This is not general old-save safety or full VR acceptance.
 
 **Do not skip conversion:** an unconverted VR copy restored/progressed its Travel task, but three original facts caches read back empty, another only as a header, and both original rendered histories were empty despite some raw history remaining. One earlier process crashed with cause unproven; the evidence does not establish that it read the unconverted pair. Task recovery does not prove an unconverted load is safe.
 
 Skyrim SE **1.5.x**: untested.
-
-Skyrim 1.5.97 / SKSE64 2.0.20 saves should convert, untested; your original save is never changed.
 
 The converter refuses saves it cannot qualify and cannot recover already-lost names. Originals stay untouched. Do not load an incomplete converted pair, mix original/converted companions or convert the same save again. **Never load a converted save with 3.5.2 or earlier.**
 

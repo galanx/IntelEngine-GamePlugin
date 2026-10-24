@@ -467,7 +467,7 @@ Native owns C++/PSC/templates; Game is the Data-layout mirror. Keep both PSC fil
 
 Rollback requires the complete old DLL/PEX/template set and its separately preserved pre-cutover save lineage. Do not load repaired saves under old components or rewrite evidence saves.
 
-### 3.6.0 NPC Social DM scheduling repair (#15)
+### 3.6.0 NPC Social DM scheduling repair
 
 `BeginAsyncNPCDMTick` queues Phase A through SKSE tasks; Papyrus invocation is not a main-thread guarantee. Quest editor-ID inspection, actor/player/cell/race/faction reads, cooldown/calendar reads, inn detection and the empty callback run in that task. Only owned strings/scalars/IDs cross to Phase B. Phase C publishes the result's candidate pool and dispatches the callback on the main thread after validating `SlotTracker::loadGeneration`; revert invalidates queued snapshots/results and clears the social pool. The worker no longer publishes that pool.
 
@@ -487,8 +487,6 @@ Offline check (requires `clang++`): `python SKSE/tests/RunStoryTypeCountFilterCh
 ### Player fix mode: How to convert an old save
 
 The standalone Windows tool includes a one-save `fix` command for eligible SE/AE saves from IntelEngine 3.5.2 or earlier and VR 1.4.15 saves from VR-capable IntelEngine 3.5.1 or earlier. One real 3.5.2 save per qualified SE/AE runtime and one real 3.5.1 VR fixture passed bounded acceptance; older versions are format-gated, not separately tested. Fix does not read the IntelEngine version. Run it from anywhere: no installed PapyrusUtil hash, VFS or game-root placement is required. Qualification uses SKSE co-save format 1, PapyrusUtil owner `0x424510A2`, complete unique framing and, when present, exactly one STRV v1 block. Exact SKSE/runtime pairs: **0x02000140 / 1.5.97.0** (SKSE64 2.0.20; runtime DWORD `0x01050610`, untested), **0x02020060 / 1.6.1170.0**, **0x02030010 / 1.7.104.0**, or **0x020000C0 / VR 1.4.15** (runtime DWORD `0x010400F1`, SKSEVR 2.0.12). VR also requires a bounded `TESV_SAVEGAME` ESS version-12 header. Other formats/header pairs refuse. Expert 1.5.97 and VR `convert` remain refused: no historical PapyrusUtil provider hash is qualified for either. `inspect` recognizes the VR tuple but never grants conversion eligibility.
-
-Skyrim 1.5.97 / SKSE64 2.0.20 saves should convert, untested; your original save is never changed.
 
 Source derivation: [SKSE64 v2.0.20](https://github.com/ianpatt/skse64/blob/0d6c91dc84f1d384da113bec9e298867a5c86ce1/skse64_common/skse_version.h) defines `MAKE_EXE_VERSION_EX`/`PACKED_SKSE_VERSION` and `RUNTIME_VERSION_1_5_97`, yielding SKSE `0x02000140` and runtime `0x01050610`; `Serialization.cpp` writes those version words.
 

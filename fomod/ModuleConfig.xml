@@ -31,7 +31,7 @@ Features:
 
 Requirements:
 - SKSE
-- SkyrimNet Beta 25 minimum (tested with official Beta 28; Beta 25–27 not qualified for 3.6.0)
+- SkyrimNet Beta 25 minimum (tested with official Beta 28)
 - PapyrusExtender (po3)
 - PapyrusUtil
 - SkyUI (MCM)
