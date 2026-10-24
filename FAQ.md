@@ -229,7 +229,7 @@ Advanced users can read the [native offline-conversion documentation](https://gi
 
 **Q: Where should I report bugs in this fork?**
 
-Found a bug? Report it in this fork's [GamePlugin issues](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/issues) for scripts or dashboard problems, or [NativePlugin issues](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/issues) for crashes or conversion problems. Include your fork and Skyrim/SKSE versions, what you did, and relevant logs with personal information removed.
+Found a bug? Report it in this fork's [GamePlugin issues](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/issues). Include your fork and Skyrim/SKSE versions, what you did, and relevant logs with personal information removed.
 
 **Q: Will these changes go upstream to Galanx?**
 
