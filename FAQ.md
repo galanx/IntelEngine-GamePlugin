@@ -231,6 +231,10 @@ Skyrim SE **1.5.x**: untested.
 
 The converter refuses saves it cannot qualify and cannot recover already-lost names. Originals stay untouched. Do not load an incomplete converted pair, mix original/converted companions or convert the same save again. **Never load a converted save with 3.5.2 or earlier.**
 
+**Why did an earlier converter reject a save because of another mod?** The updated converter validates IntelEngine's rendered-cache targets and the co-save framing, not other mods' text or serialization IDs. Other plugins' blocks and non-cache keys and values pass through byte-for-byte, even with duplicate unrelated IDs or control characters. It still refuses ambiguous cache targets, duplicate PapyrusUtil owners or STRV records, and truncated data. This does not repair other mods' data.
+
+For Skyrim **1.6.1170**, accepted SKSE64 builds are **2.2.6, 2.2.7 and 2.2.8**. Other runtime gates are unchanged; the [SKSE release history](https://github.com/ianpatt/skse64/blob/v2.2.8/skse64_whatsnew.txt) documents the shared runtime.
+
 Windows SmartScreen may warn because the tool is unsigned: choose More info → Run anyway.
 
 Advanced users can read the [native offline-conversion documentation](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/main/docs/DLL_API.md#offline-legacy-save-conversion).
