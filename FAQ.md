@@ -2,7 +2,7 @@
 
 By Galanx 3/2026
 
-> **New in this fork:** convert before loading an old save with 3.6.0. The tools install for everyone; fresh games do not need conversion. Eligible SE/AE saves from IE 3.5.2 or earlier and VR 1.4.15 saves from VR-capable IE 3.5.1 or earlier are supported, with bounded real-fixture acceptance, not blanket old-save safety. See [This fork vs the original IntelEngine](#this-fork-vs-the-original-intelengine) for instructions and limits.
+> **New in 3.6.0:** convert before loading an old save with 3.6.0. The tools install for everyone; fresh games do not need conversion. Eligible SE/AE saves from IE 3.5.2 or earlier and VR 1.4.15 saves from VR-capable IE 3.5.1 or earlier are supported, with bounded real-fixture acceptance, not blanket old-save safety. See [IntelEngine 3.6.0 update](#intelengine-360-update) for instructions and limits.
 
 Original answers are preserved below; ~~struck text~~ is superseded by the dated update immediately after it, and dated notes qualify unverified claims.
 
@@ -70,7 +70,7 @@ MCM → Hold Restrictions → ~~set each story type to `Same Town` or `Same Hold
 
 ~~No — they complement each other. We encourage using both. SeverActions features actions like `GiveItem` which pairs perfectly with IntelEngine's `find_item` quest — the NPC physically hands items and rewards to you and vice-versa. They share the same SkyrimNet action system with zero conflicts.~~
 
-> **Updated 2026-10-19 (3.6.0 update):** They can conflict if both offer the same travel, fetch, delivery or cancel actions — disable the duplicates in one mod. See the [compatibility guide](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/blob/main/README.md#compatibility) before using them together.
+> **Updated 2026-10-19 (3.6.0 update):** They can conflict if both offer the same travel, fetch, delivery or cancel actions — disable the duplicates in one mod. See the [compatibility guide](https://github.com/galanx/IntelEngine-GamePlugin/blob/main/README.md#compatibility) before using them together.
 
 **Q: Does it work with follower frameworks (AFT, NFF, etc.)?**
 
@@ -186,17 +186,23 @@ IntelEngine DM prompts are long and complex, which means, you need a smart model
 
 > **Note 2026-10-19:** Treat those model suggestions as personal recommendations; check that yours returns only JSON, with no extra thinking text or markdown.
 
-**Q: Can I migrate a save from IntelEngine 3.5.2 or earlier to this fork?**
+**Q: VR: IntelEngine.dll failed to open address library file**
 
-Use the release's save converter **before loading the old save with this fork**. See [this fork's migration instructions](#this-fork-vs-the-original-intelengine) for supported runtimes, bounded acceptance and limits. **Never load a converted save with 3.5.2 or earlier.**
+Check whether **Light Limit Fix VR** is installed; disabling it fixed this error for users. Also make sure **VR Address Library** is installed (not the SE/AE version) and that it wins any conflicts for `SKSE/Plugins/version-1-4-15-0.csv` in MO2's Data tab. This workaround does not establish the cause of every address-library error.
 
-## This fork vs the original IntelEngine
+**Q: Can I migrate a save from IntelEngine 3.5.2 or earlier to 3.6.0?**
 
-**Q: What is this fork, and where does it live?**
+Use the release's save converter **before loading the old save with 3.6.0**. See the [migration instructions](#intelengine-360-update) for supported runtimes, bounded acceptance and limits. **Never load a converted save with 3.5.2 or earlier.**
 
-It's an independently maintained version of Galanx's IntelEngine, with fixes for newer SkyrimNet releases. You'll find it at [Gerkinfeltser/IntelEngine-GamePlugin](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin) and [Gerkinfeltser/IntelEngine-NativePlugin](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin); 3.6.0 declares SkyrimNet Beta 25 as its minimum and was tested with official Beta 28. VR 1.4.15 should work and was partly tested. Galanx created the original mod — please don't treat this independently maintained version as endorsed or reviewed by him.
+## IntelEngine 3.6.0 update
 
-This fork has no Nexus page; use the two GitHub repositories above.
+**Q: Who maintains IntelEngine?**
+
+Galanx is IntelEngine's original author.
+PhospheneOD (Gerkinfeltser on GitHub) maintains it now, with Galanx's go-ahead, in the official [GamePlugin](https://github.com/galanx/IntelEngine-GamePlugin) and [NativePlugin](https://github.com/galanx/IntelEngine-NativePlugin) repositories.
+For bugs, use the [issue-reporting callout below](#have-issues-report-them-here).
+
+IntelEngine 3.6.0 declares SkyrimNet Beta 25 as its minimum and was tested with official Beta 28. VR 1.4.15 should work and was partly tested.
 
 **Q: What changes after Galanx's 3.5.2?**
 
@@ -208,9 +214,9 @@ This release adds the following changes after 3.5.2:
 - **NPC social safety:** makes background NPC activity safer around loading saves; the 1.5.97 crash report on the original IntelEngine repo remains open and is not confirmed fixed.
 - **Save converter:** supports eligible legacy saves; see the migration instructions below. Convert before loading the old save.
 
-See the [Game changelog](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/blob/main/CHANGELOG.md) and [native compatibility notes](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/main/README.md#compatibility) for details.
+See the [Game changelog](https://github.com/galanx/IntelEngine-GamePlugin/blob/main/CHANGELOG.md) and [native compatibility notes](https://github.com/galanx/IntelEngine-NativePlugin/blob/main/README.md#compatibility) for details.
 
-**Q: Can I switch a playthrough from IntelEngine 3.5.2 or earlier to this fork?**
+**Q: Can I switch a playthrough from IntelEngine 3.5.2 or earlier to 3.6.0?**
 
 Yes, for eligible saves on the supported conversion runtimes — **convert before loading the old save with 3.6.0**. One real 3.5.2 save per qualified SE/AE runtime and one real 3.5.1 VR fixture passed bounded acceptance; older versions are format-gated, not separately tested. Starting a fresh game? You do not need conversion.
 
@@ -223,7 +229,7 @@ Find the IntelEngineTools folder in your installed mod: in MO2, right-click Inte
 
 If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
 
-Tested conversion runtimes: **1.6.1170, 1.7.104 and VR 1.4.15 / SKSEVR 2.0.12**. Skyrim 1.5.97 / SKSE64 2.0.20 conversion: untested. VR conversion is for eligible saves from VR-capable **IE 3.5.1 or earlier**, not IE 3.5.2, which disabled VR. One real VR fixture passed six-cache repair, task recovery/progression, a roughly 39-minute sampled soak and one cold reload. It had no gossip caches or stored names; those real-fixture migration cases remain untested. All 66 cold cache comparisons matched, but only 76/77 state fields matched; a scalar deadline difference and SkyrimNet timeline differences remain unexplained, three mappings were absent both before and after, and the original SkyrimNet database baseline and native name index were not established. This is not general old-save safety or full VR acceptance.
+Tested conversion runtimes: **1.6.1170, 1.7.104 and VR 1.4.15 / SKSEVR 2.0.12**. Skyrim 1.5.97 / SKSE64 2.0.20 conversion: untested. VR conversion is for eligible saves from VR-capable **IE 3.5.1 or earlier**, not IE 3.5.2, which disabled VR. A populated IE 3.5.1 VR save passed conversion of 14 facts, gossip and task-history caches; caches, stored names and one generated bio survived two cold reloads and a roughly 21-minute soak. Displayed-name qualification remains partial: one unloaded NPC reported a generic role despite retaining its stored name and memory. An earlier fixture passed task recovery/progression; active-task deadline drift remains untested. This is not general old-save safety or full VR acceptance.
 
 **Do not skip conversion:** an unconverted VR copy restored/progressed its Travel task, but three original facts caches read back empty, another only as a header, and both original rendered histories were empty despite some raw history remaining. One earlier process crashed with cause unproven; the evidence does not establish that it read the unconverted pair. Task recovery does not prove an unconverted load is safe.
 
@@ -237,12 +243,8 @@ For Skyrim **1.6.1170**, accepted SKSE64 builds are **2.2.6, 2.2.7 and 2.2.8**. 
 
 Windows SmartScreen may warn because the tool is unsigned: choose More info → Run anyway.
 
-Advanced users can read the [native offline-conversion documentation](https://github.com/Gerkinfeltser/IntelEngine-NativePlugin/blob/main/docs/DLL_API.md#offline-legacy-save-conversion).
+Advanced users can read the [native offline-conversion documentation](https://github.com/galanx/IntelEngine-NativePlugin/blob/main/docs/DLL_API.md#offline-legacy-save-conversion).
 
-**Q: Where should I report bugs in this fork?**
+### Have issues? Report them here
 
-Found a bug? Report it in this fork's [GamePlugin issues](https://github.com/Gerkinfeltser/IntelEngine-GamePlugin/issues). Include your fork and Skyrim/SKSE versions, what you did, and relevant logs with personal information removed.
-
-**Q: Will these changes go upstream to Galanx?**
-
-This fork is currently maintained independently; its changes are not submitted upstream.
+**[IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues)** — include your Skyrim, SKSE, SkyrimNet and IntelEngine versions, what you did, and relevant logs with personal information removed.
