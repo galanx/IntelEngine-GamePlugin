@@ -1,6 +1,14 @@
 # IntelEngine
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
+> [!IMPORTANT]
+> **Compatibility:** IntelEngine 3.6.0 declares SkyrimNet Beta 25 as its minimum; it was tested with official Beta 28. Beta 24 and earlier are incompatible.
+>
+> This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
+> **Have issues? Report them here:** [IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues). Include your Skyrim, SKSE, SkyrimNet and IntelEngine versions and relevant logs with personal information removed.
+
+Read the [player FAQ](FAQ.md) for Galanx's original answers, dated 3.6.0 updates, and migration guidance.
+
 *"Meet me at the Western Watchtower at sunset."*
 *She agrees. Hours pass. The sun dips. You arrive — and she's already there.*
 
@@ -78,6 +86,8 @@ A living political system where 9 factions (configurable) scheme, trade, and wag
 - **Faction quests** — when your standing is 20+ with a faction, they call on you for combat missions, rescue operations, and full-scale battles that affect war outcomes
 - **Political awareness** — NPCs know about recent political events and react to them in conversation
 - **Prisma UI dashboard** with a Politics tab showing all faction relations, active wars, and player standings
+
+**One political timeline per playthrough:** `IntelEngine-<id>.db` is one database shared by all saves in that playthrough, not a separate database per save. Loading an earlier save permanently removes later political events, wars, battles and standing history, and re-opens wars that ended after that save (`CleanupFutureEvents`). To keep a later timeline, back up the database and its `-wal`/`-shm` companions with the game closed before loading an earlier save; the `.ess`/`.skse` pair alone does not preserve it.
 
 No teleportation. No console commands. No hardcoded location lists. IntelEngine dynamically indexes every actor and location across every cell in the game — every inn, every home, every NPC is discoverable because the index is built from your actual load order.
 
@@ -312,7 +322,7 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 ## In-Game Dashboard (PrismaUI)
 
-When the optional [PrismaUI](https://github.com/psc-87/PrismaUI) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
+When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
 
 ### Tabs
 
@@ -354,9 +364,9 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 - Save/load recovery with full package and linked-ref reconstruction
 - MCM management interface
 
-**SkyrimNet Action YAMLs** — ten AI-selectable actions with eligibility rules, typed parameters, and event strings that feed context back into NPC awareness for future decisions.
+**SkyrimNet External Bundle** — IntelEngine's 11 AI-selectable actions, three category containers, four custom LLM prompts, and seven character-bio submodules ship under `SKSE/Plugins/SkyrimNet/external/galanx.intelengine/`. Action identities and Papyrus entry points remain unchanged.
 
-**SkyrimNet Plugin Manifest** — IntelEngine registers as a SkyrimNet plugin with its own settings file, allowing separate LLM configuration (model, endpoint, API key, temperature, token limit) for the Story Engine DM. Also exposes faction and location blocklists for fine-grained control over story candidates.
+**SkyrimNet Plugin Configuration** — IntelEngine's LLM variant, settings schema, generated `settings.yaml`, and user-editable `factions.yaml` remain under `SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`. This configuration path is separate from the Beta 25 external content bundle.
 
 ---
 
@@ -389,6 +399,8 @@ IntelEngine is under active development. The following features are planned for 
 - **Eliminate Target** — dispatch an NPC to kill a specific person. Assassinations, bounty hunting, or settling grudges — carried out autonomously across the world.
 - **Lockpick Door** — send an NPC to pick a locked door, gaining access to restricted areas without doing the dirty work yourself.
 - **Steal Item** — task an NPC with stealing something from someone's inventory or home. Risk and reward — their skill determines success.
+- **Background events in SkyrimNet History — backlog, not implemented:** show actual NPC social interactions, rumor/gossip exchanges and political outcomes in the UI event history with meaningful categories, participants and summaries, rather than only travel-oriented `intel_task_event` entries. Owner screenshot/request captured 2026-10-14. Investigate IntelEngine event emission versus SkyrimNet history/schema/filter support before choosing the implementation owner; distinguish executed outcomes from model proposals, rejections and cooldown blocks.
+- **Timeline-rewind notification — backlog, not implemented:** when loading an earlier save removes later political history (`CleanupFutureEvents` > 0), show a top-left `RE::DebugNotification` hint with the count, deferred until the load completes. Separate native feature, not part of the migration release.
 
 ---
 
@@ -400,21 +412,59 @@ IntelEngine is under active development. The following features are planned for 
 >
 > **If you use another SkyrimNet mod that provides similar actions** (travel, fetch, deliver, cancel, etc.), you must **disable the overlapping actions** in either IntelEngine or the other mod. Each action YAML has an `enabled: true/false` flag — set conflicting actions to `enabled: false` in whichever mod you want to defer.
 
+> **SkyrimNet Beta 25 / IntelEngine 3.5.1 migration:** IntelEngine content now loads from external plugin id `galanx.intelengine`. After upgrading, review its enablement and priority in SkyrimNet. Existing action names are unchanged, so per-action settings retain their keys, but should still be reviewed after the content-layer migration. Do not move or delete `config/plugins/IntelEngine`; it continues to own IntelEngine settings and faction configuration.
+
+> **3.6.0 rendered-cache repair:** new rendered caches use delimiter-safe encoding. Fresh-new-game repair was verified on Skyrim 1.6.1170 and 1.7.104; eligible saves from IntelEngine 3.5.2 or earlier can use the offline converter below. Already-lost names/history cannot be recovered.
+>
+### How to convert an old save
+
+For eligible SE/AE saves from IntelEngine 3.5.2 or earlier, or VR 1.4.15 saves from VR-capable IntelEngine 3.5.1 or earlier. Tested on one real 3.5.2 save per qualified SE/AE runtime and one real 3.5.1 VR fixture; older versions are format-gated, not separately tested. Fix mode does not read the IntelEngine version.
+
+Rendered caches were first stored in IntelEngine 2.0.0; this history does not establish conversion testing on older versions.
+
+The installer always includes `LegacyCacheMigration.exe`, `Convert-IE-Save.bat` and the FAQ in `IntelEngineTools`; no converter selection is needed. Starting a fresh game does not require running the converter.
+
+**Convert before loading an old save with 3.6.0.** Close Skyrim and keep the matching same-directory `.ess` / `.skse` pair together. Run `LegacyCacheMigration.exe fix --save "<path-to-save.ess>"`, or drag one ESS onto the adjacent `Convert-IE-Save.bat`. Fix mode accepts SKSE co-save format 1 with complete framing, exactly one PapyrusUtil owner and, when present, exactly one STRV v1 record. Tested conversion runtimes: **1.6.1170**, **1.7.104**, or **VR 1.4.15 / SKSEVR 2.0.12**. Skyrim 1.5.97 / SKSE64 2.0.20 conversion: untested. VR also requires a bounded `TESV_SAVEGAME` version-12 ESS header. Eligibility does not guarantee every legacy save qualifies.
+
+VR 1.4.15 should work and is partly tested. A populated IE 3.5.1 VR save passed conversion: 14 facts, gossip and task-history caches were repaired, stored names were preserved, and caches, stored names and one generated bio survived two cold reloads and a roughly 21-minute soak. Displayed-name qualification remains partial: one unloaded NPC reported a generic role despite retaining its stored name and memory. An earlier fixture passed task recovery/progression; active-task deadline drift remains untested. This is not full VR or general old-save qualification. Expert VR `convert` still refuses because no historical VR PapyrusUtil provider hash is qualified; `inspect` alone grants no eligibility.
+
+Only rendered-cache values are rewritten. Non-cache fields, including BEL-bearing task destinations and stored names, pass through byte-for-byte without normalization. If STRV is absent and the PapyrusUtil owner contains only recognized record types/versions, `fix` can publish a verified byte-identical cache-free pair; this is a copy, not a repair. Unknown records in that path or a present STRV with no eligible targets refuse.
+
+Validation focuses on IntelEngine's rendered caches. Other plugins' blocks, including duplicate serialization IDs, and non-cache keys and values pass through byte-for-byte; their content does not disqualify an otherwise eligible save. This does not repair other mods' data. Duplicate PapyrusUtil owners or STRV records, ambiguous cache targets and incomplete framing still refuse. Every byte outside the cache values and their enclosing length fields is verified unchanged.
+
+For Skyrim **1.6.1170**, the converter accepts **SKSE64 2.2.6, 2.2.7 and 2.2.8**, which the [SKSE release history](https://github.com/ianpatt/skse64/blob/v2.2.8/skse64_whatsnew.txt) associates with that runtime. Other runtime gates are unchanged; this is not a separate in-game acceptance test.
+
+If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
+
+It preserves the originals in `<stem>_IEbackup/` and creates sibling `<stem>_IEconverted.ess` / `<stem>_IEconverted.skse` without replacing existing files. Exit **0** means both outputs were published; **2** is a usage, eligibility or safety refusal; **3** is an I/O, verification or publication failure. If the second rename fails, the first converted file may remain; do not load an incomplete pair. Install the complete repaired DLL, both affected PEX files and all three prompts before using the converted pair. Never load a converted save with 3.5.2 or earlier.
+
+Do not repeat conversion or mix original and converted companions. Writer provenance cannot be proved from the save; BEL-to-space is owner policy. Rollback requires the original pair, matching old components and corresponding IntelEngine/SkyrimNet external-data backups; the converter backs up only the pair.
+
+**If you skip conversion:** fixed templates interpret recognized literal percent escapes as controls (for example, `%0A` becomes a newline); `%250A` becomes literal `%0A` without recursion. This does not make native restoration of raw legacy saves safe. See the [API conversion record](docs/DLL_API.md#player-fix-mode-how-to-convert-an-old-save) for exact decoder results and offline byte comparisons.
+
+In the unconverted VR observation, the Travel task restored and progressed, but three of four original populated facts caches read back empty, the fourth only as a header, and both original rendered histories read back empty despite some raw history remaining. One earlier process crashed; its cause is unproven, and the evidence does not establish that it read the unconverted pair. A restored task is not evidence that skipping conversion is safe.
+
+Both preserved legacy pairs reproduced their verified converted bytes through the unmodified shipped batch and production CLI with Skyrim closed, on ASCII and Unicode/space scratch paths. The production CLI also correctly refused while Skyrim was running. These offline results do not establish general existing-save safety.
+
+> **Papyrus API and array guards:** seven existing native functions are now declared in `IntelEngine.psc`, and three array-null checks use boolean guards. Maintenance, recovery and schedule retention were exercised across save/reload.
+
+**Historical 3.5.2 Skyrim compatibility update:** the full package used the corrected MinLL/CommonLibVR native build with VS 2022 flags. Tested on Skyrim **1.6.1170**, with Epicrob also confirming success on his affected **1.7.x** setup. Use matching SKSE and Address Library; VR was not supported by this build. The release/package version was 3.5.2; the tested DLL retained native version 3.5.1. This release did not include the deferred Papyrus/translation fixes or a claimed fix for the 1.5.97 crash report on the original IntelEngine repo.
+
 ---
 
 ## Requirements
 
-- Skyrim Special Edition / Skyrim VR
+- Skyrim Special Edition / Anniversary Edition: 3.6.0 tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested. Skyrim SE 1.5.x: untested.
 - [SKSE](https://skse.silverlock.org/)
-- [SkyrimNet](https://github.com/MinLL/SkyrimNet-GamePlugin)
+- [SkyrimNet Beta 28](https://github.com/MinLL/SkyrimNet-GamePlugin) was used for 3.6.0 testing. Declared minimum: Beta 25.
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)
-- [Papyrus MessageBox](https://www.nexusmods.com/skyrimspecialedition/mods/83578) (confirmation prompts)
+- Papyrus MessageBox (confirmation prompts): [Papyrus MessageBox - SKSE NG](https://www.nexusmods.com/skyrimspecialedition/mods/83578) for Skyrim 1.6 and earlier, or [PapyrusMessageBox-1.7.104](https://www.nexusmods.com/skyrimspecialedition/mods/193932) for Skyrim 1.7
 
 ### Optional
 
-- [PrismaUI](https://github.com/psc-87/PrismaUI) — in-game overlay framework. Enables the real-time dashboard with task monitoring, story engine controls, director mode, and full settings management. IntelEngine works without it — you just won't have the overlay.
+- [PrismaUI](https://www.prismaui.dev/) — in-game overlay framework. Enables the real-time dashboard with task monitoring, story engine controls, director mode, and full settings management. IntelEngine works without it — you just won't have the overlay.
 
 ---
 

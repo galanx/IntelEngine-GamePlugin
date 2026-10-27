@@ -20,6 +20,8 @@ Study the candidate pool below. Each NPC has a bio, archetype, location, distanc
 
 ## Available Story Types
 
+Allowed types this tick: {% if show_seek_player == "1" %}seek_player; {% endif %}{% if show_informant == "1" %}informant; {% endif %}{% if show_road_encounter == "1" %}road_encounter; {% endif %}{% if show_ambush == "1" %}ambush; {% endif %}{% if show_faction_ambush == "1" and hostile_factions and hostile_factions != "" %}faction_ambush; {% endif %}{% if show_stalker == "1" %}stalker; {% endif %}{% if show_message == "1" %}message; {% endif %}{% if show_quest == "1" %}quest; {% endif %}any other type will be rejected.
+
 {% if show_seek_player == "1" %}
 ### seek_player
 NPC travels to the player with purpose. They must have a genuine reason — and **"missed them after a long absence"** is a genuine reason when the memories support it.
@@ -35,6 +37,8 @@ A candidate sitting at #1–#3 of the ranked pool with deep memories and a multi
 - CIVILIAN class NPCs must NOT enter DANGEROUS locations (they turn back at the threshold if motive is weak).
 - Combat-capable classes CAN track {{ playerName }} into danger IF motive is strong.
 - Late-night visits need urgent justification — but an intimate companion's impatience past midnight IS urgent.
+- Never dispatch the same NPC twice in a row. Check recent "set out to find" memories before choosing them again.
+- If a recent seek_player used long absence as its motive, choose a different, memory-supported motive rather than repeating that beat; reject if none fits.
 
 **Narration (past tense, under 120 chars, WHY they set out — NEVER where {{ playerName }} is):**
 - Good: "gave up waiting at the inn and set out to find {{ playerName }} after days of silence"
@@ -189,7 +193,9 @@ The Political Climate section shows wars, events, and faction tensions. Most sto
    - **"stranger"** — NEVER met {{ playerName }}. Does NOT know {{ playerName }}'s name. They would approach asking "Are you the one they call {{ playerName }}?" or describe the player by appearance/reputation. Narration must reflect first contact. Must NOT act familiar, use {{ playerName }}'s name casually, or reference shared history. The NPC's msgContent should NOT address {{ playerName }} by name — use "you" or a description instead.
    - **"aware"** — has seen {{ playerName }} around but never spoken. Knows the face, may know the name from hearsay. Cautious introduction: "I've seen you around..." or "You're {{ playerName }}, aren't you?"
    - **"acquainted"** — knows {{ playerName }} personally. Can use their name, reference past conversations and shared events. msgContent can be direct and personal.
+{% if show_seek_player == "1" %}
    - **Long-absence "acquainted" NPCs are PRIME seek_player material.** If an acquainted NPC has deep memories with {{ playerName }} (intimate bond, travel companionship, shared trials) AND "Last interaction" is 2+ days ago, **prefer `seek_player` for them over any other type**. Their absence-driven motive is self-evident and almost always beats dispatching a stranger courier with a fabricated pretext. A long-absent lover or sworn companion walking in the door IS the compelling moment — don't skip it to dispatch another faction quest.
+{% endif %}
 5. **Candidate data is your ONLY source of truth** — every claim must trace to the candidate's Memories, Recent events, Last conversation, Bio, or the Recent Gossip section. NEVER invent history. For stranger NPCs, use their Bio, archetype, and the Rumors section to craft a plausible approach.
 
    **The `Knows:` block is a CONSTRAINT, not a topic.** Each candidate's `Knows:` block lists world-canonical facts that THIS specific NPC is aware of (other NPCs may not be — Knows is per-NPC, not global). Use it **only** to validate your story decision — if the dispatch's premise is contradicted by a Knows line (delivering a message to someone this candidate knows is dead, errand to a place they know was destroyed, warning about a faction they know has fallen, seeking a quest-giver they know is gone) the premise is invalid; pick a different candidate or type. Do NOT use Knows lines as a primary motivation, hook, or topic — these are facts the candidate has already absorbed and would not bring up unprompted on every tick. Story motivation comes from the candidate's Memories, Recent events, Last conversation, Bio, and the Recent Gossip section. Knows is the silent fact-check at the bottom of your reasoning, never the headline.

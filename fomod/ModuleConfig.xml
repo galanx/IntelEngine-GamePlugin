@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
-    <moduleName>IntelEngine v3.5.0</moduleName>
-    <moduleImage path="fomod\screenshot.png" />
+    <moduleName>IntelEngine v3.6.0</moduleName>
+    <moduleImage path="fomod\IE-cover.jpg" />
 
     <requiredInstallFiles>
         <file source="IntelEngine.esp" destination="IntelEngine.esp" />
@@ -11,6 +11,7 @@
         <folder source="Interface" destination="Interface" />
         <folder source="SKSE" destination="SKSE" />
         <folder source="PrismaUI" destination="PrismaUI" />
+        <file source="FAQ.md" destination="IntelEngineTools\FAQ.md" />
     </requiredInstallFiles>
 
     <installSteps order="Explicit">
@@ -19,7 +20,8 @@
                 <group name="Install" type="SelectAll">
                     <plugins order="Explicit">
                         <plugin name="IntelEngine">
-                            <description>AI-powered NPC autonomy mod for Skyrim. Gives NPCs the ability to travel, perform tasks, and create dynamic story events powered by SkyrimNet's LLM integration.
+                            <description>AI-powered NPC autonomy mod for Skyrim, powered by SkyrimNet.
+Player FAQ: IntelEngineTools\FAQ.md
 
 Features:
 - Player-directed NPC tasks (GoToLocation, FetchPerson, DeliverMessage, SearchForActor, ScheduleMeeting, EscortTarget)
@@ -27,8 +29,40 @@ Features:
 - Autonomous NPC social interactions (npc_interaction, npc_gossip)
 - All features configurable via MCM
 
-Requirements: SKSE, SkyrimNet, PapyrusExtender (po3), PapyrusUtil, MCM Helper</description>
+Requirements:
+- SKSE
+- SkyrimNet Beta 25 minimum (tested with official Beta 28)
+- PapyrusExtender (po3)
+- PapyrusUtil
+- SkyUI (MCM)
+- Papyrus MessageBox - SKSE NG (Skyrim 1.6 and earlier)
+  OR PapyrusMessageBox-1.7.104 (Skyrim 1.7)</description>
+                            <image path="fomod\IE-cover.jpg" />
                             <files />
+                            <typeDescriptor>
+                                <type name="Required"/>
+                            </typeDescriptor>
+                        </plugin>
+                    </plugins>
+                </group>
+            </optionalFileGroups>
+        </installStep>
+        <installStep name="Upgrading from IntelEngine 3.5.2 or earlier">
+            <optionalFileGroups order="Explicit">
+                <group name="Upgrade tools" type="SelectAll">
+                    <plugins order="Explicit">
+                        <plugin name="Legacy save converter">
+                            <description>Starting a fresh game? You don't need the converter.
+Upgrading a save from IntelEngine 3.5.2 or earlier:
+1. Close Skyrim and back up the save's .ess and .skse.
+2. Drag the .ess onto Convert-IE-Save.bat in "IntelEngineTools" (MO2: right-click IntelEngine → Open in Explorer).
+3. Start Skyrim and load the new "..._IEconverted" save.
+See FAQ.md in IntelEngineTools for more.</description>
+                            <image path="fomod\IE-converter.jpg" />
+                            <files>
+                                <file source="IntelEngineTools\LegacyCacheMigration.exe" destination="IntelEngineTools\LegacyCacheMigration.exe" />
+                                <file source="IntelEngineTools\Convert-IE-Save.bat" destination="IntelEngineTools\Convert-IE-Save.bat" />
+                            </files>
                             <typeDescriptor>
                                 <type name="Required"/>
                             </typeDescriptor>
