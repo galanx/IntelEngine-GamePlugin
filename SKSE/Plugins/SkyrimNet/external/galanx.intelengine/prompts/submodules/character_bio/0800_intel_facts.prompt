@@ -3,6 +3,8 @@
 {% if actorUUID and isValidActor(actorUUID) %}
 {% if first_person %}
 {% set renderedFacts = papyrus_util("GetStringValue", actorUUID, "Intel_FactsRendered", "") %}
+{% set renderedFacts = replace(replace(replace(replace(replace(replace(replace(renderedFacts, "%07", "\u0007"), "%09", "\t"), "%0A", "\n"), "%0B", "\u000b"), "%0C", "\f"), "%0D", "\r"), "%1B", "\u001b") %}
+{% set renderedFacts = replace(renderedFacts, "%25", "%") %}
 {% if renderedFacts != "" %}
 {{ renderedFacts }}
 {% endif %}

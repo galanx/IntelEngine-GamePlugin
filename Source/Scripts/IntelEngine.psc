@@ -468,6 +468,24 @@ String Function GetActorHoldName(Actor akActor) Global Native
 ; Get recent dialogue history for an NPC. Returns formatted string, empty if no dialogue.
 String Function GetRecentDialogue(Actor akActor, Int maxExchanges = 1) Global Native
 
+; Poll recent dialogue for schedule keywords: 0=none, 1=meeting, 2=fetch, 3=delivery.
+Int Function RunSafetyNetCheck() Global Native
+
+; Reset the safety-net unchanged-dialogue backoff.
+Function NotifyNewDialogue() Global Native
+
+; Get the NPC stored by the last positive safety-net check, or None if unavailable.
+Actor Function GetSafetyNetNPC() Global Native
+
+; Get the latest dialogue's NPC, or None if unavailable.
+Actor Function GetLastConversationPartner() Global Native
+
+; Return the schedule keyword hint from an NPC's recent dialogue.
+Int Function HasScheduleKeywords(Actor akActor) Global Native
+
+; Build escaped safety-net context JSON; empty for unavailable actor/dialogue.
+String Function BuildSafetyNetContextJson(Actor akActor, Int keywordHint) Global Native
+
 ; Check if an NPC knows the player (has dialogue, memories, or relationship data).
 Bool Function NPCKnowsPlayer(Actor akActor) Global Native
 
@@ -669,7 +687,7 @@ Int Function GetPlayerInteractionCount(Actor akNPC) Global Native
 ; =============================================================================
 
 ; Pre-render facts section (first person). Returns "## Things I Know\n- I ..."
-; Store result with StorageUtil.SetStringValue(npc, "Intel_FactsRendered", ...)
+; Encode the complete result once before StorageUtil.SetStringValue.
 String Function RenderFactsSection(String[] facts, Float[] factTimes, Float currentGameDays) Global Native
 
 ; Pre-render gossip heard section (first person). Returns "## Rumors I've Heard\n..."
@@ -680,6 +698,10 @@ String Function RenderGossipToldSection(String[] rumors, String[] recipients, Fl
 
 ; Pre-render task history section (first person). Returns "### Past Tasks\nWhat I've done:\n..."
 String Function RenderTaskHistorySection(String[] descs, Float[] times, Float currentGameDays) Global Native
+
+; Lossless rendered-cache storage encoding; join gossip before calling once.
+; Cached prompt readers reverse control tokens, then %25 LAST. Fresh games only.
+String Function EncodeRenderedCache(String text) Global Native
 
 ; =============================================================================
 ; DASHBOARD FUNCTIONS
@@ -711,6 +733,9 @@ String Function GetPendingDirectorParam(String key) Global Native
 
 ; Clear all pending Director parameters
 Function ClearPendingDirectorParams() Global Native
+
+; Atomically claim pending Director parameters as JSON, clearing them.
+String Function ClaimPendingDirectorParams() Global Native
 
 ; =============================================================================
 ; DEBUG / TESTING FUNCTIONS

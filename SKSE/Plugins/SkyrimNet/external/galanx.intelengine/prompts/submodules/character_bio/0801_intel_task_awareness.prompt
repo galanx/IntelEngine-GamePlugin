@@ -4,6 +4,8 @@
 
 {% if first_person %}
 {% set renderedHistory = papyrus_util("GetStringValue", actorUUID, "Intel_TaskHistoryRendered", "") %}
+{% set renderedHistory = replace(replace(replace(replace(replace(replace(replace(renderedHistory, "%07", "\u0007"), "%09", "\t"), "%0A", "\n"), "%0B", "\u000b"), "%0C", "\f"), "%0D", "\r"), "%1B", "\u001b") %}
+{% set renderedHistory = replace(renderedHistory, "%25", "%") %}
 {% if renderedHistory != "" %}
 {{ renderedHistory }}
 {% endif %}

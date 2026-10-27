@@ -1,0 +1,250 @@
+# IntelEngine — FAQ
+
+By Galanx 3/2026
+
+> **New in 3.6.0:** convert before loading an old save with 3.6.0. The tools install for everyone; fresh games do not need conversion. Eligible SE/AE saves from IE 3.5.2 or earlier and VR 1.4.15 saves from VR-capable IE 3.5.1 or earlier are supported, with bounded real-fixture acceptance, not blanket old-save safety. See [IntelEngine 3.6.0 update](#intelengine-360-update) for instructions and limits.
+
+Original answers are preserved below; ~~struck text~~ is superseded by the dated update immediately after it, and dated notes qualify unverified claims.
+
+**Q: What is IntelEngine?**
+
+IntelEngine is a Skyrim mod that gives NPCs the ability to act independently in the game world. Instead of standing in one spot waiting for the player, NPCs can travel across the map, carry out tasks, remember what happened, and even pursue their own goals — all driven by AI via SkyrimNet.
+
+**Q: What does it actually do in-game?**
+
+You can give NPCs orders through natural conversation — things like "go find Ysolda and bring her here," "tell the Jarl I'll meet him at the inn at sunset," or "escort Adrianne to Dragonsreach." NPCs physically walk to their destination, ~~no teleporting~~. They calculate travel time, leave early enough to arrive on schedule, and wait naturally when they get there. Missed meetings and late arrivals are tracked and remembered.
+
+> **Updated 2026-10-19 (3.6.0 update):** Your NPCs normally walk, but they can teleport through doors or when they get stuck or take too long.
+
+**Q: Do NPCs do things on their own?**
+
+Yes. A built-in Dungeon Master system generates dynamic events throughout your playthrough. NPCs will seek you out over unfinished business, ambush you over old grudges, spread gossip through realistic chains of people, offer you quests like rescues or dungeon clears, and even cross your path by coincidence while traveling on their own errands.
+
+**Q: Is there a political system?**
+
+Nine factions form alliances, negotiate trade deals, spy on each other, declare wars, and fight battles in the background. If you happen to be nearby when a battle kicks off, soldiers spawn and fight it out. Your standing with each faction rises and falls based on your choices and actions.
+
+**Q: Do NPCs remember what happens?**
+
+~~Every completed task, delivered message, failed meeting, and overheard rumor persists in an NPC's memory and shapes how they interact with you going forward. Betray someone and they hold a grudge. Be reliable and they trust you more.~~
+
+> **Updated 2026-10-19 (3.6.0 update):** Yes — NPCs remember tasks, messages, meetings and gossip, but some facts fade over time. How they react still depends on the AI.
+
+**Q: My followers keep leaving to do tasks. How do I stop this?**
+
+MCM or Prisma Dashboard → Settings → Skip Action for Followers. Toggle ON for any actions you want blocked ~~(`Go To Location`, `Fetch Person`, `Deliver Message`, `Escort Target`)~~. ~~Followers will still talk, gossip, and interact — they just won't physically leave your side.~~
+
+> **Updated 2026-10-19 (3.6.0 update):** MCM or Dashboard → Settings → Skip Action for Followers: turn ON each action you want blocked, including Search For Actor and all three scheduling actions. These default OFF; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
+
+**Q: Can I get a confirmation prompt instead of blocking entirely?**
+
+Under Action Confirmation Prompts, set actions to `Followers Only`. You'll get ~~a yes/no popup before any follower departs~~ (this is the default for most actions).
+
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Action Confirmation Prompts → Followers Only lets you choose Allow, Deny or Deny (Silent). Most actions default to Followers Only, Schedule Meeting defaults to Everyone, and any follower-skip toggle blocks the action without asking.
+
+**Q:Nothing is happening. No NPCs are approaching me.**
+
+Check that Story Engine is enabled in MCM → Settings. The default interval is 3 game hours — sleep or wait a bit. Also check that story types aren't all toggled off.
+
+**Q: Events happen too often / not often enough.**
+
+Adjust Check Interval (default 3 hours, range 0.5–168). Lower = more frequent.
+
+**Q: The same NPC keeps getting picked.**
+
+Increase ~~NPC Cooldown~~ (default 24 hours, range 6–72).
+
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Story NPC Cooldown (hours): default 24, range 6–72. For NPC-to-NPC activity, adjust NPC Social Cooldown instead.
+
+**Q: I don't want hostile encounters (ambushes, stalkers).**
+
+MCM → Story Types (DM) → toggle OFF `Ambush`, `Stalker`, or `Faction Ambush` individually.
+
+**Q: NPCs from other holds keep showing up.**
+
+MCM → Hold Restrictions → ~~set each story type to `Same Town` or `Same Hold`~~.
+
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Hold Restrictions → choose Same town (everyone) or Same hold (everyone) for each listed story type you want kept local. The civilian-only and follower-exempt options let some NPCs travel farther.
+
+**Q: Does IntelEngine conflict with SeverActions?**
+
+~~No — they complement each other. We encourage using both. SeverActions features actions like `GiveItem` which pairs perfectly with IntelEngine's `find_item` quest — the NPC physically hands items and rewards to you and vice-versa. They share the same SkyrimNet action system with zero conflicts.~~
+
+> **Updated 2026-10-19 (3.6.0 update):** They can conflict if both offer the same travel, fetch, delivery or cancel actions — disable the duplicates in one mod. See the [compatibility guide](https://github.com/galanx/IntelEngine-GamePlugin/blob/main/README.md#compatibility) before using them together.
+
+**Q: Does it work with follower frameworks (AFT, NFF, etc.)?**
+
+Yes. IntelEngine detects followers via the engine's `IsPlayerTeammate` flag, which all frameworks use. We recommend using SeverActions for managing followers.
+
+> **Note 2026-10-19:** Follower detection depends on your framework marking the NPC as your active teammate; check your setup if the follower controls don't apply.
+
+**Q: How do I exclude a specific NPC?**
+
+Plugin Configurations → NPC Blocklist (comma-separated). Example: `Nazeem, Heimskr`
+
+**Q: How do I restrict events to specific NPCs only?**
+
+Add names to NPC Whitelist. When non-empty, only listed NPCs are eligible.
+
+**Q: How do I block a location or faction?**
+
+Location Blocklist: `Whiterun, Solitude`
+
+Faction Blocklist: `CrimeFactionWhiterun` (append `:rank` to filter by max rank, e.g. `BanditFaction:0`)
+
+**Q: I lost my config files.**
+
+Copy `settings.sample.yaml` or `factions.sample.yaml` from the mod folder and remove `.sample` from the filename.
+
+**Q: Can I disable certain quest types?**
+
+MCM or Dashboard → Quest Types → toggle OFF what you don't want (Combat, Rescue, Find Item, Faction Combat, Faction Rescue, Faction Battle).
+
+**Q: Can rescue targets die?**
+
+~~Only if you enable Allow NPC Death (Rescue) (OFF by default).~~ ⚠️ This can permanently kill named NPCs and break other quests.
+
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Quest Types → Allow NPC death in rescue is OFF by default. Leave it OFF to protect rescue victims during the quest; other mods and what happens afterward can still put them at risk.
+
+**Q: How long do I have to complete a quest?**
+
+Quest Timeout slider (default 1 day, max 30). After this, unfinished quests auto-expire.
+
+**Q: How do I see faction relations?**
+
+Prisma Dashboard (`Shift+7`) → **Politics** tab. Shows faction grid, active wars, standings, and events.
+
+**Q: Can I trigger political events manually?**
+
+Dashboard → Director tab → ~~Political Director. Pick factions, event type, and dispatch.~~
+
+> **Updated 2026-10-19 (3.6.0 update):** Dashboard → Director → Political Event: pick both factions and the event type, add a description and a nonzero relation change, then click Dispatch Political Event.
+
+**Q: Can I add custom factions?**
+
+Edit `factions.yaml` in `SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`. If missing, copy `factions.sample.yaml` and remove `.sample`. ~~Be sure to remove factions.yaml from MO2 overwrite folder if adding your own.~~ ~~Also make sure the faction EditorId actually exists in Skyrim.~~
+
+> **Updated 2026-10-19 (3.6.0 update):** Keep your custom factions — merge any MO2 Overwrite copy instead of deleting it, and check which copy your mod manager uses. Use a real faction EditorID for `skyrim_faction_id`; for example, `ImperialFaction` uses `CWImperialFaction`.
+
+**Q: NPCs gossip and argue too much.**
+
+Increase Interaction Interval (default 1.5 hours). Or toggle OFF `NPC Gossip` / `NPC Interaction` ~~under Story Types~~.
+
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → NPC Social Life → raise NPC Interaction Interval (hours), or turn OFF NPC Gossip / NPC Interaction. The dashboard calls it Interaction Interval; default 1.5 hours, range 0.5–168.
+
+**Q: Can I trigger NPC interactions manually?**
+
+Dashboard → Director tab → ~~NPC Social Director~~.
+
+> **Updated 2026-10-19 (3.6.0 update):** Dashboard → Director → NPC Social: choose two NPCs, pick Interaction or Gossip, and add the narration.
+
+**Q: NPCs take forever to get somewhere.**
+
+Lower Max Travel Time (default 1 day). NPCs exceeding this teleport or give up.
+
+**Q: An NPC is stuck.**
+
+~~Teleport When Stuck~~ is ON by default. Check Active Tasks in MCM to see and manage ~~all tasks~~.
+
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Teleport on stuck/timeout is ON by default. Manage player tasks in MCM → Active Tasks, or inspect and remove stuck AI packages in Dashboard → Packages.
+
+**Q: Too many NPCs doing tasks at once.**
+
+Lower Max Concurrent Tasks (default 5, min 1).
+
+**Q: What is Auto Dynamic Bio?**
+
+When enabled, NPC bios automatically rewrite after X dialogue lines per NPC — keeping their personality evolving based on conversations. Disabled by default.
+
+**Q: How do I enable it?**
+
+MCM or Dashboard → Auto Dynamic Bio  → toggle ON. Set "Lines Before Update" (default 20, range 5–1000).
+
+**Q: How do I open the dashboard?**
+
+`Shift+7` (default). Change the hotkey in SkyrimNet → Plugin Configurations.
+
+> **Note 2026-10-19:** Hotkey defaults disagree, so set yours in SkyrimNet → Plugin Configurations → IntelEngine → Dashboard Hotkey / Dashboard Modifiers; you'll also need PrismaUI.
+
+**Q: Dashboard too small on 4K?**
+
+Increase UI Scale (recommended 1.5–2.0 for 4K).
+
+**Q: How do I change which AI model IntelEngine uses?**
+
+Dashboard or SkyrimNet Web UI → Plugin Configurations → IntelEngine → LLM Overrides. Leave empty to use the default model.
+
+**Q: NPCs keep wanting to repeatedly travel somewhere on their own**
+
+If it happens consecutively, the llm might be too eager to make them travel if the previous location hasn't been found. You can configure action cooldowns to prevent this behavior in SkyrimNet → Actions Library or if you like, try to change the action description to have stricter rules in SkyrimNet → Custom Actions → GoToLocation (or the action of your choice), or you can disable it entirely.
+
+> **Note 2026-10-19:** For repeated travel orders, check for duplicate actions first; the story and social cooldown sliders are for autonomous events.
+
+**Q: I changed the intel_story_dm model and now stories stopped working**
+
+IntelEngine DM prompts are long and complex, which means, you need a smart model with longer context who can output proper JSON. I personally use opus, but you may also use deepseek 3.2 or any other smarter model, except 8b models. Thinking models would also do great.
+
+> **Note 2026-10-19:** Treat those model suggestions as personal recommendations; check that yours returns only JSON, with no extra thinking text or markdown.
+
+**Q: VR: IntelEngine.dll failed to open address library file**
+
+Check whether **Light Limit Fix VR** is installed; disabling it fixed this error for users. Also make sure **VR Address Library** is installed (not the SE/AE version) and that it wins any conflicts for `SKSE/Plugins/version-1-4-15-0.csv` in MO2's Data tab. This workaround does not establish the cause of every address-library error.
+
+**Q: Can I migrate a save from IntelEngine 3.5.2 or earlier to 3.6.0?**
+
+Use the release's save converter **before loading the old save with 3.6.0**. See the [migration instructions](#intelengine-360-update) for supported runtimes, bounded acceptance and limits. **Never load a converted save with 3.5.2 or earlier.**
+
+## IntelEngine 3.6.0 update
+
+**Q: Who maintains IntelEngine?**
+
+Galanx is IntelEngine's original author.
+PhospheneOD (Gerkinfeltser on GitHub) maintains it now, with Galanx's go-ahead, in the official [GamePlugin](https://github.com/galanx/IntelEngine-GamePlugin) and [NativePlugin](https://github.com/galanx/IntelEngine-NativePlugin) repositories.
+For bugs, use the [issue-reporting callout below](#have-issues-report-them-here).
+
+IntelEngine 3.6.0 declares SkyrimNet Beta 25 as its minimum and was tested with official Beta 28. VR 1.4.15 should work and was partly tested.
+
+**Q: What changes after Galanx's 3.5.2?**
+
+This release adds the following changes after 3.5.2:
+
+- **NPC names and memories:** fixes how memories are saved so they don't corrupt stored NPC names.
+- **Script fixes:** corrects script checks and keeps the scripts talking properly to the native plugin.
+- **Story NPC selection:** matches story NPCs against the current candidates instead of searching the whole world.
+- **NPC social safety:** makes background NPC activity safer around loading saves; the 1.5.97 crash report on the original IntelEngine repo remains open and is not confirmed fixed.
+- **Save converter:** supports eligible legacy saves; see the migration instructions below. Convert before loading the old save.
+
+See the [Game changelog](https://github.com/galanx/IntelEngine-GamePlugin/blob/main/CHANGELOG.md) and [native compatibility notes](https://github.com/galanx/IntelEngine-NativePlugin/blob/main/README.md#compatibility) for details.
+
+**Q: Can I switch a playthrough from IntelEngine 3.5.2 or earlier to 3.6.0?**
+
+Yes, for eligible saves on the supported conversion runtimes — **convert before loading the old save with 3.6.0**. One real 3.5.2 save per qualified SE/AE runtime and one real 3.5.1 VR fixture passed bounded acceptance; older versions are format-gated, not separately tested. Starting a fresh game? You do not need conversion.
+
+Find the IntelEngineTools folder in your installed mod: in MO2, right-click IntelEngine → Open in Explorer. In Vortex, it's in your game's Data folder. The FAQ, save converter executable and launcher are installed automatically for everyone; no installer selection is needed.
+
+1. Close Skyrim.
+2. Back up your save's matching `.ess` and `.skse` files and keep them together in the same folder; back up IntelEngine and SkyrimNet's extra data too if you might roll back.
+3. Keep `LegacyCacheMigration.exe` beside `Convert-IE-Save.bat`, then drag your `.ess` onto `Convert-IE-Save.bat` — leave its matching `.skse` beside the save.
+4. Once conversion succeeds, install this release's full package and load the new `_IEconverted` save, keeping its matching `_IEconverted.skse` alongside it.
+
+If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
+
+Tested conversion runtimes: **1.6.1170, 1.7.104 and VR 1.4.15 / SKSEVR 2.0.12**. Skyrim 1.5.97 / SKSE64 2.0.20 conversion: untested. VR conversion is for eligible saves from VR-capable **IE 3.5.1 or earlier**, not IE 3.5.2, which disabled VR. A populated IE 3.5.1 VR save passed conversion of 14 facts, gossip and task-history caches; caches, stored names and one generated bio survived two cold reloads and a roughly 21-minute soak. Displayed-name qualification remains partial: one unloaded NPC reported a generic role despite retaining its stored name and memory. An earlier fixture passed task recovery/progression; active-task deadline drift remains untested. This is not general old-save safety or full VR acceptance.
+
+**Do not skip conversion:** an unconverted VR copy restored/progressed its Travel task, but three original facts caches read back empty, another only as a header, and both original rendered histories were empty despite some raw history remaining. One earlier process crashed with cause unproven; the evidence does not establish that it read the unconverted pair. Task recovery does not prove an unconverted load is safe.
+
+Skyrim SE **1.5.x**: untested.
+
+The converter refuses saves it cannot qualify and cannot recover already-lost names. Originals stay untouched. Do not load an incomplete converted pair, mix original/converted companions or convert the same save again. **Never load a converted save with 3.5.2 or earlier.**
+
+**Why did an earlier converter reject a save because of another mod?** The updated converter validates IntelEngine's rendered-cache targets and the co-save framing, not other mods' text or serialization IDs. Other plugins' blocks and non-cache keys and values pass through byte-for-byte, even with duplicate unrelated IDs or control characters. It still refuses ambiguous cache targets, duplicate PapyrusUtil owners or STRV records, and truncated data. This does not repair other mods' data.
+
+For Skyrim **1.6.1170**, accepted SKSE64 builds are **2.2.6, 2.2.7 and 2.2.8**. Other runtime gates are unchanged; the [SKSE release history](https://github.com/ianpatt/skse64/blob/v2.2.8/skse64_whatsnew.txt) documents the shared runtime.
+
+Windows SmartScreen may warn because the tool is unsigned: choose More info → Run anyway.
+
+Advanced users can read the [native offline-conversion documentation](https://github.com/galanx/IntelEngine-NativePlugin/blob/main/docs/DLL_API.md#offline-legacy-save-conversion).
+
+### Have issues? Report them here
+
+**[IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues)** — include your Skyrim, SKSE, SkyrimNet and IntelEngine versions, what you did, and relevant logs with personal information removed.
