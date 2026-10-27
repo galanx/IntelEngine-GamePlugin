@@ -186,6 +186,10 @@ IntelEngine DM prompts are long and complex, which means, you need a smart model
 
 > **Note 2026-10-19:** Treat those model suggestions as personal recommendations; check that yours returns only JSON, with no extra thinking text or markdown.
 
+**Q: VR: IntelEngine.dll failed to open address library file**
+
+Check whether **Light Limit Fix VR** is installed; disabling it fixed this error for users. Also make sure **VR Address Library** is installed (not the SE/AE version) and that it wins any conflicts for `SKSE/Plugins/version-1-4-15-0.csv` in MO2's Data tab. This workaround does not establish the cause of every address-library error.
+
 **Q: Can I migrate a save from IntelEngine 3.5.2 or earlier to this fork?**
 
 Use the release's save converter **before loading the old save with this fork**. See [this fork's migration instructions](#this-fork-vs-the-original-intelengine) for supported runtimes, bounded acceptance and limits. **Never load a converted save with 3.5.2 or earlier.**
@@ -223,7 +227,7 @@ Find the IntelEngineTools folder in your installed mod: in MO2, right-click Inte
 
 If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
 
-Tested conversion runtimes: **1.6.1170, 1.7.104 and VR 1.4.15 / SKSEVR 2.0.12**. Skyrim 1.5.97 / SKSE64 2.0.20 conversion: untested. VR conversion is for eligible saves from VR-capable **IE 3.5.1 or earlier**, not IE 3.5.2, which disabled VR. One real VR fixture passed six-cache repair, task recovery/progression, a roughly 39-minute sampled soak and one cold reload. It had no gossip caches or stored names; those real-fixture migration cases remain untested. All 66 cold cache comparisons matched, but only 76/77 state fields matched; a scalar deadline difference and SkyrimNet timeline differences remain unexplained, three mappings were absent both before and after, and the original SkyrimNet database baseline and native name index were not established. This is not general old-save safety or full VR acceptance.
+Tested conversion runtimes: **1.6.1170, 1.7.104 and VR 1.4.15 / SKSEVR 2.0.12**. Skyrim 1.5.97 / SKSE64 2.0.20 conversion: untested. VR conversion is for eligible saves from VR-capable **IE 3.5.1 or earlier**, not IE 3.5.2, which disabled VR. A populated IE 3.5.1 VR save passed conversion of 14 facts, gossip and task-history caches; caches, stored names and one generated bio survived two cold reloads and a roughly 21-minute soak. Displayed-name qualification remains partial: one unloaded NPC reported a generic role despite retaining its stored name and memory. An earlier fixture passed task recovery/progression; active-task deadline drift remains untested. This is not general old-save safety or full VR acceptance.
 
 **Do not skip conversion:** an unconverted VR copy restored/progressed its Travel task, but three original facts caches read back empty, another only as a header, and both original rendered histories were empty despite some raw history remaining. One earlier process crashed with cause unproven; the evidence does not establish that it read the unconverted pair. Task recovery does not prove an unconverted load is safe.
 
