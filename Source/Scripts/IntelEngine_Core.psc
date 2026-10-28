@@ -1988,6 +1988,13 @@ EndEvent
 Event OnDashboardCancelQuest(String eventName, String strArg, Float numArg, Form sender)
     If StoryEngine != None && StoryEngine.QuestActive
         DebugMsg("Dashboard: Cancelling active quest")
+        Actor courier = StoryEngine.ActiveStoryNPC
+        If courier != None
+            Int courierSlot = FindSlotByAgent(courier)
+            If courierSlot >= 0
+                ClearSlotRestoreFollower(courierSlot, courier)
+            EndIf
+        EndIf
         StoryEngine.CleanupQuest()
         StoryEngine.CleanupStoryDispatch()
         PushDashboardState()
