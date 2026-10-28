@@ -23,8 +23,8 @@ schema:
     - name: "Dashboard Modifiers"
       path: "ui.dashboard_modifiers"
       type: "int"
-      description: "Modifier key bitmask: 1=Ctrl, 2=Shift, 4=Alt. Combine with +. Default 3 = Ctrl+Shift."
-      defaultValue: 0
+      description: "Modifier key bitmask: 1=Ctrl, 2=Shift, 4=Alt. Combine with +. Default 2 = Shift."
+      defaultValue: 2
       min: 0
       max: 7
       category: "UI"

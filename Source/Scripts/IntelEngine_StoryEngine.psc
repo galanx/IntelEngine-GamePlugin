@@ -120,6 +120,10 @@ String Property NPCSocialType = "" Auto Hidden
 
 ; === Quest System ===
 Bool Property QuestActive = false Auto Hidden
+Bool Property QuestCourierPending = false Auto Hidden
+Actor Property QuestDepartureNPC = None Auto Hidden
+String Property QuestDepartureMemory = "" Auto Hidden
+String Property QuestDepartureFact = "" Auto Hidden
 Actor Property QuestGiver = None Auto Hidden
 Actor Property QuestGuideNPC = None Auto Hidden
 ObjectReference Property QuestLocation = None Auto Hidden
@@ -524,7 +528,7 @@ Event OnUpdate()
 
 
     ; Quest monitoring (runs independently of IsActive)
-    If QuestActive
+    If QuestActive && !QuestCourierPending
         If QuestGuideActive
             CheckQuestGuide()
         EndIf
@@ -1587,9 +1591,8 @@ Function OnDungeonMasterResponse(String response, Int success)
 
     ; Record dispatch as a persistent event (generic text, NOT the full narration).
     ; The actual narration fires only once on arrival via OnStoryNPCArrived.
-    ; Message type sends its own persistent memory inside HandleMessageDispatch (references messenger, not sender).
-    ; Faction quests with empty npc skip this — persistent memory is sent after FindFactionMember in HandleQuestDispatch.
-    If storyType != "message" && npc != None
+    ; Message and quest memories are recorded only after the courier arrives.
+    If storyType != "message" && storyType != "quest" && npc != None
         String npcDispName = npc.GetDisplayName()
         String playerDispName = Game.GetPlayer().GetDisplayName()
         If IntelEngine.NPCKnowsPlayer(npc)
@@ -1688,7 +1691,7 @@ EndFunction
 ; DISPATCH (unified -- handles both player-targeted and NPC-targeted)
 ; =============================================================================
 
-Function DispatchToTarget(Actor npc, Actor target, String narration, String slotTaskType)
+Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String slotTaskType)
     Actor player = Game.GetPlayer()
 
     ; === Player home knocking prompt ===
@@ -1716,13 +1719,13 @@ Function DispatchToTarget(Actor npc, Actor target, String narration, String slot
                 Core.InjectFact(npc, "went to visit " + playerName + " at home but was turned away at the door")
                 Core.SendPersistentMemory(npc, player, npcName + " knocked on " + playerName + "'s door but was told to go away")
                 ActiveStoryType = ""
-                return
+                return false
             Else ; "Ignore" or "TIMED_OUT"
                 npc.MoveTo(exteriorDoor, 0.0, 0.0, 0.0, false)
                 Core.InjectFact(npc, "went to visit " + playerName + " at home but nobody answered the door")
                 Core.SendPersistentMemory(npc, player, npcName + " knocked on " + playerName + "'s door but got no answer")
                 ActiveStoryType = ""
-                return
+                return false
             EndIf
         EndIf
     EndIf
@@ -1736,7 +1739,7 @@ Function DispatchToTarget(Actor npc, Actor target, String narration, String slot
         EndIf
         ; Reset state set by caller before DispatchToTarget was called
         ActiveStoryType = ""
-        return
+        return false
     EndIf
 
     ; Determine slot target name
@@ -1784,6 +1787,7 @@ Function DispatchToTarget(Actor npc, Actor target, String narration, String slot
     IntelEngine.ArmProximityArrival(slot, npc as ObjectReference, target as ObjectReference, Self, "IntelEngine_StoryEngine", "OnProximityArrived")
 
     RegisterForSingleUpdate(MONITOR_INTERVAL)
+    return true
 EndFunction
 
 ; Callback invoked by the C++ ProximityMonitor when a dispatched story NPC
@@ -2612,33 +2616,30 @@ Function HandleMessageDispatch(Actor senderNPC, String narration, String respons
         EndIf
     EndIf
 
-    String messengerName = messenger.GetDisplayName()
-
-    ; Inject facts so both parties remember the arrangement
-    If messenger != senderNPC
-        Core.InjectFact(senderNPC, "asked " + messengerName + " to deliver a message to " + playerName + ": " + msgContent)
-        Core.InjectFact(messenger, "was sent by " + senderName + " to deliver a message to " + playerName + ": " + msgContent)
-        Core.SendPersistentMemory(messenger, Game.GetPlayer(), messengerName + " set out to deliver a message from " + senderName + " to " + playerName)
-    Else
-        Core.InjectFact(senderNPC, "set out to deliver a message to " + playerName + ": " + msgContent)
-        Core.SendPersistentMemory(senderNPC, Game.GetPlayer(), senderName + " set out to find " + playerName)
-    EndIf
-
-    ; Store on the messenger (the one who physically travels)
+    ; Store on the messenger (the one who physically travels).
     StorageUtil.SetStringValue(messenger, "Intel_MessageSender", senderName)
     StorageUtil.SetStringValue(messenger, "Intel_MessageContent", msgContent)
     StorageUtil.SetStringValue(messenger, "Intel_MessageDest", destination)
     StorageUtil.SetStringValue(messenger, "Intel_MessageTime", meetTime)
+    StorageUtil.SetFormValue(messenger, "Intel_MessageSenderActor", senderNPC)
 
     ActiveStoryType = "message"
-    DispatchToTarget(messenger, Game.GetPlayer(), narration, "story")
+    If !DispatchToTarget(messenger, Game.GetPlayer(), narration, "story")
+        StorageUtil.UnsetStringValue(messenger, "Intel_MessageSender")
+        StorageUtil.UnsetStringValue(messenger, "Intel_MessageContent")
+        StorageUtil.UnsetStringValue(messenger, "Intel_MessageDest")
+        StorageUtil.UnsetStringValue(messenger, "Intel_MessageTime")
+        StorageUtil.UnsetFormValue(messenger, "Intel_MessageSenderActor")
+    EndIf
 EndFunction
 
 Function OnMessageArrived()
     String senderName = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageSender")
+    Actor senderNPC = StorageUtil.GetFormValue(ActiveStoryNPC, "Intel_MessageSenderActor") as Actor
     String msgContent = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageContent")
     String msgDest = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageDest")
     String meetTime = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageTime")
+    StorageUtil.UnsetFormValue(ActiveStoryNPC, "Intel_MessageSenderActor")
 
     ; Narration
     String fullNarration = ""
@@ -2649,6 +2650,17 @@ Function OnMessageArrived()
     EndIf
     Core.SendTaskNarration(ActiveStoryNPC, fullNarration, Game.GetPlayer())
 
+    ; The messenger passed the travel-time rejection checks; record the delivery plan.
+    String playerName = Game.GetPlayer().GetDisplayName()
+    String messengerName = ActiveStoryNPC.GetDisplayName()
+    If senderNPC != None && senderNPC != ActiveStoryNPC
+        Core.InjectFact(senderNPC, "asked " + messengerName + " to deliver a message to " + playerName + ": " + msgContent)
+        Core.InjectFact(ActiveStoryNPC, "was sent by " + senderName + " to deliver a message to " + playerName + ": " + msgContent)
+        Core.SendPersistentMemory(ActiveStoryNPC, Game.GetPlayer(), messengerName + " set out to deliver a message from " + senderName + " to " + playerName)
+    ElseIf senderNPC == ActiveStoryNPC
+        Core.InjectFact(ActiveStoryNPC, "set out to deliver a message to " + playerName + ": " + msgContent)
+        Core.SendPersistentMemory(ActiveStoryNPC, Game.GetPlayer(), messengerName + " set out to find " + playerName)
+    EndIf
     ; Persist the delivered message on both the messenger and the player
     ; so both parties recall it in future conversations
     Core.SendPersistentMemory(ActiveStoryNPC, Game.GetPlayer(), ActiveStoryNPC.GetDisplayName() + " delivered a message from " + senderName + ": " + msgContent)
@@ -3038,7 +3050,7 @@ EndFunction
 ; QUEST SYSTEM
 ; =============================================================================
 
-Function HandleQuestDispatch(Actor npc, String narration, String response)
+Function HandleQuestDispatch(Actor npc, String narration, String response, Bool fromDirector = false)
     If QuestActive
         Core.DebugMsg("Story DM: quest rejected -- one already active")
         return
@@ -3058,6 +3070,18 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
     String suggestedEnemy = ExtractJsonField(response, "enemyFaction")
     If questSubTypeStr == ""
         questSubTypeStr = "combat"
+    EndIf
+    Actor departureNPC = npc
+    String departureMemory = ""
+    String departureFact = ""
+    If npc != None
+        String departureName = npc.GetDisplayName()
+        If fromDirector || IntelEngine.NPCKnowsPlayer(npc)
+            departureMemory = departureName + " set out to find " + Game.GetPlayer().GetDisplayName()
+        Else
+            departureMemory = departureName + " set out to find someone known as '" + Game.GetPlayer().GetDisplayName() + "' — has never met them before, only heard the name"
+            departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " personally — approaching a stranger, should introduce themselves and confirm identity"
+        EndIf
     EndIf
 
     ; Jarls never travel personally — reject DIRECT mode (sender empty = npc IS the quest giver)
@@ -3140,13 +3164,12 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
         String factionName = IntelEngine.GetFactionDisplayName(alliedFaction)
         narration = BuildFactionQuestNarration(factionName, questLocationStr)
         Core.DebugMsg("Story DM: quest/" + questSubTypeStr + " -- faction member " + npc.GetDisplayName() + " selected for " + alliedFaction)
-        ; Send persistent memory — stranger couriers don't know the player's name
-        String playerName2 = Game.GetPlayer().GetDisplayName()
+        departureNPC = npc
         If IntelEngine.NPCKnowsPlayer(npc)
-            Core.SendPersistentMemory(npc, Game.GetPlayer(), npc.GetDisplayName() + " set out to find " + playerName2 + " with urgent orders from " + factionName)
+            departureMemory = npc.GetDisplayName() + " set out to find " + Game.GetPlayer().GetDisplayName() + " with urgent orders from " + factionName
         Else
-            Core.SendPersistentMemory(npc, Game.GetPlayer(), npc.GetDisplayName() + " was sent to find a warrior described as '" + playerName2 + "' — never met them personally, only knows them by reputation and description")
-            Core.InjectFact(npc, "has never met " + playerName2 + " before — was given a physical description and told to look for them. Should introduce themselves and confirm identity before delivering the message.")
+            departureMemory = npc.GetDisplayName() + " was sent to find a warrior described as '" + Game.GetPlayer().GetDisplayName() + "' — never met them personally, only knows them by reputation and description"
+            departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " before — was given a physical description and told to look for them. Should introduce themselves and confirm identity before delivering the message."
         EndIf
     EndIf
 
@@ -3224,20 +3247,13 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
         EndIf
     EndIf
 
-    ; Inject purpose facts — C++ builds faction_battle text, Papyrus handles generic
-    If questSubTypeStr == "faction_battle"
-        Core.InjectFact(questGiverActor, IntelEngine.BuildFactionBattleDispatchFact(alliedFaction, questLocationStr, Game.GetPlayer().GetDisplayName()))
-    Else
-        Core.InjectFact(questGiverActor, "asked " + Game.GetPlayer().GetDisplayName() + " for help: " + msgContent)
-    EndIf
-
-    ; Inject purpose fact on courier (when courier != quest giver, courier needs own context)
-    If questGiverActor != npc
-        Core.InjectFact(npc, "was sent to deliver a plea for help from " + questGiverActor.GetDisplayName() + " about " + enemyType + " trouble near " + questLocationStr)
-    EndIf
 
     ; Set up quest state
     QuestActive = true
+    QuestCourierPending = true
+    QuestDepartureNPC = departureNPC
+    QuestDepartureMemory = departureMemory
+    QuestDepartureFact = departureFact
     QuestGiver = questGiverActor
     QuestLocation = questDest
     QuestEnemyType = enemyType
@@ -3265,10 +3281,6 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
         questSubTypeStr = "rescue"
     EndIf
 
-    ; Sub-type specific fact injection (after normalization so "rescue" covers both rescue and faction_rescue)
-    If questSubTypeStr == "rescue" && victimActor != None
-        Core.InjectFact(victimActor, "was captured by " + enemyType + " near " + questLocationStr + " and held against my will")
-    EndIf
 
     ; Set sub-type state
     QuestSubType = questSubTypeStr
@@ -3300,7 +3312,10 @@ Function HandleQuestDispatch(Actor npc, String narration, String response)
         questGiverActor.GetDisplayName(), msgContent, victimName, itemName, alliedFaction)
 
     ActiveStoryType = "quest"
-    DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
+    If !DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
+        CleanupQuest()
+        return
+    EndIf
 EndFunction
 
 Function OnQuestNPCArrived()
@@ -3359,6 +3374,26 @@ Function OnQuestNPCArrived()
         CleanupStoryDispatch()
         return
     EndIf
+    ; The courier arrived and passed the remaining abort checks; record the quest.
+    If QuestDepartureNPC != None && QuestDepartureMemory != ""
+        Core.SendPersistentMemory(QuestDepartureNPC, Game.GetPlayer(), QuestDepartureMemory)
+    EndIf
+    If QuestDepartureNPC != None && QuestDepartureFact != ""
+        Core.InjectFact(QuestDepartureNPC, QuestDepartureFact)
+    EndIf
+    String playerName2 = Game.GetPlayer().GetDisplayName()
+    If QuestSubType == "faction_battle"
+        Core.InjectFact(QuestGiver, IntelEngine.BuildFactionBattleDispatchFact(QuestAlliedFaction, questLoc, playerName2))
+    Else
+        Core.InjectFact(QuestGiver, "asked " + playerName2 + " for help: " + msgContent)
+    EndIf
+    If QuestGiver != ActiveStoryNPC
+        Core.InjectFact(ActiveStoryNPC, "was sent to deliver a plea for help from " + QuestGiver.GetDisplayName() + " about " + QuestEnemyType + " trouble near " + questLoc)
+    EndIf
+    If QuestSubType == "rescue" && QuestVictimNPC != None
+        Core.InjectFact(QuestVictimNPC, "was captured by " + QuestEnemyType + " near " + questLoc + " and held against my will")
+    EndIf
+    QuestCourierPending = false
     ; Remove the pinning sandbox before showing dialog (travel/linger packages get applied after)
     ActorUtil.RemovePackageOverride(ActiveStoryNPC, Core.SandboxNearPlayerPackage)
     ; Build sub-type-specific prompt text
@@ -4626,6 +4661,7 @@ Function CheckQuestExpiry()
 EndFunction
 
 Function CleanupQuest()
+    Bool courierWasPending = QuestCourierPending
     ; Always remove the map marker/objective (idempotent — safe if never placed)
     RemoveQuestMarker()
 
@@ -4676,7 +4712,7 @@ Function CleanupQuest()
     EndIf
 
     ; === Rescue victim cleanup ===
-    If QuestVictimNPC != None
+    If QuestVictimNPC != None && !QuestCourierPending
         If QuestVictimInFurniture
             QuestVictimNPC.MoveTo(QuestVictimNPC)  ; exit furniture idle
         EndIf
@@ -4699,6 +4735,9 @@ Function CleanupQuest()
         QuestVictimNPC.MoveToMyEditorLocation()
         ; Force AI re-evaluation so NPCs re-engage furniture (e.g., Jarl sits on throne)
         QuestVictimNPC.EvaluatePackage()
+        QuestVictimNPC = None
+    EndIf
+    If QuestCourierPending
         QuestVictimNPC = None
     EndIf
 
@@ -4724,6 +4763,10 @@ Function CleanupQuest()
     EndIf
 
     QuestActive = false
+    QuestCourierPending = false
+    QuestDepartureNPC = None
+    QuestDepartureMemory = ""
+    QuestDepartureFact = ""
     IntelEngine.NotifyQuestCleared()
     QuestGiver = None
     QuestGuideNPC = None
@@ -4758,7 +4801,9 @@ Function CleanupQuest()
     QuestDungeonScanFails = 0
     QuestExpiryWarned = false
 
-    AddRecentStoryEvent(eventText)
+    If !courierWasPending
+        AddRecentStoryEvent(eventText)
+    EndIf
     Core.DebugMsg("Story [quest]: CleanupQuest done — QuestActive=" + QuestActive + " IsActive=" + IsActive + " IsNPCStoryActive=" + IsNPCStoryActive + " HasLingerNPCs=" + HasLingerNPCs())
 EndFunction
 
@@ -4912,7 +4957,7 @@ Function CleanupStoryDispatch()
     If ActiveStoryType == "quest" || ActiveStoryType == "quest_guide"
         If QuestActive
             ; Notify quest giver that the quest fell through (courier aborted, stuck, etc.)
-            If QuestGiver != None && QuestEnemyType != "" && QuestLocationName != ""
+            If !QuestCourierPending && QuestGiver != None && QuestEnemyType != "" && QuestLocationName != ""
                 Core.InjectFact(QuestGiver, "never heard back about the " + QuestEnemyType + " threat at " + QuestLocationName + " — the request seems to have fallen through")
             EndIf
             CleanupQuest()
@@ -4934,6 +4979,7 @@ Function CleanupStoryDispatch()
         StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_OffscreenArrival")
         ; Message courier keys
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageSender")
+        StorageUtil.UnsetFormValue(ActiveStoryNPC, "Intel_MessageSenderActor")
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageContent")
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageDest")
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageTime")

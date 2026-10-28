@@ -2272,8 +2272,8 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     DebugMsg("Director: Dispatching " + storyType + " with " + npc.GetDisplayName() + " - " + narration)
 
-    ; Record persistent memory (same as automatic dispatch — skipped for message type)
-    If storyType != "message"
+    ; Quest and message memories are recorded only after the courier arrives.
+    If storyType != "message" && storyType != "quest"
         SendPersistentMemory(npc, Game.GetPlayer(), npc.GetDisplayName() + " set out to find " + Game.GetPlayer().GetDisplayName())
     EndIf
 
@@ -2306,7 +2306,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
         StoryEngine.HandleAmbushStalkerDispatch(npc, narration, response, storyType)
 
     ElseIf storyType == "quest"
-        StoryEngine.HandleQuestDispatch(npc, narration, response)
+        StoryEngine.HandleQuestDispatch(npc, narration, response, true)
 
     ElseIf storyType == "message"
         StoryEngine.HandleMessageDispatch(npc, narration, response)
