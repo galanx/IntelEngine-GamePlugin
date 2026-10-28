@@ -324,6 +324,8 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The hotkey requires Skyrim to have foreground focus and exactly the configured Ctrl/Shift/Alt modifiers; a held combo must be released after returning focus. The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
 
+Change the dashboard hotkey in the IntelEngine MCM; changes apply immediately.
+
 ### Tabs
 
 **Tasks** — Live view of all active and scheduled tasks. Cancel individual tasks, see agent names, destinations, task types, speeds, and scheduled meeting timing ("in ~3h", "very soon", "overdue").
@@ -334,7 +336,7 @@ When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed
 
 **Active Packages** — See which NPCs are currently running IntelEngine AI packages (travel, sandbox, stalk). Remove packages from stuck NPCs directly.
 
-**Settings** — Full parity with the MCM. Every setting has a description hint. Includes plugin configuration (blocklists, LLM overrides, dashboard hotkey) read from `settings.yaml`.
+**Settings** — Full parity with the MCM. Every setting has a description hint. Includes plugin configuration (blocklists and LLM overrides) read from `settings.yaml`.
 
 ### How It Works
 

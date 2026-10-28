@@ -11,28 +11,10 @@ variants:
 schema:
   fields:
     # ── UI ──
-    - name: "Dashboard Hotkey"
-      path: "ui.dashboard_hotkey"
-      type: "hotkey"
-      description: "Main key for dashboard toggle (VK code, e.g., 55 = 7). Set to -1 to disable."
-      defaultValue: 55
-      min: -1
-      max: 255
-      category: "UI"
-
-    - name: "Dashboard Modifiers"
-      path: "ui.dashboard_modifiers"
-      type: "int"
-      description: "Modifier key bitmask: 1=Ctrl, 2=Shift, 4=Alt. Combine with +. Default 2 = Shift."
-      defaultValue: 2
-      min: 0
-      max: 7
-      category: "UI"
-
     - name: "UI Scale"
       path: "ui.scale"
       type: "float"
-      description: "Dashboard zoom level. 1.3 = default, 1.5-2.0 for 4K monitors."
+      description: "Dashboard zoom level. 1.3 = default, 1.5-2.0 for 4K monitors. Dashboard hotkey: set it in the IntelEngine MCM (applies immediately). Default Shift+7."
       defaultValue: 1.3
       min: 0.8
       max: 2.0
