@@ -1,7 +1,7 @@
 # IntelEngine Settings — sample defaults
 # To restore: copy this file as "settings.yaml" in the same folder.
-# IntelEngine reads this file for hotkey config and filter settings.
-# If missing, defaults are used but changes (hotkey, whitelists) won't persist.
+# IntelEngine reads this file for plugin and politics settings.
+# Politics setting changes from the MCM and dashboard are saved here.
 ui:
   dashboard_hotkey: 55
   dashboard_modifiers: 2
@@ -14,4 +14,6 @@ story:
 politics:
   enabled: true
   tick_interval_hours: 6
+  max_relation_change_per_tick: 15
+  max_active_wars: 2
   min_event_interval_hours: 4
