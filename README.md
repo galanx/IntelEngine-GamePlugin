@@ -322,7 +322,7 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 ## In-Game Dashboard (PrismaUI)
 
-When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
+When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The hotkey requires Skyrim to have foreground focus and exactly the configured Ctrl/Shift/Alt modifiers; a held combo must be released after returning focus. The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
 
 ### Tabs
 
@@ -388,7 +388,7 @@ Nine story types, each individually toggleable via MCM:
 - **NPC Interaction** — Two NPCs interact independently of you. Arguments, deals, training, whispered conspiracies. Happens whether you're watching or not.
 - **NPC Gossip** — Rumors spread through chains of up to 10 people. Information travels realistically through the world.
 
-Every event injects facts into NPC bios that persist and influence all future dialogue. The Dungeon Master uses anti-repetition, type balancing, and per-NPC cooldowns to keep stories varied and meaningful.
+Every event injects facts into NPC bios that persist and influence all future dialogue. Message and quest courier facts/memories are recorded only after arrival passes the travel rejection checks; rejected pending quests do not publish quest facts or repetition history. The Dungeon Master prompt lists only enabled story types and guards long-absence seek-player guidance accordingly. Anti-repetition, type balancing, and per-NPC cooldowns keep stories varied and meaningful.
 
 ---
 
