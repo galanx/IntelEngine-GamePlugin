@@ -1930,6 +1930,7 @@ Function RegisterDashboardEvents()
     RegisterForModEvent("IntelEngine_DashboardExecuteAction", "OnDashboardExecuteAction")
     RegisterForModEvent("IntelEngine_AutoBioUpdate", "OnAutoBioUpdate")
     RegisterForModEvent("IntelEngine_SaveBioCount", "OnSaveBioCount")
+    RegisterForModEvent("SkyrimNet_OnPluginConfigSaved", "OnSkyrimNetPluginConfigSaved")
     DebugMsg("Dashboard ModEvent listeners registered")
 EndFunction
 
@@ -1970,6 +1971,12 @@ EndEvent
 
 Event OnDashboardRefresh(String eventName, String strArg, Float numArg, Form sender)
     PushDashboardState()
+EndEvent
+
+Event OnSkyrimNetPluginConfigSaved(String eventName, String strArg, Float numArg, Form sender)
+    If strArg == "IntelEngine"
+        IntelEngine.ReloadDashboardConfig()
+    EndIf
 EndEvent
 
 Event OnDashboardCancelTask(String eventName, String strArg, Float numArg, Form sender)

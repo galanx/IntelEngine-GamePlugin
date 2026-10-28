@@ -1,7 +1,7 @@
 plugin:
   name: IntelEngine
   version: "3.6.2"
-  description: "NPC task & story automation engine. Dashboard hotkey has moved: open the dashboard (default Shift+7) and change it in its Settings tab; it applies immediately."
+  description: "NPC task & story automation engine"
   icon: "\U0001F9E0"
 
 variants:
@@ -11,6 +11,24 @@ variants:
 schema:
   fields:
     # ── UI ──
+    - name: "Dashboard Hotkey"
+      path: "ui.dashboard_hotkey"
+      type: "hotkey"
+      description: "Main key for dashboard toggle (VK code, e.g., 55 = 7). Set to -1 to disable. Click Save to apply; the dashboard's Settings tab also changes it."
+      defaultValue: 55
+      min: -1
+      max: 255
+      category: "UI"
+
+    - name: "Dashboard Modifiers"
+      path: "ui.dashboard_modifiers"
+      type: "int"
+      description: "Modifier key bitmask: 1=Ctrl, 2=Shift, 4=Alt. Combine with +. Default 2 = Shift."
+      defaultValue: 2
+      min: 0
+      max: 7
+      category: "UI"
+
     - name: "UI Scale"
       path: "ui.scale"
       type: "float"
