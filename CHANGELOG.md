@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.6.1
+
+- Rebuilt bundled save converter to stop a Defender false positive (Wacatac.B!ml); no functional changes.
+
 ## v3.6.0
 
 - Install the player FAQ, legacy save converter and drag-and-drop launcher for everyone. Retain the visible second FOMOD page with Required tools; fresh games do not need conversion. Convert an eligible old save before loading it with 3.6.0.
