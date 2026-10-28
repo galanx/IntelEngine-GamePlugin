@@ -372,7 +372,7 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 
 ## Story Engine — The Dungeon Master
 
-The Story Engine is Part 2 of IntelEngine. Every few in-game hours, an LLM Dungeon Master observes the full world state — your location, time of day, NPC memories and relationships — and decides if something should happen. No random dice rolls. Every event is grounded in the actual history of your playthrough.
+The Story Engine is Part 2 of IntelEngine. Every few in-game hours, an LLM Dungeon Master observes the full world state — your location, time of day, NPC memories and relationships — and decides if something should happen. World facts shared by every candidate are shown once, while each NPC's additional knowledge remains attached to them for silent fact-checking. No random dice rolls. Every event is grounded in the actual history of your playthrough.
 
 Nine story types, each individually toggleable via MCM:
 
