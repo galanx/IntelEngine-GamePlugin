@@ -630,19 +630,10 @@ Every decoder-template edit additionally requires a temporary smoke of the actua
 
 ### Papyrus API declarations and array guards
 
-Native owns the three repaired PSC files; Game's source mirrors are byte-identical. `IntelEngine.psc` now declares the existing registered implementations with these signatures; no native implementation, consumer dispatch or compatibility alias was added:
-
-```papyrus
-String Function ClaimPendingDirectorParams() Global Native
-String Function BuildSafetyNetContextJson(Actor akActor, Int keywordHint) Global Native
-Int Function HasScheduleKeywords(Actor akActor) Global Native
-Actor Function GetLastConversationPartner() Global Native
-Actor Function GetSafetyNetNPC() Global Native
-Function NotifyNewDialogue() Global Native
-Int Function RunSafetyNetCheck() Global Native
-```
-
-Schedule hints are `0=none`, `1=meeting`, `2=fetch`, `3=delivery`. `GetSafetyNetNPC` returns the last stored positive-check NPC if still resolvable; a negative check does not clear it. `NotifyNewDialogue` resets unchanged-dialogue backoff, not the cooldown timestamp. Context JSON is escaped and empty for unavailable actor/dialogue. Director claim atomically consumes pending parameters as JSON, returning empty when already claimed. Literal source consumers were not found in either repository; external/dynamic callers remain unexcluded.
+This cleanup removes unused safety-net and pending Director-parameter Papyrus natives,
+their registrations and their exclusive C++ state. Source scans of both Native and Game
+repositories found no script, prompt, YAML or JavaScript callers; external or dynamic
+callers are not covered.
 
 Core `Maintenance` uses `If !SlotStates`; Schedule `RestartMonitoring` uses `If !ScheduledAgents` twice. Initialization, Core's separate length validation, restored arrays, co-save/legacy recovery, recount and monitoring remain unchanged. The encoder declaration, four complete writes and three mirrored readers are preserved.
 

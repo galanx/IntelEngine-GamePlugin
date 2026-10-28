@@ -468,23 +468,6 @@ String Function GetActorHoldName(Actor akActor) Global Native
 ; Get recent dialogue history for an NPC. Returns formatted string, empty if no dialogue.
 String Function GetRecentDialogue(Actor akActor, Int maxExchanges = 1) Global Native
 
-; Poll recent dialogue for schedule keywords: 0=none, 1=meeting, 2=fetch, 3=delivery.
-Int Function RunSafetyNetCheck() Global Native
-
-; Reset the safety-net unchanged-dialogue backoff.
-Function NotifyNewDialogue() Global Native
-
-; Get the NPC stored by the last positive safety-net check, or None if unavailable.
-Actor Function GetSafetyNetNPC() Global Native
-
-; Get the latest dialogue's NPC, or None if unavailable.
-Actor Function GetLastConversationPartner() Global Native
-
-; Return the schedule keyword hint from an NPC's recent dialogue.
-Int Function HasScheduleKeywords(Actor akActor) Global Native
-
-; Build escaped safety-net context JSON; empty for unavailable actor/dialogue.
-String Function BuildSafetyNetContextJson(Actor akActor, Int keywordHint) Global Native
 
 ; Check if an NPC knows the player (has dialogue, memories, or relationship data).
 Bool Function NPCKnowsPlayer(Actor akActor) Global Native
@@ -728,14 +711,6 @@ Function PushDashboardFullState(String json) Global Native
 ; Check if dashboard is currently visible
 Bool Function IsDashboardOpen() Global Native
 
-; Retrieve a pending Director parameter stored by C++ (for Director mode dispatch)
-String Function GetPendingDirectorParam(String key) Global Native
-
-; Clear all pending Director parameters
-Function ClearPendingDirectorParams() Global Native
-
-; Atomically claim pending Director parameters as JSON, clearing them.
-String Function ClaimPendingDirectorParams() Global Native
 
 ; =============================================================================
 ; DEBUG / TESTING FUNCTIONS

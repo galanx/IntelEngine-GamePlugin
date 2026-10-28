@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Remove unused Dialogue Safety Net and Director pending-parameter natives, their private backing code, and matching Papyrus declarations. Rebuild `IntelEngine.pex`; pair it with the matching DLL. Director parameters remain in the existing ModEvent JSON payload. Offline compilation and payload checks passed; game loading and dispatch are untested.
+
 ## v3.6.1
 
 - Rebuilt bundled save converter to stop a Defender false positive (Wacatac.B!ml); no functional changes.
