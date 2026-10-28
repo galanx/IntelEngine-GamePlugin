@@ -3365,7 +3365,12 @@ Function OnQuestNPCArrived()
     claimedNPC.EvaluatePackage()
     ; Delay before quest prompt so NPC has time to talk (reduced from 15s)
     Utility.Wait(8.0)
-    If claimedSlot < 0 || claimedGeneration != DispatchGeneration || !QuestActive || ActiveStoryType != "quest" || ActiveStoryNPC != claimedNPC || Core.FindSlotByAgent(claimedNPC) != claimedSlot
+    If claimedGeneration != DispatchGeneration || !QuestActive || ActiveStoryType != "quest" || ActiveStoryNPC != claimedNPC
+        return
+    EndIf
+    If claimedSlot < 0 || Core.FindSlotByAgent(claimedNPC) != claimedSlot
+        CleanupQuest()
+        CleanupStoryDispatch()
         return
     EndIf
     Debug.Notification("They seem to have more to ask...")
@@ -3428,7 +3433,12 @@ Function OnQuestNPCArrived()
             choice = "I'll go alone"
         EndIf
     EndIf
-    If claimedSlot < 0 || claimedGeneration != DispatchGeneration || !QuestActive || ActiveStoryType != "quest" || ActiveStoryNPC != claimedNPC || Core.FindSlotByAgent(claimedNPC) != claimedSlot
+    If claimedGeneration != DispatchGeneration || !QuestActive || ActiveStoryType != "quest" || ActiveStoryNPC != claimedNPC
+        return
+    EndIf
+    If claimedSlot < 0 || Core.FindSlotByAgent(claimedNPC) != claimedSlot
+        CleanupQuest()
+        CleanupStoryDispatch()
         return
     EndIf
     If choice == "Lead the way"
