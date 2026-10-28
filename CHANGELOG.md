@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Remove unused Dialogue Safety Net and Director pending-parameter natives, their private backing code, and matching Papyrus declarations. Rebuild `IntelEngine.pex`; pair it with the matching DLL. Director parameters remain in the existing ModEvent JSON payload. Offline compilation and payload checks passed; game loading and dispatch are untested.
 - Persist all four politics settings through shared native setters used by the MCM and dashboard. Politics initialized while disabled can be enabled later without restarting. Offline reload and lifecycle checks passed; in-game menus and restart behavior are untested.
 
 ## v3.6.1
