@@ -2,7 +2,7 @@
 <fomod>
     <Name>IntelEngine</Name>
     <Author>PhospheneOD (Original by Galanx)</Author>
-    <Version>3.6.0</Version>
+    <Version>3.6.1</Version>
     <Website>https://github.com/galanx/IntelEngine-GamePlugin</Website>
     <Description>AI-powered NPC autonomy mod for Skyrim. Gives NPCs the ability to travel, perform tasks, create dynamic story events, and engage in faction politics and wars — all powered by SkyrimNet's LLM integration.
 
