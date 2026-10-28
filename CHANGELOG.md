@@ -6,7 +6,7 @@
 - Fix duplicate quest/message courier arrivals: the travel poll and the proximity callback could both handle one arrival, injecting blank-then-full facts and raising None errors after cleanup. Stale arrival continuations now stop without touching a newer dispatch. Live: one arrival, facts once, one cleanup.
 - Dashboard "Cancel quest" after a courier arrives now frees the courier's task slot and package. Live: passed.
 - Dashboard hotkey only toggles while Skyrim has focus and the configured modifiers match exactly (`0` no longer fires on Shift+0); documented default is Shift+7. Live: passed.
-- Hide the dashboard hotkey fields from the SkyrimNet settings page; they only applied after a restart. Change the hotkey in the IntelEngine MCM.
+- Hide the dashboard hotkey fields from the SkyrimNet settings page; they only applied after a restart. Change the hotkey in the IntelEngine MCM or the dashboard's Settings tab.
 - Courier story facts are injected when the courier arrives, not at dispatch, so an aborted courier leaves no facts. Live arrival injection passed; live rejection is untested.
 - Persist all four politics settings through shared native setters used by the MCM and dashboard. Politics initialized while disabled can be enabled later without restarting. Live: cold-load persistence and same-session enable passed.
 - Print world knowledge shared by every Story DM candidate once, while preserving each candidate's additional facts and silent fact-check constraints. Zero or one candidate keeps knowledge local. Offline production-code and full-prompt checks passed; live untested.
