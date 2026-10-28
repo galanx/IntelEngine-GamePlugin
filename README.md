@@ -324,7 +324,7 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The hotkey requires Skyrim to have foreground focus and exactly the configured Ctrl/Shift/Alt modifiers; a held combo must be released after returning focus. The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
 
-Change the dashboard hotkey in the IntelEngine MCM or the dashboard's Settings tab; changes apply immediately.
+Change the dashboard hotkey in the dashboard's Settings tab; changes apply immediately. (The MCM has no hotkey option.)
 
 ### Tabs
 
