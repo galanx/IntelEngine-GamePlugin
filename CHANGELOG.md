@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Persist all four politics settings through shared native setters used by the MCM and dashboard. Politics initialized while disabled can be enabled later without restarting. Offline reload and lifecycle checks passed; in-game menus and restart behavior are untested.
+
 ## v3.6.1
 
 - Rebuilt bundled save converter to stop a Defender false positive (Wacatac.B!ml); no functional changes.
