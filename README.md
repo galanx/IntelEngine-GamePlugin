@@ -2,7 +2,7 @@
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 > [!IMPORTANT]
-> **Compatibility:** IntelEngine 3.6.0 declares SkyrimNet Beta 25 as its minimum; it was tested with official Beta 28. Beta 24 and earlier are incompatible.
+> **Compatibility:** IntelEngine package 3.6.1 retains the 3.6.0 DLL and ESP and requires SkyrimNet Beta 25 or newer. The 3.6.0 runtime components were tested with official Beta 28. Beta 24 and earlier are incompatible.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 > **Have issues? Report them here:** [IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues). Include your Skyrim, SKSE, SkyrimNet and IntelEngine versions and relevant logs with personal information removed.
