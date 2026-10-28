@@ -28,6 +28,7 @@ GlobalVariable Property IntelEngine_StoryEngineCooldown Auto
 ; === Dispatch State ===
 Bool Property IsActive = false Auto Hidden
 Actor Property ActiveStoryNPC = None Auto Hidden
+Int Property DispatchGeneration = 0 Auto Hidden
 String Property ActiveNarration = "" Auto Hidden
 String Property PendingStoryType = "" Auto Hidden
 Actor Property ActiveSecondNPC = None Auto Hidden
@@ -1751,6 +1752,7 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     Core.AllocateSlot(slot, npc, slotTaskType, targetName, 1)
 
     ActiveStoryNPC = npc
+    DispatchGeneration += 1
     ActiveNarration = narration
     IsActive = true
     IntelEngine.MarkSystemPending("storyDM", Utility.GetCurrentGameTime())
@@ -1972,10 +1974,14 @@ EndFunction
 Function FinishArrivalWithLinger(Actor arrivedNPC, ObjectReference lingerTarget)
     {Shared arrival pattern: clear slot, cleanup dispatch, sandbox near target, start linger tracking.
      Caller MUST save arrivedNPC from ActiveStoryNPC BEFORE calling (CleanupStoryDispatch clears it).}
-    Int slot = Core.FindSlotByAgent(arrivedNPC)
-    If slot >= 0
-        Core.ClearSlot(slot)
+    If arrivedNPC == None
+        return
     EndIf
+    Int slot = Core.FindSlotByAgent(arrivedNPC)
+    If slot < 0
+        return
+    EndIf
+    Core.ClearSlot(slot)
     CleanupStoryDispatch()
 
     ; For player-targeted stories: sandbox at NPC's current position (linked ref = self).
@@ -2540,6 +2546,13 @@ EndFunction
 ; =============================================================================
 
 Function OnStoryNPCArrived()
+    If ActiveStoryType == "message" || ActiveStoryType == "quest"
+        If !IsActive || ActiveStoryNPC == None
+            return
+        EndIf
+        IsActive = false
+    EndIf
+
     Core.DebugMsg("Story: " + ActiveStoryNPC.GetDisplayName() + " arrived! [" + ActiveStoryType + "]")
 
     ; === Ambush arrival (both stealth and charge variants) ===
@@ -3319,57 +3332,52 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
 EndFunction
 
 Function OnQuestNPCArrived()
-    String senderName = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageSender")
-    String msgContent = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageContent")
-    String questLoc = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_QuestLocation")
+    Actor claimedNPC = ActiveStoryNPC
+    Int claimedSlot = Core.FindSlotByAgent(claimedNPC)
+    Int claimedGeneration = DispatchGeneration
+    String senderName = StorageUtil.GetStringValue(claimedNPC, "Intel_MessageSender")
+    String msgContent = StorageUtil.GetStringValue(claimedNPC, "Intel_MessageContent")
+    String questLoc = StorageUtil.GetStringValue(claimedNPC, "Intel_QuestLocation")
 
     ; Clean up keys immediately (read into locals above, no longer needed on NPC)
-    StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageSender")
-    StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageContent")
-    StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_QuestLocation")
+    StorageUtil.UnsetStringValue(claimedNPC, "Intel_MessageSender")
+    StorageUtil.UnsetStringValue(claimedNPC, "Intel_MessageContent")
+    StorageUtil.UnsetStringValue(claimedNPC, "Intel_QuestLocation")
 
     ; Narrate
     String fullNarration = ""
-    If senderName != "" && senderName != ActiveStoryNPC.GetDisplayName()
+    If senderName != "" && senderName != claimedNPC.GetDisplayName()
         fullNarration = "delivered word from " + senderName + ": " + msgContent
     Else
         fullNarration = ActiveNarration
     EndIf
-    Core.SendTaskNarration(ActiveStoryNPC, fullNarration, Game.GetPlayer())
+    Core.SendTaskNarration(claimedNPC, fullNarration, Game.GetPlayer())
 
-    Bool isDirect = (senderName == "" || senderName == ActiveStoryNPC.GetDisplayName())
+    Bool isDirect = (senderName == "" || senderName == claimedNPC.GetDisplayName())
 
     ; Both direct and courier paths show the quest dialog. The only difference:
     ; direct NPCs can offer to guide (they know the way), couriers cannot.
-    ; Prevent re-entry: Utility.Wait is latent (yields thread), so OnUpdate
-    ; keeps firing during the wait. IsActive=false stops CheckStoryNPCArrival
-    ; from calling OnQuestNPCArrived again. BeginQuestGuide/FinishArrivalWithLinger
-    ; handle restoring IsActive as needed.
-    IsActive = false
     ; Pin the NPC in place with a high-priority sandbox so SkyrimNet's TalkToPlayer
     ; (priority 1) can't override and walk them away during the wait.
     ; Uses PRIORITY_TRAVEL (100) to beat TalkToPlayer without nuking SkyrimNet packages.
-    PO3_SKSEFunctions.SetLinkedRef(ActiveStoryNPC, ActiveStoryNPC as ObjectReference, Core.IntelEngine_TravelTarget)
-    ActorUtil.AddPackageOverride(ActiveStoryNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
-    ActiveStoryNPC.EvaluatePackage()
+    PO3_SKSEFunctions.SetLinkedRef(claimedNPC, claimedNPC as ObjectReference, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(claimedNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
+    claimedNPC.EvaluatePackage()
     ; Delay before quest prompt so NPC has time to talk (reduced from 15s)
     Utility.Wait(8.0)
-    Debug.Notification("They seem to have more to ask...")
-    ; Bail out if NPC became invalid during the wait
-    If ActiveStoryNPC == None || ActiveStoryNPC.IsDead() || ActiveStoryNPC.IsInCombat()
-        If ActiveStoryNPC != None
-            Int questSlot = Core.FindSlotByAgent(ActiveStoryNPC)
-            If questSlot >= 0
-                Core.ClearSlot(questSlot)
-            EndIf
-            Core.RemoveAllPackages(ActiveStoryNPC, false)
-        EndIf
+    If claimedGeneration != DispatchGeneration || !QuestActive || ActiveStoryType != "quest" || ActiveStoryNPC != claimedNPC
+        return
+    EndIf
+    If claimedSlot < 0 || Core.FindSlotByAgent(claimedNPC) != claimedSlot
         CleanupQuest()
         CleanupStoryDispatch()
         return
     EndIf
-    ; Bail out if slot was externally cleared (console, MCM)
-    If Core.FindSlotByAgent(ActiveStoryNPC) < 0
+    Debug.Notification("They seem to have more to ask...")
+    ; Bail out if NPC became invalid during the wait
+    If claimedNPC.IsDead() || claimedNPC.IsInCombat()
+        Core.ClearSlot(claimedSlot)
+        Core.RemoveAllPackages(claimedNPC, false)
         CleanupQuest()
         CleanupStoryDispatch()
         return
@@ -3424,6 +3432,14 @@ Function OnQuestNPCArrived()
         If choice == "I'll check it out"
             choice = "I'll go alone"
         EndIf
+    EndIf
+    If claimedGeneration != DispatchGeneration || !QuestActive || ActiveStoryType != "quest" || ActiveStoryNPC != claimedNPC
+        return
+    EndIf
+    If claimedSlot < 0 || Core.FindSlotByAgent(claimedNPC) != claimedSlot
+        CleanupQuest()
+        CleanupStoryDispatch()
+        return
     EndIf
     If choice == "Lead the way"
         PrePlaceQuestTargets()

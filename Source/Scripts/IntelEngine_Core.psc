@@ -1930,6 +1930,7 @@ Function RegisterDashboardEvents()
     RegisterForModEvent("IntelEngine_DashboardExecuteAction", "OnDashboardExecuteAction")
     RegisterForModEvent("IntelEngine_AutoBioUpdate", "OnAutoBioUpdate")
     RegisterForModEvent("IntelEngine_SaveBioCount", "OnSaveBioCount")
+    RegisterForModEvent("SkyrimNet_OnPluginConfigSaved", "OnSkyrimNetPluginConfigSaved")
     DebugMsg("Dashboard ModEvent listeners registered")
 EndFunction
 
@@ -1972,6 +1973,12 @@ Event OnDashboardRefresh(String eventName, String strArg, Float numArg, Form sen
     PushDashboardState()
 EndEvent
 
+Event OnSkyrimNetPluginConfigSaved(String eventName, String strArg, Float numArg, Form sender)
+    If strArg == "IntelEngine"
+        IntelEngine.ReloadDashboardConfig()
+    EndIf
+EndEvent
+
 Event OnDashboardCancelTask(String eventName, String strArg, Float numArg, Form sender)
     Int slot = numArg as Int
     If slot >= 0 && slot < MAX_SLOTS
@@ -1988,6 +1995,13 @@ EndEvent
 Event OnDashboardCancelQuest(String eventName, String strArg, Float numArg, Form sender)
     If StoryEngine != None && StoryEngine.QuestActive
         DebugMsg("Dashboard: Cancelling active quest")
+        Actor courier = StoryEngine.ActiveStoryNPC
+        If courier != None
+            Int courierSlot = FindSlotByAgent(courier)
+            If courierSlot >= 0
+                ClearSlotRestoreFollower(courierSlot, courier)
+            EndIf
+        EndIf
         StoryEngine.CleanupQuest()
         StoryEngine.CleanupStoryDispatch()
         PushDashboardState()

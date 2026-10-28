@@ -14,7 +14,7 @@ schema:
     - name: "Dashboard Hotkey"
       path: "ui.dashboard_hotkey"
       type: "hotkey"
-      description: "Main key for dashboard toggle (VK code, e.g., 55 = 7). Set to -1 to disable."
+      description: "Main key for dashboard toggle (VK code, e.g., 55 = 7). Set to -1 to disable. Click Save to apply; the dashboard's Settings tab also changes it."
       defaultValue: 55
       min: -1
       max: 255
