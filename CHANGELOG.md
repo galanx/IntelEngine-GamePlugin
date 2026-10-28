@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Print world knowledge shared by every Story DM candidate once, while preserving each candidate's additional facts and silent fact-check constraints. Zero or one candidate keeps knowledge local. Offline production-code and full-prompt checks passed; live Story DM behavior is untested.
+
 ## v3.6.1
 
 - Rebuilt bundled save converter to stop a Defender false positive (Wacatac.B!ml); no functional changes.
