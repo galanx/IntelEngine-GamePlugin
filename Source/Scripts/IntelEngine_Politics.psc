@@ -140,6 +140,7 @@ Function OnPoliticalDMResponse(String response, Int success)
 
     ; C++ handles ALL logic: parsing, validation, event recording, war/surrender/battle,
     ; standings, decay, crime checks. Returns JSON with Papyrus-only actions.
+    response = IntelEngine_Locale.NormalizePoliticalResponse(response)
     String resultJson = IntelEngine.ProcessPoliticalDMResponse(response, success)
 
     String actedStr = IntelEngine.StoryResponseGetField(resultJson, "acted")
