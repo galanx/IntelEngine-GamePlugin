@@ -1930,6 +1930,7 @@ Function RegisterDashboardEvents()
     RegisterForModEvent("IntelEngine_DashboardExecuteAction", "OnDashboardExecuteAction")
     RegisterForModEvent("IntelEngine_AutoBioUpdate", "OnAutoBioUpdate")
     RegisterForModEvent("IntelEngine_SaveBioCount", "OnSaveBioCount")
+    RegisterForModEvent("SkyrimNet_OnPluginConfigSaved", "OnSkyrimNetPluginConfigSaved")
     DebugMsg("Dashboard ModEvent listeners registered")
 EndFunction
 
@@ -1972,6 +1973,12 @@ Event OnDashboardRefresh(String eventName, String strArg, Float numArg, Form sen
     PushDashboardState()
 EndEvent
 
+Event OnSkyrimNetPluginConfigSaved(String eventName, String strArg, Float numArg, Form sender)
+    If strArg == "IntelEngine"
+        IntelEngine.ReloadDashboardConfig()
+    EndIf
+EndEvent
+
 Event OnDashboardCancelTask(String eventName, String strArg, Float numArg, Form sender)
     Int slot = numArg as Int
     If slot >= 0 && slot < MAX_SLOTS
@@ -1988,6 +1995,13 @@ EndEvent
 Event OnDashboardCancelQuest(String eventName, String strArg, Float numArg, Form sender)
     If StoryEngine != None && StoryEngine.QuestActive
         DebugMsg("Dashboard: Cancelling active quest")
+        Actor courier = StoryEngine.ActiveStoryNPC
+        If courier != None
+            Int courierSlot = FindSlotByAgent(courier)
+            If courierSlot >= 0
+                ClearSlotRestoreFollower(courierSlot, courier)
+            EndIf
+        EndIf
         StoryEngine.CleanupQuest()
         StoryEngine.CleanupStoryDispatch()
         PushDashboardState()
@@ -2272,8 +2286,8 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     DebugMsg("Director: Dispatching " + storyType + " with " + npc.GetDisplayName() + " - " + narration)
 
-    ; Record persistent memory (same as automatic dispatch — skipped for message type)
-    If storyType != "message"
+    ; Quest and message memories are recorded only after the courier arrives.
+    If storyType != "message" && storyType != "quest"
         SendPersistentMemory(npc, Game.GetPlayer(), npc.GetDisplayName() + " set out to find " + Game.GetPlayer().GetDisplayName())
     EndIf
 
@@ -2306,7 +2320,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
         StoryEngine.HandleAmbushStalkerDispatch(npc, narration, response, storyType)
 
     ElseIf storyType == "quest"
-        StoryEngine.HandleQuestDispatch(npc, narration, response)
+        StoryEngine.HandleQuestDispatch(npc, narration, response, true)
 
     ElseIf storyType == "message"
         StoryEngine.HandleMessageDispatch(npc, narration, response)

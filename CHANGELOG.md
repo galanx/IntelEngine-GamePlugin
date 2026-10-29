@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.6.2
+
+- Save converter: convert caches on temporary (0xFF) actors and orphaned global caches in place instead of refusing the whole save, and refuse a save whose caches are already in the 3.6 format (for example a later save made from an `_IEconverted` one). Output is readable multi-line text and warns against loading converted saves under any IE 3.5.x. Live: a converted ADT save loads with correct prompt text.
+- Fix duplicate quest/message courier arrivals: the travel poll and the proximity callback could both handle one arrival, injecting blank-then-full facts and raising None errors after cleanup. Stale arrival continuations now stop without touching a newer dispatch. Live: one arrival, facts once, one cleanup.
+- Dashboard "Cancel quest" after a courier arrives now frees the courier's task slot and package. Live: passed.
+- Dashboard hotkey only toggles while Skyrim has focus and the configured modifiers match exactly (`0` no longer fires on Shift+0); documented default is Shift+7. Live: passed.
+- Changing the dashboard hotkey on the SkyrimNet settings page now applies as soon as you click Save, without a restart. Live: owner-verified.
+- Courier story facts are injected when the courier arrives, not at dispatch, so an aborted courier leaves no facts. Live arrival injection passed; live rejection is untested.
+- Persist all four politics settings through shared native setters used by the MCM and dashboard. Politics initialized while disabled can be enabled later without restarting. Live: cold-load persistence and same-session enable passed.
+- Print world knowledge shared by every Story DM candidate once, while preserving each candidate's additional facts and silent fact-check constraints. Zero or one candidate keeps knowledge local. Offline production-code and full-prompt checks passed; live untested.
+- Truncate cached and prompt text on UTF-8 character boundaries.
+- Remove unused Dialogue Safety Net and Director pending-parameter natives, their private backing code, and matching Papyrus declarations. Rebuild `IntelEngine.pex`; pair it with the matching DLL. Director parameters remain in the existing ModEvent JSON payload.
+
 ## v3.6.1
 
 - Rebuilt bundled save converter to stop a Defender false positive (Wacatac.B!ml); no functional changes.

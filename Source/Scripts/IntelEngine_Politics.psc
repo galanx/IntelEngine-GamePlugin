@@ -33,15 +33,14 @@ Bool Property Initialized = false Auto Hidden
 ; =============================================================================
 
 Function Initialize()
-    If !IntelEngine.IsPoliticsEnabled()
-        Core.DebugMsg("Politics: Disabled in settings")
-        return
-    EndIf
-
     LastTickGameTime = Utility.GetCurrentGameTime()
     Initialized = true
     StartScheduler()
-    Core.DebugMsg("Politics: Initialized, first tick in " + IntelEngine.GetPoliticsTickInterval() + "h")
+    If IntelEngine.IsPoliticsEnabled()
+        Core.DebugMsg("Politics: Initialized, first tick in " + IntelEngine.GetPoliticsTickInterval() + "h")
+    Else
+        Core.DebugMsg("Politics: Disabled in settings; initialized for later enable")
+    EndIf
 EndFunction
 
 ; =============================================================================

@@ -2,7 +2,7 @@
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 > [!IMPORTANT]
-> **Compatibility:** IntelEngine package 3.6.1 retains the 3.6.0 DLL and ESP and requires SkyrimNet Beta 25 or newer. The 3.6.0 runtime components were tested with official Beta 28. Beta 24 and earlier are incompatible.
+> **Compatibility:** IntelEngine 3.6.2 updates the DLL and scripts and requires SkyrimNet Beta 25 or newer. The 3.6.0 runtime components were tested with official Beta 28. Beta 24 and earlier are incompatible.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 > **Have issues? Report them here:** [IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues). Include your Skyrim, SKSE, SkyrimNet and IntelEngine versions and relevant logs with personal information removed.
@@ -322,7 +322,9 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 ## In-Game Dashboard (PrismaUI)
 
-When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
+When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The hotkey requires Skyrim to have foreground focus and exactly the configured Ctrl/Shift/Alt modifiers; a held combo must be released after returning focus. The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
+
+Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet settings page (click Save); both apply immediately. The MCM has no hotkey option.
 
 ### Tabs
 
@@ -372,7 +374,7 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 
 ## Story Engine — The Dungeon Master
 
-The Story Engine is Part 2 of IntelEngine. Every few in-game hours, an LLM Dungeon Master observes the full world state — your location, time of day, NPC memories and relationships — and decides if something should happen. No random dice rolls. Every event is grounded in the actual history of your playthrough.
+The Story Engine is Part 2 of IntelEngine. Every few in-game hours, an LLM Dungeon Master observes the full world state — your location, time of day, NPC memories and relationships — and decides if something should happen. World facts shared by every candidate are shown once, while each NPC's additional knowledge remains attached to them for silent fact-checking. No random dice rolls. Every event is grounded in the actual history of your playthrough.
 
 Nine story types, each individually toggleable via MCM:
 
@@ -388,7 +390,7 @@ Nine story types, each individually toggleable via MCM:
 - **NPC Interaction** — Two NPCs interact independently of you. Arguments, deals, training, whispered conspiracies. Happens whether you're watching or not.
 - **NPC Gossip** — Rumors spread through chains of up to 10 people. Information travels realistically through the world.
 
-Every event injects facts into NPC bios that persist and influence all future dialogue. The Dungeon Master uses anti-repetition, type balancing, and per-NPC cooldowns to keep stories varied and meaningful.
+Every event injects facts into NPC bios that persist and influence all future dialogue. Message and quest courier facts/memories are recorded only after arrival passes the travel rejection checks; rejected pending quests do not publish quest facts or repetition history. The Dungeon Master prompt lists only enabled story types and guards long-absence seek-player guidance accordingly. Anti-repetition, type balancing, and per-NPC cooldowns keep stories varied and meaningful.
 
 ---
 
