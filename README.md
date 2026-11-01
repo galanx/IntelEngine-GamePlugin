@@ -320,9 +320,13 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 ---
 
-## In-Game Dashboard (PrismaUI)
+## In-Game Dashboard
 
-When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The hotkey requires Skyrim to have foreground focus and exactly the configured Ctrl/Shift/Alt modifiers; a held combo must be released after returning focus. The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
+IntelEngine provides an optional real-time React dashboard via [Magelight UI](https://github.com/Severause/MagelightUI) **1.7.1 or newer** (recommended), with [PrismaUI](https://www.prismaui.dev/) as a frozen fallback. Install a host separately; neither runtime is bundled. With neither usable host, the dashboard is unavailable but IE gameplay and the MCM remain enabled.
+
+Open with the configured hotkey (default: Shift+7). Skyrim must have foreground focus and exactly the configured Ctrl/Shift/Alt modifiers; release a held combo after returning focus. Another host's input ownership blocks opening without stealing focus or showing a notice. Magelight preserves the dashboard's game pause and supports Escape close; PrismaUI retains its existing X/hotkey close behavior without new Escape support.
+
+Host selection is fixed until restart. In `Data/SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/settings.yaml`, set `ui.host` to `auto` (default, prefer Magelight), `magelight` (prefer Magelight), or `prismaui` (prefer PrismaUI). Each preference falls back to the other usable host; unknown values warn and use auto. Restart Skyrim after changing this setting; Reload UI does not switch hosts. A missing, too-old or unusable Magelight host logs the reason for PrismaUI fallback.
 
 Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet settings page (click Save); both apply immediately. The MCM has no hotkey option.
 
@@ -340,9 +344,9 @@ Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet 
 
 ### How It Works
 
-The dashboard communicates through a C++ bridge: JavaScript events are routed to Papyrus via `pendingParams` (thread-safe `std::unordered_map` with mutex) and ModEvents. All JSON is built in C++ using `nlohmann::json` for proper escaping. Papyrus reads the dashboard state from live quest properties and pushes comprehensive JSON snapshots to the frontend.
+The dashboard communicates through a shared C++ host bridge and existing Papyrus ModEvents. All JSON is built with `nlohmann::json` for proper escaping. Papyrus reads live quest properties and pushes comprehensive JSON snapshots. Remove Packages and Execute Action retain exact decimal-string actor FormIDs, including high-bit IDs.
 
-PrismaUI is entirely optional — IntelEngine works identically without it. The MCM provides the same configuration capabilities.
+Phase 1 does not close the dashboard or notify on Director submission. SkyMessage confirmations are unchanged. Magelight lifecycle, Escape, contention and game dispatch require separate live acceptance; offline checks/builds are not runtime proof.
 
 ---
 
@@ -466,7 +470,8 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 ### Optional
 
-- [PrismaUI](https://www.prismaui.dev/) — in-game overlay framework. Enables the real-time dashboard with task monitoring, story engine controls, director mode, and full settings management. IntelEngine works without it — you just won't have the overlay.
+- [Magelight UI](https://github.com/Severause/MagelightUI) **1.7.1+** — optional, recommended dashboard host. Install separately.
+- [PrismaUI](https://www.prismaui.dev/) — optional frozen dashboard fallback; no new features or fixes on this path. Neither host is required for IE gameplay.
 
 ---
 

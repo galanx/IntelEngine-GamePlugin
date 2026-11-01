@@ -11,6 +11,7 @@
         <folder source="Interface" destination="Interface" />
         <folder source="SKSE" destination="SKSE" />
         <folder source="PrismaUI" destination="PrismaUI" />
+        <folder source="Magelight" destination="Magelight" />
         <file source="FAQ.md" destination="IntelEngineTools\FAQ.md" />
     </requiredInstallFiles>
 
@@ -36,7 +37,15 @@ Requirements:
 - PapyrusUtil
 - SkyUI (MCM)
 - Papyrus MessageBox - SKSE NG (Skyrim 1.6 and earlier)
-  OR PapyrusMessageBox-1.7.104 (Skyrim 1.7)</description>
+  OR PapyrusMessageBox-1.7.104 (Skyrim 1.7)
+
+Optional dashboard host (install separately; runtimes not bundled):
+- Magelight UI 1.7.1 or newer, recommended
+- PrismaUI, frozen fallback
+Both dashboard asset trees are included; neither host is required for gameplay.
+Set ui.host: auto|magelight|prismaui in IntelEngine settings.yaml; restart Skyrim to change hosts.
+Magelight adds Escape close; PrismaUI retains existing behavior.
+Director submission does not close or notify; SkyMessage confirmations are unchanged.</description>
                             <image path="fomod\IE-cover.jpg" />
                             <files />
                             <typeDescriptor>
