@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Follow-up H: Action Execution includes loaded actors within 4000 units across exterior cell borders in the same worldspace, or within the same interior cell. Preserve alive/enabled/loaded/base filters. Pair the combined rebuilt DLL for F/H; actual-method offline boundary checks pass, not in-game actor-list acceptance.
 - Follow-up G: manual Director CancelCurrentTask bypasses only the nearby-player guard and uses full slot/package/link cleanup, including active Travel tasks. SkyrimNet/LLM cancellation retains the default guard. Pair rebuilt Core PSC/PEX with the conduct route from F; compiled-path checks pass, not live acceptance.
 - Follow-up F: add the Director ReportPlayerConduct route with the selected NPC as reporter and YAML-defined sentiment choices. Rebuild both dashboard trees and pair the sentiment YAML; the shared Core PSC/PEX is included with G and the combined DLL with H. Offline verification only.
 - Follow-up C: latch the shared story arrival entry before side effects so seek-player callback/poll re-entry cannot narrate/clear twice. Reset the latch for fresh dispatches and retain ambush/quest monitoring. Recompiled StoryEngine is paired with follow-up B.
