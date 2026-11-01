@@ -130,7 +130,11 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     EndIf
 
     ; Shared scheduling scaffolding: time parse ? MCM confirm ? override ? allocate
-    Int slot = PrepareScheduleSlot(akNPC, "travel", "meet at " + destination, timeCondition, "ScheduleMeeting")
+    String meetingDescription = "meet"
+    If destination != "none"
+        meetingDescription += " at " + destination
+    EndIf
+    Int slot = PrepareScheduleSlot(akNPC, "travel", meetingDescription, timeCondition, "ScheduleMeeting")
     If slot < 0
         Return false
     EndIf
@@ -179,7 +183,7 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     Core.DebugMsg("Departure buffer for " + akNPC.GetDisplayName() + ": " + travelHoursEstimate + "h (meeting in " + hoursUntilMeeting + "h)")
 
     String timeDesc = GetPreciseTimeDescription(targetHour)
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " will meet you at " + destination + " " + timeDesc)
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " will " + meetingDescription + " " + timeDesc)
     Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", condition='" + timeCondition + "')")
 
     RegisterForNextDispatch()
