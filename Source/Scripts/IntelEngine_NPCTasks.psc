@@ -552,12 +552,6 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         Return false
     EndIf
 
-    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
-    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to deliver a message to " + targetName + " (task in progress)", akAgent, None)
-
-    ; Override existing task if any
-    Core.OverrideExistingTask(akAgent)
-
     ; Cooldown — prevents narration-triggered re-selection loops
     Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
     If cooldown > 0.0 && cooldown <= Utility.GetCurrentRealTime() && (Utility.GetCurrentRealTime() - cooldown) < 15.0
@@ -570,33 +564,37 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     If targetNPC == None
         ; NPC not found - provide "did you mean?" suggestion if available
         String suggestion = GetNPCSuggestion(targetName)
+        Core.DebugMsg("DeliverMessage: recipient '" + targetName + "' was not found")
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to '" + targetName + "'. No one by that exact name could be located. The closest known name is " + suggestion + ".")
+            Core.NotifyPlayer(akAgent.GetDisplayName() + " could not locate '" + targetName + "'. Closest known name: " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to '" + targetName + "'. No one by that name could be located.")
+            Core.NotifyPlayer(akAgent.GetDisplayName() + " could not locate '" + targetName + "'.")
         EndIf
         Return false
     EndIf
 
     If targetNPC.IsDead()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to " + targetNPC.GetDisplayName() + ", who is dead.")
+        Core.NotifyPlayer(akAgent.GetDisplayName() + " cannot deliver a message to " + targetNPC.GetDisplayName() + ", who is dead.")
         Return false
     EndIf
 
     If targetNPC.IsDisabled()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + " to deliver the message.")
+        Core.NotifyPlayer(akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + " to deliver the message.")
         Return false
     EndIf
 
     If targetNPC == akAgent
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to themselves.")
+        Core.NotifyPlayer(akAgent.GetDisplayName() + " cannot deliver a message to themselves.")
         Return false
     EndIf
 
     If targetNPC == Game.GetPlayer()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to " + Game.GetPlayer().GetDisplayName() + ", who is already right here.")
+        Core.NotifyPlayer(Game.GetPlayer().GetDisplayName() + " is already right here; no delivery task started.")
         Return false
     EndIf
+
+    ; Only replace an existing task once the requested recipient is valid.
+    Core.OverrideExistingTask(akAgent)
 
     ; Find slot
     Int slot = Core.FindFreeAgentSlot()
@@ -617,6 +615,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
 
     ; Allocate
     Core.AllocateSlot(slot, akAgent, "deliver_message", targetNPC.GetDisplayName(), 1)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to deliver a message to " + targetName + " (task in progress)", akAgent, None)
 
     ; Store message data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
