@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Same-faction dispatch: reject identical faction IDs in native event, war and direct relation-adjustment paths; disable the Director political button for identical sides. Preserve one-sided events.
 - Add optional recommended Magelight UI 1.7.1+ dashboard hosting with restart-only `ui.host: auto|magelight|prismaui`, frozen PrismaUI fallback, shared listener/FormID contracts, and Magelight Escape/UI-mode close. Include identical dashboard assets for both hosts; install host runtimes separately. Full DLL build, offline host/identity checks and local-file dashboard smoke passed. No close/notify on dispatch or SkyMessage changes. Installation and live acceptance remain unexecuted.
 - Native #42: stage rebuilt `IntelEngine.pex` and `IntelEngine_Core.pex` with exact decimal-string dashboard FormID transport, including FE/FF IDs. Paired with the offline-built identity DLL; no installation or live verification performed.
 - Native #41: manual Story and Social Director selections use exact full-name lookup across indexed and currently tracked actor references, independent of automatic candidate pools. Null, mismatched, deleted, disabled and dead references are filtered before ambiguity; same-reference duplicates are accepted, and distinct eligible-reference clashes log both FormIDs. If none are eligible, log the most specific rejection state. Automatic selection remains unchanged and now logs specific rejection branches.
