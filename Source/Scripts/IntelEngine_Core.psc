@@ -113,6 +113,9 @@ Int Property STATE_AT_TARGET = 8 AutoReadOnly
 Float Property ARRIVAL_DISTANCE = 300.0 AutoReadOnly
 {Distance to consider NPC "arrived" at destination}
 
+Float Property ACTOR_ARRIVAL_DISTANCE = 200.0 AutoReadOnly
+{Actor-target arrival distance; marker destinations retain ARRIVAL_DISTANCE.}
+
 Float Property UPDATE_INTERVAL = 3.0 AutoReadOnly
 {Seconds between status checks}
 
