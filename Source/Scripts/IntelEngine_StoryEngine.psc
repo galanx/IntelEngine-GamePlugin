@@ -29,6 +29,7 @@ GlobalVariable Property IntelEngine_StoryEngineCooldown Auto
 Bool Property IsActive = false Auto Hidden
 Actor Property ActiveStoryNPC = None Auto Hidden
 Int Property DispatchGeneration = 0 Auto Hidden
+Bool Property ArrivalHandling = false Auto Hidden
 String Property ActiveNarration = "" Auto Hidden
 String Property PendingStoryType = "" Auto Hidden
 Actor Property ActiveSecondNPC = None Auto Hidden
@@ -1028,7 +1029,7 @@ Function CheckNPCSocialArrival()
     Float dist = NPCSocialTraveler.GetDistance(NPCSocialTarget)
 
     ; Arrival check
-    If dist <= Core.ACTOR_ARRIVAL_DISTANCE && dist > 0.0
+    If dist <= IntelEngine.GetArrivalThreshold(NPCSocialTraveler, NPCSocialTarget as ObjectReference) && dist > 0.0
         OnNPCSocialArrived()
         return
     EndIf
@@ -1754,6 +1755,7 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
 
     ActiveStoryNPC = npc
     DispatchGeneration += 1
+    ArrivalHandling = false
     ActiveNarration = narration
     IsActive = true
     IntelEngine.MarkSystemPending("storyDM", Utility.GetCurrentGameTime())
@@ -1996,7 +1998,6 @@ Function FinishArrivalWithLinger(Actor arrivedNPC, ObjectReference lingerTarget)
     EndIf
     PO3_SKSEFunctions.SetLinkedRef(arrivedNPC, sandboxRef, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(arrivedNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
-    Utility.Wait(0.1)
     arrivedNPC.EvaluatePackage()
     ; Ensure building access: if NPC is inside an interior, unlock door + remove trespass
     Core.EnsureBuildingAccess(arrivedNPC)
@@ -2436,7 +2437,7 @@ Function CheckStoryNPCArrival()
     Float dist = ActiveStoryNPC.GetDistance(arrivalTarget)
 
     ; Arrived when within standard arrival distance
-    If dist <= Core.ACTOR_ARRIVAL_DISTANCE && dist > 0.0
+    If dist <= IntelEngine.GetArrivalThreshold(ActiveStoryNPC, arrivalTarget as ObjectReference) && dist > 0.0
         OnStoryNPCArrived()
         return
     EndIf
@@ -2446,7 +2447,7 @@ Function CheckStoryNPCArrival()
     Cell targetCell = arrivalTarget.GetParentCell()
     Cell npcCell2 = ActiveStoryNPC.GetParentCell()
     If npcCell2 != None && targetCell != None && npcCell2 == targetCell
-        If targetCell.IsInterior() && dist <= Core.ACTOR_ARRIVAL_DISTANCE && dist > 0.0
+        If targetCell.IsInterior() && dist <= IntelEngine.GetArrivalThreshold(ActiveStoryNPC, arrivalTarget as ObjectReference) && dist > 0.0
             OnStoryNPCArrived()
             return
         EndIf
@@ -2548,10 +2549,12 @@ EndFunction
 ; =============================================================================
 
 Function OnStoryNPCArrived()
+    If !IsActive || ActiveStoryNPC == None || ArrivalHandling
+        return
+    EndIf
+    ; Latch before side effects or latent calls so concurrent callback/poll stacks cannot both handle arrival.
+    ArrivalHandling = true
     If ActiveStoryType == "message" || ActiveStoryType == "quest"
-        If !IsActive || ActiveStoryNPC == None
-            return
-        EndIf
         IsActive = false
     EndIf
     ; Preserve the journey outcome before quest/message handlers can wait or enter a new phase.
@@ -3493,6 +3496,7 @@ Function BeginQuestGuide(Actor guideNPC)
     ; Transition to guide mode (don't call full CleanupStoryDispatch)
     ActiveStoryType = "quest_guide"
     ActiveStoryNPC = guideNPC
+    ArrivalHandling = false
     IsActive = true
     IntelEngine.MarkSystemPending("storyDM", Utility.GetCurrentGameTime())
 
@@ -3645,6 +3649,7 @@ Function OnQuestGuideArrived()
     EndIf
     ActiveStoryType = ""
     IsActive = false
+    ArrivalHandling = false
 
     ; NOW add sandbox near quest location (after ClearSlot wiped travel packages)
     PO3_SKSEFunctions.SetLinkedRef(QuestGuideNPC, QuestGuideNPC as ObjectReference, Core.IntelEngine_TravelTarget)
@@ -4719,6 +4724,7 @@ Function CleanupQuest()
         ActiveStoryNPC = None
         ActiveNarration = ""
         ActiveStoryType = ""
+        ArrivalHandling = false
         IsActive = false
         Core.DebugMsg("Story [quest]: cleared courier dispatch (quest cancelled)")
     EndIf
@@ -5010,6 +5016,7 @@ Function CleanupStoryDispatch()
     ActiveNarration = ""
     ActiveStoryType = ""
     IsActive = false
+    ArrivalHandling = false
     IntelEngine.ClearSystemPending("storyDM")
     ClearPending()
     ; Re-register game-time scheduling so TickScheduler keeps firing.
