@@ -1079,6 +1079,7 @@ Function OnNPCSocialArrived()
     {NPC Social traveler arrived at target. Perform visible interaction and clean up.}
     Core.DebugMsg("NPC Social: " + NPCSocialTraveler.GetDisplayName() + " arrived at " + NPCSocialTarget.GetDisplayName())
     PerformVisibleInteraction(NPCSocialTraveler, NPCSocialTarget, NPCSocialNarration, NPCSocialType)
+    StorageUtil.SetStringValue(NPCSocialTraveler, "Intel_Result", "arrived")
     CleanupNPCSocialDispatch()
 EndFunction
 
@@ -1981,6 +1982,7 @@ Function FinishArrivalWithLinger(Actor arrivedNPC, ObjectReference lingerTarget)
     If slot < 0
         return
     EndIf
+    StorageUtil.SetStringValue(arrivedNPC, "Intel_Result", "arrived")
     Core.ClearSlot(slot)
     CleanupStoryDispatch()
 
@@ -2552,6 +2554,8 @@ Function OnStoryNPCArrived()
         EndIf
         IsActive = false
     EndIf
+    ; Preserve the journey outcome before quest/message handlers can wait or enter a new phase.
+    StorageUtil.SetStringValue(ActiveStoryNPC, "Intel_Result", "arrived")
 
     Core.DebugMsg("Story: " + ActiveStoryNPC.GetDisplayName() + " arrived! [" + ActiveStoryType + "]")
 
