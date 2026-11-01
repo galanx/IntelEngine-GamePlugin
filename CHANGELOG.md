@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Follow-up C: latch the shared story arrival entry before side effects so seek-player callback/poll re-entry cannot narrate/clear twice. Reset the latch for fresh dispatches and retain ambush/quest monitoring. Recompiled StoryEngine is paired with follow-up B.
 - Follow-up E: filled faction inputs reopen the full list on click/focus, filter while typing, preserve free text, and provide a one-click clear button. Rebuilt both dashboard trees; hidden Chromium interaction checks passed with synthetic state (not in-game host acceptance).
 - Follow-up D: Action Execution removes unsupported ReportPlayerConduct and exposes allowlisted parameter-less actions, including CancelCurrentTask. Dashboard assets are paired in follow-up E.
 - Same-faction dispatch: reject identical faction IDs in native event, war and direct relation-adjustment paths; disable the Director political button for identical sides. Preserve one-sided events.
