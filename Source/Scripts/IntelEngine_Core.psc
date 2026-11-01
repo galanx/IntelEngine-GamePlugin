@@ -2009,7 +2009,10 @@ Event OnDashboardCancelQuest(String eventName, String strArg, Float numArg, Form
 EndEvent
 
 Event OnDashboardRemovePackages(String eventName, String strArg, Float numArg, Form sender)
-    Int formId = numArg as Int
+    Int formId = IntelEngine.ParseFormID(strArg)
+    If formId == 0
+        Return
+    EndIf
     Actor npc = Game.GetForm(formId) as Actor
     If npc != None
         DebugMsg("Dashboard: Removing packages from " + npc.GetDisplayName())
@@ -2270,8 +2273,8 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     String narration = IntelEngine.StoryResponseGetField(strArg, "narration")
     String response = IntelEngine.StoryResponseGetField(strArg, "response")
 
-    Actor npc = IntelEngine.ResolveStoryCandidate(npcName)
-    If !npc || npc.IsDead()
+    Actor npc = IntelEngine.ResolveDirectorActor(npcName)
+    If !npc || npc.IsDead() || npc.IsDisabled()
         DebugMsg("Director: Could not find NPC '" + npcName + "' for story dispatch")
         Return
     EndIf
@@ -2349,13 +2352,13 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     String narration = IntelEngine.StoryResponseGetField(strArg, "narration")
     String response = IntelEngine.StoryResponseGetField(strArg, "response")
 
-    Actor npc1 = IntelEngine.FindNPCByName(npc1Name)
-    Actor npc2 = IntelEngine.FindNPCByName(npc2Name)
-    If !npc1 || npc1.IsDead()
+    Actor npc1 = IntelEngine.ResolveDirectorActor(npc1Name)
+    Actor npc2 = IntelEngine.ResolveDirectorActor(npc2Name)
+    If !npc1 || npc1.IsDead() || npc1.IsDisabled()
         DebugMsg("Director: Could not find NPC 1 '" + npc1Name + "' for social dispatch")
         Return
     EndIf
-    If !npc2 || npc2.IsDead()
+    If !npc2 || npc2.IsDead() || npc2.IsDisabled()
         DebugMsg("Director: Could not find NPC 2 '" + npc2Name + "' for social dispatch")
         Return
     EndIf
@@ -2418,9 +2421,14 @@ EndEvent
 ; DIRECTOR MODE: Action Execution
 ; =============================================================================
 Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Form sender)
-    ; strArg = full JSON payload (race-safe), numArg = npcFormId
+    ; strArg = full JSON payload, including exact decimal npcFormId
     String actionName = IntelEngine.StoryResponseGetField(strArg, "actionName")
-    Actor npc = Game.GetForm(numArg as Int) as Actor
+    String formIdString = IntelEngine.StoryResponseGetField(strArg, "npcFormId")
+    Int formId = IntelEngine.ParseFormID(formIdString)
+    If formId == 0
+        Return
+    EndIf
+    Actor npc = Game.GetForm(formId) as Actor
 
     If !npc || npc.IsDead()
         DebugMsg("Director: Invalid or dead NPC for action execution")

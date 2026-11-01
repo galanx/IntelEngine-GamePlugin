@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Native #42: stage rebuilt `IntelEngine.pex` and `IntelEngine_Core.pex` with exact decimal-string dashboard FormID transport, including FE/FF IDs. Paired with the offline-built identity DLL; no installation or live verification performed.
+- Native #41: manual Story and Social Director selections use exact full-name lookup across indexed and currently tracked actor references, independent of automatic candidate pools. Null, mismatched, deleted, disabled and dead references are filtered before ambiguity; same-reference duplicates are accepted, and distinct eligible-reference clashes log both FormIDs. If none are eligible, log the most specific rejection state. Automatic selection remains unchanged and now logs specific rejection branches.
+- Native #43: reject empty/reverse/within-word faction-leader name matches, preserve title-prefixed names and player-cell preference, and log matched leader FormIDs at info level. Final paired DLL and both changed PEX compiled successfully; offline identity checks passed. Unloaded story dispatch is supported by the existing off-screen source path but remains unverified live.
+
 ## v3.6.2
 
 - Save converter: convert caches on temporary (0xFF) actors and orphaned global caches in place instead of refusing the whole save, and refuse a save whose caches are already in the 3.6 format (for example a later save made from an `_IEconverted` one). Output is readable multi-line text and warns against loading converted saves under any IE 3.5.x. Live: a converted ADT save loads with correct prompt text.

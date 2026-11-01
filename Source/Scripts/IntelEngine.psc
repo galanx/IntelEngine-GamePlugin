@@ -56,6 +56,7 @@ Bool Function ShouldResetPending(String system, Float timeoutHours, Float curren
 
 ; Utility
 Int Function HexToInt(String hexStr) Global Native
+Int Function ParseFormID(String formId) Global Native
 
 ; Dialogue Tracker — Auto Bio Updates
 Function SetAutoBioEnabled(Bool enabled) Global Native
@@ -396,11 +397,14 @@ ObjectReference Function GetEditorLocationRef(Actor akActor) Global Native
 ; STORY ENGINE FUNCTIONS
 ; =============================================================================
 
-; Resolve a name from the DM response to the EXACT Actor from the last candidate pool.
-; Uses stored FormIDs from BuildDungeonMasterContext/BuildNPCInteractionContext.
-; Falls back to FindNPCByName if the name isn't in the pool.
-; USE THIS instead of FindNPCByName for story dispatch to avoid name ambiguity.
+; Automatic DM/social responses resolve only within the latest candidate pools.
+; Exact names precede unique case/whitespace/role-normalized matches.
+; Unknown names and duplicate entries reject; no global lookup fallback.
 Actor Function ResolveStoryCandidate(String name) Global Native
+
+; Manual Director only: exact full display name across indexed actor references.
+; Same-reference duplicates are allowed; distinct-reference clashes and dead/disabled/deleted actors reject.
+Actor Function ResolveDirectorActor(String name) Global Native
 
 ; Find a suitable messenger to deliver a message on behalf of sender.
 ; Cascade: household member → social associate → same-hold guard → any civilian.
