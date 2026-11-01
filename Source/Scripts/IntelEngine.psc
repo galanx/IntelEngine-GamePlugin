@@ -490,6 +490,8 @@ Bool Function StoryResponseShouldAct(String response) Global Native
 ; Extract a string field value from simple JSON (e.g., "narration", "subject").
 ; Handles escaped quotes. Returns "" if field not found.
 String Function StoryResponseGetField(String json, String fieldName) Global Native
+; Expected-optional field: missing keys log at debug; malformed JSON still warns.
+String Function StoryResponseGetOptionalField(String json, String fieldName) Global Native
 
 ; Build a JSON fragment with actor data for LLM context.
 ; slot 0 = single actor: actorName, actorRace, actorGender, subj, obj, poss
