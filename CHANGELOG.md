@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Follow-up D: Action Execution removes unsupported ReportPlayerConduct and exposes allowlisted parameter-less actions, including CancelCurrentTask. Dashboard assets are paired in follow-up E.
 - Same-faction dispatch: reject identical faction IDs in native event, war and direct relation-adjustment paths; disable the Director political button for identical sides. Preserve one-sided events.
 - Actor arrival distance: use 200 radial units for actor targets in the proximity monitor and Papyrus polling, retaining native actor Z tolerance and the 300-unit horizontal marker predicate. Matching actor distance predicates prevents premature consumption of the single-shot callback. No travel/post-arrival package behavior change; push-source attribution remains unverified.
 - Absent meeting location: omit the `at none` clause from the shared meeting description used by confirmations and declined-meeting facts.
