@@ -623,12 +623,11 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
     If agentAlias
         Actor agent = agentAlias.GetActorReference()
         If agent
-            DebugMsg("Clearing slot " + slot + ": " + agent.GetDisplayName())
-
             ; Save to task history before clearing
             String histType = SlotTaskTypes[slot]
             String histTarget = SlotTargetNames[slot]
             String histResult = StorageUtil.GetStringValue(agent, "Intel_Result")
+            DebugMsg("Clearing slot " + slot + ": " + agent.GetDisplayName() + " [result='" + histResult + "']")
             String histMessage = StorageUtil.GetStringValue(agent, "Intel_Message")
             String histMeetLoc = StorageUtil.GetStringValue(agent, "Intel_DeliveryMeetLocation")
             If histType != ""
