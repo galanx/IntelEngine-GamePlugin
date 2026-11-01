@@ -39,6 +39,7 @@ parameterMapping:
       DarkBrotherhoodFaction, SilverBloodFamily, BlackBriarFamily
   - type: dynamic
     name: sentiment
+    enum: [strongly_positive, positive, negative, strongly_negative]
     description: >
       How the player feels about this faction based on what they said.
       Must be one of: "strongly_positive", "positive", "negative", "strongly_negative"
