@@ -2462,8 +2462,8 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
     ElseIf actionName == "DeliverMessage"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
         String msgContent = IntelEngine.StoryResponseGetField(strArg, "msgContent")
-        String meetLoc = IntelEngine.StoryResponseGetField(strArg, "meetLocation")
-        String meetTime = IntelEngine.StoryResponseGetField(strArg, "meetTime")
+        String meetLoc = IntelEngine.StoryResponseGetOptionalField(strArg, "meetLocation")
+        String meetTime = IntelEngine.StoryResponseGetOptionalField(strArg, "meetTime")
         If meetLoc == ""
             meetLoc = "none"
         EndIf
@@ -2502,8 +2502,8 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
         String msgContent = IntelEngine.StoryResponseGetField(strArg, "msgContent")
         String timeCond = IntelEngine.StoryResponseGetField(strArg, "timeCondition")
-        String meetLoc = IntelEngine.StoryResponseGetField(strArg, "meetLocation")
-        String meetTime = IntelEngine.StoryResponseGetField(strArg, "meetTime")
+        String meetLoc = IntelEngine.StoryResponseGetOptionalField(strArg, "meetLocation")
+        String meetTime = IntelEngine.StoryResponseGetOptionalField(strArg, "meetTime")
         If meetLoc == ""
             meetLoc = "none"
         EndIf
