@@ -782,10 +782,9 @@ EndFunction
 ; TASK CONTROL (cancel, speed change — called by SkyrimNet actions)
 ; =============================================================================
 
-Bool Function CancelCurrentTask(Actor akNPC)
-    {Cancel the NPC's current task entirely. Called by CancelCurrentTask action.
-    Blocked while the player is within LINGER_RELEASE_DISTANCE — the linger
-    system handles task cleanup when the player walks away.}
+Bool Function CancelCurrentTask(Actor akNPC, Bool force = false)
+    {Cancel the NPC's current task entirely. SkyrimNet actions keep the nearby-player
+    guard; manual Director cancellation bypasses only that guard.}
     If akNPC == None
         Return false
     EndIf
@@ -796,7 +795,7 @@ Bool Function CancelCurrentTask(Actor akNPC)
 
     ; Block cancellation while player is nearby — prevents premature LLM task clearing.
     ; The linger release mechanism will clean up when the player walks away.
-    If !ShouldReleaseLinger(akNPC)
+    If !force && !ShouldReleaseLinger(akNPC)
         DebugMsg(akNPC.GetDisplayName() + " cancel blocked: player nearby")
         Return false
     EndIf
@@ -2471,6 +2470,12 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         EndIf
         NPCTasks.DeliverMessage(npc, targetName, msgContent, meetLoc, meetTime)
 
+    ElseIf actionName == "ReportPlayerConduct"
+        String factionId = IntelEngine.StoryResponseGetField(strArg, "factionId")
+        String sentiment = IntelEngine.StoryResponseGetField(strArg, "sentiment")
+        String reason = IntelEngine.StoryResponseGetField(strArg, "reason")
+        Politics.ReportPlayerConduct(npc, factionId, sentiment, reason)
+
     ElseIf actionName == "EscortTarget"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
         String destination = IntelEngine.StoryResponseGetField(strArg, "destination")
@@ -2481,7 +2486,7 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         NPCTasks.EscortTarget(npc, targetName, destination, shouldWait)
 
     ElseIf actionName == "CancelCurrentTask"
-        CancelCurrentTask(npc)
+        CancelCurrentTask(npc, true)
 
     ElseIf actionName == "ChangeSpeed"
         Int newSpeed = IntelEngine.StoryResponseGetField(strArg, "newSpeed") as Int
