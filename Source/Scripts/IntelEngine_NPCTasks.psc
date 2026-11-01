@@ -500,7 +500,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     SetDistanceBasedDeadline(slot, akAgent, targetNPC, true)
 
     ; Fast-path proximity arrival at the target NPC (C++ ticks every 150ms).
-    ; Default 150u actor threshold for face-to-face detection.
+    ; Default 200u actor threshold for face-to-face detection.
     IntelEngine.ArmProximityArrival(slot, akAgent as ObjectReference, targetNPC as ObjectReference, Self, "IntelEngine_NPCTasks", "OnProximityArrived")
 
     ; Start monitoring
@@ -1550,7 +1550,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
         Actor player = Game.GetPlayer()
         Bool targetAtPlayer = false
         If target.Is3DLoaded() && player.Is3DLoaded()
-            targetAtPlayer = (target.GetDistance(player) <= Core.ARRIVAL_DISTANCE)
+            targetAtPlayer = (target.GetDistance(player) <= Core.ACTOR_ARRIVAL_DISTANCE)
         ElseIf !target.Is3DLoaded() && target.GetParentCell() == player.GetParentCell()
             targetAtPlayer = true
         EndIf
@@ -1568,13 +1568,13 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
         StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenLastDist")
 
         Float agentDist = agent.GetDistance(returnMarker)
-        If agentDist <= Core.ARRIVAL_DISTANCE
+        If agentDist <= Core.ACTOR_ARRIVAL_DISTANCE
             ; Agent arrived — also wait for target on success returns
             If waitForTarget && target != None
                 Bool targetArrived = false
                 If returnCycles > 3 && target.Is3DLoaded()
                     Float targetDist = target.GetDistance(returnMarker)
-                    targetArrived = (targetDist <= Core.ARRIVAL_DISTANCE)
+                    targetArrived = (targetDist <= Core.ACTOR_ARRIVAL_DISTANCE)
                 ElseIf returnCycles > 3 && !target.Is3DLoaded() && target.GetParentCell() == returnMarker.GetParentCell()
                     targetArrived = true
                 EndIf
@@ -1655,7 +1655,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
     Float dist = IntelEngine.GetDistance2D(agent, returnMarker)
 
     ; Close enough off-screen? Complete.
-    If dist <= Core.ARRIVAL_DISTANCE
+    If dist <= Core.ACTOR_ARRIVAL_DISTANCE
         Core.DebugMsg(agent.GetDisplayName() + " arrived off-screen (dist=" + dist + ")")
         OnReturnedWithTarget(slot, agent, target)
         Return
@@ -2236,7 +2236,7 @@ Function CheckDeliveryReturnArrival(Int slot, Actor agent)
 
     If agent.Is3DLoaded() && player.Is3DLoaded()
         Float dist = agent.GetDistance(player)
-        If dist <= Core.ARRIVAL_DISTANCE
+        If dist <= Core.ACTOR_ARRIVAL_DISTANCE
             OnReturnedFromDelivery(slot, agent)
         Else
             CheckIfStuck(slot, agent)

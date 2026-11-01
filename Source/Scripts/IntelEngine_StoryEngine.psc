@@ -1028,7 +1028,7 @@ Function CheckNPCSocialArrival()
     Float dist = NPCSocialTraveler.GetDistance(NPCSocialTarget)
 
     ; Arrival check
-    If dist <= Core.ARRIVAL_DISTANCE && dist > 0.0
+    If dist <= Core.ACTOR_ARRIVAL_DISTANCE && dist > 0.0
         OnNPCSocialArrived()
         return
     EndIf
@@ -2434,7 +2434,7 @@ Function CheckStoryNPCArrival()
     Float dist = ActiveStoryNPC.GetDistance(arrivalTarget)
 
     ; Arrived when within standard arrival distance
-    If dist <= Core.ARRIVAL_DISTANCE && dist > 0.0
+    If dist <= Core.ACTOR_ARRIVAL_DISTANCE && dist > 0.0
         OnStoryNPCArrived()
         return
     EndIf
@@ -2444,7 +2444,7 @@ Function CheckStoryNPCArrival()
     Cell targetCell = arrivalTarget.GetParentCell()
     Cell npcCell2 = ActiveStoryNPC.GetParentCell()
     If npcCell2 != None && targetCell != None && npcCell2 == targetCell
-        If targetCell.IsInterior() && dist <= Core.ARRIVAL_DISTANCE && dist > 0.0
+        If targetCell.IsInterior() && dist <= Core.ACTOR_ARRIVAL_DISTANCE && dist > 0.0
             OnStoryNPCArrived()
             return
         EndIf
