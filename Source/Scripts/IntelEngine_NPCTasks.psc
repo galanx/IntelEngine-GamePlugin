@@ -1168,7 +1168,7 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
                 Return
             ElseIf taskType == "escort_target"
                 Core.DebugMsg(agent.GetDisplayName() + " escort timed out while walking — completing")
-                OnEscortComplete(slot, agent, target)
+                OnEscortComplete(slot, agent, target, false)
                 Return
             EndIf
         EndIf
@@ -1233,7 +1233,7 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
         If taskState == 1 || taskState == Core.STATE_AT_TARGET
             OnArrivedAtTarget(slot, agent, target)
         ElseIf taskState == 3
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, dest != None)
         Else
             Core.ClearSlot(slot, true)
         EndIf
@@ -1903,7 +1903,7 @@ EndFunction
 Function CheckEscortArrival(Int slot, Actor agent, Actor target)
     ObjectReference destMarkerRef = StorageUtil.GetFormValue(agent, "Intel_ReturnMarker") as ObjectReference
     If destMarkerRef == None
-        OnEscortComplete(slot, agent, target)
+        OnEscortComplete(slot, agent, target, false)
         Return
     EndIf
 
@@ -1922,7 +1922,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
                 StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", doorDest)
                 Utility.Wait(0.5)
             EndIf
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, true)
             Return
         EndIf
     ElseIf !target.Is3DLoaded()
@@ -1938,7 +1938,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
                 PO3_SKSEFunctions.SetLinkedRef(target, doorDest2, Core.IntelEngine_TravelTarget)
                 StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", doorDest2)
             EndIf
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, true)
             Return
         EndIf
     EndIf
@@ -1961,7 +1961,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
                 agent.MoveTo(destMarkerRef)
                 target.MoveTo(destMarkerRef)
             EndIf
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, true)
             Return
         EndIf
     EndIf
@@ -1971,7 +1971,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
         If Core.HandleOffScreenTravel(slot, agent, destMarkerRef)
             agent.MoveTo(destMarkerRef)
             target.MoveTo(destMarkerRef)
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, true)
         EndIf
     EndIf
 EndFunction
@@ -2033,8 +2033,11 @@ Function OnPlayerArrivedAtEscortTarget(Actor target)
     Core.DebugMsg(targetName + " noticed player at " + destName + " -- switching to normal linger")
 EndFunction
 
-Function OnEscortComplete(Int slot, Actor agent, Actor target)
+Function OnEscortComplete(Int slot, Actor agent, Actor target, Bool reachedDestination)
     Core.MarkSlotProcessing(slot, agent)
+    If reachedDestination
+        StorageUtil.SetStringValue(agent, "Intel_Result", "success")
+    EndIf
 
     String agentName = agent.GetDisplayName()
     String targetName = target.GetDisplayName()
@@ -2259,8 +2262,6 @@ Function OnReturnedFromDelivery(Int slot, Actor agent)
     String agentName = agent.GetDisplayName()
     Actor player = Game.GetPlayer()
     Bool playerPresent = (agent.GetParentCell() == player.GetParentCell())
-
-    Core.DebugMsg(agentName + " returned from delivering message to " + targetName)
 
     If playerPresent && StorageUtil.GetIntValue(player, "Intel_DeliveryReportBack") == 1
         ; Stop travel and sandbox near player so agent doesn't walk away
