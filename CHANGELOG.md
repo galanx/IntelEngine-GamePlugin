@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Refuse a new Director Story while the story engine already owns an active story, preserving the existing courier's context and travel slot. Reuse the Director admission helper; automatic and arrival flows remain unchanged. Core-only PSC/PEX paired; compiled courier-preservation/arrival regression passes.
 - Round B P-lite: refuse busy Director Story, NPC Social and task-creating Action Execution requests before task/context writes, with a busy notification. Preserve cancellation, speed/conduct controls and automatic behavior. Pair only rebuilt IntelEngine_Core PSC/PEX; two compiled Director/run6 regressions pass. No native or arrival-flow change.
 - Round B Q: reject self-pair relations, seeds, wars and political records at the database boundary; hide legacy same-faction relation rows on read without changing the save format. Preserve one-sided events and same-faction conduct's single standing change. Native SQLite/conduct checks pass; the combined round-B DLL is packaged with S.
 - Round B R: show in-game calendar dates/times (nearest minute) on political events, war timelines, battle history and new NPC activity. Preserve absent timestamps as absent, including SQL NULL versus genuine zero; anchor custom-start dates/clocks to the current save and avoid float32 midnight rollover. Native SQLite and built-dashboard boundary checks pass; pair the combined round-B DLL and changed script bytecode.
