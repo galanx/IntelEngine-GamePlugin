@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Follow-up M: conduct reports use valid faction IDs from the picker, first-choice sentiment defaults and required-field validation. Native processing accepts configured display names via the existing lookup and notifies success counts or exact input/readiness errors. Pair rebuilt DLL and both shared J/M dashboard trees; production-method SQLite and headless UI checks pass, not game-host/live acceptance.
 - Follow-up J: custom Director faction suggestions open upward near the viewport bottom; NPC/enum pickers remain native selects. Shared rebuilt dashboard assets for J/M are paired in M; offline Chromium geometry checked, game-host acceptance remains pending.
 - Follow-up L: Director CancelCurrentTask notifies successful cancellation or no active task; LLM-triggered cancellation is unchanged. Pair rebuilt Core PSC/PEX; compiled Director-event success/repeat checks pass, not live acceptance.
 - Follow-up K: unresolved delivery/fetch/search/escort rejections lead with the missing target (`<Target> could not be found.`); preserve existing rejection routing and task safeguards. Pair rebuilt NPCTasks PSC/PEX; compiled-path checks pass, not new live acceptance.
