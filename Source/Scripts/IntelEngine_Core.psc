@@ -192,8 +192,6 @@ Function Maintenance(Bool isFirstLoad = false)
         isFirstLoad = true when mod is first installed (OnInit on alias)
         isFirstLoad = false on subsequent loads (OnPlayerLoadGame on alias)
     }
-    ; ModEvent registrations must run EVERY load — never guarded by duplicate check.
-    ; Papyrus ModEvent listeners don't persist across save/load.
     RegisterDashboardEvents()
 
     Float now = Utility.GetCurrentRealTime()
@@ -209,6 +207,8 @@ Function Maintenance(Bool isFirstLoad = false)
         return
     EndIf
     LastMaintenanceRealTime = now
+    ; Register once per load after the duplicate-bootstrap guard.
+    RegisterStoryEventSchemas()
     DebugMsg("IntelEngine Maintenance (firstLoad=" + isFirstLoad + ")")
 
     ; On first install (new game), clear all StorageUtil data from previous sessions.
@@ -1458,6 +1458,22 @@ EndFunction
 ; NARRATION HELPERS
 ; =============================================================================
 
+Function RegisterStoryEventSchemas()
+    String fields = "[{\"name\":\"line\",\"type\":0,\"required\":true,\"description\":\"Event content\"}]"
+    String templates = "{\"recent_events\":\"*{{ line }}* ({{ time_desc }})\",\"raw\":\"*{{ line }}*\",\"compact\":\"*{{ line }}*\",\"verbose\":\"*{{ line }}*\"}"
+    SkyrimNetApi.RegisterEventSchema("intel_social", "Intel Social", \
+        "Executed NPC social interactions and gossip exchanges", fields, templates, false, 120000, true, false)
+    SkyrimNetApi.RegisterEventSchema("intel_story", "Intel Story", \
+        "Executed story, seek, and informant outcomes", fields, templates, false, 120000, true, false)
+EndFunction
+
+Function SendStoryEvent(String eventType, Actor akOriginator, Actor akTarget, String eventLine)
+    If eventLine == ""
+        Return
+    EndIf
+    SkyrimNetApi.RegisterEvent(eventType, "{\"line\":\"" + EscapeJson(eventLine) + "\"}", akOriginator, akTarget)
+EndFunction
+
 Function SendTaskNarration(Actor akActor, String msgText, Actor akTarget = None)
     ; Use SkyrimNet native DirectNarration instead of ModEvent
     ; This ensures proper integration with SkyrimNet's dialogue system
@@ -1594,6 +1610,7 @@ Function InjectGossip(Actor akGiver, Actor akReceiver, String gossipText)
     StorageUtil.SetStringValue(akGiver, "Intel_GossipRendered", IntelEngine.EncodeRenderedCache(giverHeardRendered + giverToldRendered))
 
     DebugMsg("Gossip: " + giverName + " told " + receiverName + ": " + gossipText)
+    SendStoryEvent("intel_social", akGiver, akReceiver, giverName + " told " + receiverName + " a rumor: " + gossipText)
 EndFunction
 
 Function CleanExpiredFacts(Actor akNPC)
@@ -2290,10 +2307,6 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     DebugMsg("Director: Dispatching " + storyType + " with " + npc.GetDisplayName() + " - " + narration)
 
-    ; Quest and message memories are recorded only after the courier arrives.
-    If storyType != "message" && storyType != "quest"
-        SendPersistentMemory(npc, Game.GetPlayer(), npc.GetDisplayName() + " set out to find " + Game.GetPlayer().GetDisplayName())
-    EndIf
 
     ; Route through StoryEngine's actual type handlers (identical to automatic dispatch)
     ; Director skips cooldown/MCM checks intentionally — it's a manual DM override
@@ -2366,33 +2379,27 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
 
     DebugMsg("Director: NPC Social " + socialType + " — " + npc1Name + " -> " + npc2Name + ": " + narration)
 
+    String fact1 = ""
+    String fact2 = ""
+    String gossip = ""
     If socialType == "npc_interaction"
-        String fact1 = StoryEngine.ExtractJsonField(response, "fact1")
-        String fact2 = StoryEngine.ExtractJsonField(response, "fact2")
-        If fact1 != ""
-            InjectFact(npc1, fact1)
-        EndIf
-        If fact2 != ""
-            InjectFact(npc2, fact2)
-        EndIf
+        fact1 = StoryEngine.ExtractJsonField(response, "fact1")
+        fact2 = StoryEngine.ExtractJsonField(response, "fact2")
         StoryEngine.AddNPCSocialLog("npc_interaction", npc1Name, npc2Name, narration, npc1)
         StoryEngine.AddRecentStoryEvent("npc_interaction: " + npc1Name + " and " + npc2Name + " — " + narration)
-
     ElseIf socialType == "npc_gossip"
-        String gossip = StoryEngine.ExtractJsonField(response, "gossip")
-        If gossip != ""
-            InjectFact(npc1, "told " + npc2Name + " that someone " + gossip)
-            InjectFact(npc2, "heard from " + npc1Name + " that someone " + gossip)
-        EndIf
+        gossip = StoryEngine.ExtractJsonField(response, "gossip")
         StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, narration, npc1)
         StoryEngine.AddRecentStoryEvent("npc_gossip: " + npc1Name + " told " + npc2Name + " — " + narration)
     EndIf
 
-    ; If NPCs are close enough, dispatch physical travel for face-to-face
+    ; Dispatch physical travel for face-to-face when NPCs are close enough.
     Float dist = npc1.GetDistance(npc2)
     If dist < 5000.0 && dist > 200.0
-        StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType)
+        StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType, npc1, npc2, fact1, fact2, gossip)
     Else
+        ; Existing off-screen Director outcome: no travel is needed.
+        StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
         DebugMsg("Director: NPCs too far apart or already close — applied off-screen")
     EndIf
 
