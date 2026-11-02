@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Follow-up K: unresolved delivery/fetch/search/escort rejections lead with the missing target (`<Target> could not be found.`); preserve existing rejection routing and task safeguards. Pair rebuilt NPCTasks PSC/PEX; compiled-path checks pass, not new live acceptance.
 - Follow-up I: reject unresolved/invalid delivery recipients through player notification/log instead of triggering NPC dialogue and a possible unrelated LLM travel action. Validate before replacing an existing task; register departure only after allocation. Resolved distant recipients remain actor targets. Pair rebuilt NPCTasks PSC/PEX; compiled rejection/actor-target checks pass, no new live acceptance.
 - Follow-up H: Action Execution includes loaded actors within 4000 units across exterior cell borders in the same worldspace, or within the same interior cell. Preserve alive/enabled/loaded/base filters. Pair the combined rebuilt DLL for F/H; actual-method offline boundary checks pass, not in-game actor-list acceptance.
 - Follow-up G: manual Director CancelCurrentTask bypasses only the nearby-player guard and uses full slot/package/link cleanup, including active Travel tasks. SkyrimNet/LLM cancellation retains the default guard. Pair rebuilt Core PSC/PEX with the conduct route from F; compiled-path checks pass, not live acceptance.

@@ -389,9 +389,9 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         ; NPC not found - describe the situation, let NPC decide their response
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to find '" + targetName + "'. No one by that exact name could be located. The closest known name is " + suggestion + ".")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to find someone named '" + targetName + "'. No one by that name could be located.")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -566,9 +566,9 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         String suggestion = GetNPCSuggestion(targetName)
         Core.DebugMsg("DeliverMessage: recipient '" + targetName + "' was not found")
         If suggestion != ""
-            Core.NotifyPlayer(akAgent.GetDisplayName() + " could not locate '" + targetName + "'. Closest known name: " + suggestion + ".")
+            Core.NotifyPlayer(targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.NotifyPlayer(akAgent.GetDisplayName() + " could not locate '" + targetName + "'.")
+            Core.NotifyPlayer(targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -727,9 +727,9 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
     If targetNPC == None
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to help find '" + targetName + "'. No one by that exact name could be located. The closest known name is " + suggestion + ".")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to help find someone named '" + targetName + "'. No one by that name could be located.")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -874,9 +874,9 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     If targetNPC == None
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort '" + targetName + "' to " + destLabel + ". No one by that exact name could be located. The closest known name is " + suggestion + ".")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort someone named '" + targetName + "' to " + destLabel + ". No one by that name could be located.")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
