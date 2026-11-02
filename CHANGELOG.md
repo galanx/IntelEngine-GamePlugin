@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add Director busy confirmation for Story, either NPC Social participant and Action Execution using existing active-slot state. First click asks `Busy — you sure?`; second sends slot cancellation(s) then the unchanged dispatch. NPC edits reset confirmation. Pair both dashboard trees; offline built-bundle cancel/dispatch regression fails before and passes after.
 - Refresh the open dashboard at shared task-slot allocation and clearing, so Tasks cards appear/disappear without reopening. Closed dashboards skip snapshot building. Pair rebuilt Core PSC/PEX; offline compiled consumers pass, not live-tested.
 - Add closing NPC facts before active-story task cancellation, generic load abandonment and six-hour watchdog cleanup. Cancellation skips empty narration. Pair rebuilt Core/StoryEngine PSC/PEX; named cancel regression fails before and passes after offline, without installation or live testing.
 - Cancel the active story together with its NPC task through the shared cancellation helper; task-card cancellation now uses that helper. Stop suspended dispatch setup from re-arming tracking or modifying a replacement story. Pair only Core/StoryEngine PSC/PEX; named compiled courier-cancel/replacement regression and existing consumers pass.
