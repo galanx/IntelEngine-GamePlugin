@@ -1813,6 +1813,7 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
 
     ActiveStoryNPC = npc
     DispatchGeneration += 1
+    Int claimedGeneration = DispatchGeneration
     ArrivalHandling = false
     ActiveNarration = narration
     IsActive = true
@@ -1821,6 +1822,10 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     StorageUtil.SetStringValue(npc, "Intel_StoryNarration", narration)
 
     ReapplyTravelPackage(npc)
+    If !IsActive || ActiveStoryNPC != npc || DispatchGeneration != claimedGeneration
+        ; Already allocated: do not let callers roll back a replacement's payload/quest.
+        return true
+    EndIf
 
     Core.InitializeStuckTrackingForSlot(slot, npc)
     Core.InitOffScreenTracking(slot, npc, target as ObjectReference)
@@ -2854,7 +2859,11 @@ Function HandleAmbushStalkerDispatch(Actor npc, String narration, String respons
     EndIf
 
     ActiveStoryType = storyType
+    Int claimedGeneration = DispatchGeneration + 1
     DispatchToTarget(npc, Game.GetPlayer(), narration, "story", taskOrigin)
+    If !StillOwns(npc, claimedGeneration, storyType)
+        return
+    EndIf
 
     ; Stalkers start in sneak immediately (stalk package, phase 1).
     ; Ambush stealth starts in phase 0 (jog normally), enters sneak at 2000 units.

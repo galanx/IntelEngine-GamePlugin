@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Cancel the active story together with its NPC task through the shared cancellation helper; task-card cancellation now uses that helper. Stop suspended dispatch setup from re-arming tracking or modifying a replacement story. Pair only Core/StoryEngine PSC/PEX; named compiled courier-cancel/replacement regression and existing consumers pass.
 - Successful Dashboard task-card cancellation now shows `<Name>'s task cancelled.` after cleanup; empty slots emit no success notice. One-line Core-only source/bytecode update; existing compiled harness passes.
 - Refuse a new Director Story while the story engine already owns an active story, preserving the existing courier's context and travel slot. Reuse the Director admission helper; automatic and arrival flows remain unchanged. Core-only PSC/PEX paired; compiled courier-preservation/arrival regression passes.
 - Round B P-lite: refuse busy Director Story, NPC Social and task-creating Action Execution requests before task/context writes, with a busy notification. Preserve cancellation, speed/conduct controls and automatic behavior. Pair only rebuilt IntelEngine_Core PSC/PEX; two compiled Director/run6 regressions pass. No native or arrival-flow change.
