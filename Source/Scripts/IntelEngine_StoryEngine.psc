@@ -5171,7 +5171,7 @@ Function AddRecentStoryEvent(String summary)
 EndFunction
 
 Function AddNPCSocialLog(String eventType, String npc1Name, String npc2Name, String narration, Actor sourceNPC = None, String detail = "")
-    {Store structured NPC social interaction for dashboard display. Parallel StringLists, last 5.}
+    {Store structured NPC social interaction for dashboard display. Parallel lists, last 5.}
     Actor player = Game.GetPlayer()
     ; Get hold name from the NPC who initiated the interaction (not the player)
     String locName = ""
@@ -5181,9 +5181,19 @@ Function AddNPCSocialLog(String eventType, String npc1Name, String npc2Name, Str
     If locName == ""
         locName = IntelEngine.GetActorHoldName(player)
     EndIf
+    ; Pad timestamps for pre-existing rows before appending this entry.
+    Int typeCount = StorageUtil.StringListCount(player, "Intel_SocialLog_Type")
+    Int timeCount = StorageUtil.FloatListCount(player, "Intel_SocialLog_Time")
+    While timeCount < typeCount
+        StorageUtil.FloatListAdd(player, "Intel_SocialLog_Time", -1.0)
+        timeCount += 1
+    EndWhile
+    While timeCount > typeCount
+        StorageUtil.FloatListRemoveAt(player, "Intel_SocialLog_Time", 0)
+        timeCount -= 1
+    EndWhile
     ; Align Detail list with Type list (handles both save migration and prior off-by-one bug)
     ; Must run BEFORE adding the new Type entry, otherwise it pads the current entry's slot
-    Int typeCount = StorageUtil.StringListCount(player, "Intel_SocialLog_Type")
     Int detailCount = StorageUtil.StringListCount(player, "Intel_SocialLog_Detail")
     While detailCount < typeCount
         StorageUtil.StringListAdd(player, "Intel_SocialLog_Detail", "")
@@ -5199,6 +5209,7 @@ Function AddNPCSocialLog(String eventType, String npc1Name, String npc2Name, Str
     StorageUtil.StringListAdd(player, "Intel_SocialLog_Text", narration)
     StorageUtil.StringListAdd(player, "Intel_SocialLog_Location", locName)
     StorageUtil.StringListAdd(player, "Intel_SocialLog_Detail", detail)
+    StorageUtil.FloatListAdd(player, "Intel_SocialLog_Time", Utility.GetCurrentGameTime())
     While StorageUtil.StringListCount(player, "Intel_SocialLog_Type") > 5
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Type", 0)
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_NPC1", 0)
@@ -5206,6 +5217,7 @@ Function AddNPCSocialLog(String eventType, String npc1Name, String npc2Name, Str
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Text", 0)
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Location", 0)
         StorageUtil.StringListRemoveAt(player, "Intel_SocialLog_Detail", 0)
+        StorageUtil.FloatListRemoveAt(player, "Intel_SocialLog_Time", 0)
     EndWhile
 EndFunction
 

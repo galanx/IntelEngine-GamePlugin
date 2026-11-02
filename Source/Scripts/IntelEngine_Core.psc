@@ -2679,6 +2679,7 @@ String Function BuildDashboardStateJson()
     ; ── NPC Social Log (last 5 interactions/gossip) ──
     Actor logPlayer = Game.GetPlayer()
     Int logCount = StorageUtil.StringListCount(logPlayer, "Intel_SocialLog_Type")
+    Int logTimeCount = StorageUtil.FloatListCount(logPlayer, "Intel_SocialLog_Time")
     json += ",\"npcSocialLog\":["
     ; Show newest first (reverse order)
     Int li = logCount - 1
@@ -2695,6 +2696,12 @@ String Function BuildDashboardStateJson()
         json += ",\"text\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Text", li)) + "\""
         json += ",\"location\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Location", li)) + "\""
         json += ",\"detail\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Detail", li)) + "\""
+        If li < logTimeCount
+            Float socialTime = StorageUtil.FloatListGet(logPlayer, "Intel_SocialLog_Time", li)
+            If socialTime >= 0.0
+                json += ",\"time\":" + socialTime
+            EndIf
+        EndIf
         json += "}"
         li -= 1
     EndWhile
