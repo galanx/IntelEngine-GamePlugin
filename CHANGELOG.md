@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Refresh the open dashboard at shared task-slot allocation and clearing, so Tasks cards appear/disappear without reopening. Closed dashboards skip snapshot building. Pair rebuilt Core PSC/PEX; offline compiled consumers pass, not live-tested.
 - Add closing NPC facts before active-story task cancellation, generic load abandonment and six-hour watchdog cleanup. Cancellation skips empty narration. Pair rebuilt Core/StoryEngine PSC/PEX; named cancel regression fails before and passes after offline, without installation or live testing.
 - Cancel the active story together with its NPC task through the shared cancellation helper; task-card cancellation now uses that helper. Stop suspended dispatch setup from re-arming tracking or modifying a replacement story. Pair only Core/StoryEngine PSC/PEX; named compiled courier-cancel/replacement regression and existing consumers pass.
 - Successful Dashboard task-card cancellation now shows `<Name>'s task cancelled.` after cleanup; empty slots emit no success notice. One-line Core-only source/bytecode update; existing compiled harness passes.
