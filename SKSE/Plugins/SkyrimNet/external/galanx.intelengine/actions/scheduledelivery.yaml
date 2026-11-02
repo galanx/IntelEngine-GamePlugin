@@ -45,6 +45,9 @@ parameterMapping:
     description: >
       If the message includes a meeting time, provide it.
       If NOT a meeting request: set this to "none"
+  - type: static
+    value: "Schedule"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:

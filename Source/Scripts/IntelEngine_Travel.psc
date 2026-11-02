@@ -149,7 +149,7 @@ EndFunction
 ; MAIN API - GoToLocation
 ; =============================================================================
 
-Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int waitForPlayer = 1, Bool isScheduled = false)
+Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int waitForPlayer = 1, Bool isScheduled = false, String taskOrigin = "SkyrimNet dialogue action")
     {
     Send an NPC to a destination. Supports both named and semantic locations.
 
@@ -245,7 +245,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     waitHours = ClampFloat(waitHours, MIN_WAIT_HOURS, MAX_WAIT_HOURS)
 
     ; Allocate slot
-    Core.AllocateSlot(slot, akNPC, "travel", destination, speed)
+    Core.AllocateSlot(slot, akNPC, "travel", destination, speed, taskOrigin)
 
     ; Store wait hours - deadline will be calculated on arrival, not now
     StorageUtil.SetFloatValue(akNPC, "Intel_WaitHours", waitHours)

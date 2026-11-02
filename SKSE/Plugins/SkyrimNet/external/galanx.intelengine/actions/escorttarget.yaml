@@ -43,6 +43,9 @@ parameterMapping:
       0 if they should just stay there and resume normal life.
       Use 1 when: the player asked for the escort, someone is being taken somewhere for the player to meet.
       Use 0 when: taking someone home, moving someone away from danger.
+  - type: static
+    value: "SkyrimNet dialogue action"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:

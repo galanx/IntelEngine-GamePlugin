@@ -330,7 +330,7 @@ EndFunction
 ; FETCH NPC API
 ; =============================================================================
 
-Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "none")
+Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "none", String taskOrigin = "SkyrimNet dialogue action")
     {
     Send an NPC to find another NPC and bring them back to the player.
 
@@ -451,7 +451,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     Core.DismissFollowerForTask(akAgent)
 
     ; Allocate slot (defaults to state 1)
-    Core.AllocateSlot(slot, akAgent, "fetch_npc", targetNPC.GetDisplayName(), 1)  ; Jog by default
+    Core.AllocateSlot(slot, akAgent, "fetch_npc", targetNPC.GetDisplayName(), 1, taskOrigin)  ; Jog by default
 
     ; Store fetch-specific data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
@@ -511,7 +511,7 @@ EndFunction
 ; DELIVER MESSAGE API
 ; =============================================================================
 
-Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent, String meetLocation = "none", String meetTime = "none")
+Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent, String meetLocation = "none", String meetTime = "none", String taskOrigin = "SkyrimNet dialogue action")
     {
     Send an NPC to deliver a message to another NPC.
     If meetLocation and meetTime are provided, the recipient will be
@@ -614,7 +614,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     Core.DismissFollowerForTask(akAgent)
 
     ; Allocate
-    Core.AllocateSlot(slot, akAgent, "deliver_message", targetNPC.GetDisplayName(), 1)
+    Core.AllocateSlot(slot, akAgent, "deliver_message", targetNPC.GetDisplayName(), 1, taskOrigin)
     SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to deliver a message to " + targetName + " (task in progress)", akAgent, None)
 
     ; Store message data
@@ -668,7 +668,7 @@ EndFunction
 ; SEARCH FOR ACTOR API
 ; =============================================================================
 
-Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
+Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, String taskOrigin = "SkyrimNet dialogue action")
     {
     Search for a target NPC together.
 
@@ -772,7 +772,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
     Core.DismissFollowerForTask(akAgent)
 
     ; Allocate slot
-    Core.AllocateSlot(slot, akAgent, "search_for_actor", targetNPC.GetDisplayName(), speed)
+    Core.AllocateSlot(slot, akAgent, "search_for_actor", targetNPC.GetDisplayName(), speed, taskOrigin)
 
     ; Store search-specific data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
@@ -811,7 +811,7 @@ EndFunction
 ; ESCORT TARGET — Walk target NPC to a destination
 ; =============================================================================
 
-Bool Function EscortTarget(Actor akAgent, String targetName, String destination = "home", Int shouldWait = 0)
+Bool Function EscortTarget(Actor akAgent, String targetName, String destination = "home", Int shouldWait = 0, String taskOrigin = "SkyrimNet dialogue action")
     {
     Send an NPC to escort another NPC to a destination.
 
@@ -962,7 +962,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     Core.DismissFollowerForTask(akAgent)
 
     ; Allocate slot
-    Core.AllocateSlot(slot, akAgent, "escort_target", targetNPC.GetDisplayName(), 1)
+    Core.AllocateSlot(slot, akAgent, "escort_target", targetNPC.GetDisplayName(), 1, taskOrigin)
 
     ; Store escort-specific data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)

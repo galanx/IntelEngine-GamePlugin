@@ -45,6 +45,9 @@ parameterMapping:
       When to arrive. Must be a specific time, not vague.
       Examples: "at dawn", "at noon", "in the evening", "tonight",
       "after sunset", "tomorrow morning", "in 2 hours"
+  - type: static
+    value: "Schedule"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:
