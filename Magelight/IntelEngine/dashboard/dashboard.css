@@ -583,6 +583,9 @@ video {
 .z-50 {
   z-index: 50;
 }
+.m-0 {
+  margin: 0px;
+}
 .mb-0\.5 {
   margin-bottom: 0.125rem;
 }
@@ -815,6 +818,9 @@ video {
 .border {
   border-width: 1px;
 }
+.border-0 {
+  border-width: 0px;
+}
 .border-b {
   border-bottom-width: 1px;
 }
@@ -958,6 +964,9 @@ video {
 .bg-yellow-500 {
   --tw-bg-opacity: 1;
   background-color: rgb(234 179 8 / var(--tw-bg-opacity, 1));
+}
+.p-0 {
+  padding: 0px;
 }
 .p-2 {
   padding: 0.5rem;
@@ -1376,5 +1385,8 @@ body {
 }
 .disabled\:opacity-30:disabled {
   opacity: 0.3;
+}
+.disabled\:opacity-40:disabled {
+  opacity: 0.4;
 }
 
