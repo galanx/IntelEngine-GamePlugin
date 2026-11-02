@@ -2243,13 +2243,35 @@ EndFunction
 ; =============================================================================
 
 Function CheckStoryNPCArrival()
-    If ActiveStoryNPC == None || ActiveStoryNPC.IsDead() || ActiveStoryNPC.IsDisabled()
-        If ActiveStoryNPC != None
-            Int deadSlot = Core.FindSlotByAgent(ActiveStoryNPC)
-            If deadSlot >= 0
-                Core.ClearSlot(deadSlot)
-            EndIf
-            Core.RemoveAllPackages(ActiveStoryNPC, false)
+    ; Ignore cleared dispatches and latched arrivals, except the combat phase which
+    ; deliberately keeps monitoring after OnStoryNPCArrived latches its first phase.
+    If !IsActive || ActiveStoryNPC == None
+        return
+    EndIf
+    Actor storyNPC = ActiveStoryNPC
+    Int claimedGeneration = DispatchGeneration
+    String storyType = ActiveStoryType
+    If ArrivalHandling && storyType != "ambush_combat"
+        return
+    EndIf
+    Bool actorUnavailable = storyNPC.IsDead() || storyNPC.IsDisabled()
+    If !IsActive || (ArrivalHandling && storyType != "ambush_combat") || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
+    If actorUnavailable
+        Int deadSlot = Core.FindSlotByAgent(storyNPC)
+        If !IsActive || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
+        If deadSlot >= 0
+            Core.ClearSlot(deadSlot)
+        EndIf
+        If !IsActive || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
+        Core.RemoveAllPackages(storyNPC, false)
+        If !IsActive || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
         EndIf
         CleanupStoryDispatch()
         return
@@ -2258,30 +2280,48 @@ Function CheckStoryNPCArrival()
     ; Corrupt state detection: IsActive true but no type means something went wrong
     ; during concurrent event processing (seen with Sylvi seek_player — FinishArrivalWithLinger
     ; Utility.Wait re-entry corrupted state). Clean up to prevent tick death.
-    If ActiveStoryType == ""
-        Core.DebugMsg("Story: corrupt state detected (IsActive but no type) for " + ActiveStoryNPC.GetDisplayName() + " - cleaning up")
-        Int corruptSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+    If storyType == ""
+        Core.DebugMsg("Story: corrupt state detected (IsActive but no type) for " + storyNPC.GetDisplayName() + " - cleaning up")
+        Int corruptSlot = Core.FindSlotByAgent(storyNPC)
+        If !IsActive || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
         If corruptSlot >= 0
             Core.ClearSlot(corruptSlot)
         EndIf
-        Core.RemoveAllPackages(ActiveStoryNPC, false)
+        If !IsActive || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
+        Core.RemoveAllPackages(storyNPC, false)
+        If !IsActive || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
         CleanupStoryDispatch()
         return
     EndIf
 
     ; Orphan detection: if NPC is valid but no longer in a slot, dispatch was
     ; externally cleared (console, MCM). Clean up to unblock future ticks.
-    Int activeSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+    Int activeSlot = Core.FindSlotByAgent(storyNPC)
+    If !IsActive || (ArrivalHandling && storyType != "ambush_combat") || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
     If activeSlot < 0
-        Core.DebugMsg("Story: orphaned dispatch detected for " + ActiveStoryNPC.GetDisplayName() + " [" + ActiveStoryType + "] - cleaning up")
+        Core.DebugMsg("Story: orphaned dispatch detected for " + storyNPC.GetDisplayName() + " [" + storyType + "] - cleaning up")
+        If !IsActive || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
         CleanupStoryDispatch()
         return
     EndIf
 
     Actor player = Game.GetPlayer()
+    If !IsActive || (ArrivalHandling && storyType != "ambush_combat") || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
 
     ; === Ambush combat monitoring (yield when hurt) ===
-    If ActiveStoryType == "ambush_combat"
+    If storyType == "ambush_combat"
         CheckAmbushCombat()
         return
     EndIf
@@ -2373,6 +2413,9 @@ Function CheckStoryNPCArrival()
         EndIf
         ; Ambush phase 0 and far away: fall through to normal travel monitoring
     EndIf
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
 
     ; === Quest guide monitoring ===
     If ActiveStoryType == "quest_guide"
@@ -2381,9 +2424,19 @@ Function CheckStoryNPCArrival()
     EndIf
 
     ; Determine arrival target based on story type
+    Bool npcToNPC = IsNPCToNPCType()
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
     Actor arrivalTarget = player
-    If IsNPCToNPCType() && ActiveSecondNPC != None
+    If npcToNPC
+        If ActiveSecondNPC == None
+            return
+        EndIf
         arrivalTarget = ActiveSecondNPC
+    EndIf
+    If arrivalTarget == None
+        return
     EndIf
 
     ; Pause arrival during combat (don't greet while fighting)
@@ -2393,15 +2446,29 @@ Function CheckStoryNPCArrival()
 
     ; Cancel dispatch if player is at a blocked location or not at a whitelisted location
     If arrivalTarget == player
-        If IntelEngine.IsPlayerInBlockedLocation()
-            Core.DebugMsg("Story: cancelling " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- player at blocked location")
-            Core.SendTaskNarration(ActiveStoryNPC, "gave up looking for " + player.GetDisplayName() + " and turned back", player)
+        Bool blockedLocation = IntelEngine.IsPlayerInBlockedLocation()
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
+        If blockedLocation
+            Core.DebugMsg("Story: cancelling " + ActiveStoryType + " for " + storyNPC.GetDisplayName() + " -- player at blocked location")
+            Core.SendTaskNarration(storyNPC, "gave up looking for " + player.GetDisplayName() + " and turned back", player)
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                return
+            EndIf
             AbortStoryTravel("player at blocked location")
             return
         EndIf
-        If !IntelEngine.IsPlayerInWhitelistedLocation()
-            Core.DebugMsg("Story: cancelling " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- player not at whitelisted location")
-            Core.SendTaskNarration(ActiveStoryNPC, "decided not to seek " + player.GetDisplayName() + " at this location", player)
+        Bool whitelistedLocation = IntelEngine.IsPlayerInWhitelistedLocation()
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
+        If !whitelistedLocation
+            Core.DebugMsg("Story: cancelling " + ActiveStoryType + " for " + storyNPC.GetDisplayName() + " -- player not at whitelisted location")
+            Core.SendTaskNarration(storyNPC, "decided not to seek " + player.GetDisplayName() + " at this location", player)
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                return
+            EndIf
             AbortStoryTravel("player not at whitelisted location")
             return
         EndIf
@@ -2413,10 +2480,19 @@ Function CheckStoryNPCArrival()
         If ShouldAbortForDangerZone(ActiveStoryNPC, player, ActiveStoryType, "")
             return
         EndIf
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
         If ShouldAbortForPlayerHome(ActiveStoryNPC, player, ActiveStoryType, "")
             return
         EndIf
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
         If ShouldAbortForHoldRestriction(ActiveStoryNPC, player, ActiveStoryType, "")
+            return
+        EndIf
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
             return
         EndIf
     EndIf
@@ -2424,20 +2500,40 @@ Function CheckStoryNPCArrival()
     ; Abort exterior-only types if player entered an interior during travel
     If arrivalTarget == player
         Cell pCell = player.GetParentCell()
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
         If pCell != None && pCell.IsInterior()
-            If ActiveStoryType == "road_encounter" || ActiveStoryType == "stalker" || ActiveStoryType == "ambush"
-                Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- player entered interior")
-                Core.SendTaskNarration(ActiveStoryNPC, "lost track of " + player.GetDisplayName() + " after they went inside and gave up", player)
+            If storyType == "road_encounter" || storyType == "stalker" || storyType == "ambush"
+                Core.DebugMsg("Story: aborting " + storyType + " for " + storyNPC.GetDisplayName() + " -- player entered interior")
+                If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                    return
+                EndIf
+                Core.SendTaskNarration(storyNPC, "lost track of " + player.GetDisplayName() + " after they went inside and gave up", player)
+                If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                    return
+                EndIf
                 AbortStoryTravel("exterior type in interior")
                 return
             EndIf
         EndIf
     EndIf
 
-    Float dist = ActiveStoryNPC.GetDistance(arrivalTarget)
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType || storyNPC == None || arrivalTarget == None
+        return
+    EndIf
+
+    Float dist = storyNPC.GetDistance(arrivalTarget)
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
 
     ; Arrived when within standard arrival distance
-    If dist <= IntelEngine.GetArrivalThreshold(ActiveStoryNPC, arrivalTarget as ObjectReference) && dist > 0.0
+    Float arrivalThreshold = IntelEngine.GetArrivalThreshold(storyNPC, arrivalTarget as ObjectReference)
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
+    If dist <= arrivalThreshold && dist > 0.0
         OnStoryNPCArrived()
         return
     EndIf
@@ -2445,65 +2541,108 @@ Function CheckStoryNPCArrival()
     ; Same interior cell shortcut: only count as arrived if also within distance.
     ; Large interiors like Dragonsreach can have NPCs 3000+ units apart in the same cell.
     Cell targetCell = arrivalTarget.GetParentCell()
-    Cell npcCell2 = ActiveStoryNPC.GetParentCell()
+    Cell npcCell2 = storyNPC.GetParentCell()
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
     If npcCell2 != None && targetCell != None && npcCell2 == targetCell
-        If targetCell.IsInterior() && dist <= IntelEngine.GetArrivalThreshold(ActiveStoryNPC, arrivalTarget as ObjectReference) && dist > 0.0
+        If targetCell.IsInterior() && dist <= arrivalThreshold && dist > 0.0
             OnStoryNPCArrived()
             return
         EndIf
     EndIf
 
-    Int slot = Core.FindSlotByAgent(ActiveStoryNPC)
+    Int slot = Core.FindSlotByAgent(storyNPC)
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
     If slot < 0
         return
     EndIf
 
     ; Off-screen: NPC not loaded — leapfrog won't work, use time-based arrival
-    If !ActiveStoryNPC.Is3DLoaded()
+    Bool npcLoaded = storyNPC.Is3DLoaded()
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
+    If !npcLoaded
         ; Shared abort checks (off-screen path)
         If arrivalTarget == player
-            If ShouldAbortForDangerZone(ActiveStoryNPC, player, ActiveStoryType, " (off-screen)")
+            If ShouldAbortForDangerZone(storyNPC, player, storyType, " (off-screen)")
                 return
             EndIf
-            If ShouldAbortForPlayerHome(ActiveStoryNPC, player, ActiveStoryType, " (off-screen)")
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
                 return
             EndIf
-            If ShouldAbortForHoldRestriction(ActiveStoryNPC, player, ActiveStoryType, " (off-screen)")
+            If ShouldAbortForPlayerHome(storyNPC, player, storyType, " (off-screen)")
+                return
+            EndIf
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                return
+            EndIf
+            If ShouldAbortForHoldRestriction(storyNPC, player, storyType, " (off-screen)")
+                return
+            EndIf
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
                 return
             EndIf
         EndIf
         ; Abort exterior-only types if player entered interior (off-screen)
         If arrivalTarget == player
             Cell offPCell = player.GetParentCell()
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                return
+            EndIf
             If offPCell != None && offPCell.IsInterior()
-                If ActiveStoryType == "road_encounter" || ActiveStoryType == "stalker" || ActiveStoryType == "ambush"
-                    Core.DebugMsg("Story: aborting " + ActiveStoryType + " for " + ActiveStoryNPC.GetDisplayName() + " -- player entered interior (off-screen)")
-                    Core.SendTaskNarration(ActiveStoryNPC, "lost track of " + player.GetDisplayName() + " after they went inside and gave up", player)
+                If storyType == "road_encounter" || storyType == "stalker" || storyType == "ambush"
+                    Core.DebugMsg("Story: aborting " + storyType + " for " + storyNPC.GetDisplayName() + " -- player entered interior (off-screen)")
+                    Core.SendTaskNarration(storyNPC, "lost track of " + player.GetDisplayName() + " after they went inside and gave up", player)
+                    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                        return
+                    EndIf
                     AbortStoryTravel("exterior type in interior (off-screen)")
                     return
                 EndIf
             EndIf
         EndIf
         ; Check if estimated travel time has elapsed (without teleporting yet)
-        Int offscreenStatus = IntelEngine.CheckOffScreenProgress(slot, ActiveStoryNPC, Utility.GetCurrentGameTime())
+        Int offscreenStatus = IntelEngine.CheckOffScreenProgress(slot, storyNPC, Utility.GetCurrentGameTime())
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
         If offscreenStatus == 1
-            Core.DebugMsg(ActiveStoryNPC.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
-            ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+            Core.DebugMsg(storyNPC.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                return
+            EndIf
+            ImmersiveTeleportToTarget(storyNPC, arrivalTarget)
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                return
+            EndIf
             ; Prevent timeout from re-firing while NPC walks the last stretch
-            StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_TaskStartTime")
+            StorageUtil.UnsetFloatValue(storyNPC, "Intel_TaskStartTime")
         EndIf
         return
     EndIf
 
     ; On-screen: stuck detection with leapfrog recovery
-    Int stuckStatus = IntelEngine.CheckStuckStatus(ActiveStoryNPC, slot, Core.STUCK_DISTANCE_THRESHOLD)
+    Int stuckStatus = IntelEngine.CheckStuckStatus(storyNPC, slot, Core.STUCK_DISTANCE_THRESHOLD)
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
     If stuckStatus == 1
-        Core.SoftStuckRecovery(ActiveStoryNPC, slot, arrivalTarget as ObjectReference)
+        Core.SoftStuckRecovery(storyNPC, slot, arrivalTarget as ObjectReference)
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+            return
+        EndIf
     ElseIf stuckStatus >= 3
         If AllowStuckTeleport
-            ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+            ImmersiveTeleportToTarget(storyNPC, arrivalTarget)
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                return
+            EndIf
             ; Prevent timeout from re-firing while NPC walks the last stretch
-            StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_TaskStartTime")
+            StorageUtil.UnsetFloatValue(storyNPC, "Intel_TaskStartTime")
         Else
             AbortStoryTravel("stuck, teleport disabled")
         EndIf
@@ -2514,11 +2653,21 @@ Function CheckStoryNPCArrival()
     ; Previous bug: ImmersiveTeleportToTarget placed NPC 3500u behind the player
     ; (outside 300u arrival radius) without clearing task state, causing infinite
     ; re-teleport every 3s. Fix: teleport + force-arrive in one step.
-    Float taskStart = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_TaskStartTime", 0.0)
-    If taskStart > 0.0 && (Utility.GetCurrentGameTime() - taskStart) > MaxTravelDaysConfig
-        Debug.Trace("[IntelEngine] StoryEngine: Travel timeout for " + ActiveStoryNPC.GetDisplayName() + " — force-arriving")
+    Float taskStart = StorageUtil.GetFloatValue(storyNPC, "Intel_TaskStartTime", 0.0)
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
+    Float currentGameTime = Utility.GetCurrentGameTime()
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+        return
+    EndIf
+    If taskStart > 0.0 && (currentGameTime - taskStart) > MaxTravelDaysConfig
+        Debug.Trace("[IntelEngine] StoryEngine: Travel timeout for " + storyNPC.GetDisplayName() + " — force-arriving")
         If AllowStuckTeleport
-            ImmersiveTeleportToTarget(ActiveStoryNPC, arrivalTarget)
+            ImmersiveTeleportToTarget(storyNPC, arrivalTarget)
+            If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != storyNPC || ActiveStoryType != storyType
+                return
+            EndIf
             OnStoryNPCArrived()
         Else
             AbortStoryTravel("travel timeout, teleport disabled")
@@ -4922,20 +5071,37 @@ EndFunction
 ; =============================================================================
 
 Bool Function ShouldAbortForDangerZone(Actor npc, Actor player, String storyType, String logSuffix)
-    If !IntelEngine.IsPlayerInDangerousLocation()
+    Int claimedGeneration = DispatchGeneration
+    Bool isDangerous = IntelEngine.IsPlayerInDangerousLocation()
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+        return false
+    EndIf
+    If !isDangerous
         return false
     EndIf
     If storyType == "informant"
         Core.DebugMsg("Story: aborting informant for " + npc.GetDisplayName() + " -- danger zone" + logSuffix)
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+            return false
+        EndIf
         Core.SendTaskNarration(npc, "thought better of chasing " + player.GetDisplayName() + " into danger just for gossip and turned back", player)
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+            return false
+        EndIf
         AbortStoryTravel("informant in danger zone" + logSuffix)
         return true
     EndIf
     If DangerZonePolicy == 3 || \
        (DangerZonePolicy == 2 && !IntelEngine.IsPotentialFollower(npc)) || \
        (DangerZonePolicy == 1 && IntelEngine.IsCivilianClass(npc))
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+            return false
+        EndIf
         Core.DebugMsg("Story: aborting " + storyType + " for " + npc.GetDisplayName() + " -- danger zone policy" + logSuffix)
         Core.SendTaskNarration(npc, "turned back after learning that " + player.GetDisplayName() + " had ventured into a dangerous place", player)
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+            return false
+        EndIf
         AbortStoryTravel("danger zone policy" + logSuffix)
         return true
     EndIf
@@ -4943,14 +5109,25 @@ Bool Function ShouldAbortForDangerZone(Actor npc, Actor player, String storyType
 EndFunction
 
 Bool Function ShouldAbortForPlayerHome(Actor npc, Actor player, String storyType, String logSuffix)
-    If !IntelEngine.IsPlayerInOwnHome()
+    Int claimedGeneration = DispatchGeneration
+    Bool isPlayerHome = IntelEngine.IsPlayerInOwnHome()
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+        return false
+    EndIf
+    If !isPlayerHome
         return false
     EndIf
     If PlayerHomePolicy == 3 || \
        (PlayerHomePolicy == 2 && !IntelEngine.IsPotentialFollower(npc)) || \
        (PlayerHomePolicy == 1 && IntelEngine.IsCivilianClass(npc))
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+            return false
+        EndIf
         Core.DebugMsg("Story: aborting " + storyType + " for " + npc.GetDisplayName() + " -- player home policy" + logSuffix)
         Core.SendTaskNarration(npc, "decided not to bother " + player.GetDisplayName() + " at home and turned back", player)
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+            return false
+        EndIf
         AbortStoryTravel("player home policy" + logSuffix)
         return true
     EndIf
@@ -4958,9 +5135,17 @@ Bool Function ShouldAbortForPlayerHome(Actor npc, Actor player, String storyType
 EndFunction
 
 Bool Function ShouldAbortForHoldRestriction(Actor npc, Actor player, String storyType, String logSuffix)
-    If !IntelEngine.CheckHoldRestriction(npc, storyType)
+    Int claimedGeneration = DispatchGeneration
+    Bool holdAllowed = IntelEngine.CheckHoldRestriction(npc, storyType)
+    If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+        return false
+    EndIf
+    If !holdAllowed
         Core.DebugMsg("Story: aborting " + storyType + " for " + npc.GetDisplayName() + " -- hold restriction" + logSuffix)
         Core.SendTaskNarration(npc, "decided the journey to find " + player.GetDisplayName() + " was too far and turned back", player)
+        If !IsActive || ArrivalHandling || DispatchGeneration != claimedGeneration || ActiveStoryNPC != npc || ActiveStoryType != storyType
+            return false
+        EndIf
         AbortStoryTravel("hold restriction" + logSuffix)
         return true
     EndIf
