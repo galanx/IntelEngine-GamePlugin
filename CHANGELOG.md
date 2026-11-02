@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Use the dashboard political option label in recorded-event notices, retaining the original event key and falling back to it when the label is absent. Native producer checks cover both fields and fallback; Core bytecode rebuilt offline.
 - Restore Director section titles and right-aligned small Generate/Clear/Stop buttons; move required markers into field hints while keeping missing-field lists. Headless production-bundle layout and required-field scenario fails before/passes after; no installation or live testing.
 - Mark Director required fields from the existing Dispatch validation and list missing fields beneath disabled buttons across Story, NPC Social, Political and Action Execution. Keep Story/Social variant fields unstarred where they do not gate Dispatch; update Action requirements with the selected command. Pair both rebuilt dashboard trees; headless required-field, Generate/Stop/Clear and busy-confirm checks pass offline. No installation or live testing.
 - Add Director Generate and Clear for Story, NPC Social and Political forms using one shared optional SkyrimNet custom prompt. Preserve picked identities/touched dropdowns, show untouched choices as `(auto)`, validate generated drafts and never dispatch automatically. Generating locks that form; Stop discards its late result without clearing the draft. Pair the rebuilt DLL, prompt and both dashboard trees. Headless draft/Stop/Clear and native malformed/failure/close-reopen checks pass offline; no installation or live model/game test.
