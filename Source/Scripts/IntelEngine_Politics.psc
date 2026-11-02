@@ -134,7 +134,7 @@ EndFunction
 ; DM RESPONSE HANDLER
 ; =============================================================================
 
-Function OnPoliticalDMResponse(String response, Int success)
+Bool Function OnPoliticalDMResponse(String response, Int success)
     TickPending = false
     IntelEngine.ClearSystemPending("politics")
 
@@ -145,7 +145,7 @@ Function OnPoliticalDMResponse(String response, Int success)
     String actedStr = IntelEngine.StoryResponseGetField(resultJson, "acted")
     Bool acted = actedStr == "true" || actedStr == "TRUE"
     If !acted
-        return
+        return false
     EndIf
 
     String description = IntelEngine.StoryResponseGetField(resultJson, "description")
@@ -192,6 +192,7 @@ Function OnPoliticalDMResponse(String response, Int success)
             Battle.ManifestEvent(manifestJson)
         EndIf
     EndIf
+    return acted
 EndFunction
 
 ; =============================================================================
