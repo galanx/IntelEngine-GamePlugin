@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add one IntelEngine info line per completed Generate with form/request ID, filled/blank names and actual dashboard applied/rejected outcomes. Headless request/outcome and native log-route checks run offline; no game or installed log writes.
 - Use the dashboard political option label in recorded-event notices, retaining the original event key and falling back to it when the label is absent. Native producer checks cover both fields and fallback; Core bytecode rebuilt offline.
 - Restore Director section titles and right-aligned small Generate/Clear/Stop buttons; move required markers into field hints while keeping missing-field lists. Headless production-bundle layout and required-field scenario fails before/passes after; no installation or live testing.
 - Mark Director required fields from the existing Dispatch validation and list missing fields beneath disabled buttons across Story, NPC Social, Political and Action Execution. Keep Story/Social variant fields unstarred where they do not gate Dispatch; update Action requirements with the selected command. Pair both rebuilt dashboard trees; headless required-field, Generate/Stop/Clear and busy-confirm checks pass offline. No installation or live testing.
