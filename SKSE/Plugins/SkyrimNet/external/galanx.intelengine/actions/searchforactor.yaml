@@ -31,6 +31,9 @@ parameterMapping:
     name: speed
     description: >
       Travel speed: 0=walk (default), 1=jog, 2=run (urgent).
+  - type: static
+    value: "SkyrimNet dialogue action"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:
