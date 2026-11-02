@@ -809,6 +809,9 @@ Bool Function CancelCurrentTask(Actor akNPC, Bool force = false)
 
     StorageUtil.SetStringValue(akNPC, "Intel_Result", "cancelled")
     ClearSlotRestoreFollower(slot, akNPC)
+    If StoryEngine && StoryEngine.IsActive && StoryEngine.ActiveStoryNPC == akNPC
+        StoryEngine.CleanupStoryDispatch()
+    EndIf
     Return true
 EndFunction
 
@@ -2028,10 +2031,8 @@ Event OnDashboardCancelTask(String eventName, String strArg, Float numArg, Form 
     Int slot = numArg as Int
     If slot >= 0 && slot < MAX_SLOTS
         Actor agent = GetAgentAlias(slot).GetActorReference()
-        If agent != None
+        If agent != None && CancelCurrentTask(agent, true)
             DebugMsg("Dashboard: Cancelling task in slot " + slot + " for " + agent.GetDisplayName())
-            StorageUtil.SetStringValue(agent, "Intel_Result", "cancelled")
-            ClearSlotRestoreFollower(slot, agent)
             NotifyPlayer(agent.GetDisplayName() + "'s task cancelled.")
             PushDashboardState()
         EndIf
