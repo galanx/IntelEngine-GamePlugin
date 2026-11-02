@@ -2370,11 +2370,11 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     ; Route through StoryEngine's actual type handlers (identical to automatic dispatch)
     ; Director skips cooldown/MCM checks intentionally — it's a manual DM override
-    Bool ok = false
+    Int g = StoryEngine.DispatchGeneration
     If storyType == "seek_player"
         InjectFact(npc, "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration)
         StoryEngine.ActiveStoryType = storyType
-        ok = StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
+        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
     ElseIf storyType == "informant"
         String fSubject = StoryEngine.ExtractJsonField(response, "subject")
@@ -2392,7 +2392,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
             EndIf
         EndIf
         StoryEngine.ActiveStoryType = "informant"
-        ok = StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
+        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
     ElseIf storyType == "ambush" || storyType == "stalker"
         StoryEngine.HandleAmbushStalkerDispatch(npc, narration, response, storyType, "Director")
@@ -2410,8 +2410,8 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     Else
         DebugMsg("Director: unknown story type '" + storyType + "'")
     EndIf
-    If ok
-        NotifyPlayer(npc.GetDisplayName() + " sets out (" + storyType + ").")
+    If StoryEngine.IsActive && StoryEngine.DispatchGeneration != g
+        NotifyPlayer(StoryEngine.ActiveStoryNPC.GetDisplayName() + " sets out (" + storyType + ").")
     EndIf
 
     PushDashboardState()
@@ -2462,12 +2462,16 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
 
     ; Dispatch physical travel for face-to-face when NPCs are close enough.
     Float dist = npc1.GetDistance(npc2)
+    Bool ok = true
     If dist < 5000.0 && dist > 200.0
-        StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType, npc1, npc2, fact1, fact2, gossip, "Director")
+        ok = StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType, npc1, npc2, fact1, fact2, gossip, "Director")
     Else
         ; Existing off-screen Director outcome: no travel is needed.
         StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
         DebugMsg("Director: NPCs too far apart or already close — applied off-screen")
+    EndIf
+    If ok
+        NotifyPlayer(npc1Name + " and " + npc2Name + ": " + socialType + " started.")
     EndIf
 
     PushDashboardState()
@@ -2484,7 +2488,9 @@ Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg,
         DebugMsg("Director: Forwarding to Politics.OnPoliticalDMResponse")
         ; Director bypasses manifestation cooldown — player is manually triggering events
         IntelEngine.ResetManifestationCooldown()
-        Politics.OnPoliticalDMResponse(strArg, 1)
+        If Politics.OnPoliticalDMResponse(strArg, 1)
+            NotifyPlayer("Political event recorded: " + IntelEngine.StoryResponseGetField(strArg, "eventType") + ".")
+        EndIf
         DebugMsg("Director: Politics.OnPoliticalDMResponse returned")
     Else
         DebugMsg("Director: Politics script not available (property is None)")
