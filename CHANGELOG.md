@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Follow-up N: stop queued/suspended story arrival polls after arrival handling, cleanup or dispatch replacement; retain stable actor/target references instead of dereferencing cleared globals. Pair rebuilt StoryEngine PSC/PEX. Prior PEX fails the callback-cleanup interleaving regression; rebuilt PEX passes. Offline evidence only; no installation/live acceptance.
 - Follow-up M: conduct reports use valid faction IDs from the picker, first-choice sentiment defaults and required-field validation. Native processing accepts configured display names via the existing lookup and notifies success counts or exact input/readiness errors. Pair rebuilt DLL and both shared J/M dashboard trees; production-method SQLite and headless UI checks pass, not game-host/live acceptance.
 - Follow-up J: custom Director faction suggestions open upward near the viewport bottom; NPC/enum pickers remain native selects. Shared rebuilt dashboard assets for J/M are paired in M; offline Chromium geometry checked, game-host acceptance remains pending.
 - Follow-up L: Director CancelCurrentTask notifies successful cancellation or no active task; LLM-triggered cancellation is unchanged. Pair rebuilt Core PSC/PEX; compiled Director-event success/repeat checks pass, not live acceptance.
