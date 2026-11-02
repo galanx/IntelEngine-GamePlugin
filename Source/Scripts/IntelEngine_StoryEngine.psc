@@ -996,7 +996,7 @@ EndFunction
 ; NPC SOCIAL DISPATCH (immersive NPC-to-NPC travel, independent of IsActive)
 ; =============================================================================
 
-Function DispatchNPCSocial(Actor npc, Actor target, String narration, String storyType, Actor socialNPC1, Actor socialNPC2, String fact1, String fact2, String gossipContent, String taskOrigin = "NPC social engine")
+Bool Function DispatchNPCSocial(Actor npc, Actor target, String narration, String storyType, Actor socialNPC1, Actor socialNPC2, String fact1, String fact2, String gossipContent, String taskOrigin = "NPC social engine")
     {Lightweight dispatch for NPC-to-NPC travel. Uses slots but does NOT touch IsActive/ActiveStoryNPC.}
     Int slot = Core.FindFreeAgentSlot()
     If slot < 0
@@ -1005,7 +1005,7 @@ Function DispatchNPCSocial(Actor npc, Actor target, String narration, String sto
         CompleteNPCSocialOutcome(socialNPC1, socialNPC2, storyType, fact1, fact2, gossipContent)
         AddRecentStoryEvent(storyType + ": " + summary)
         Core.DebugMsg("NPC Social: no free slot, off-screen: " + summary)
-        return
+        return true
     EndIf
 
     Core.AllocateSlot(slot, npc, "npc_social", target.GetDisplayName(), 1, taskOrigin, narration)
@@ -1036,6 +1036,7 @@ Function DispatchNPCSocial(Actor npc, Actor target, String narration, String sto
 
     ; Ensure real-time monitoring is active
     RegisterForSingleUpdate(MONITOR_INTERVAL)
+    return true
 EndFunction
 
 Function CheckNPCSocialArrival()
