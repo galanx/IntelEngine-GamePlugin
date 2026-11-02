@@ -2489,7 +2489,11 @@ Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg,
         ; Director bypasses manifestation cooldown — player is manually triggering events
         IntelEngine.ResetManifestationCooldown()
         If Politics.OnPoliticalDMResponse(strArg, 1)
-            NotifyPlayer("Political event recorded: " + IntelEngine.StoryResponseGetField(strArg, "event_type") + ".")
+            String eventLabel = IntelEngine.StoryResponseGetField(strArg, "event_label")
+            If eventLabel == ""
+                eventLabel = IntelEngine.StoryResponseGetField(strArg, "event_type")
+            EndIf
+            NotifyPlayer("Political event recorded: " + eventLabel + ".")
         EndIf
         DebugMsg("Director: Politics.OnPoliticalDMResponse returned")
     Else
