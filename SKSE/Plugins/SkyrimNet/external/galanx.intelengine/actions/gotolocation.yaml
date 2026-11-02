@@ -78,6 +78,9 @@ parameterMapping:
   - type: static
     value: false
     name: isScheduled
+  - type: static
+    value: "SkyrimNet dialogue action"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:

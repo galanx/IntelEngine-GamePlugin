@@ -1366,7 +1366,7 @@ Function ManifestEvent(String manifestJson)
         EndIf
 
         ; Allocate slot — assigns quest alias + task faction (makes travel packages work)
-        Core.AllocateSlot(slot, assassin, "assassination", leaderName, 0)
+        Core.AllocateSlot(slot, assassin, "assassination", leaderName, 0, "Politics")
 
         ; Start travel — exact same pattern as FetchPerson
         ; Intel_DestMarker is required for Travel.CheckForArrival to detect proximity

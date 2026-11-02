@@ -353,7 +353,7 @@ Int Function GetLastResolvedHomeCellId() Global Native
 ; =============================================================================
 
 ; Push a slot update to C++ SlotTracker. Called by AllocateSlot, SetSlotState.
-Function UpdateSlotState(Int slot, Actor agent, Int newState, String taskType, String targetName) Global Native
+Function UpdateSlotState(Int slot, Actor agent, Int newState, String taskType, String targetName, String origin = "", Float startTime = -1.0, String reason = "") Global Native
 
 ; Clear a slot in C++ SlotTracker. Called by ClearSlot.
 Function ClearSlotState(Int slot) Global Native

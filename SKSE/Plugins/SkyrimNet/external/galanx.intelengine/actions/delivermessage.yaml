@@ -57,6 +57,9 @@ parameterMapping:
     description: >
       If the message includes a MEETING TIME, provide it.
       If NOT a meeting request: set this to "none"
+  - type: static
+    value: "SkyrimNet dialogue action"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:

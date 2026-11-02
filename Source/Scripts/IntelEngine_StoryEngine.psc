@@ -992,7 +992,7 @@ EndFunction
 ; NPC SOCIAL DISPATCH (immersive NPC-to-NPC travel, independent of IsActive)
 ; =============================================================================
 
-Function DispatchNPCSocial(Actor npc, Actor target, String narration, String storyType, Actor socialNPC1, Actor socialNPC2, String fact1, String fact2, String gossipContent)
+Function DispatchNPCSocial(Actor npc, Actor target, String narration, String storyType, Actor socialNPC1, Actor socialNPC2, String fact1, String fact2, String gossipContent, String taskOrigin = "NPC social engine")
     {Lightweight dispatch for NPC-to-NPC travel. Uses slots but does NOT touch IsActive/ActiveStoryNPC.}
     Int slot = Core.FindFreeAgentSlot()
     If slot < 0
@@ -1004,7 +1004,7 @@ Function DispatchNPCSocial(Actor npc, Actor target, String narration, String sto
         return
     EndIf
 
-    Core.AllocateSlot(slot, npc, "npc_social", target.GetDisplayName(), 1)
+    Core.AllocateSlot(slot, npc, "npc_social", target.GetDisplayName(), 1, taskOrigin, narration)
 
     NPCSocialTraveler = npc
     NPCSocialTarget = target
@@ -1752,7 +1752,7 @@ EndFunction
 ; DISPATCH (unified -- handles both player-targeted and NPC-targeted)
 ; =============================================================================
 
-Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String slotTaskType)
+Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String slotTaskType, String taskOrigin = "Story engine")
     Actor player = Game.GetPlayer()
 
     ; === Player home knocking prompt ===
@@ -1809,7 +1809,7 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
         ActiveSecondNPC = target
     EndIf
 
-    Core.AllocateSlot(slot, npc, slotTaskType, targetName, 1)
+    Core.AllocateSlot(slot, npc, slotTaskType, targetName, 1, taskOrigin, narration)
 
     ActiveStoryNPC = npc
     DispatchGeneration += 1
@@ -2714,7 +2714,7 @@ EndFunction
 ; MESSAGE COURIER SYSTEM
 ; =============================================================================
 
-Function HandleMessageDispatch(Actor senderNPC, String narration, String response)
+Function HandleMessageDispatch(Actor senderNPC, String narration, String response, String taskOrigin = "Story engine")
     String msgContent = ExtractJsonField(response, "msgContent")
     String destination = ExtractJsonField(response, "destination")
     String meetTime = ExtractJsonField(response, "meetTime")
@@ -2744,7 +2744,7 @@ Function HandleMessageDispatch(Actor senderNPC, String narration, String respons
     StorageUtil.SetFormValue(messenger, "Intel_MessageSenderActor", senderNPC)
 
     ActiveStoryType = "message"
-    If !DispatchToTarget(messenger, Game.GetPlayer(), narration, "story")
+    If !DispatchToTarget(messenger, Game.GetPlayer(), narration, "story", taskOrigin)
         StorageUtil.UnsetStringValue(messenger, "Intel_MessageSender")
         StorageUtil.UnsetStringValue(messenger, "Intel_MessageContent")
         StorageUtil.UnsetStringValue(messenger, "Intel_MessageDest")
@@ -2821,7 +2821,7 @@ EndFunction
 ; AMBUSH + STALKER SYSTEM
 ; =============================================================================
 
-Function HandleAmbushStalkerDispatch(Actor npc, String narration, String response, String storyType)
+Function HandleAmbushStalkerDispatch(Actor npc, String narration, String response, String storyType, String taskOrigin = "Story engine")
     String senderName = ExtractJsonField(response, "sender")
     String playerName = Game.GetPlayer().GetDisplayName()
 
@@ -2854,7 +2854,7 @@ Function HandleAmbushStalkerDispatch(Actor npc, String narration, String respons
     EndIf
 
     ActiveStoryType = storyType
-    DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
+    DispatchToTarget(npc, Game.GetPlayer(), narration, "story", taskOrigin)
 
     ; Stalkers start in sneak immediately (stalk package, phase 1).
     ; Ambush stealth starts in phase 0 (jog normally), enters sneak at 2000 units.
@@ -3170,7 +3170,7 @@ EndFunction
 ; QUEST SYSTEM
 ; =============================================================================
 
-Function HandleQuestDispatch(Actor npc, String narration, String response, Bool fromDirector = false)
+Function HandleQuestDispatch(Actor npc, String narration, String response, Bool fromDirector = false, String taskOrigin = "Story engine")
     If QuestActive
         Core.DebugMsg("Story DM: quest rejected -- one already active")
         return
@@ -3421,7 +3421,7 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
         questGiverActor.GetDisplayName(), msgContent, victimName, itemName, alliedFaction)
 
     ActiveStoryType = "quest"
-    If !DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
+    If !DispatchToTarget(npc, Game.GetPlayer(), narration, "story", taskOrigin)
         CleanupQuest()
         return
     EndIf
