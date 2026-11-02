@@ -2486,7 +2486,11 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         NPCTasks.EscortTarget(npc, targetName, destination, shouldWait)
 
     ElseIf actionName == "CancelCurrentTask"
-        CancelCurrentTask(npc, true)
+        If CancelCurrentTask(npc, true)
+            NotifyPlayer(npc.GetDisplayName() + "'s task was cancelled.")
+        Else
+            NotifyPlayer(npc.GetDisplayName() + " has no task to cancel.")
+        EndIf
 
     ElseIf actionName == "ChangeSpeed"
         Int newSpeed = IntelEngine.StoryResponseGetField(strArg, "newSpeed") as Int
