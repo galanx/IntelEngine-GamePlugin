@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Make all 20 dashboard sections collapsible with native details/summary, ▾/▸ headings and per-section localStorage persistence; keep header buttons independent. Pair both frontend host trees. Headless built-bundle collapse/reload/header-Generate regression fails before/passes after; no installation or live game testing.
 - Include every visible Generate variant blank and request complete flat drafts; validate fields once in the dashboard rather than discarding a whole native/UI result for one invalid field. Preserve chosen/touched values and log per-field rejections. Extended production-bundle/native partial-result regressions fail before/pass after offline; no live model/game claim.
 - Add one IntelEngine info line per completed Generate with form/request ID, filled/blank names and actual dashboard applied/rejected outcomes. Headless request/outcome and native log-route checks run offline; no game or installed log writes.
 - Use the dashboard political option label in recorded-event notices, retaining the original event key and falling back to it when the label is absent. Native producer checks cover both fields and fallback; Core bytecode rebuilt offline.
