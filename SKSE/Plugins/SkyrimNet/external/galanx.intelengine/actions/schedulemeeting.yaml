@@ -15,8 +15,8 @@ description: >
 
   Examples that SHOULD trigger:
   - "meet me at the inn at sunset" (specific place + specific time)
-  - "I'll come by Dragonsreach tomorrow morning" (explicit plan with place + time)
-  - "sure, I'll be at the marketplace at noon" (agreed commitment)
+  - "I'll come by the named keep tomorrow morning" (explicit plan with place + time)
+  - "sure, I'll be at the named shop at noon" (agreed commitment)
 
   Examples that should NOT trigger:
   - "see you tonight" (vague farewell — no place specified)
@@ -36,10 +36,9 @@ parameterMapping:
     name: destination
     description: >
       Where to meet. MUST be a specific, real Skyrim location that someone could walk to.
-      Use the EXACT name of an inn, shop, house, keep, or landmark — NOT a hold, province, or region.
-      GOOD: "The Bannered Mare", "Dragonsreach", "Candlehearth Hall", "Palace of the Kings", "the marketplace", "Arcadia's Cauldron"
-      BAD: "Cyrodiil" (province), "Eastmarch" (hold), "Skyrim" (region), "the city" (too vague)
-      Use "home" only for your own home.
+      Copy the EXACT name of an inn, shop, house, keep, or landmark from the game/context,
+      in the game's language; NEVER translate it. NOT a hold, province, region, or vague description.
+      Use "home" in English only for your own home.
   - type: dynamic
     name: timeCondition
     description: >
