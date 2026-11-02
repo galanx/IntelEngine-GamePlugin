@@ -2308,7 +2308,7 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
     ; No PushDashboardState() — React updates optimistically
 EndEvent
 
-Bool Function DirectorCanDispatch(Actor npc)
+Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false)
     ; Include aliases retained during task completion, not just nonzero slot states.
     Int slot = 0
     While slot < MAX_SLOTS
@@ -2319,6 +2319,15 @@ Bool Function DirectorCanDispatch(Actor npc)
         EndIf
         slot += 1
     EndWhile
+    If storyDispatch && StoryEngine && StoryEngine.IsActive
+        Actor activeNPC = StoryEngine.ActiveStoryNPC
+        String activeName = "an unknown NPC"
+        If activeNPC
+            activeName = activeNPC.GetDisplayName()
+        EndIf
+        NotifyPlayer("Story engine is busy with " + activeName + " (" + StoryEngine.ActiveStoryType + "). Cancel it first.")
+        Return false
+    EndIf
     Return true
 EndFunction
 
@@ -2337,7 +2346,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
         DebugMsg("Director: Could not find NPC '" + npcName + "' for story dispatch")
         Return
     EndIf
-    If !DirectorCanDispatch(npc)
+    If !DirectorCanDispatch(npc, true)
         Return
     EndIf
     If narration == ""
