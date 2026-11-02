@@ -541,6 +541,9 @@ video {
 .relative {
   position: relative;
 }
+.bottom-full {
+  bottom: 100%;
+}
 .left-0 {
   left: 0px;
 }
