@@ -119,12 +119,17 @@ Actor Property NPCSocialTraveler = None Auto Hidden
 Actor Property NPCSocialTarget = None Auto Hidden
 String Property NPCSocialNarration = "" Auto Hidden
 String Property NPCSocialType = "" Auto Hidden
+Actor Property NPCSocialNPC1 = None Auto Hidden
+Actor Property NPCSocialNPC2 = None Auto Hidden
+String Property NPCSocialFact1 = "" Auto Hidden
+String Property NPCSocialFact2 = "" Auto Hidden
+String Property NPCSocialGossip = "" Auto Hidden
+Bool Property NPCSocialArrivalHandling = false Auto Hidden
 
 ; === Quest System ===
 Bool Property QuestActive = false Auto Hidden
 Bool Property QuestCourierPending = false Auto Hidden
 Actor Property QuestDepartureNPC = None Auto Hidden
-String Property QuestDepartureMemory = "" Auto Hidden
 String Property QuestDepartureFact = "" Auto Hidden
 Actor Property QuestGiver = None Auto Hidden
 Actor Property QuestGuideNPC = None Auto Hidden
@@ -912,21 +917,16 @@ Function OnNPCInteractionResponse(String response, Int success)
     SetNPCSocialCooldown(npc1)
     SetNPCSocialCooldown(npc2)
 
-    Core.SendPersistentMemory(npc1, npc2, narration)
     Core.DebugMsg("NPC DM [" + storyType + "]: " + npc1.GetDisplayName() + " + " + npc2.GetDisplayName())
 
-    ; Inject facts and build detail string for dashboard log
     String dashboardText = narration
     String logDetail = ""
+    String fact1 = ""
+    String fact2 = ""
+    String gossipContent = ""
     If storyType == "npc_interaction"
-        String fact1 = ExtractJsonField(response, "fact1")
-        String fact2 = ExtractJsonField(response, "fact2")
-        If fact1 != ""
-            Core.InjectFact(npc1, fact1)
-        EndIf
-        If fact2 != ""
-            Core.InjectFact(npc2, fact2)
-        EndIf
+        fact1 = ExtractJsonField(response, "fact1")
+        fact2 = ExtractJsonField(response, "fact2")
         If fact1 != ""
             logDetail = npc1.GetDisplayName() + ": " + fact1
         EndIf
@@ -937,13 +937,11 @@ Function OnNPCInteractionResponse(String response, Int success)
             logDetail += npc2.GetDisplayName() + ": " + fact2
         EndIf
     ElseIf storyType == "npc_gossip"
-        String gossipContent = ExtractJsonField(response, "gossip")
+        gossipContent = ExtractJsonField(response, "gossip")
         If gossipContent != ""
-            Core.InjectGossip(npc1, npc2, gossipContent)
             logDetail = "Gossip: " + gossipContent
             dashboardText = gossipContent
         EndIf
-        SpreadGossipOffScreen(npc1, npc2, gossipContent)
     EndIf
     AddNPCSocialLog(storyType, npc1.GetDisplayName(), npc2.GetDisplayName(), dashboardText, npc1, logDetail)
 
@@ -954,20 +952,39 @@ Function OnNPCInteractionResponse(String response, Int success)
     Bool npc2Visible = (playerCell != None && npc2.GetParentCell() == playerCell)
 
     If npc1Visible && npc2Visible
-        ; Both in player cell -- instant interaction
         PerformVisibleInteraction(npc1, npc2, narration, storyType)
+        CompleteNPCSocialOutcome(npc1, npc2, storyType, fact1, fact2, gossipContent)
     ElseIf (npc1Visible || npc2Visible) && !IsNPCStoryActive && !npc1.IsPlayerTeammate() && !npc2.IsPlayerTeammate()
         ; One visible -- dispatch the off-screen NPC to walk over
         If npc2Visible
-            DispatchNPCSocial(npc1, npc2, narration, storyType)
+            DispatchNPCSocial(npc1, npc2, narration, storyType, npc1, npc2, fact1, fact2, gossipContent)
         Else
-            DispatchNPCSocial(npc2, npc1, narration, storyType)
+            DispatchNPCSocial(npc2, npc1, narration, storyType, npc1, npc2, fact1, fact2, gossipContent)
         EndIf
     Else
-        ; Neither visible, dispatch busy, or followers -- off-screen facts only
+        ; Neither visible, dispatch busy, or followers -- off-screen outcome
         String summary = BuildInteractionSummary(npc1, narration, npc2)
+        CompleteNPCSocialOutcome(npc1, npc2, storyType, fact1, fact2, gossipContent)
         AddRecentStoryEvent(storyType + ": " + summary)
         Core.DebugMsg("Story: " + summary)
+    EndIf
+EndFunction
+
+Function CompleteNPCSocialOutcome(Actor npc1, Actor npc2, String storyType, String fact1, String fact2, String gossipContent)
+    If npc1 == None || npc2 == None
+        Return
+    EndIf
+    If storyType == "npc_interaction"
+        If fact1 != ""
+            Core.InjectFact(npc1, fact1)
+        EndIf
+        If fact2 != ""
+            Core.InjectFact(npc2, fact2)
+        EndIf
+        Core.SendStoryEvent("intel_social", npc1, npc2, npc1.GetDisplayName() + " met with " + npc2.GetDisplayName())
+    ElseIf storyType == "npc_gossip" && gossipContent != ""
+        Core.InjectGossip(npc1, npc2, gossipContent)
+        SpreadGossipOffScreen(npc1, npc2, gossipContent)
     EndIf
 EndFunction
 
@@ -975,12 +992,13 @@ EndFunction
 ; NPC SOCIAL DISPATCH (immersive NPC-to-NPC travel, independent of IsActive)
 ; =============================================================================
 
-Function DispatchNPCSocial(Actor npc, Actor target, String narration, String storyType)
+Function DispatchNPCSocial(Actor npc, Actor target, String narration, String storyType, Actor socialNPC1, Actor socialNPC2, String fact1, String fact2, String gossipContent)
     {Lightweight dispatch for NPC-to-NPC travel. Uses slots but does NOT touch IsActive/ActiveStoryNPC.}
     Int slot = Core.FindFreeAgentSlot()
     If slot < 0
-        ; No free slots -- fall back to off-screen (log already added before visibility branch)
+        ; No free slot -- complete the simulated off-screen outcome without travel.
         String summary = BuildInteractionSummary(npc, narration, target)
+        CompleteNPCSocialOutcome(socialNPC1, socialNPC2, storyType, fact1, fact2, gossipContent)
         AddRecentStoryEvent(storyType + ": " + summary)
         Core.DebugMsg("NPC Social: no free slot, off-screen: " + summary)
         return
@@ -992,6 +1010,12 @@ Function DispatchNPCSocial(Actor npc, Actor target, String narration, String sto
     NPCSocialTarget = target
     NPCSocialNarration = narration
     NPCSocialType = storyType
+    NPCSocialNPC1 = socialNPC1
+    NPCSocialNPC2 = socialNPC2
+    NPCSocialFact1 = fact1
+    NPCSocialFact2 = fact2
+    NPCSocialGossip = gossipContent
+    NPCSocialArrivalHandling = false
     IsNPCStoryActive = true
 
     ; Set up travel package toward target NPC
@@ -1011,7 +1035,9 @@ Function DispatchNPCSocial(Actor npc, Actor target, String narration, String sto
 EndFunction
 
 Function CheckNPCSocialArrival()
-    {Monitor NPC Social dispatch arrival. Independent of player-centric story state.}
+    If NPCSocialArrivalHandling
+        Return
+    EndIf
     If NPCSocialTraveler == None
         CleanupNPCSocialDispatch()
         return
@@ -1078,10 +1104,59 @@ EndFunction
 
 Function OnNPCSocialArrived()
     {NPC Social traveler arrived at target. Perform visible interaction and clean up.}
-    Core.DebugMsg("NPC Social: " + NPCSocialTraveler.GetDisplayName() + " arrived at " + NPCSocialTarget.GetDisplayName())
-    PerformVisibleInteraction(NPCSocialTraveler, NPCSocialTarget, NPCSocialNarration, NPCSocialType)
-    StorageUtil.SetStringValue(NPCSocialTraveler, "Intel_Result", "arrived")
+    If NPCSocialArrivalHandling || NPCSocialTraveler == None || NPCSocialTarget == None
+        Return
+    EndIf
+    NPCSocialArrivalHandling = true
+    Actor traveler = NPCSocialTraveler
+    Actor target = NPCSocialTarget
+    Int dispatchSlot = Core.FindSlotByAgent(traveler)
+    If dispatchSlot < 0
+        ResetNPCSocialDispatchState()
+        Return
+    EndIf
+    If Core.SlotTaskTypes[dispatchSlot] != "npc_social" || Core.SlotTargetNames[dispatchSlot] != target.GetDisplayName()
+        ResetNPCSocialDispatchState()
+        Return
+    EndIf
+    Actor socialNPC1 = NPCSocialNPC1
+    Actor socialNPC2 = NPCSocialNPC2
+    String narration = NPCSocialNarration
+    String storyType = NPCSocialType
+    String fact1 = NPCSocialFact1
+    String fact2 = NPCSocialFact2
+    String gossipContent = NPCSocialGossip
+    Core.DebugMsg("NPC Social: " + traveler.GetDisplayName() + " arrived at " + target.GetDisplayName())
+    PerformVisibleInteraction(traveler, target, narration, storyType)
+    If !NPCSocialArrivalHandling || NPCSocialTraveler != traveler || NPCSocialTarget != target
+        Return
+    EndIf
+    Int currentSlot = Core.FindSlotByAgent(traveler)
+    If currentSlot != dispatchSlot
+        ResetNPCSocialDispatchState()
+        Return
+    EndIf
+    If Core.SlotTaskTypes[currentSlot] != "npc_social" || Core.SlotTargetNames[currentSlot] != target.GetDisplayName()
+        ResetNPCSocialDispatchState()
+        Return
+    EndIf
+    CompleteNPCSocialOutcome(socialNPC1, socialNPC2, storyType, fact1, fact2, gossipContent)
+    StorageUtil.SetStringValue(traveler, "Intel_Result", "arrived")
     CleanupNPCSocialDispatch()
+EndFunction
+
+Function ResetNPCSocialDispatchState()
+    NPCSocialTraveler = None
+    NPCSocialTarget = None
+    NPCSocialNarration = ""
+    NPCSocialNPC1 = None
+    NPCSocialNPC2 = None
+    NPCSocialFact1 = ""
+    NPCSocialFact2 = ""
+    NPCSocialGossip = ""
+    NPCSocialType = ""
+    IsNPCStoryActive = false
+    NPCSocialArrivalHandling = false
 EndFunction
 
 Function CleanupNPCSocialDispatch()
@@ -1093,11 +1168,7 @@ Function CleanupNPCSocialDispatch()
             Core.RemoveAllPackages(NPCSocialTraveler, false)
         EndIf
     EndIf
-    NPCSocialTraveler = None
-    NPCSocialTarget = None
-    NPCSocialNarration = ""
-    NPCSocialType = ""
-    IsNPCStoryActive = false
+    ResetNPCSocialDispatchState()
 EndFunction
 
 Bool Function ApplyCooldownCheck(Actor candidate)
@@ -1592,19 +1663,6 @@ Function OnDungeonMasterResponse(String response, Int success)
         EndIf
     EndIf
 
-    ; Record dispatch as a persistent event (generic text, NOT the full narration).
-    ; The actual narration fires only once on arrival via OnStoryNPCArrived.
-    ; Message and quest memories are recorded only after the courier arrives.
-    If storyType != "message" && storyType != "quest" && npc != None
-        String npcDispName = npc.GetDisplayName()
-        String playerDispName = Game.GetPlayer().GetDisplayName()
-        If IntelEngine.NPCKnowsPlayer(npc)
-            Core.SendPersistentMemory(npc, Game.GetPlayer(), npcDispName + " set out to find " + playerDispName)
-        Else
-            Core.SendPersistentMemory(npc, Game.GetPlayer(), npcDispName + " set out to find someone known as '" + playerDispName + "' — has never met them before, only heard the name")
-            Core.InjectFact(npc, "has never met " + playerDispName + " personally — approaching a stranger, should introduce themselves and confirm identity")
-        EndIf
-    EndIf
 
     ; Route by type
     If storyType == "seek_player"
@@ -2740,6 +2798,9 @@ Function OnStoryNPCArrived()
         ActiveStoryNPC.SetLookAt(Game.GetPlayer())
         Core.SendTaskNarration(ActiveStoryNPC, ActiveNarration, Game.GetPlayer())
     EndIf
+    If ActiveStoryType == "seek_player" || ActiveStoryType == "informant"
+        Core.SendStoryEvent("intel_story", ActiveStoryNPC, Game.GetPlayer(), ActiveStoryNPC.GetDisplayName() + " arrived to speak with " + Game.GetPlayer().GetDisplayName())
+    EndIf
 
     ; Anti-repetition (capture before cleanup)
     String npcName = ActiveStoryNPC.GetDisplayName()
@@ -2818,6 +2879,11 @@ Function OnMessageArrived()
         fullNarration = ActiveNarration
     EndIf
     Core.SendTaskNarration(ActiveStoryNPC, fullNarration, Game.GetPlayer())
+    String messageSource = senderName
+    If messageSource == ""
+        messageSource = ActiveStoryNPC.GetDisplayName()
+    EndIf
+    Core.SendStoryEvent("intel_story", ActiveStoryNPC, Game.GetPlayer(), ActiveStoryNPC.GetDisplayName() + " completed delivery of a message from " + messageSource + " to " + Game.GetPlayer().GetDisplayName())
 
     ; The messenger passed the travel-time rejection checks; record the delivery plan.
     String playerName = Game.GetPlayer().GetDisplayName()
@@ -2825,14 +2891,9 @@ Function OnMessageArrived()
     If senderNPC != None && senderNPC != ActiveStoryNPC
         Core.InjectFact(senderNPC, "asked " + messengerName + " to deliver a message to " + playerName + ": " + msgContent)
         Core.InjectFact(ActiveStoryNPC, "was sent by " + senderName + " to deliver a message to " + playerName + ": " + msgContent)
-        Core.SendPersistentMemory(ActiveStoryNPC, Game.GetPlayer(), messengerName + " set out to deliver a message from " + senderName + " to " + playerName)
     ElseIf senderNPC == ActiveStoryNPC
         Core.InjectFact(ActiveStoryNPC, "set out to deliver a message to " + playerName + ": " + msgContent)
-        Core.SendPersistentMemory(ActiveStoryNPC, Game.GetPlayer(), messengerName + " set out to find " + playerName)
     EndIf
-    ; Persist the delivered message on both the messenger and the player
-    ; so both parties recall it in future conversations
-    Core.SendPersistentMemory(ActiveStoryNPC, Game.GetPlayer(), ActiveStoryNPC.GetDisplayName() + " delivered a message from " + senderName + ": " + msgContent)
 
     ; Safety net: if msgContent conveys urgency but meetTime is set, the LLM
     ; contradicted itself (e.g., "needs you immediately" + meetTime="afternoon").
@@ -3201,8 +3262,8 @@ Function OnStalkerDetected()
     Core.InjectFact(ActiveStoryNPC, "was caught secretly following " + playerName)
     Core.SendTaskNarration(ActiveStoryNPC, ActiveNarration, Game.GetPlayer())
 
-    ; Persistent memory
-    Core.SendPersistentMemory(ActiveStoryNPC, Game.GetPlayer(), npcName + " was caught secretly following " + playerName)
+    ; Distinct post-detection outcome; narration above remains the dialogue driver.
+    Core.SendStoryEvent("intel_story", ActiveStoryNPC, Game.GetPlayer(), npcName + " ended the pursuit after " + playerName + " noticed them")
 
     AddRecentStoryEvent("stalker: " + npcName + " -- caught")
 
@@ -3241,16 +3302,9 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
         questSubTypeStr = "combat"
     EndIf
     Actor departureNPC = npc
-    String departureMemory = ""
     String departureFact = ""
-    If npc != None
-        String departureName = npc.GetDisplayName()
-        If fromDirector || IntelEngine.NPCKnowsPlayer(npc)
-            departureMemory = departureName + " set out to find " + Game.GetPlayer().GetDisplayName()
-        Else
-            departureMemory = departureName + " set out to find someone known as '" + Game.GetPlayer().GetDisplayName() + "' — has never met them before, only heard the name"
-            departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " personally — approaching a stranger, should introduce themselves and confirm identity"
-        EndIf
+    If npc != None && !fromDirector && !IntelEngine.NPCKnowsPlayer(npc)
+        departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " personally — approaching a stranger, should introduce themselves and confirm identity"
     EndIf
 
     ; Jarls never travel personally — reject DIRECT mode (sender empty = npc IS the quest giver)
@@ -3334,10 +3388,7 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
         narration = BuildFactionQuestNarration(factionName, questLocationStr)
         Core.DebugMsg("Story DM: quest/" + questSubTypeStr + " -- faction member " + npc.GetDisplayName() + " selected for " + alliedFaction)
         departureNPC = npc
-        If IntelEngine.NPCKnowsPlayer(npc)
-            departureMemory = npc.GetDisplayName() + " set out to find " + Game.GetPlayer().GetDisplayName() + " with urgent orders from " + factionName
-        Else
-            departureMemory = npc.GetDisplayName() + " was sent to find a warrior described as '" + Game.GetPlayer().GetDisplayName() + "' — never met them personally, only knows them by reputation and description"
+        If !IntelEngine.NPCKnowsPlayer(npc)
             departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " before — was given a physical description and told to look for them. Should introduce themselves and confirm identity before delivering the message."
         EndIf
     EndIf
@@ -3421,7 +3472,6 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     QuestActive = true
     QuestCourierPending = true
     QuestDepartureNPC = departureNPC
-    QuestDepartureMemory = departureMemory
     QuestDepartureFact = departureFact
     QuestGiver = questGiverActor
     QuestLocation = questDest
@@ -3538,10 +3588,9 @@ Function OnQuestNPCArrived()
         CleanupStoryDispatch()
         return
     EndIf
-    ; The courier arrived and passed the remaining abort checks; record the quest.
-    If QuestDepartureNPC != None && QuestDepartureMemory != ""
-        Core.SendPersistentMemory(QuestDepartureNPC, Game.GetPlayer(), QuestDepartureMemory)
-    EndIf
+    ; The courier arrived and passed the remaining abort checks; record the quest delivery.
+    Core.SendStoryEvent("intel_story", claimedNPC, Game.GetPlayer(), \
+        claimedNPC.GetDisplayName() + " delivered a quest request to " + Game.GetPlayer().GetDisplayName())
     If QuestDepartureNPC != None && QuestDepartureFact != ""
         Core.InjectFact(QuestDepartureNPC, QuestDepartureFact)
     EndIf
@@ -4940,7 +4989,6 @@ Function CleanupQuest()
     QuestActive = false
     QuestCourierPending = false
     QuestDepartureNPC = None
-    QuestDepartureMemory = ""
     QuestDepartureFact = ""
     IntelEngine.NotifyQuestCleared()
     QuestGiver = None
