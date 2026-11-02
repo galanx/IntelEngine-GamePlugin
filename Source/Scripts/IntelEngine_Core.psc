@@ -2308,6 +2308,20 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
     ; No PushDashboardState() — React updates optimistically
 EndEvent
 
+Bool Function DirectorCanDispatch(Actor npc)
+    ; Include aliases retained during task completion, not just nonzero slot states.
+    Int slot = 0
+    While slot < MAX_SLOTS
+        ReferenceAlias taskAlias = GetAgentAlias(slot)
+        If taskAlias && taskAlias.GetActorReference() == npc
+            NotifyPlayer(npc.GetDisplayName() + " is already busy (" + SlotTaskTypes[slot] + "). Cancel it first.")
+            Return false
+        EndIf
+        slot += 1
+    EndWhile
+    Return true
+EndFunction
+
 ; =============================================================================
 ; DIRECTOR MODE: Story Dispatch
 ; =============================================================================
@@ -2321,6 +2335,9 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     Actor npc = IntelEngine.ResolveDirectorActor(npcName)
     If !npc || npc.IsDead() || npc.IsDisabled()
         DebugMsg("Director: Could not find NPC '" + npcName + "' for story dispatch")
+        Return
+    EndIf
+    If !DirectorCanDispatch(npc)
         Return
     EndIf
     If narration == ""
@@ -2403,6 +2420,9 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
         DebugMsg("Director: Could not find NPC 2 '" + npc2Name + "' for social dispatch")
         Return
     EndIf
+    If !DirectorCanDispatch(npc1) || !DirectorCanDispatch(npc2)
+        Return
+    EndIf
 
     DebugMsg("Director: NPC Social " + socialType + " — " + npc1Name + " -> " + npc2Name + ": " + narration)
 
@@ -2467,6 +2487,10 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
 
     If !npc || npc.IsDead()
         DebugMsg("Director: Invalid or dead NPC for action execution")
+        Return
+    EndIf
+    If actionName != "CancelCurrentTask" && actionName != "ChangeSpeed" && actionName != "ReportPlayerConduct" && \
+        !DirectorCanDispatch(npc)
         Return
     EndIf
 
