@@ -613,6 +613,7 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
     IntelEngine.SetSlotSpeed(slot, speed)
 
     DebugMsg("Allocated slot " + slot + " to " + akAgent.GetDisplayName() + " for " + taskType)
+    PushDashboardState()
 EndFunction
 
 Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = false)
@@ -783,6 +784,7 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
 
     ; Push to C++ SlotTracker for SkyrimNet decorators/eligibility
     IntelEngine.ClearSlotState(slot)
+    PushDashboardState()
 EndFunction
 
 ; =============================================================================
