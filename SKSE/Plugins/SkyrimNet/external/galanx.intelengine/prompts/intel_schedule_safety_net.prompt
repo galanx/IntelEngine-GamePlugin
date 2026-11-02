@@ -19,14 +19,15 @@ Rules:
 - Only detect EXPLICIT commitments with a future time reference.
 - Casual mentions of time or places ("I was at the inn yesterday") are NOT actions.
 - The NPC must have AGREED, PROPOSED, or COMMITTED to the action during THIS conversation.
-- Use exact location names and time references from the dialogue when possible.
+- Copy place names EXACTLY as they appear in the game/context, in the game's language; NEVER translate them. Preserve dialogue time references when possible.
 - If no specific time was stated, use "tonight" or "tomorrow" based on context.
 - If no specific place was stated for a meeting, use the current location.
 - timeCondition examples: "tonight", "at dawn", "tomorrow morning", "in 2 hours", "at noon"
-- destination examples: "Bannered Mare", "Whiterun", "home", "Dragonsreach"
+- The semantic keyword "home" stays English. Named destinations must come from the game/context, not English lore examples.
 
 [ user ]
 Did this conversation include a scheduled action? Respond ONLY with a single JSON object, nothing else.
+The example below shows structure only; replace its placeholder with the exact in-game/context place name in the game's language.
 
-Yes example: {{ "{" }}"schedule":true,"type":"meeting","destination":"Bannered Mare","timeCondition":"tonight","targetName":"","msgContent":""}
+Yes example: {{ "{" }}"schedule":true,"type":"meeting","destination":"<exact in-game place name>","timeCondition":"tonight","targetName":"","msgContent":""}
 No example: {{ "{" }}"schedule":false}
