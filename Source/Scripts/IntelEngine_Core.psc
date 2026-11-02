@@ -2032,6 +2032,7 @@ Event OnDashboardCancelTask(String eventName, String strArg, Float numArg, Form 
             DebugMsg("Dashboard: Cancelling task in slot " + slot + " for " + agent.GetDisplayName())
             StorageUtil.SetStringValue(agent, "Intel_Result", "cancelled")
             ClearSlotRestoreFollower(slot, agent)
+            NotifyPlayer(agent.GetDisplayName() + "'s task cancelled.")
             PushDashboardState()
         EndIf
     EndIf
