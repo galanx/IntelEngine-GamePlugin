@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add return-aware Director notices for the nine Bool-returning actions and seek/informant Story dispatches; failed calls emit no success notice. Preserve cancellation/conduct feedback; skip void Story, NPC Social and Politics paths without new result plumbing. Pair Core PSC/PEX; named compiled success/failure regression fails before and passes after offline, not live-tested.
 - Clarify every Director form's common fields and retain per-type/action hints, including message sender/courier roles and gossip teller/listener roles; show existing YAML field descriptions below fallback action inputs. Clarify Debug Mode notifications versus always-on Papyrus logging and Actions Reload configs/next-launch behavior. Pair rebuilt dashboard assets for both hosts and update Native README.
 - Add Director busy confirmation for Story, either NPC Social participant and Action Execution using existing active-slot state. First click asks `Busy — you sure?`; second sends slot cancellation(s) then the unchanged dispatch. NPC edits reset confirmation. Pair both dashboard trees; offline built-bundle cancel/dispatch regression fails before and passes after.
 - Refresh the open dashboard at shared task-slot allocation and clearing, so Tasks cards appear/disappear without reopening. Closed dashboards skip snapshot building. Pair rebuilt Core PSC/PEX; offline compiled consumers pass, not live-tested.

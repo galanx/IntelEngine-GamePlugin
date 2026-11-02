@@ -2370,10 +2370,11 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     ; Route through StoryEngine's actual type handlers (identical to automatic dispatch)
     ; Director skips cooldown/MCM checks intentionally — it's a manual DM override
+    Bool ok = false
     If storyType == "seek_player"
         InjectFact(npc, "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration)
         StoryEngine.ActiveStoryType = storyType
-        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
+        ok = StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
     ElseIf storyType == "informant"
         String fSubject = StoryEngine.ExtractJsonField(response, "subject")
@@ -2391,7 +2392,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
             EndIf
         EndIf
         StoryEngine.ActiveStoryType = "informant"
-        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
+        ok = StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
     ElseIf storyType == "ambush" || storyType == "stalker"
         StoryEngine.HandleAmbushStalkerDispatch(npc, narration, response, storyType, "Director")
@@ -2408,6 +2409,9 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     Else
         DebugMsg("Director: unknown story type '" + storyType + "'")
+    EndIf
+    If ok
+        NotifyPlayer(npc.GetDisplayName() + " sets out (" + storyType + ").")
     EndIf
 
     PushDashboardState()
@@ -2512,11 +2516,12 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
 
     DebugMsg("Director: Executing " + actionName + " on " + npc.GetDisplayName())
 
+    Bool ok = false
     If actionName == "GoToLocation"
         String destination = IntelEngine.StoryResponseGetField(strArg, "destination")
         Int speed = IntelEngine.StoryResponseGetField(strArg, "speed") as Int
         Int waitFP = IntelEngine.StoryResponseGetField(strArg, "waitForPlayer") as Int
-        Travel.GoToLocation(npc, destination, speed, waitFP, false, "Director")
+        ok = Travel.GoToLocation(npc, destination, speed, waitFP, false, "Director")
 
     ElseIf actionName == "FetchPerson"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
@@ -2524,12 +2529,12 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         If failReason == ""
             failReason = "none"
         EndIf
-        NPCTasks.FetchNPC(npc, targetName, failReason, "Director")
+        ok = NPCTasks.FetchNPC(npc, targetName, failReason, "Director")
 
     ElseIf actionName == "SearchForActor"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
         Int speed = IntelEngine.StoryResponseGetField(strArg, "speed") as Int
-        NPCTasks.SearchForActor(npc, targetName, speed, "Director")
+        ok = NPCTasks.SearchForActor(npc, targetName, speed, "Director")
 
     ElseIf actionName == "DeliverMessage"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
@@ -2542,7 +2547,7 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         If meetTime == ""
             meetTime = "none"
         EndIf
-        NPCTasks.DeliverMessage(npc, targetName, msgContent, meetLoc, meetTime, "Director")
+        ok = NPCTasks.DeliverMessage(npc, targetName, msgContent, meetLoc, meetTime, "Director")
 
     ElseIf actionName == "ReportPlayerConduct"
         String factionId = IntelEngine.StoryResponseGetField(strArg, "factionId")
@@ -2557,7 +2562,7 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         If destination == ""
             destination = "home"
         EndIf
-        NPCTasks.EscortTarget(npc, targetName, destination, shouldWait, "Director")
+        ok = NPCTasks.EscortTarget(npc, targetName, destination, shouldWait, "Director")
 
     ElseIf actionName == "CancelCurrentTask"
         If CancelCurrentTask(npc, true)
@@ -2568,17 +2573,17 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
 
     ElseIf actionName == "ChangeSpeed"
         Int newSpeed = IntelEngine.StoryResponseGetField(strArg, "newSpeed") as Int
-        ChangeTaskSpeed(npc, newSpeed)
+        ok = ChangeTaskSpeed(npc, newSpeed)
 
     ElseIf actionName == "ScheduleMeeting"
         String destination = IntelEngine.StoryResponseGetField(strArg, "destination")
         String timeCond = IntelEngine.StoryResponseGetField(strArg, "timeCondition")
-        Schedule.ScheduleMeeting(npc, destination, timeCond, "Director")
+        ok = Schedule.ScheduleMeeting(npc, destination, timeCond, "Director")
 
     ElseIf actionName == "ScheduleFetch"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
         String timeCond = IntelEngine.StoryResponseGetField(strArg, "timeCondition")
-        Schedule.ScheduleFetch(npc, targetName, timeCond, "Director")
+        ok = Schedule.ScheduleFetch(npc, targetName, timeCond, "Director")
 
     ElseIf actionName == "ScheduleDelivery"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
@@ -2592,10 +2597,13 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         If meetTime == ""
             meetTime = "none"
         EndIf
-        Schedule.ScheduleDelivery(npc, targetName, msgContent, timeCond, meetLoc, meetTime, "Director")
+        ok = Schedule.ScheduleDelivery(npc, targetName, msgContent, timeCond, meetLoc, meetTime, "Director")
 
     Else
         DebugMsg("Director: Unknown action " + actionName)
+    EndIf
+    If ok
+        NotifyPlayer(npc.GetDisplayName() + ": " + actionName + " started.")
     EndIf
 
     Utility.Wait(0.5)
