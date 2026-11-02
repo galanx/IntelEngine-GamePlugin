@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Clarify every Director form's common fields and retain per-type/action hints, including message sender/courier roles and gossip teller/listener roles; show existing YAML field descriptions below fallback action inputs. Clarify Debug Mode notifications versus always-on Papyrus logging and Actions Reload configs/next-launch behavior. Pair rebuilt dashboard assets for both hosts and update Native README.
 - Add Director busy confirmation for Story, either NPC Social participant and Action Execution using existing active-slot state. First click asks `Busy — you sure?`; second sends slot cancellation(s) then the unchanged dispatch. NPC edits reset confirmation. Pair both dashboard trees; offline built-bundle cancel/dispatch regression fails before and passes after.
 - Refresh the open dashboard at shared task-slot allocation and clearing, so Tasks cards appear/disappear without reopening. Closed dashboards skip snapshot building. Pair rebuilt Core PSC/PEX; offline compiled consumers pass, not live-tested.
 - Add closing NPC facts before active-story task cancellation, generic load abandonment and six-hour watchdog cleanup. Cancellation skips empty narration. Pair rebuilt Core/StoryEngine PSC/PEX; named cancel regression fails before and passes after offline, without installation or live testing.
