@@ -28,6 +28,9 @@ parameterMapping:
     name: timeCondition
     description: >
       When to go fetch them. Examples: "at dawn", "after sunset", "tonight"
+  - type: static
+    value: "Schedule"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:

@@ -45,16 +45,21 @@ parameterMapping:
     name: msgContent
     description: >
       The specific message to deliver. Must be a concrete statement {{ player.name }} asked you to relay.
+      Copy any place names in the message EXACTLY from the game/context, in the game's language; NEVER translate them.
   - type: dynamic
     name: meetLocation
     description: >
       If the message asks the target to MEET somewhere, provide the location.
+      Copy the place name EXACTLY as it appears in the game/context, in the game's language; NEVER translate it.
       If NOT a meeting request: set this to "none"
   - type: dynamic
     name: meetTime
     description: >
       If the message includes a MEETING TIME, provide it.
       If NOT a meeting request: set this to "none"
+  - type: static
+    value: "SkyrimNet dialogue action"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:

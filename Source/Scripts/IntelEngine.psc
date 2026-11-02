@@ -218,6 +218,10 @@ Float Function GetDistance3D(ObjectReference ref1, ObjectReference ref2) Global 
 ; Useful for off-screen checks where Z height is irrelevant
 Float Function GetDistance2D(ObjectReference ref1, ObjectReference ref2) Global Native
 
+; Actor targets use 200u plus current world speed × the estimated 0.50s
+; response budget; actor |dZ| > 120u returns 0 (reject); markers retain 300u.
+Float Function GetArrivalThreshold(Actor agent, ObjectReference target) Global Native
+
 ; Calculate a game-time deadline based on distance between source and target
 ; Applies pathfinding multiplier (1.5x), optional round-trip (2x), and safety margin (3x)
 ; Returns: Absolute game time (days) clamped to [minHours, maxHours]
@@ -296,16 +300,16 @@ Function ResetOffScreenSlot(Int slot) Global Native
 
 ; =============================================================================
 ; PROXIMITY MONITOR (fast-path arrival detection)
-; Native worker ticks every 150ms on the main thread and fires a Papyrus
-; callback when the agent enters `threshold` horizontal units of the target
-; with |dZ| <= zTolerance. Eliminates face-bumping from the 3s Papyrus poll.
+; Native monitor ticks every 150ms on the main thread and fires a Papyrus
+; callback when the agent enters the threshold with |dZ| <= zTolerance.
+; Actor thresholds are 200u plus actual world speed × an estimated 0.50s
+; response budget; marker targets retain a 300u horizontal cylinder.
 ; The callback receives the slot index as a String ("0".."4").
 ; =============================================================================
 
 ; Arm proximity arrival for a slot. Overwrites any existing watch.
-; C++ auto-selects thresholds based on target kind: 150u horizontal + 120u Z for
-; Actor targets (face-to-face conversational), 300u horizontal + 200u Z for
-; markers (doors/furniture).
+; C++ auto-selects thresholds based on target kind: speed-aware radial Actor
+; threshold with 120u Z tolerance, 300u horizontal + 200u Z for markers.
 ; callbackQuest: quest holding the target script (pass Self from a quest script).
 ; scriptName: Papyrus script on the quest (e.g. "IntelEngine_Travel").
 ; callbackFn: function to invoke with slot index as a String arg.
@@ -349,7 +353,7 @@ Int Function GetLastResolvedHomeCellId() Global Native
 ; =============================================================================
 
 ; Push a slot update to C++ SlotTracker. Called by AllocateSlot, SetSlotState.
-Function UpdateSlotState(Int slot, Actor agent, Int newState, String taskType, String targetName) Global Native
+Function UpdateSlotState(Int slot, Actor agent, Int newState, String taskType, String targetName, String origin = "", Float startTime = -1.0, String reason = "") Global Native
 
 ; Clear a slot in C++ SlotTracker. Called by ClearSlot.
 Function ClearSlotState(Int slot) Global Native
@@ -490,6 +494,8 @@ Bool Function StoryResponseShouldAct(String response) Global Native
 ; Extract a string field value from simple JSON (e.g., "narration", "subject").
 ; Handles escaped quotes. Returns "" if field not found.
 String Function StoryResponseGetField(String json, String fieldName) Global Native
+; Expected-optional field: missing keys log at debug; malformed JSON still warns.
+String Function StoryResponseGetOptionalField(String json, String fieldName) Global Native
 
 ; Build a JSON fragment with actor data for LLM context.
 ; slot 0 = single actor: actorName, actorRace, actorGender, subj, obj, poss

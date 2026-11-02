@@ -65,7 +65,7 @@ NPC appears on the road near the player, coincidentally traveling.
 - EXTERIOR ONLY — if player environment is Interior, this type is INVALID.
 - NPC is NOT seeking the player — they have their own purpose (errand, pilgrimage, trading).
 - Base the reason on who they are and their bio. A merchant travels to trade, a pilgrim visits a shrine.
-- Provide "destination" — a REAL named Skyrim location. Use your full knowledge of Skyrim geography.
+- Provide "destination" — a REAL named Skyrim location copied from the game/context, not recalled English lore.
 - Narration explains why they are traveling (past-tense, no subject prefix).
 {% endif %}
 
@@ -243,6 +243,7 @@ CRITICAL: Respond with ONLY a raw JSON object. No analysis, no explanation, no m
 If nothing compelling: {{ "{" }}"should_act":false,"reason":"brief explanation why no candidate fits"}
 
 Otherwise use the matching format. **OMIT optional fields you are not using UNLESS the type definition explicitly requires an empty value.** Keep narration under 120 characters and msgContent under 150 characters. **TOTAL JSON response MUST be under 700 characters** — the system truncates longer responses, breaking parsing. Be concise:
+For "destination", "questLocation", and any place named in narration, msgContent, or gossip, copy the name EXACTLY as it appears in the game/context, in the game's language; NEVER translate it. English place names below are examples only, not names to substitute for localized context.
 
 {% if show_seek_player == "1" %}
 seek_player (absence-driven, acquainted): {{ "{" }}"should_act":true,"type":"seek_player","npc":"Name","narration":"gave up waiting at the inn and set out to find {{ playerName }} after days of silence"}

@@ -17,7 +17,7 @@ description: >
 
   DESTINATION must be one of these two categories:
 
-  A) SEMANTIC KEYWORDS — use ONLY these exact words (resolved by the engine):
+  A) SEMANTIC KEYWORDS — use ONLY these exact words in English (never translate these keywords):
   - "home" or "my home" — your own residence
   - "<Name>'s home" or "<Name>'s house" — another NPC's residence (e.g., "Camilla's house", "Alvor's home")
   - "upstairs" or "downstairs" — vertical movement within current building
@@ -26,10 +26,10 @@ description: >
   Nothing else from this category is valid. Do NOT improvise semantic keywords.
 
   B) NAMED SKYRIM LOCATIONS — any real location that exists in the game world.
-  Examples (not exhaustive — any real Skyrim location is valid):
-  - Cities: Whiterun, Solitude, Riften, Markarth, Windhelm, Falkreath, Morthal, Dawnstar, Winterhold
-  - Towns: Riverwood, Rorikstead, Dragon Bridge, Ivarstead, Shor's Stone, Karthwasten
-  - Buildings: Dragonsreach, Bannered Mare, Bee and Barb, Blue Palace, Jorrvaskr, Arcadia's Cauldron
+  Copy the place name EXACTLY as it appears in the game/context, in the game's language.
+  NEVER translate place names. Use context names, not English names recalled from Skyrim lore.
+  Nearby place names (context only, not a guarantee that IE can resolve every name):
+  {% for place in get_place_names("nearby") %}{{ place }}; {% endfor %}
   The location MUST actually exist in Skyrim. Do NOT invent location names.
 
   INVALID destinations (NEVER use these):
@@ -62,7 +62,8 @@ parameterMapping:
       Where to travel. Use ONLY:
       - A semantic keyword from list A: "home", "upstairs", "downstairs", "outside", "inside",
         "the kitchen", "the bedroom", "the cellar", "<Name>'s house"
-      - OR a real Skyrim location name: "Whiterun", "Bannered Mare", "Dragonsreach", etc.
+      - OR a real Skyrim place name copied EXACTLY from the game/context, in the game's language.
+      NEVER translate place names; the semantic keywords in list A stay English.
       NEVER use a person's name alone. NEVER invent locations. NEVER use vague descriptions.
   - type: dynamic
     name: speed
@@ -77,6 +78,9 @@ parameterMapping:
   - type: static
     value: false
     name: isScheduled
+  - type: static
+    value: "SkyrimNet dialogue action"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:
