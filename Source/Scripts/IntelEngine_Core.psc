@@ -810,6 +810,9 @@ Bool Function CancelCurrentTask(Actor akNPC, Bool force = false)
     StorageUtil.SetStringValue(akNPC, "Intel_Result", "cancelled")
     ClearSlotRestoreFollower(slot, akNPC)
     If StoryEngine && StoryEngine.IsActive && StoryEngine.ActiveStoryNPC == akNPC
+        If StoryEngine.ActiveNarration != ""
+            InjectFact(akNPC, "stopped before finishing: " + StoryEngine.ActiveNarration)
+        EndIf
         StoryEngine.CleanupStoryDispatch()
     EndIf
     Return true

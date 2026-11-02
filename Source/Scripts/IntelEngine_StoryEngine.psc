@@ -389,6 +389,7 @@ Function RestartMonitoring()
                 Core.ClearSlot(storySlot)
             EndIf
             Core.RemoveAllPackages(ActiveStoryNPC, false)
+            Core.InjectFact(ActiveStoryNPC, "never finished: " + ActiveNarration)
             CleanupStoryDispatch()
         EndIf
     EndIf
@@ -668,6 +669,9 @@ Function TickScheduler()
         ; Also catches stale flags from save reloads (DLL loads fresh, has no record).
         If IntelEngine.ShouldResetPending("storyDM", 6.0, Utility.GetCurrentGameTime())
             Core.DebugMsg("Story: watchdog reset IsActive (stuck or stale)")
+            If ActiveStoryNPC != None
+                Core.InjectFact(ActiveStoryNPC, "never finished: " + ActiveNarration)
+            EndIf
             CleanupStoryDispatch()
             ; Don't fall through to dispatch a new story in the same tick —
             ; let the next scheduled tick handle it after the system settles.
