@@ -1253,7 +1253,8 @@ body {
   color: rgb(156 163 175 / var(--tw-text-opacity, 1));
 }
 .director-tab .text-red-400 { color: #f87171; }
-.director-tab textarea { resize: vertical; min-height: 3rem; }
+.director-tab textarea { resize: vertical; min-height: 3rem; background-image: linear-gradient(135deg, transparent 50%, #9ca3af 50%, #9ca3af 58%, transparent 58%, transparent 70%, #9ca3af 70%, #9ca3af 78%, transparent 78%); background-size: 12px 12px; background-position: right 2px bottom 2px; background-repeat: no-repeat; }
+.director-text-field > input, .director-text-field > textarea { display: block; width: 100%; padding-right: 1.5rem; }
 
 
 .empty-state {
