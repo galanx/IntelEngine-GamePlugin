@@ -13,8 +13,8 @@ options={{ options }}
 
 ## What to keep and what to write
 - A field is user-set only when `touched` is `true` for it. Keep every user-set value exactly, including NPCs, factions and selected types; never replace it.
-- Write every field listed in `blank` afresh, including NPCs, factions and types filled by an earlier generation (`touched` = "generated").
-- Filled fields that are neither user-set nor blank: improve the wording without changing the intent.
+- Filled NPCs, factions and types are always kept, whoever filled them.
+- Write every field listed in `blank` afresh, including text written by an earlier generation.
 - If the type is blank, pick a valid type from its options; then fill that type's variant fields.
 
 ## Fields
