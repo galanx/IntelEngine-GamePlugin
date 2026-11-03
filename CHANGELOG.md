@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Omit empty Director Generate fields while retaining blank-key metadata, and fall back to a nearby NPC when Action Generate returns no usable actor; offline dashboard verification only, no installation or game test.
+- Preselect a nearby NPC and allowed action for Action Generate, then ask the model only for that action's params and reason. Offline/headless dashboard scenarios pass; no installation or game test.
 - Give Action Generate the player's current location, forbid it as a destination, label the NPC picker as nearby-only, and make generated Action reasons required for the single automatic follow-up. Pair the rebuilt DLL, prompt and both dashboard trees; offline/headless checks only, no installation or game test.
 - Notify the player when a Director action fails, inject its reason only after successful start, and give Generate nearby place names for resolvable GoToLocation/EscortTarget destinations. Pair Core PSC/PEX and prompt; compiled-bytecode and dashboard scenarios pass offline. No installation or game test.
 - Ambush and stalker faction-leader facts use faction display names; clarify that the selected ambush NPC is the attacker, and have Generate write the chosen NPC's motive without repeating the type hint. Pair StoryEngine PSC/PEX, prompt and both dashboard trees; compiled-PEX and all headless dashboard scenarios pass offline. No installation, live model or game test.
