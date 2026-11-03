@@ -1029,6 +1029,7 @@ Bool Function IsBattleFaction(String factionId) Global Native
 
 ; --- Remaining Migration: Text builders, math, display formatters ---
 String Function BuildTaskHistoryDesc(String taskType, String target, String result, String msgContent, String meetLocation) Global Native
+String Function FriendlyKey(String key) Global Native
 String Function GetSlotStatusNative(String taskType, Int taskState, String targetName, String cellName) Global Native
 String Function GetPreciseTimeDescription(Float meetTimeHours, Float currentGameTime) Global Native
 String Function GetTimeDescription(Float hours) Global Native
