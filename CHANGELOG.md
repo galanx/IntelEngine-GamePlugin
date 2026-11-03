@@ -18,6 +18,7 @@
 - Preserve cancellation/replacement state, improve moving-target arrival checks, and record attempted versus successful task outcomes accurately.
 - Improve exact NPC and faction-leader matching, preserve full dynamic actor IDs, and reject missing delivery targets without replacing existing tasks.
 - Reject same-faction political pairs and incomplete or invalid generated fields; preserve valid draft fields for review.
+- Fix Director cancellation/conduct-report feedback and reason facts; preserve the selected same-name actor through Action Generate.
 - Keep localized place names intact in action and DM prompts.
 
 ## v3.6.2
