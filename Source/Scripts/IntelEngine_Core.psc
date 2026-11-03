@@ -2528,7 +2528,7 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
     EndIf
 
     DebugMsg("Director: Executing " + actionName + " on " + npc.GetDisplayName())
-    InjectFact(npc, IntelEngine.StoryResponseGetField(strArg, "reason"))
+    String actionReason = IntelEngine.StoryResponseGetField(strArg, "reason")
 
     Bool ok = false
     If actionName == "GoToLocation"
@@ -2617,7 +2617,10 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         DebugMsg("Director: Unknown action " + actionName)
     EndIf
     If ok
+        InjectFact(npc, actionReason)
         NotifyPlayer(npc.GetDisplayName() + ": " + actionName + " started.")
+    Else
+        NotifyPlayer(npc.GetDisplayName() + ": " + actionName + " failed.")
     EndIf
 
     Utility.Wait(0.5)
