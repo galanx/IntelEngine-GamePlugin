@@ -2496,7 +2496,7 @@ Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg,
             If eventLabel == ""
                 eventLabel = IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "event_type"))
             EndIf
-            NotifyPlayer("Political event: " + eventLabel + " between " + IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "faction_a")) + " and " + IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "faction_b")) + ".")
+            NotifyPlayer("Political event: " + eventLabel + " between " + IntelEngine.StoryResponseGetField(strArg, "faction_a_label") + " and " + IntelEngine.StoryResponseGetField(strArg, "faction_b_label") + ".")
         EndIf
         DebugMsg("Director: Politics.OnPoliticalDMResponse returned")
     Else
