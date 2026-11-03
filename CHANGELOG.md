@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Notify the player when a Director action fails, inject its reason only after successful start, and give Generate nearby place names for resolvable GoToLocation/EscortTarget destinations. Pair Core PSC/PEX and prompt; compiled-bytecode and dashboard scenarios pass offline. No installation or game test.
 - Ambush and stalker faction-leader facts use faction display names; clarify that the selected ambush NPC is the attacker, and have Generate write the chosen NPC's motive without repeating the type hint. Pair StoryEngine PSC/PEX, prompt and both dashboard trees; compiled-PEX and all headless dashboard scenarios pass offline. No installation, live model or game test.
 - Require Action Generate to use exact known NPC targets, clear generated waitForPlayer, and fill GoToLocation destinations with non-empty named places; action motives describe the NPC's own reason. Pair both dashboard trees and prompt; all headless dashboard scenarios pass offline. No installation, live model or game test.
 - Add optional Action Execution Reason, generate motives for all actions without changing CancelCurrentTask/ChangeSpeed, and inject the motive as an NPC fact. Pair Core PSC/PEX, prompt and both dashboard trees; headless/offline verification only, no installation or game test.
