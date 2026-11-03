@@ -2321,7 +2321,7 @@ Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false)
     While slot < MAX_SLOTS
         ReferenceAlias taskAlias = GetAgentAlias(slot)
         If taskAlias && taskAlias.GetActorReference() == npc
-            NotifyPlayer(npc.GetDisplayName() + " is already busy (" + SlotTaskTypes[slot] + "). Cancel it first.")
+            NotifyPlayer(npc.GetDisplayName() + " is already busy (" + IntelEngine.FriendlyKey(SlotTaskTypes[slot]) + "). Cancel it first.")
             Return false
         EndIf
         slot += 1
@@ -2332,7 +2332,7 @@ Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false)
         If activeNPC
             activeName = activeNPC.GetDisplayName()
         EndIf
-        NotifyPlayer("Story engine is busy with " + activeName + " (" + StoryEngine.ActiveStoryType + "). Cancel it first.")
+        NotifyPlayer("Story engine is busy with " + activeName + " (" + IntelEngine.FriendlyKey(StoryEngine.ActiveStoryType) + "). Cancel it first.")
         Return false
     EndIf
     Return true
@@ -2412,7 +2412,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
         DebugMsg("Director: unknown story type '" + storyType + "'")
     EndIf
     If StoryEngine.IsActive && StoryEngine.DispatchGeneration != g
-        NotifyPlayer(StoryEngine.ActiveStoryNPC.GetDisplayName() + " sets out (" + storyType + ").")
+        NotifyPlayer(StoryEngine.ActiveStoryNPC.GetDisplayName() + " sets out (" + IntelEngine.FriendlyKey(storyType) + ").")
     EndIf
 
     PushDashboardState()
@@ -2474,7 +2474,7 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
         DebugMsg("Director: NPCs too far apart or already close — applied off-screen")
     EndIf
     If ok
-        NotifyPlayer(npc1Name + " and " + npc2Name + ": " + socialType + " started.")
+        NotifyPlayer(npc1Name + " and " + npc2Name + ": " + IntelEngine.FriendlyKey(socialType) + " started.")
     EndIf
 
     PushDashboardState()
@@ -2494,9 +2494,9 @@ Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg,
         If Politics.OnPoliticalDMResponse(strArg, 1)
             String eventLabel = IntelEngine.StoryResponseGetField(strArg, "event_label")
             If eventLabel == ""
-                eventLabel = IntelEngine.StoryResponseGetField(strArg, "event_type")
+                eventLabel = IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "event_type"))
             EndIf
-            NotifyPlayer("Political event recorded: " + eventLabel + ".")
+            NotifyPlayer("Political event: " + eventLabel + " between " + IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "faction_a")) + " and " + IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "faction_b")) + ".")
         EndIf
         DebugMsg("Director: Politics.OnPoliticalDMResponse returned")
     Else
