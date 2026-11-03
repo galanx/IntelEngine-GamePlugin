@@ -2528,6 +2528,7 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
     EndIf
 
     DebugMsg("Director: Executing " + actionName + " on " + npc.GetDisplayName())
+    InjectFact(npc, IntelEngine.StoryResponseGetField(strArg, "reason"))
 
     Bool ok = false
     If actionName == "GoToLocation"
