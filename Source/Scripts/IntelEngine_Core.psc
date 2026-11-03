@@ -2321,7 +2321,7 @@ Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false)
     While slot < MAX_SLOTS
         ReferenceAlias taskAlias = GetAgentAlias(slot)
         If taskAlias && taskAlias.GetActorReference() == npc
-            NotifyPlayer(npc.GetDisplayName() + " is already busy (" + SlotTaskTypes[slot] + "). Cancel it first.")
+            NotifyPlayer(npc.GetDisplayName() + " is already busy (" + IntelEngine.FriendlyKey(SlotTaskTypes[slot]) + "). Cancel it first.")
             Return false
         EndIf
         slot += 1
@@ -2332,7 +2332,7 @@ Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false)
         If activeNPC
             activeName = activeNPC.GetDisplayName()
         EndIf
-        NotifyPlayer("Story engine is busy with " + activeName + " (" + StoryEngine.ActiveStoryType + "). Cancel it first.")
+        NotifyPlayer("Story engine is busy with " + activeName + " (" + IntelEngine.FriendlyKey(StoryEngine.ActiveStoryType) + "). Cancel it first.")
         Return false
     EndIf
     Return true
@@ -2351,6 +2351,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     Actor npc = IntelEngine.ResolveDirectorActor(npcName)
     If !npc || npc.IsDead() || npc.IsDisabled()
         DebugMsg("Director: Could not find NPC '" + npcName + "' for story dispatch")
+        NotifyPlayer("Couldn't find NPC '" + npcName + "' (no unique match).")
         Return
     EndIf
     If !DirectorCanDispatch(npc, true)
@@ -2411,7 +2412,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
         DebugMsg("Director: unknown story type '" + storyType + "'")
     EndIf
     If StoryEngine.IsActive && StoryEngine.DispatchGeneration != g
-        NotifyPlayer(StoryEngine.ActiveStoryNPC.GetDisplayName() + " sets out (" + storyType + ").")
+        NotifyPlayer(StoryEngine.ActiveStoryNPC.GetDisplayName() + " sets out (" + IntelEngine.FriendlyKey(storyType) + ").")
     EndIf
 
     PushDashboardState()
@@ -2434,10 +2435,12 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     Actor npc2 = IntelEngine.ResolveDirectorActor(npc2Name)
     If !npc1 || npc1.IsDead() || npc1.IsDisabled()
         DebugMsg("Director: Could not find NPC 1 '" + npc1Name + "' for social dispatch")
+        NotifyPlayer("Couldn't find NPC '" + npc1Name + "' (no unique match).")
         Return
     EndIf
     If !npc2 || npc2.IsDead() || npc2.IsDisabled()
         DebugMsg("Director: Could not find NPC 2 '" + npc2Name + "' for social dispatch")
+        NotifyPlayer("Couldn't find NPC '" + npc2Name + "' (no unique match).")
         Return
     EndIf
     If !DirectorCanDispatch(npc1) || !DirectorCanDispatch(npc2)
@@ -2471,7 +2474,7 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
         DebugMsg("Director: NPCs too far apart or already close — applied off-screen")
     EndIf
     If ok
-        NotifyPlayer(npc1Name + " and " + npc2Name + ": " + socialType + " started.")
+        NotifyPlayer(npc1Name + " and " + npc2Name + ": " + IntelEngine.FriendlyKey(socialType) + " started.")
     EndIf
 
     PushDashboardState()
@@ -2489,7 +2492,11 @@ Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg,
         ; Director bypasses manifestation cooldown — player is manually triggering events
         IntelEngine.ResetManifestationCooldown()
         If Politics.OnPoliticalDMResponse(strArg, 1)
-            NotifyPlayer("Political event recorded: " + IntelEngine.StoryResponseGetField(strArg, "event_type") + ".")
+            String eventLabel = IntelEngine.StoryResponseGetField(strArg, "event_label")
+            If eventLabel == ""
+                eventLabel = IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "event_type"))
+            EndIf
+            NotifyPlayer("Political event: " + eventLabel + " between " + IntelEngine.StoryResponseGetField(strArg, "faction_a_label") + " and " + IntelEngine.StoryResponseGetField(strArg, "faction_b_label") + ".")
         EndIf
         DebugMsg("Director: Politics.OnPoliticalDMResponse returned")
     Else
@@ -2521,6 +2528,7 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
     EndIf
 
     DebugMsg("Director: Executing " + actionName + " on " + npc.GetDisplayName())
+    String actionReason = IntelEngine.StoryResponseGetField(strArg, "reason")
 
     Bool ok = false
     If actionName == "GoToLocation"
@@ -2609,7 +2617,10 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         DebugMsg("Director: Unknown action " + actionName)
     EndIf
     If ok
+        InjectFact(npc, actionReason)
         NotifyPlayer(npc.GetDisplayName() + ": " + actionName + " started.")
+    Else
+        NotifyPlayer(npc.GetDisplayName() + ": " + actionName + " failed.")
     EndIf
 
     Utility.Wait(0.5)
