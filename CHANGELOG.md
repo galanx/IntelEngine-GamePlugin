@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Require a picked Director political event type on initial load and after Clear; carry faction display names through dashboard/native JSON into Political notices, with IDs retained as the native label fallback. Pair rebuilt DLL, Core PSC/PEX and both dashboard trees; native and compiled-PEX label regressions fail before/pass after, and default dropdown/Story hints/section collapse/folded Packages checks pass headlessly. No installation or live game test.
 - Explain all seven Director Story types with type-specific narration and field hints; pass selected-type guidance through the existing Generate schema and prompt. Pair both dashboard trees and shared prompt; headless Story hints/payload regression fails before/passes after and section/package regressions pass. No installation, live model or game test.
 - Format Director Story/Social and busy-notice keys as friendly words through the new native `IntelEngine.FriendlyKey`; Political notices retain supplied event labels, format absent-label event keys and identify both sides using friendly faction IDs. Pair rebuilt DLL, IntelEngine/Core PSC and PEX. Native and compiled-Papyrus notice regressions pass offline; no installation or live game test.
 - Fold Packages into Tasks: show each active task's matching IE package type and keep orphan-package Remove/Removing controls in collapsible Other IE packages; remove the Packages tab. Pair both dashboard trees; headless built-bundle regression fails before/passes after offline. No native/Papyrus changes, installation or live game test.
