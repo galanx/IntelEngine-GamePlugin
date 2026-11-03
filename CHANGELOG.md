@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Preselect an Action Generate target that is not the actor, preferring non-nearby NPCs; preserve manual/generated targets and reject the actor as target. Pair prompt and both dashboard trees; all headless dashboard scenarios pass offline, no installation or game test.
 - Omit empty Director Generate fields while retaining blank-key metadata, and fall back to a nearby NPC when Action Generate returns no usable actor; offline dashboard verification only, no installation or game test.
 - Preselect a nearby NPC and allowed action for Action Generate, then ask the model only for that action's params and reason. Offline/headless dashboard scenarios pass; no installation or game test.
 - Give Action Generate the player's current location, forbid it as a destination, label the NPC picker as nearby-only, and make generated Action reasons required for the single automatic follow-up. Pair the rebuilt DLL, prompt and both dashboard trees; offline/headless checks only, no installation or game test.
