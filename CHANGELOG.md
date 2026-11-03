@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keep all Director form drafts, touched flags and the active tab across page reloads; Clear removes the form's saved draft. Add shared pointer-driven textarea resizing (rows minimum to 400px), top-right textarea clears and a single Social NPC/NPC/type row above full-width narration. Pair both dashboard trees; verified offline in headless Chrome, not installed or live-game tested.
 - Polish Director fields with conditional × clears that return ownership to Generate, centred picker clears, visible textarea grips and full-width Social narration; add one required-field follow-up, explicit third-person named-character narration and clearer Informant gossip guidance. Pair both dashboard trees and prompt; all 17 headless scenarios pass offline. No installation, live model or game test.
 - Generate re-roll keeps filled NPCs, factions and type; rewrites generated text; × a name to re-pick it.
 - Tidied the Director Generate prompt: one consistent keep/rewrite rule (user-set kept, blank and previously generated rewritten), duplicates removed; no behaviour change.
