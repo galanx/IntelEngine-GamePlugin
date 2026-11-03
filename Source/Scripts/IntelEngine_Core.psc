@@ -2351,6 +2351,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     Actor npc = IntelEngine.ResolveDirectorActor(npcName)
     If !npc || npc.IsDead() || npc.IsDisabled()
         DebugMsg("Director: Could not find NPC '" + npcName + "' for story dispatch")
+        NotifyPlayer("Couldn't find NPC '" + npcName + "' (no unique match).")
         Return
     EndIf
     If !DirectorCanDispatch(npc, true)
@@ -2434,10 +2435,12 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     Actor npc2 = IntelEngine.ResolveDirectorActor(npc2Name)
     If !npc1 || npc1.IsDead() || npc1.IsDisabled()
         DebugMsg("Director: Could not find NPC 1 '" + npc1Name + "' for social dispatch")
+        NotifyPlayer("Couldn't find NPC '" + npc1Name + "' (no unique match).")
         Return
     EndIf
     If !npc2 || npc2.IsDead() || npc2.IsDisabled()
         DebugMsg("Director: Could not find NPC 2 '" + npc2Name + "' for social dispatch")
+        NotifyPlayer("Couldn't find NPC '" + npc2Name + "' (no unique match).")
         Return
     EndIf
     If !DirectorCanDispatch(npc1) || !DirectorCanDispatch(npc2)
