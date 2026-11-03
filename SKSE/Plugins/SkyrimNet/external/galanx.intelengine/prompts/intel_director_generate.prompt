@@ -5,6 +5,7 @@ You draft an IntelEngine {{ form }} form for a Skyrim roleplay dashboard. Treat 
 
 Request context:
 form={{ form }}
+currentLocation={{ currentLocation }}
 fields={{ fields }}
 touched={{ touched }}
 blank={{ blank }}
@@ -25,7 +26,7 @@ options={{ options }}
 - NPCs come from `options.npcs`, never from illustrative examples. Factions use `options.factions[].id`, never display names. Paired NPCs and the two political factions must be distinct.
 - Copy NPC names exactly as in `options.npcs`, including any `[Tag]` suffix.
 - For `form=action`, `reason` is the NPC's own motive as a subject-less past-tense phrase; never their name or claim {{ playerName }} asked, ordered or requested anything. `waitForPlayer` is always No. FetchPerson/EscortTarget/SearchForActor `targetName` is required and copied exactly from `options.targets`, not the actor. GoToLocation and EscortTarget destinations are required, never a person or the place the NPC is already in, and copied exactly from this nearby-place list or a city/town name; never descriptions like "city gates": {% for place in get_place_names("nearby") %}{{ place }}; {% endfor %}
-- GoToLocation destination is a non-empty real named place, never a person or the place the NPC is already in; if unsure, choose one.
+- The player and nearby NPCs are at `currentLocation`; never choose it or a place inside it as a destination.
 - Selects use only their listed options.
 - Story narration is a third-person, past-tense verb phrase without a subject prefix; include who and why, refer to the player as {{ playerName }} (never "the player", "you", "your" or "I"), and stay under 120 characters. Never describe a scene: no appearance, staging or raised weapons. Follow `schema.narration.hint` and the chosen variant's field hints.
 - Ambush narration describes the chosen NPC's own motive (for example, `set out to settle a feud with Prisoner over stolen goods`), never starts with "A hostile NPC" or "An NPC", and never restates the type hint.
