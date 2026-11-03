@@ -1391,4 +1391,11 @@ body {
 .disabled\:opacity-40:disabled {
   opacity: 0.4;
 }
+.\[\&_\.leading-tight\]\:text-\[11px\] .leading-tight {
+  font-size: 11px;
+}
+.\[\&_\.leading-tight\]\:text-gray-400 .leading-tight {
+  --tw-text-opacity: 1;
+  color: rgb(156 163 175 / var(--tw-text-opacity, 1));
+}
 
