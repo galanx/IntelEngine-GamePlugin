@@ -2843,15 +2843,8 @@ Function HandleAmbushStalkerDispatch(Actor npc, String narration, String respons
 
     ; 3. Inject fact on sender (who ordered/encouraged this)
     If senderName != ""
-        Actor senderNPC = IntelEngine.FindNPCByName(senderName)
-        If senderNPC != None
-            If storyType == "ambush"
-                Core.InjectFact(senderNPC, "sent " + npc.GetDisplayName() + " to ambush " + playerName)
-            Else
-                Core.InjectFact(senderNPC, "encouraged " + npc.GetDisplayName() + " to follow " + playerName)
-            EndIf
-        Else
-            Int[] ids = IntelEngine.GetFactionLeaderFormIds(senderName)
+        Int[] ids = IntelEngine.GetFactionLeaderFormIds(senderName)
+        If ids.Length > 0
             Int i = 0
             While i < ids.Length
                 Actor leader = Game.GetForm(ids[i]) as Actor
@@ -2864,6 +2857,15 @@ Function HandleAmbushStalkerDispatch(Actor npc, String narration, String respons
                 EndIf
                 i += 1
             EndWhile
+        Else
+            Actor senderNPC = IntelEngine.FindNPCByName(senderName)
+            If senderNPC != None
+                If storyType == "ambush"
+                    Core.InjectFact(senderNPC, "sent " + npc.GetDisplayName() + " to ambush " + playerName)
+                Else
+                    Core.InjectFact(senderNPC, "encouraged " + npc.GetDisplayName() + " to follow " + playerName)
+                EndIf
+            EndIf
         EndIf
     EndIf
 

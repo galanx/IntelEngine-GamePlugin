@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Prefer faction-leader lookup over fuzzy NPC-name lookup for Story hirers; constrain Action Generate destinations to places, clear generated waitForPlayer, and prioritize queued title text over engine-busy text. Pair StoryEngine PSC/PEX, prompt and both dashboard trees; headless tests only, no installation or game test.
 - Show Story/Social dispatches as queued until a fresh section state push, dashboard reopen, or 30 seconds; keep Political/Action Sent flashes. Pair both dashboard trees; headless/offline verification only, no installation or live-game test.
 - Snap uniquely matching generated names to full tagged option names and require exact NPC names in the prompt. Add Action Execution Generate/Clear/Stop through the shared draft flow, nearby-only actor selection, action params, re-roll ownership and required-field follow-up; exclude CancelCurrentTask/ChangeSpeed. Accept action generation in the native handler. Retain and verify the existing Story/Social end-of-dispatch state pushes. Pair rebuilt DLL, Core PEX, prompt and both dashboard trees; headless/offline checks only, no installation or live-game/model test.
 - Keep all Director form drafts, touched flags and the active tab across page reloads; Clear removes the form's saved draft. Add shared pointer-driven textarea resizing (rows minimum to 400px), top-right textarea clears and a single Social NPC/NPC/type row above full-width narration. Pair both dashboard trees; verified offline in headless Chrome, not installed or live-game tested.
