@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Actions tab lists IntelEngine's Communication/Scheduling/Travel categories under IntelEngine (marked "(category)") and shows their template text as "the NPC".
 - Require active Story and Social variant fields: show red stars, block Dispatch and name missing fields; retain `required: true` in Generate variant metadata and mark required base fields. Require non-empty strings, never null, in the prompt; silently skip optional null values. Pair both dashboard trees and prompt; all 15 headless scenarios pass, with required-field regression failing before/passing after. No DLL/Papyrus changes, installation, live model or game test.
 - Move Director Story/NPC Social engine-busy details into italic amber section-title suffixes visible while collapsed; disable active Story dispatch, keep active Social dispatch available with its busy label, and preserve drafts across tab switches without storage. Pair both dashboard trees; 15 headless scenarios pass, with busy-header and draft regressions failing before/passing after. No DLL/Papyrus changes, installation or live-game test.
 - Unify all Director base fields and Action variants through one readable label/control/hint component, with red required stars in labels, example-only base placeholders and clearer FetchPerson refusal guidance. Pair both dashboard trees; all dashboard scenarios verified headlessly offline. No DLL, installation or live-game test.
