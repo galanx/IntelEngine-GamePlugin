@@ -2531,6 +2531,7 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
     String actionReason = IntelEngine.StoryResponseGetField(strArg, "reason")
 
     Bool ok = false
+    Bool handled = false
     If actionName == "GoToLocation"
         String destination = IntelEngine.StoryResponseGetField(strArg, "destination")
         Int speed = IntelEngine.StoryResponseGetField(strArg, "speed") as Int
@@ -2567,7 +2568,12 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         String factionId = IntelEngine.StoryResponseGetField(strArg, "factionId")
         String sentiment = IntelEngine.StoryResponseGetField(strArg, "sentiment")
         String reason = IntelEngine.StoryResponseGetField(strArg, "reason")
-        Politics.ReportPlayerConduct(npc, factionId, sentiment, reason)
+        ; Native shows its own feedback when it rejects the report.
+        If Politics.ReportPlayerConduct(npc, factionId, sentiment, reason)
+            InjectFact(npc, actionReason)
+            NotifyPlayer(npc.GetDisplayName() + ": conduct reported.")
+        EndIf
+        handled = true
 
     ElseIf actionName == "EscortTarget"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
@@ -2580,10 +2586,12 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
 
     ElseIf actionName == "CancelCurrentTask"
         If CancelCurrentTask(npc, true)
+            InjectFact(npc, actionReason)
             NotifyPlayer(npc.GetDisplayName() + "'s task was cancelled.")
         Else
             NotifyPlayer(npc.GetDisplayName() + " has no task to cancel.")
         EndIf
+        handled = true
 
     ElseIf actionName == "ChangeSpeed"
         Int newSpeed = IntelEngine.StoryResponseGetField(strArg, "newSpeed") as Int
@@ -2616,11 +2624,13 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
     Else
         DebugMsg("Director: Unknown action " + actionName)
     EndIf
+    If !handled
     If ok
         InjectFact(npc, actionReason)
         NotifyPlayer(npc.GetDisplayName() + ": " + actionName + " started.")
     Else
         NotifyPlayer(npc.GetDisplayName() + ": " + actionName + " failed.")
+    EndIf
     EndIf
 
     Utility.Wait(0.5)
