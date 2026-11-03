@@ -607,6 +607,9 @@ video {
 .ml-2 {
   margin-left: 0.5rem;
 }
+.ml-4 {
+  margin-left: 1rem;
+}
 .ml-auto {
   margin-left: auto;
 }
@@ -657,6 +660,9 @@ video {
 }
 .max-h-\[calc\(100vh-2rem\)\] {
   max-height: calc(100vh - 2rem);
+}
+.\!w-\[calc\(100\%-1rem\)\] {
+  width: calc(100% - 1rem) !important;
 }
 .w-1\.5 {
   width: 0.375rem;
