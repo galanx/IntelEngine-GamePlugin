@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Story Types and Actions tabs say their toggles only affect automatic stories / AI-chosen actions; Director dispatch and Action Execution always work.
 - Distinguish Actions category headers with larger bold titles and an amber left border; dim children and show `OFF (category)` while their category is disabled, preserving their own enabled values and working toggle payloads. Pair both dashboard trees; all 16 headless scenarios pass offline, with the extended category regression failing before/passing after. Frontend only; no installation or game test.
 - Group Actions beneath their SkyrimNet category cards, ordered Travel/Communication/Scheduling with indented children; derive IntelEngine membership from `intel_` categories and group other mods by category. Retain counts, category labels, NPC text and toggle payloads. Pair rebuilt DLL and both dashboard trees; native-host and all 16 headless scenarios pass offline, with grouping/metadata regressions failing before and passing after. No installation or game test.
 - Actions tab lists IntelEngine's Communication/Scheduling/Travel categories under IntelEngine (marked "(category)") and shows their template text as "the NPC".
