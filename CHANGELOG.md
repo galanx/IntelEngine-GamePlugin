@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Unify all Director base fields and Action variants through one readable label/control/hint component, with red required stars in labels, example-only base placeholders and clearer FetchPerson refusal guidance. Pair both dashboard trees; all dashboard scenarios verified headlessly offline. No DLL, installation or live-game test.
 - Use one shared searchable picker for every Director NPC-name field, with nearby markers, known indexed display names, free text, and capped suggestions; keep Action NPC nearby-only with unchanged FormIDs and append labeled faction hirers. Send known names on dashboard open/index-count changes and retain them across periodic/coalesced snapshots. Pair rebuilt DLL and both dashboard trees; native host and all headless dashboard scenarios verified offline. No installation or live-game test.
 - Show amber Story/NPC Social engine-busy hints beneath Director Dispatch buttons using current dashboard state, with friendly Story types and Tasks cancellation guidance; keep Dispatch available. Pair both dashboard trees; new headless busy-line regression fails before/passes after. No native/Papyrus changes, installation or live game test.
 - Allow faction hirers for Director ambushes and stalkers: normalize faction names to IDs, offer faction suggestions, and teach faction leaders who ordered the encounter without changing NPC hirers. Pair StoryEngine PSC/PEX, both dashboard trees and Generate prompt; compiled-PEX and headless sender regressions fail before/pass after offline. No installation, live model or game test.
