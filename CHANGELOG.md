@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Show amber Story/NPC Social engine-busy hints beneath Director Dispatch buttons using current dashboard state, with friendly Story types and Tasks cancellation guidance; keep Dispatch available. Pair both dashboard trees; new headless busy-line regression fails before/passes after. No native/Papyrus changes, installation or live game test.
 - Allow faction hirers for Director ambushes and stalkers: normalize faction names to IDs, offer faction suggestions, and teach faction leaders who ordered the encounter without changing NPC hirers. Pair StoryEngine PSC/PEX, both dashboard trees and Generate prompt; compiled-PEX and headless sender regressions fail before/pass after offline. No installation, live model or game test.
 - Polish Director hints with consistent red required markers and per-field alignment, including Action Execution; enable native vertical textarea resizing. Generate leaves optional people blank without a plausible motive and writes past-tense Story motives instead of scenes. Pair both dashboard trees and shared prompt; headless polish regression fails before/passes after, with default/reroll/Story hints/section/package checks passing. No installation, live model or game test.
 - Director Generate re-rolls fields it filled itself and keeps only fields the player typed or picked; larger, brighter hint text; type-specific Story narration examples.
