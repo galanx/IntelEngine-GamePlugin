@@ -277,7 +277,7 @@ EndFunction
 ; PLAYER STANDING — ACTION HANDLER
 ; =============================================================================
 
-Function ReportPlayerConduct(Actor akNPC, String factionId, String sentiment, String reason)
+Bool Function ReportPlayerConduct(Actor akNPC, String factionId, String sentiment, String reason)
     ; Delegates to C++ which handles:
     ;   1. Primary standing change (sentiment -> delta)
     ;   2. Cross-faction: if reporter's faction is rival of factionId, inverse delta (halved)
@@ -289,6 +289,7 @@ Function ReportPlayerConduct(Actor akNPC, String factionId, String sentiment, St
     If changed > 0
         IntelEngine.WritePoliticalStateFile()
     EndIf
+    Return changed > 0
 EndFunction
 
 ; =============================================================================

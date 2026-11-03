@@ -2568,9 +2568,11 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         String factionId = IntelEngine.StoryResponseGetField(strArg, "factionId")
         String sentiment = IntelEngine.StoryResponseGetField(strArg, "sentiment")
         String reason = IntelEngine.StoryResponseGetField(strArg, "reason")
-        Politics.ReportPlayerConduct(npc, factionId, sentiment, reason)
-        InjectFact(npc, actionReason)
-        NotifyPlayer(npc.GetDisplayName() + ": conduct reported.")
+        ; Native shows its own feedback when it rejects the report.
+        If Politics.ReportPlayerConduct(npc, factionId, sentiment, reason)
+            InjectFact(npc, actionReason)
+            NotifyPlayer(npc.GetDisplayName() + ": conduct reported.")
+        EndIf
         handled = true
 
     ElseIf actionName == "EscortTarget"
