@@ -2833,6 +2833,7 @@ EndFunction
 
 Function HandleAmbushStalkerDispatch(Actor npc, String narration, String response, String storyType, String taskOrigin = "Story engine")
     String senderName = ExtractJsonField(response, "sender")
+    String senderDisplay = ""
     String playerName = Game.GetPlayer().GetDisplayName()
 
     ; 1. Inject motivation as persistent memory (SkyrimNet sees this in bio)
@@ -2845,14 +2846,18 @@ Function HandleAmbushStalkerDispatch(Actor npc, String narration, String respons
     If senderName != ""
         Int[] ids = IntelEngine.GetFactionLeaderFormIds(senderName)
         If ids.Length > 0
+            senderDisplay = IntelEngine.GetFactionDisplayName(senderName)
+            If senderDisplay == ""
+                senderDisplay = senderName
+            EndIf
             Int i = 0
             While i < ids.Length
                 Actor leader = Game.GetForm(ids[i]) as Actor
                 If leader != None
                     If storyType == "ambush"
-                        Core.InjectFact(leader, IntelEngine.FriendlyKey(senderName) + " sent " + npc.GetDisplayName() + " to ambush " + playerName)
+                        Core.InjectFact(leader, senderDisplay + " sent " + npc.GetDisplayName() + " to ambush " + playerName)
                     Else
-                        Core.InjectFact(leader, IntelEngine.FriendlyKey(senderName) + " encouraged " + npc.GetDisplayName() + " to follow " + playerName)
+                        Core.InjectFact(leader, senderDisplay + " encouraged " + npc.GetDisplayName() + " to follow " + playerName)
                     EndIf
                 EndIf
                 i += 1
