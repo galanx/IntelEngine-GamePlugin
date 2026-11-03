@@ -2850,6 +2850,20 @@ Function HandleAmbushStalkerDispatch(Actor npc, String narration, String respons
             Else
                 Core.InjectFact(senderNPC, "encouraged " + npc.GetDisplayName() + " to follow " + playerName)
             EndIf
+        Else
+            Int[] ids = IntelEngine.GetFactionLeaderFormIds(senderName)
+            Int i = 0
+            While i < ids.Length
+                Actor leader = Game.GetForm(ids[i]) as Actor
+                If leader != None
+                    If storyType == "ambush"
+                        Core.InjectFact(leader, IntelEngine.FriendlyKey(senderName) + " sent " + npc.GetDisplayName() + " to ambush " + playerName)
+                    Else
+                        Core.InjectFact(leader, IntelEngine.FriendlyKey(senderName) + " encouraged " + npc.GetDisplayName() + " to follow " + playerName)
+                    EndIf
+                EndIf
+                i += 1
+            EndWhile
         EndIf
     EndIf
 
