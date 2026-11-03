@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Generate re-roll keeps filled NPCs, factions and type; rewrites generated text; × a name to re-pick it.
 - Tidied the Director Generate prompt: one consistent keep/rewrite rule (user-set kept, blank and previously generated rewritten), duplicates removed; no behaviour change.
 - Story Types and Actions tabs say their toggles only affect automatic stories / AI-chosen actions; Director dispatch and Action Execution always work.
 - Distinguish Actions category headers with larger bold titles and an amber left border; dim children and show `OFF (category)` while their category is disabled, preserving their own enabled values and working toggle payloads. Pair both dashboard trees; all 16 headless scenarios pass offline, with the extended category regression failing before/passing after. Frontend only; no installation or game test.
