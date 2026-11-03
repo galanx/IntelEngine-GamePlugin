@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Ambush and stalker faction-leader facts use faction display names; clarify that the selected ambush NPC is the attacker, and have Generate write the chosen NPC's motive without repeating the type hint. Pair StoryEngine PSC/PEX, prompt and both dashboard trees; compiled-PEX and all headless dashboard scenarios pass offline. No installation, live model or game test.
+- Require Action Generate to use exact known NPC targets, clear generated waitForPlayer, and fill GoToLocation destinations with non-empty named places; action motives describe the NPC's own reason. Pair both dashboard trees and prompt; all headless dashboard scenarios pass offline. No installation, live model or game test.
 - Add optional Action Execution Reason, generate motives for all actions without changing CancelCurrentTask/ChangeSpeed, and inject the motive as an NPC fact. Pair Core PSC/PEX, prompt and both dashboard trees; headless/offline verification only, no installation or game test.
 - Prefer faction-leader lookup over fuzzy NPC-name lookup for Story hirers; constrain Action Generate destinations to places, clear generated waitForPlayer, and prioritize queued title text over engine-busy text. Pair StoryEngine PSC/PEX, prompt and both dashboard trees; headless tests only, no installation or game test.
 - Show Story/Social dispatches as queued until a fresh section state push, dashboard reopen, or 30 seconds; keep Political/Action Sent flashes. Pair both dashboard trees; headless/offline verification only, no installation or live-game test.
