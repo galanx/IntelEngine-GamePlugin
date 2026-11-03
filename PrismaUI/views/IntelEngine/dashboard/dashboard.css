@@ -1231,7 +1231,7 @@ body {
   --tw-text-opacity: 1;
   color: rgb(156 163 175 / var(--tw-text-opacity, 1));
 }
-.dashboard-section > summary { display: block; cursor: pointer; }
+.dashboard-section > summary { display: block; list-style: none; cursor: pointer; } .dashboard-section > summary::-webkit-details-marker { display: none; }
 .dashboard-section > summary .section-header::before { content: '▸ '; } .dashboard-section[open] > summary .section-header::before { content: '▾ '; }
 
 .empty-state {
