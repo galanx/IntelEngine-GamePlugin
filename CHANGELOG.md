@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.7.0 — 2026-11-03
+
+### Director
+- Add Generate and draft controls for Story, NPC Social, Political, and Action forms. Generate is experimental; review drafts before dispatch.
+- Keep chosen identities and edited text on re-roll, suggest distinct nearby participants, and guide required fields, destinations, and NPC motives.
+- Add optional Action Execution reasons remembered only after a successful start, failure notices, busy confirmations, and Story/Social `queued: starts on dashboard close` feedback.
+- Clarify that Story/Action toggles govern automatic stories and AI-chosen actions, not Director requests; Action changes need SkyrimNet Reload configs or a restart.
+
+### Dashboard
+- Save Director drafts across reloads; add searchable NPC/faction pickers, resizable text fields, clearer hints, and collapsible sections.
+- Add optional Magelight hosting alongside PrismaUI, group actions by category, and fold packages into Tasks with recorded task origin, time, and reason.
+- Show in-game calendar dates and faction leaders in Politics. Record completed Story/Social outcomes in SkyrimNet History, subject to its audience filters.
+
+### Fixes
+- Prevent duplicate arrivals and stale Story/Social callbacks from repeating outcomes or changing newer dispatches.
+- Preserve cancellation/replacement state, improve moving-target arrival checks, and record attempted versus successful task outcomes accurately.
+- Improve exact NPC and faction-leader matching, preserve full dynamic actor IDs, and reject missing delivery targets without replacing existing tasks.
+- Reject same-faction political pairs and incomplete or invalid generated fields; preserve valid draft fields for review.
+- Fix Director cancellation/conduct-report feedback and reason facts; preserve the selected same-name actor through Action Generate.
+- Keep localized place names intact in action and DM prompts.
+
 ## v3.6.2
 
 - Save converter: convert caches on temporary (0xFF) actors and orphaned global caches in place instead of refusing the whole save, and refuse a save whose caches are already in the 3.6 format (for example a later save made from an `_IEconverted` one). Output is readable multi-line text and warns against loading converted saves under any IE 3.5.x. Live: a converted ADT save loads with correct prompt text.

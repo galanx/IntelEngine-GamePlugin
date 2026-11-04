@@ -2,7 +2,7 @@
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 > [!IMPORTANT]
-> **Compatibility:** IntelEngine 3.6.2 updates the DLL and scripts and requires SkyrimNet Beta 25 or newer. The 3.6.0 runtime components were tested with official Beta 28. Beta 24 and earlier are incompatible.
+> **Compatibility:** IntelEngine 3.7.0 updates the DLL and scripts and requires SkyrimNet Beta 25 or newer. The 3.6.0 runtime components were tested with official Beta 28. Beta 24 and earlier are incompatible.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 > **Have issues? Report them here:** [IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues). Include your Skyrim, SKSE, SkyrimNet and IntelEngine versions and relevant logs with personal information removed.
@@ -85,7 +85,7 @@ A living political system where 9 factions (configurable) scheme, trade, and wag
 - **Faction wars** with morale, army strength, off-screen battles, and **player-present battles** with 5 waves of spawned soldiers (22 per side)
 - **Faction quests** — when your standing is 20+ with a faction, they call on you for combat missions, rescue operations, and full-scale battles that affect war outcomes
 - **Political awareness** — NPCs know about recent political events and react to them in conversation
-- **Prisma UI dashboard** with a Politics tab showing all faction relations, active wars, and player standings
+- **In-game dashboard** (Magelight UI recommended, PrismaUI fallback) with a Politics tab showing all faction relations, active wars, and player standings
 
 **One political timeline per playthrough:** `IntelEngine-<id>.db` is one database shared by all saves in that playthrough, not a separate database per save. Loading an earlier save permanently removes later political events, wars, battles and standing history, and re-opens wars that ended after that save (`CleanupFutureEvents`). To keep a later timeline, back up the database and its `-wal`/`-shm` companions with the game closed before loading an earlier save; the `.ess`/`.skse` pair alone does not preserve it.
 
@@ -320,9 +320,13 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 ---
 
-## In-Game Dashboard (PrismaUI)
+## In-Game Dashboard
 
-When the optional [PrismaUI](https://www.prismaui.dev/) SKSE plugin is installed, IntelEngine provides a real-time overlay dashboard accessible via hotkey (default: Shift+7). The hotkey requires Skyrim to have foreground focus and exactly the configured Ctrl/Shift/Alt modifiers; a held combo must be released after returning focus. The dashboard is a React web UI rendered in-game with full mouse/keyboard interaction.
+IntelEngine provides an optional real-time React dashboard via [Magelight UI](https://github.com/Severause/MagelightUI) **1.7.1 or newer** (recommended), with [PrismaUI](https://www.prismaui.dev/) as a frozen fallback. Install a host separately; neither runtime is bundled. With neither usable host, the dashboard is unavailable but IE gameplay and the MCM remain enabled.
+
+Open with the configured hotkey (default: Shift+7). Skyrim must have foreground focus and exactly the configured Ctrl/Shift/Alt modifiers; release a held combo after returning focus. Another host's input ownership blocks opening without stealing focus or showing a notice. Magelight preserves the dashboard's game pause and supports Escape close; PrismaUI retains its existing X/hotkey close behavior without new Escape support.
+
+Host selection is fixed until restart. In `Data/SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/settings.yaml`, set `ui.host` to `auto` (default, prefer Magelight), `magelight` (prefer Magelight), or `prismaui` (prefer PrismaUI). Each preference falls back to the other usable host; unknown values warn and use auto. Restart Skyrim after changing this setting; Reload UI does not switch hosts. A missing, too-old or unusable Magelight host logs the reason for PrismaUI fallback.
 
 Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet settings page (click Save); both apply immediately. The MCM has no hotkey option.
 
@@ -332,7 +336,7 @@ Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet 
 
 **Story Engine** — Toggle the Story Engine and individual story types on/off. See the active dispatch, next DM check-in timer, NPC social activity, active quests, and a log of recent NPC-to-NPC interactions.
 
-**Director** — Manual Dungeon Master controls. Dispatch any story type to any NPC with full parameter fields (informant gossip, quest locations, message content, etc.). Execute any of the 10 player-driven actions directly on loaded NPCs with guided field hints and required-field validation.
+**Director** — Manual Dungeon Master controls. Dispatch any story type to any NPC with full parameter fields (informant gossip, quest locations, message content, etc.). Execute any of the 10 player-driven actions directly on loaded NPCs with guided field hints and required-field validation. **Generate** fills a form from nearby NPCs and factions; it is experimental, and small models (e.g. 4B) fill fields unreliably, so review drafts before dispatch.
 
 **Active Packages** — See which NPCs are currently running IntelEngine AI packages (travel, sandbox, stalk). Remove packages from stuck NPCs directly.
 
@@ -340,9 +344,9 @@ Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet 
 
 ### How It Works
 
-The dashboard communicates through a C++ bridge: JavaScript events are routed to Papyrus via `pendingParams` (thread-safe `std::unordered_map` with mutex) and ModEvents. All JSON is built in C++ using `nlohmann::json` for proper escaping. Papyrus reads the dashboard state from live quest properties and pushes comprehensive JSON snapshots to the frontend.
+The dashboard communicates through a shared C++ host bridge and existing Papyrus ModEvents. All JSON is built with `nlohmann::json` for proper escaping. Papyrus reads live quest properties and pushes comprehensive JSON snapshots. Remove Packages and Execute Action retain exact decimal-string actor FormIDs, including high-bit IDs.
 
-PrismaUI is entirely optional — IntelEngine works identically without it. The MCM provides the same configuration capabilities.
+Accepted Director submissions show an on-screen notice; rejected ones show the reason and keep the form open. The dashboard does not close on submission. SkyMessage confirmations are unchanged.
 
 ---
 
@@ -466,7 +470,8 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 ### Optional
 
-- [PrismaUI](https://www.prismaui.dev/) — in-game overlay framework. Enables the real-time dashboard with task monitoring, story engine controls, director mode, and full settings management. IntelEngine works without it — you just won't have the overlay.
+- [Magelight UI](https://github.com/Severause/MagelightUI) **1.7.1+** — optional, recommended dashboard host. Install separately.
+- [PrismaUI](https://www.prismaui.dev/) — optional frozen dashboard fallback; no new features or fixes on this path. Neither host is required for IE gameplay.
 
 ---
 

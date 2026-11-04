@@ -21,6 +21,9 @@ parameterMapping:
   - type: speaker
     name: akNPC
     description: You (the NPC cancelling)
+  - type: static
+    value: false
+    name: force
 
 eligibilityRules:
   - conditions:
