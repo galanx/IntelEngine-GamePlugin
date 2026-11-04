@@ -85,7 +85,7 @@ A living political system where 9 factions (configurable) scheme, trade, and wag
 - **Faction wars** with morale, army strength, off-screen battles, and **player-present battles** with 5 waves of spawned soldiers (22 per side)
 - **Faction quests** — when your standing is 20+ with a faction, they call on you for combat missions, rescue operations, and full-scale battles that affect war outcomes
 - **Political awareness** — NPCs know about recent political events and react to them in conversation
-- **Prisma UI dashboard** with a Politics tab showing all faction relations, active wars, and player standings
+- **In-game dashboard** (Magelight UI recommended, PrismaUI fallback) with a Politics tab showing all faction relations, active wars, and player standings
 
 **One political timeline per playthrough:** `IntelEngine-<id>.db` is one database shared by all saves in that playthrough, not a separate database per save. Loading an earlier save permanently removes later political events, wars, battles and standing history, and re-opens wars that ended after that save (`CleanupFutureEvents`). To keep a later timeline, back up the database and its `-wal`/`-shm` companions with the game closed before loading an earlier save; the `.ess`/`.skse` pair alone does not preserve it.
 
@@ -336,7 +336,7 @@ Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet 
 
 **Story Engine** — Toggle the Story Engine and individual story types on/off. See the active dispatch, next DM check-in timer, NPC social activity, active quests, and a log of recent NPC-to-NPC interactions.
 
-**Director** — Manual Dungeon Master controls. Dispatch any story type to any NPC with full parameter fields (informant gossip, quest locations, message content, etc.). Execute any of the 10 player-driven actions directly on loaded NPCs with guided field hints and required-field validation.
+**Director** — Manual Dungeon Master controls. Dispatch any story type to any NPC with full parameter fields (informant gossip, quest locations, message content, etc.). Execute any of the 10 player-driven actions directly on loaded NPCs with guided field hints and required-field validation. **Generate** fills a form from nearby NPCs and factions; it is experimental, and small models (e.g. 4B) fill fields unreliably, so review drafts before dispatch.
 
 **Active Packages** — See which NPCs are currently running IntelEngine AI packages (travel, sandbox, stalk). Remove packages from stuck NPCs directly.
 
@@ -346,7 +346,7 @@ Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet 
 
 The dashboard communicates through a shared C++ host bridge and existing Papyrus ModEvents. All JSON is built with `nlohmann::json` for proper escaping. Papyrus reads live quest properties and pushes comprehensive JSON snapshots. Remove Packages and Execute Action retain exact decimal-string actor FormIDs, including high-bit IDs.
 
-Phase 1 does not close the dashboard or notify on Director submission. SkyMessage confirmations are unchanged. Magelight lifecycle, Escape, contention and game dispatch require separate live acceptance; offline checks/builds are not runtime proof.
+Accepted Director submissions show an on-screen notice; rejected ones show the reason and keep the form open. The dashboard does not close on submission. SkyMessage confirmations are unchanged.
 
 ---
 
