@@ -24,8 +24,6 @@ IntelEngine_Travel Property Travel Auto
 ; CONSTANTS
 ; =============================================================================
 
-Float Property TARGET_APPROACH_DISTANCE = 200.0 AutoReadOnly
-{Distance to consider agent "arrived" at target NPC}
 
 Float Property LEAD_PAUSE_DISTANCE = 1500.0 AutoReadOnly
 {If player falls behind this far, NPC pauses to wait}
@@ -332,7 +330,7 @@ EndFunction
 ; FETCH NPC API
 ; =============================================================================
 
-Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "none")
+Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "none", String taskOrigin = "SkyrimNet dialogue action")
     {
     Send an NPC to find another NPC and bring them back to the player.
 
@@ -391,9 +389,9 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         ; NPC not found - describe the situation, let NPC decide their response
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to find '" + targetName + "'. No one by that exact name could be located. The closest known name is " + suggestion + ".")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to find someone named '" + targetName + "'. No one by that name could be located.")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -453,7 +451,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     Core.DismissFollowerForTask(akAgent)
 
     ; Allocate slot (defaults to state 1)
-    Core.AllocateSlot(slot, akAgent, "fetch_npc", targetNPC.GetDisplayName(), 1)  ; Jog by default
+    Core.AllocateSlot(slot, akAgent, "fetch_npc", targetNPC.GetDisplayName(), 1, taskOrigin)  ; Jog by default
 
     ; Store fetch-specific data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
@@ -500,7 +498,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     SetDistanceBasedDeadline(slot, akAgent, targetNPC, true)
 
     ; Fast-path proximity arrival at the target NPC (C++ ticks every 150ms).
-    ; Default 150u actor threshold for face-to-face detection.
+    ; Default 200u actor threshold for face-to-face detection.
     IntelEngine.ArmProximityArrival(slot, akAgent as ObjectReference, targetNPC as ObjectReference, Self, "IntelEngine_NPCTasks", "OnProximityArrived")
 
     ; Start monitoring
@@ -513,7 +511,7 @@ EndFunction
 ; DELIVER MESSAGE API
 ; =============================================================================
 
-Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent, String meetLocation = "none", String meetTime = "none")
+Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent, String meetLocation = "none", String meetTime = "none", String taskOrigin = "SkyrimNet dialogue action")
     {
     Send an NPC to deliver a message to another NPC.
     If meetLocation and meetTime are provided, the recipient will be
@@ -554,12 +552,6 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         Return false
     EndIf
 
-    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
-    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to deliver a message to " + targetName + " (task in progress)", akAgent, None)
-
-    ; Override existing task if any
-    Core.OverrideExistingTask(akAgent)
-
     ; Cooldown — prevents narration-triggered re-selection loops
     Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
     If cooldown > 0.0 && cooldown <= Utility.GetCurrentRealTime() && (Utility.GetCurrentRealTime() - cooldown) < 15.0
@@ -572,33 +564,37 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     If targetNPC == None
         ; NPC not found - provide "did you mean?" suggestion if available
         String suggestion = GetNPCSuggestion(targetName)
+        Core.DebugMsg("DeliverMessage: recipient '" + targetName + "' was not found")
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to '" + targetName + "'. No one by that exact name could be located. The closest known name is " + suggestion + ".")
+            Core.NotifyPlayer(targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to '" + targetName + "'. No one by that name could be located.")
+            Core.NotifyPlayer(targetName + " could not be found.")
         EndIf
         Return false
     EndIf
 
     If targetNPC.IsDead()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to " + targetNPC.GetDisplayName() + ", who is dead.")
+        Core.NotifyPlayer(akAgent.GetDisplayName() + " cannot deliver a message to " + targetNPC.GetDisplayName() + ", who is dead.")
         Return false
     EndIf
 
     If targetNPC.IsDisabled()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + " to deliver the message.")
+        Core.NotifyPlayer(akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + " to deliver the message.")
         Return false
     EndIf
 
     If targetNPC == akAgent
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to themselves.")
+        Core.NotifyPlayer(akAgent.GetDisplayName() + " cannot deliver a message to themselves.")
         Return false
     EndIf
 
     If targetNPC == Game.GetPlayer()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to deliver a message to " + Game.GetPlayer().GetDisplayName() + ", who is already right here.")
+        Core.NotifyPlayer(Game.GetPlayer().GetDisplayName() + " is already right here; no delivery task started.")
         Return false
     EndIf
+
+    ; Only replace an existing task once the requested recipient is valid.
+    Core.OverrideExistingTask(akAgent)
 
     ; Find slot
     Int slot = Core.FindFreeAgentSlot()
@@ -618,7 +614,8 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     Core.DismissFollowerForTask(akAgent)
 
     ; Allocate
-    Core.AllocateSlot(slot, akAgent, "deliver_message", targetNPC.GetDisplayName(), 1)
+    Core.AllocateSlot(slot, akAgent, "deliver_message", targetNPC.GetDisplayName(), 1, taskOrigin)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to deliver a message to " + targetName + " (task in progress)", akAgent, None)
 
     ; Store message data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
@@ -671,7 +668,7 @@ EndFunction
 ; SEARCH FOR ACTOR API
 ; =============================================================================
 
-Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
+Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, String taskOrigin = "SkyrimNet dialogue action")
     {
     Search for a target NPC together.
 
@@ -730,9 +727,9 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
     If targetNPC == None
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to help find '" + targetName + "'. No one by that exact name could be located. The closest known name is " + suggestion + ".")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to help find someone named '" + targetName + "'. No one by that name could be located.")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -775,7 +772,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0)
     Core.DismissFollowerForTask(akAgent)
 
     ; Allocate slot
-    Core.AllocateSlot(slot, akAgent, "search_for_actor", targetNPC.GetDisplayName(), speed)
+    Core.AllocateSlot(slot, akAgent, "search_for_actor", targetNPC.GetDisplayName(), speed, taskOrigin)
 
     ; Store search-specific data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
@@ -814,7 +811,7 @@ EndFunction
 ; ESCORT TARGET — Walk target NPC to a destination
 ; =============================================================================
 
-Bool Function EscortTarget(Actor akAgent, String targetName, String destination = "home", Int shouldWait = 0)
+Bool Function EscortTarget(Actor akAgent, String targetName, String destination = "home", Int shouldWait = 0, String taskOrigin = "SkyrimNet dialogue action")
     {
     Send an NPC to escort another NPC to a destination.
 
@@ -877,9 +874,9 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     If targetNPC == None
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort '" + targetName + "' to " + destLabel + ". No one by that exact name could be located. The closest known name is " + suggestion + ".")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort someone named '" + targetName + "' to " + destLabel + ". No one by that name could be located.")
+            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -965,7 +962,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     Core.DismissFollowerForTask(akAgent)
 
     ; Allocate slot
-    Core.AllocateSlot(slot, akAgent, "escort_target", targetNPC.GetDisplayName(), 1)
+    Core.AllocateSlot(slot, akAgent, "escort_target", targetNPC.GetDisplayName(), 1, taskOrigin)
 
     ; Store escort-specific data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
@@ -1168,7 +1165,7 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
                 Return
             ElseIf taskType == "escort_target"
                 Core.DebugMsg(agent.GetDisplayName() + " escort timed out while walking — completing")
-                OnEscortComplete(slot, agent, target)
+                OnEscortComplete(slot, agent, target, false)
                 Return
             EndIf
         EndIf
@@ -1233,7 +1230,7 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
         If taskState == 1 || taskState == Core.STATE_AT_TARGET
             OnArrivedAtTarget(slot, agent, target)
         ElseIf taskState == 3
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, dest != None)
         Else
             Core.ClearSlot(slot, true)
         EndIf
@@ -1297,7 +1294,7 @@ Function CheckArrivalAtTarget(Int slot, Actor agent, Actor target)
     If agent.Is3DLoaded() && target.Is3DLoaded()
         ; Both loaded — use precise distance check
         Float dist = agent.GetDistance(target)
-        If dist <= TARGET_APPROACH_DISTANCE
+        If dist <= IntelEngine.GetArrivalThreshold(agent, target as ObjectReference)
             OnArrivedAtTarget(slot, agent, target)
         Else
             CheckIfStuck(slot, agent)
@@ -1550,7 +1547,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
         Actor player = Game.GetPlayer()
         Bool targetAtPlayer = false
         If target.Is3DLoaded() && player.Is3DLoaded()
-            targetAtPlayer = (target.GetDistance(player) <= Core.ARRIVAL_DISTANCE)
+            targetAtPlayer = (target.GetDistance(player) <= IntelEngine.GetArrivalThreshold(target, player as ObjectReference))
         ElseIf !target.Is3DLoaded() && target.GetParentCell() == player.GetParentCell()
             targetAtPlayer = true
         EndIf
@@ -1568,13 +1565,13 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
         StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenLastDist")
 
         Float agentDist = agent.GetDistance(returnMarker)
-        If agentDist <= Core.ARRIVAL_DISTANCE
+        If agentDist <= IntelEngine.GetArrivalThreshold(agent, returnMarker)
             ; Agent arrived — also wait for target on success returns
             If waitForTarget && target != None
                 Bool targetArrived = false
                 If returnCycles > 3 && target.Is3DLoaded()
                     Float targetDist = target.GetDistance(returnMarker)
-                    targetArrived = (targetDist <= Core.ARRIVAL_DISTANCE)
+                    targetArrived = (targetDist <= IntelEngine.GetArrivalThreshold(target, returnMarker))
                 ElseIf returnCycles > 3 && !target.Is3DLoaded() && target.GetParentCell() == returnMarker.GetParentCell()
                     targetArrived = true
                 EndIf
@@ -1655,7 +1652,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
     Float dist = IntelEngine.GetDistance2D(agent, returnMarker)
 
     ; Close enough off-screen? Complete.
-    If dist <= Core.ARRIVAL_DISTANCE
+    If dist <= IntelEngine.GetArrivalThreshold(agent, returnMarker)
         Core.DebugMsg(agent.GetDisplayName() + " arrived off-screen (dist=" + dist + ")")
         OnReturnedWithTarget(slot, agent, target)
         Return
@@ -1903,7 +1900,7 @@ EndFunction
 Function CheckEscortArrival(Int slot, Actor agent, Actor target)
     ObjectReference destMarkerRef = StorageUtil.GetFormValue(agent, "Intel_ReturnMarker") as ObjectReference
     If destMarkerRef == None
-        OnEscortComplete(slot, agent, target)
+        OnEscortComplete(slot, agent, target, false)
         Return
     EndIf
 
@@ -1922,7 +1919,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
                 StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", doorDest)
                 Utility.Wait(0.5)
             EndIf
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, true)
             Return
         EndIf
     ElseIf !target.Is3DLoaded()
@@ -1938,7 +1935,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
                 PO3_SKSEFunctions.SetLinkedRef(target, doorDest2, Core.IntelEngine_TravelTarget)
                 StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", doorDest2)
             EndIf
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, true)
             Return
         EndIf
     EndIf
@@ -1961,7 +1958,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
                 agent.MoveTo(destMarkerRef)
                 target.MoveTo(destMarkerRef)
             EndIf
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, true)
             Return
         EndIf
     EndIf
@@ -1971,7 +1968,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
         If Core.HandleOffScreenTravel(slot, agent, destMarkerRef)
             agent.MoveTo(destMarkerRef)
             target.MoveTo(destMarkerRef)
-            OnEscortComplete(slot, agent, target)
+            OnEscortComplete(slot, agent, target, true)
         EndIf
     EndIf
 EndFunction
@@ -2033,8 +2030,11 @@ Function OnPlayerArrivedAtEscortTarget(Actor target)
     Core.DebugMsg(targetName + " noticed player at " + destName + " -- switching to normal linger")
 EndFunction
 
-Function OnEscortComplete(Int slot, Actor agent, Actor target)
+Function OnEscortComplete(Int slot, Actor agent, Actor target, Bool reachedDestination)
     Core.MarkSlotProcessing(slot, agent)
+    If reachedDestination
+        StorageUtil.SetStringValue(agent, "Intel_Result", "success")
+    EndIf
 
     String agentName = agent.GetDisplayName()
     String targetName = target.GetDisplayName()
@@ -2236,7 +2236,7 @@ Function CheckDeliveryReturnArrival(Int slot, Actor agent)
 
     If agent.Is3DLoaded() && player.Is3DLoaded()
         Float dist = agent.GetDistance(player)
-        If dist <= Core.ARRIVAL_DISTANCE
+        If dist <= IntelEngine.GetArrivalThreshold(agent, player as ObjectReference)
             OnReturnedFromDelivery(slot, agent)
         Else
             CheckIfStuck(slot, agent)
@@ -2259,8 +2259,6 @@ Function OnReturnedFromDelivery(Int slot, Actor agent)
     String agentName = agent.GetDisplayName()
     Actor player = Game.GetPlayer()
     Bool playerPresent = (agent.GetParentCell() == player.GetParentCell())
-
-    Core.DebugMsg(agentName + " returned from delivering message to " + targetName)
 
     If playerPresent && StorageUtil.GetIntValue(player, "Intel_DeliveryReportBack") == 1
         ; Stop travel and sandbox near player so agent doesn't walk away
@@ -2310,7 +2308,7 @@ Function HandleSearchState(Int slot, Actor agent, Int taskState)
         EndIf
         If target.Is3DLoaded()
             Float distToTarget = agent.GetDistance(target)
-            If distToTarget <= TARGET_APPROACH_DISTANCE
+            If distToTarget <= IntelEngine.GetArrivalThreshold(agent, target as ObjectReference)
                 ; Arrived at target!
                 OnArrivedAtSearchTarget(slot, agent, target)
                 Return

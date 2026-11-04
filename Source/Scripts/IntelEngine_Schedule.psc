@@ -118,7 +118,7 @@ EndFunction
 ; MAIN API - Schedule Meeting
 ; =============================================================================
 
-Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondition)
+Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondition, String taskOrigin = "Schedule")
     {Schedule NPC to travel to destination at a specific time.}
 
     If akNPC == None || akNPC.IsDead()
@@ -130,7 +130,11 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     EndIf
 
     ; Shared scheduling scaffolding: time parse ? MCM confirm ? override ? allocate
-    Int slot = PrepareScheduleSlot(akNPC, "travel", "meet at " + destination, timeCondition, "ScheduleMeeting")
+    String meetingDescription = "meet"
+    If destination != "none"
+        meetingDescription += " at " + destination
+    EndIf
+    Int slot = PrepareScheduleSlot(akNPC, "travel", meetingDescription, timeCondition, "ScheduleMeeting", taskOrigin)
     If slot < 0
         Return false
     EndIf
@@ -179,7 +183,7 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     Core.DebugMsg("Departure buffer for " + akNPC.GetDisplayName() + ": " + travelHoursEstimate + "h (meeting in " + hoursUntilMeeting + "h)")
 
     String timeDesc = GetPreciseTimeDescription(targetHour)
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " will meet you at " + destination + " " + timeDesc)
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " will " + meetingDescription + " " + timeDesc)
     Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", condition='" + timeCondition + "')")
 
     RegisterForNextDispatch()
@@ -190,7 +194,7 @@ EndFunction
 ; SCHEDULE FETCH / DELIVER
 ; =============================================================================
 
-Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition)
+Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition, String taskOrigin = "Schedule")
     {Schedule fetching a person at a future time.}
 
     If akNPC == None || akNPC.IsDead()
@@ -201,7 +205,7 @@ Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition
         Return false
     EndIf
 
-    Int slot = PrepareScheduleSlot(akNPC, "fetch_npc", "fetch " + targetName, timeCondition, "ScheduleFetch")
+    Int slot = PrepareScheduleSlot(akNPC, "fetch_npc", "fetch " + targetName, timeCondition, "ScheduleFetch", taskOrigin)
     If slot < 0
         Return false
     EndIf
@@ -220,7 +224,7 @@ Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition
     Return true
 EndFunction
 
-Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent, String timeCondition, String meetLocation = "none", String meetTime = "none")
+Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent, String timeCondition, String meetLocation = "none", String meetTime = "none", String taskOrigin = "Schedule")
     {Schedule delivering a message to someone at a future time.
     If meetLocation and meetTime are provided, the recipient will also
     be scheduled to travel to that location after receiving the message.}
@@ -233,7 +237,7 @@ Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent
         Return false
     EndIf
 
-    Int slot = PrepareScheduleSlot(akNPC, "deliver_message", "deliver a message to " + targetName, timeCondition, "ScheduleDelivery")
+    Int slot = PrepareScheduleSlot(akNPC, "deliver_message", "deliver a message to " + targetName, timeCondition, "ScheduleDelivery", taskOrigin)
     If slot < 0
         Return false
     EndIf
@@ -269,7 +273,7 @@ EndFunction
 ; Callers then store task-specific data and notify the player.
 ; =============================================================================
 
-Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescription, String timeCondition, String scheduleActionName = "")
+Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescription, String timeCondition, String scheduleActionName = "", String taskOrigin = "Schedule")
     {Shared scheduling setup. Handles time parsing, per-action confirmation, slot override,
     and common data storage. Returns slot index or -1 on failure.
     After success, callers store task-specific data into ScheduledTargetNames,
@@ -327,6 +331,9 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledDest", "")
     StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledTime", targetGameTime)
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledType", taskType)
+    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledOrigin", taskOrigin)
+    StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledStartTime", Utility.GetCurrentGameTime())
+    StorageUtil.SetStringValue(akNPC, "Intel_ScheduledReason", taskDescription)
     StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledHour", targetHour)
 
     Return slot
@@ -448,6 +455,9 @@ Function ClearScheduleSlot(Int slot)
         StorageUtil.UnsetStringValue(npc, "Intel_ScheduledMeetTime")
         StorageUtil.UnsetFloatValue(npc, "Intel_ScheduledDepartureHours")
         StorageUtil.UnsetFloatValue(npc, "Intel_ScheduledHour")
+        StorageUtil.UnsetStringValue(npc, "Intel_ScheduledOrigin")
+        StorageUtil.UnsetFloatValue(npc, "Intel_ScheduledStartTime")
+        StorageUtil.UnsetStringValue(npc, "Intel_ScheduledReason")
     EndIf
 
     ScheduledAgents[slot] = None
@@ -548,6 +558,7 @@ Function ExecuteScheduledTask(Int slot)
     String msgContent = ScheduledMessages[slot]
     String meetLoc = ScheduledMeetLocations[slot]
     String meetTimeStr = ScheduledMeetTimes[slot]
+    String taskOrigin = StorageUtil.GetStringValue(npc, "Intel_ScheduledOrigin", "Schedule")
 
     Core.DebugMsg("Executing scheduled task for " + npc.GetDisplayName() + ": " + taskType + " ? " + destination)
 
@@ -596,7 +607,7 @@ Function ExecuteScheduledTask(Int slot)
         ; The engine handles off-screen pathfinding via AI packages natively.
         Core.DebugMsg("Schedule execute: " + npc.GetDisplayName() + " ? " + destination + " (3D=" + npc.Is3DLoaded() + ", speed=" + speed + ", " + hoursToMeeting + "h to meeting)")
         ; waitForPlayer=1, isScheduled=true bypasses MCM confirmation (player already agreed)
-        Bool success = Travel.GoToLocation(npc, destination, speed, 1, true)
+        Bool success = Travel.GoToLocation(npc, destination, speed, 1, true, taskOrigin)
         If success
             If npc.Is3DLoaded()
                 ; Narrate TO the player so the NPC addresses them directly ("see you there")
@@ -617,12 +628,12 @@ Function ExecuteScheduledTask(Int slot)
     ElseIf taskType == "fetch_npc"
         Core.DebugMsg("Schedule execute: " + npc.GetDisplayName() + " ? fetch " + targetName)
         ClearScheduleSlot(slot)  ; Non-meeting tasks don't need persistent schedule tracking
-        NPCTasks.FetchNPC(npc, targetName)
+        NPCTasks.FetchNPC(npc, targetName, "none", taskOrigin)
 
     ElseIf taskType == "deliver_message"
         Core.DebugMsg("Schedule execute: " + npc.GetDisplayName() + " ? deliver message to " + targetName)
         ClearScheduleSlot(slot)  ; Non-meeting tasks don't need persistent schedule tracking
-        NPCTasks.DeliverMessage(npc, targetName, msgContent, meetLoc, meetTimeStr)
+        NPCTasks.DeliverMessage(npc, targetName, msgContent, meetLoc, meetTimeStr, taskOrigin)
     EndIf
 EndFunction
 
@@ -673,6 +684,14 @@ String Function GetScheduleAgentName(Int slot)
         Return ""
     EndIf
     Return ScheduledAgents[slot].GetDisplayName()
+EndFunction
+
+
+Actor Function GetScheduleActor(Int slot)
+    If slot < 0 || slot >= MAX_SCHEDULED
+        Return None
+    EndIf
+    Return ScheduledAgents[slot]
 EndFunction
 
 String Function GetScheduleDestination(Int slot)

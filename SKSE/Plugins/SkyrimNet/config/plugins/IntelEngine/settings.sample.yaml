@@ -3,6 +3,7 @@
 # IntelEngine reads this file for plugin and politics settings.
 # Politics setting changes from the MCM and dashboard are saved here.
 ui:
+  host: auto # auto, magelight, or prismaui; selection applies after restart
   dashboard_hotkey: 55
   dashboard_modifiers: 2
 story:

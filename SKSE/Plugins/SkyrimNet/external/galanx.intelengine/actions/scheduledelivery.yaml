@@ -28,6 +28,7 @@ parameterMapping:
     name: msgContent
     description: >
       The message to deliver.
+      Copy any place names in the message EXACTLY from the game/context, in the game's language; NEVER translate them.
   - type: dynamic
     name: timeCondition
     description: >
@@ -37,13 +38,16 @@ parameterMapping:
     description: >
       If the message includes a meeting request, provide a specific named location
       (inn, shop, keep, landmark — NOT a hold or province name).
-      GOOD: "The Bannered Mare", "Dragonsreach". BAD: "Eastmarch", "Skyrim".
+      Copy the place name EXACTLY as it appears in the game/context, in the game's language; NEVER translate it.
       If NOT a meeting request: set this to "none"
   - type: dynamic
     name: meetTime
     description: >
       If the message includes a meeting time, provide it.
       If NOT a meeting request: set this to "none"
+  - type: static
+    value: "Schedule"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:
