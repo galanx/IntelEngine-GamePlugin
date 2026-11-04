@@ -2,7 +2,7 @@
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 > [!IMPORTANT]
-> **Compatibility:** IntelEngine 3.7.0 updates the DLL and scripts and requires SkyrimNet Beta 25 or newer. The 3.6.0 runtime components were tested with official Beta 28. Beta 24 and earlier are incompatible.
+> **Compatibility:** IntelEngine 3.7.0 updates the DLL and scripts and requires SkyrimNet Beta 27 or newer (its travel prompt uses the `get_place_names` decorator added in Beta 27). The 3.6.0 runtime components were tested with official Beta 28. Beta 26 and earlier are incompatible.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 > **Have issues? Report them here:** [IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues). Include your Skyrim, SKSE, SkyrimNet and IntelEngine versions and relevant logs with personal information removed.
@@ -462,7 +462,7 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 - Skyrim Special Edition / Anniversary Edition: 3.6.0 tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested. Skyrim SE 1.5.x: untested.
 - [SKSE](https://skse.silverlock.org/)
-- [SkyrimNet Beta 28](https://github.com/MinLL/SkyrimNet-GamePlugin) was used for 3.6.0 testing. Declared minimum: Beta 25.
+- [SkyrimNet Beta 28](https://github.com/MinLL/SkyrimNet-GamePlugin) was used for 3.6.0 testing. Declared minimum for 3.7.0: Beta 27.
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)

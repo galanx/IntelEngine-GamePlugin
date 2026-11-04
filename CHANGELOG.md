@@ -2,6 +2,8 @@
 
 ## 3.7.0 — 2026-11-03
 
+- **Requires SkyrimNet Beta 27 or newer** (travel prompt uses the `get_place_names` decorator).
+
 ### Director
 - Add Generate and draft controls for Story, NPC Social, Political, and Action forms. Generate is experimental; review drafts before dispatch.
 - Keep chosen identities and edited text on re-roll, suggest distinct nearby participants, and guide required fields, destinations, and NPC motives.
