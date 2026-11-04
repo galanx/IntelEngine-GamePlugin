@@ -164,7 +164,7 @@ MCM or Dashboard → Auto Dynamic Bio  → toggle ON. Set "Lines Before Update" 
 
 `Shift+7` (default). Change the hotkey in SkyrimNet → Plugin Configurations.
 
-> **Note 2026-10-19:** Hotkey defaults disagree, so set yours in SkyrimNet → Plugin Configurations → IntelEngine → Dashboard Hotkey / Dashboard Modifiers; you'll also need PrismaUI.
+Install [Magelight UI](https://github.com/Severause/MagelightUI) 1.7.1+ separately (recommended), or PrismaUI as a frozen fallback. Set `ui.host: auto|magelight|prismaui` in IntelEngine's `settings.yaml` and restart Skyrim to change preference. Neither host is required for gameplay. Magelight supports Escape close; PrismaUI retains X/hotkey close.
 
 **Q: Dashboard too small on 4K?**
 

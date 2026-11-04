@@ -134,7 +134,7 @@ EndFunction
 ; DM RESPONSE HANDLER
 ; =============================================================================
 
-Function OnPoliticalDMResponse(String response, Int success)
+Bool Function OnPoliticalDMResponse(String response, Int success)
     TickPending = false
     IntelEngine.ClearSystemPending("politics")
 
@@ -145,7 +145,7 @@ Function OnPoliticalDMResponse(String response, Int success)
     String actedStr = IntelEngine.StoryResponseGetField(resultJson, "acted")
     Bool acted = actedStr == "true" || actedStr == "TRUE"
     If !acted
-        return
+        return false
     EndIf
 
     String description = IntelEngine.StoryResponseGetField(resultJson, "description")
@@ -161,20 +161,20 @@ Function OnPoliticalDMResponse(String response, Int success)
     EndIf
 
     ; Papyrus-only: battle notifications + pending poll start (requires engine operations)
-    String notification = IntelEngine.StoryResponseGetField(resultJson, "notification")
+    String notification = IntelEngine.StoryResponseGetOptionalField(resultJson, "notification")
     If notification != ""
         Debug.Notification(notification)
     EndIf
 
     ; Start pending battle polling if a pending battle was created
-    If IntelEngine.StoryResponseGetField(resultJson, "startPendingPoll") == "true"
+    If IntelEngine.StoryResponseGetOptionalField(resultJson, "startPendingPoll") == "true"
         If Battle
             Battle.StartPendingBattlePoll()
         EndIf
     EndIf
 
     ; Schedule a player-present battle if the DM requested one
-    If IntelEngine.StoryResponseGetField(resultJson, "scheduleBattle") == "true"
+    If IntelEngine.StoryResponseGetOptionalField(resultJson, "scheduleBattle") == "true"
         If Battle
             String sFactionA = IntelEngine.StoryResponseGetField(resultJson, "scheduleFactionA")
             String sFactionB = IntelEngine.StoryResponseGetField(resultJson, "scheduleFactionB")
@@ -185,13 +185,14 @@ Function OnPoliticalDMResponse(String response, Int success)
     EndIf
 
     ; Manifest political event near player if applicable (requires engine spawn operations)
-    String manifestJson = IntelEngine.StoryResponseGetField(resultJson, "manifestJson")
+    String manifestJson = IntelEngine.StoryResponseGetOptionalField(resultJson, "manifestJson")
     Core.DebugMsg("Politics: manifest len=" + StringUtil.GetLength(manifestJson) + " Battle=" + (Battle != None))
     If manifestJson != ""
         If Battle
             Battle.ManifestEvent(manifestJson)
         EndIf
     EndIf
+    return acted
 EndFunction
 
 ; =============================================================================
@@ -276,7 +277,7 @@ EndFunction
 ; PLAYER STANDING — ACTION HANDLER
 ; =============================================================================
 
-Function ReportPlayerConduct(Actor akNPC, String factionId, String sentiment, String reason)
+Bool Function ReportPlayerConduct(Actor akNPC, String factionId, String sentiment, String reason)
     ; Delegates to C++ which handles:
     ;   1. Primary standing change (sentiment -> delta)
     ;   2. Cross-faction: if reporter's faction is rival of factionId, inverse delta (halved)
@@ -288,6 +289,7 @@ Function ReportPlayerConduct(Actor akNPC, String factionId, String sentiment, St
     If changed > 0
         IntelEngine.WritePoliticalStateFile()
     EndIf
+    Return changed > 0
 EndFunction
 
 ; =============================================================================
