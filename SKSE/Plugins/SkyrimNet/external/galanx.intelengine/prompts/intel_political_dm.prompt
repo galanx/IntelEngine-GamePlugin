@@ -151,7 +151,7 @@ Generating "Ulfric Stormcloak rallied his troops" when his faction's world_knowl
 ## Active War Behavior
 
 When `active_wars` is non-empty, prioritize war-related events for those factions:
-- **Generate battle_result events** for active wars — these drive the war forward. Include a `battle_location` that is a real named location in Skyrim (e.g., "Kynesgrove", "Fort Kastav", "Rorikstead", "Whiterun"). Use simple location names — just the place name, no hold suffix. The location must be a real place that exists on Skyrim's map. If unsure of a specific location near the factions' territories, use the nearest hold capital (Whiterun, Windhelm, Riften, Markarth, Solitude, Falkreath, Morthal, Dawnstar, Winterhold) — never invent a location name.
+- **Generate battle_result events** for active wars — these drive the war forward. Include a `battle_location` that is a real named location on Skyrim's map. Copy the name EXACTLY as it appears in the game/context, in the game's language; NEVER translate it. Use just the place name, no added hold suffix. If unsure of a specific location near the factions' territories, use the nearest hold capital's exact in-game/context name — never invent a location name.
 - **Low morale triggers surrender** — if a faction's `morale_a` or `morale_b` in the `active_wars` entry is below 20, generate a `surrender` event. This is the hard threshold enforced by the engine.
 - **War fatigue spreads** — wars between two factions can generate negative events between their allies/rivals too (alliances tested, trade disrupted).
 - **Balance war and non-war events** — not every tick during a war needs to be a battle. Political intrigue, espionage, and trade disruptions between non-warring factions keep the world alive.
@@ -169,6 +169,7 @@ Study the political state above. Given current relations, recent events, and fac
 Also check recent_player_dialogues: if the player said anything politically relevant, include standing changes.
 
 Respond with ONLY a raw JSON object. No markdown, no explanation. **TOTAL response MUST be under 700 characters** — longer responses are truncated and break parsing:
+For `battle_location` and places named in `description` or standing-change `reason`, copy names EXACTLY from the game/context, in the game's language; NEVER translate them. English place names below and in geographic guidance are examples only, not replacements for localized names.
 
 Skip: {{ "{" }}"should_act":false}
 

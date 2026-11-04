@@ -113,6 +113,9 @@ Int Property STATE_AT_TARGET = 8 AutoReadOnly
 Float Property ARRIVAL_DISTANCE = 300.0 AutoReadOnly
 {Distance to consider NPC "arrived" at destination}
 
+Float Property ACTOR_ARRIVAL_DISTANCE = 200.0 AutoReadOnly
+{Actor-target arrival distance; marker destinations retain ARRIVAL_DISTANCE.}
+
 Float Property UPDATE_INTERVAL = 3.0 AutoReadOnly
 {Seconds between status checks}
 
@@ -189,8 +192,6 @@ Function Maintenance(Bool isFirstLoad = false)
         isFirstLoad = true when mod is first installed (OnInit on alias)
         isFirstLoad = false on subsequent loads (OnPlayerLoadGame on alias)
     }
-    ; ModEvent registrations must run EVERY load — never guarded by duplicate check.
-    ; Papyrus ModEvent listeners don't persist across save/load.
     RegisterDashboardEvents()
 
     Float now = Utility.GetCurrentRealTime()
@@ -206,6 +207,8 @@ Function Maintenance(Bool isFirstLoad = false)
         return
     EndIf
     LastMaintenanceRealTime = now
+    ; Register once per load after the duplicate-bootstrap guard.
+    RegisterStoryEventSchemas()
     DebugMsg("IntelEngine Maintenance (firstLoad=" + isFirstLoad + ")")
 
     ; On first install (new game), clear all StorageUtil data from previous sessions.
@@ -234,13 +237,13 @@ Function Maintenance(Bool isFirstLoad = false)
     ; Recover active tasks on subsequent loads (not first install)
     If !isFirstLoad
         If IntelEngine.HasCoSaveTaskData()
-            ; Fast path: C++ SlotTracker loaded from co-save, push to Papyrus arrays.
-            ; No StorageUtil reads — avoids contention with RealNames Extended on load.
-            ; NOTE: Do NOT call SyncSlotTrackerFromArrays() here — the C++ SlotTracker
-            ; is already authoritative from LoadCallback. Reverse-syncing would overwrite
+            ; Fast path: native co-save is authoritative for dispatch state.
+            ; Rehydrate display metadata from actor StorageUtil fields, which are not in the native co-save.
+            ; Do NOT reverse-sync the remaining slot fields; that would overwrite
             ; speed/deadline/offscreenArrival with zeroes (UpdateSlotState doesn't set those).
             IntelEngine.SyncArraysFromSlotTracker()
-            DebugMsg("Task recovery: co-save path (no StorageUtil)")
+            SyncTaskMetadataToSlotTracker()
+            DebugMsg("Task recovery: co-save dispatch state + StorageUtil metadata")
         Else
             ; Legacy fallback: pre-upgrade saves without co-save data.
             ; Reads StorageUtil keys to rebuild slot state.
@@ -579,7 +582,7 @@ Int Function FindSlotByActor(Actor akActor)
     Return -1
 EndFunction
 
-Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetName, Int speed)
+Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetName, Int speed, String taskOrigin = "SkyrimNet dialogue action", String taskReason = "")
     ; Assign agent to alias
     ReferenceAlias slotAlias = GetAgentAlias(slot)
     slotAlias.ForceRefTo(akAgent)
@@ -601,11 +604,16 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
     StorageUtil.SetIntValue(akAgent, "Intel_State", 1)
     StorageUtil.SetIntValue(akAgent, "Intel_Speed", speed)
 
+    StorageUtil.SetStringValue(akAgent, "Intel_TaskOrigin", taskOrigin)
+    StorageUtil.SetFloatValue(akAgent, "Intel_TaskAllocatedAt", Utility.GetCurrentGameTime())
+    StorageUtil.SetStringValue(akAgent, "Intel_TaskReason", taskReason)
+
     ; Push to C++ SlotTracker for SkyrimNet decorators/eligibility + co-save persistence
-    IntelEngine.UpdateSlotState(slot, akAgent, 1, taskType, targetName)
+    IntelEngine.UpdateSlotState(slot, akAgent, 1, taskType, targetName, taskOrigin, StorageUtil.GetFloatValue(akAgent, "Intel_TaskAllocatedAt", -1.0), taskReason)
     IntelEngine.SetSlotSpeed(slot, speed)
 
     DebugMsg("Allocated slot " + slot + " to " + akAgent.GetDisplayName() + " for " + taskType)
+    PushDashboardState()
 EndFunction
 
 Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = false)
@@ -620,12 +628,11 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
     If agentAlias
         Actor agent = agentAlias.GetActorReference()
         If agent
-            DebugMsg("Clearing slot " + slot + ": " + agent.GetDisplayName())
-
             ; Save to task history before clearing
             String histType = SlotTaskTypes[slot]
             String histTarget = SlotTargetNames[slot]
             String histResult = StorageUtil.GetStringValue(agent, "Intel_Result")
+            DebugMsg("Clearing slot " + slot + ": " + agent.GetDisplayName() + " [result='" + histResult + "']")
             String histMessage = StorageUtil.GetStringValue(agent, "Intel_Message")
             String histMeetLoc = StorageUtil.GetStringValue(agent, "Intel_DeliveryMeetLocation")
             If histType != ""
@@ -651,6 +658,8 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetStringValue(agent, "Intel_Target")
             StorageUtil.UnsetIntValue(agent, "Intel_Slot")
             StorageUtil.UnsetIntValue(agent, "Intel_State")
+            StorageUtil.UnsetStringValue(agent, "Intel_TaskOrigin")
+            StorageUtil.UnsetStringValue(agent, "Intel_TaskReason")
             StorageUtil.UnsetIntValue(agent, "Intel_Speed")
             StorageUtil.UnsetFormValue(agent, "Intel_TargetNPC")
             StorageUtil.UnsetStringValue(agent, "Intel_Message")
@@ -661,6 +670,7 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetFormValue(agent, "Intel_ReturnMarker")
             StorageUtil.UnsetFormValue(agent, "Intel_CurrentWaypoint")
             StorageUtil.UnsetFloatValue(agent, "Intel_TaskStartTime")
+            StorageUtil.UnsetFloatValue(agent, "Intel_TaskAllocatedAt")
             StorageUtil.UnsetFloatValue(agent, "Intel_TravelArrivalTime")
             StorageUtil.UnsetFloatValue(agent, "Intel_WaitHours")
             StorageUtil.UnsetIntValue(agent, "Intel_WaitForPlayer")
@@ -774,16 +784,16 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
 
     ; Push to C++ SlotTracker for SkyrimNet decorators/eligibility
     IntelEngine.ClearSlotState(slot)
+    PushDashboardState()
 EndFunction
 
 ; =============================================================================
 ; TASK CONTROL (cancel, speed change — called by SkyrimNet actions)
 ; =============================================================================
 
-Bool Function CancelCurrentTask(Actor akNPC)
-    {Cancel the NPC's current task entirely. Called by CancelCurrentTask action.
-    Blocked while the player is within LINGER_RELEASE_DISTANCE — the linger
-    system handles task cleanup when the player walks away.}
+Bool Function CancelCurrentTask(Actor akNPC, Bool force = false)
+    {Cancel the NPC's current task entirely. SkyrimNet actions keep the nearby-player
+    guard; manual Director cancellation bypasses only that guard.}
     If akNPC == None
         Return false
     EndIf
@@ -794,13 +804,19 @@ Bool Function CancelCurrentTask(Actor akNPC)
 
     ; Block cancellation while player is nearby — prevents premature LLM task clearing.
     ; The linger release mechanism will clean up when the player walks away.
-    If !ShouldReleaseLinger(akNPC)
+    If !force && !ShouldReleaseLinger(akNPC)
         DebugMsg(akNPC.GetDisplayName() + " cancel blocked: player nearby")
         Return false
     EndIf
 
     StorageUtil.SetStringValue(akNPC, "Intel_Result", "cancelled")
     ClearSlotRestoreFollower(slot, akNPC)
+    If StoryEngine && StoryEngine.IsActive && StoryEngine.ActiveStoryNPC == akNPC
+        If StoryEngine.ActiveNarration != ""
+            InjectFact(akNPC, "stopped before finishing: " + StoryEngine.ActiveNarration)
+        EndIf
+        StoryEngine.CleanupStoryDispatch()
+    EndIf
     Return true
 EndFunction
 
@@ -853,12 +869,16 @@ Function SetSlotState(Int slot, Actor akAgent, Int newState)
         Return
     EndIf
     SlotStates[slot] = newState
+    String taskOrigin = ""
+    String taskReason = ""
+    Float allocatedAt = -1.0
     If akAgent != None
         StorageUtil.SetIntValue(akAgent, "Intel_State", newState)
+        taskOrigin = StorageUtil.GetStringValue(akAgent, "Intel_TaskOrigin")
+        taskReason = StorageUtil.GetStringValue(akAgent, "Intel_TaskReason")
+        allocatedAt = StorageUtil.GetFloatValue(akAgent, "Intel_TaskAllocatedAt", -1.0)
     EndIf
-
-    ; Push to C++ SlotTracker for SkyrimNet decorators/eligibility
-    IntelEngine.UpdateSlotState(slot, akAgent, newState, SlotTaskTypes[slot], SlotTargetNames[slot])
+    IntelEngine.UpdateSlotState(slot, akAgent, newState, SlotTaskTypes[slot], SlotTargetNames[slot], taskOrigin, allocatedAt, taskReason)
 EndFunction
 
 Function SetSlotSpeed(Int slot, Actor akAgent, Int newSpeed)
@@ -1421,7 +1441,7 @@ Function SyncSlotTrackerFromArrays()
             If slotAlias
                 Actor agent = slotAlias.GetActorReference()
                 If agent
-                    IntelEngine.UpdateSlotState(i, agent, SlotStates[i], SlotTaskTypes[i], SlotTargetNames[i])
+                    IntelEngine.UpdateSlotState(i, agent, SlotStates[i], SlotTaskTypes[i], SlotTargetNames[i], StorageUtil.GetStringValue(agent, "Intel_TaskOrigin"), StorageUtil.GetFloatValue(agent, "Intel_TaskAllocatedAt", -1.0), StorageUtil.GetStringValue(agent, "Intel_TaskReason"))
                     IntelEngine.SetSlotSpeed(i, SlotSpeeds[i])
                     IntelEngine.SetSlotDeadline(i, SlotDeadlines[i])
                 EndIf
@@ -1432,6 +1452,22 @@ Function SyncSlotTrackerFromArrays()
         i += 1
     EndWhile
     DebugMsg("C++ SlotTracker synced from Papyrus arrays")
+EndFunction
+
+Function SyncTaskMetadataToSlotTracker()
+    Int i = 0
+    While i < MAX_SLOTS
+        If SlotStates[i] != 0
+            ReferenceAlias slotAlias = GetAgentAlias(i)
+            If slotAlias
+                Actor agent = slotAlias.GetActorReference()
+                If agent
+                    IntelEngine.UpdateSlotState(i, agent, SlotStates[i], SlotTaskTypes[i], SlotTargetNames[i], StorageUtil.GetStringValue(agent, "Intel_TaskOrigin"), StorageUtil.GetFloatValue(agent, "Intel_TaskAllocatedAt", -1.0), StorageUtil.GetStringValue(agent, "Intel_TaskReason"))
+                EndIf
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
 EndFunction
 
 ; NOTE: No OnUpdate here. IntelEngine_Travel and IntelEngine_NPCTasks each
@@ -1456,6 +1492,22 @@ EndFunction
 ; =============================================================================
 ; NARRATION HELPERS
 ; =============================================================================
+
+Function RegisterStoryEventSchemas()
+    String fields = "[{\"name\":\"line\",\"type\":0,\"required\":true,\"description\":\"Event content\"}]"
+    String templates = "{\"recent_events\":\"*{{ line }}* ({{ time_desc }})\",\"raw\":\"*{{ line }}*\",\"compact\":\"*{{ line }}*\",\"verbose\":\"*{{ line }}*\"}"
+    SkyrimNetApi.RegisterEventSchema("intel_social", "Intel Social", \
+        "Executed NPC social interactions and gossip exchanges", fields, templates, false, 120000, true, false)
+    SkyrimNetApi.RegisterEventSchema("intel_story", "Intel Story", \
+        "Executed story, seek, and informant outcomes", fields, templates, false, 120000, true, false)
+EndFunction
+
+Function SendStoryEvent(String eventType, Actor akOriginator, Actor akTarget, String eventLine)
+    If eventLine == ""
+        Return
+    EndIf
+    SkyrimNetApi.RegisterEvent(eventType, "{\"line\":\"" + EscapeJson(eventLine) + "\"}", akOriginator, akTarget)
+EndFunction
 
 Function SendTaskNarration(Actor akActor, String msgText, Actor akTarget = None)
     ; Use SkyrimNet native DirectNarration instead of ModEvent
@@ -1593,6 +1645,7 @@ Function InjectGossip(Actor akGiver, Actor akReceiver, String gossipText)
     StorageUtil.SetStringValue(akGiver, "Intel_GossipRendered", IntelEngine.EncodeRenderedCache(giverHeardRendered + giverToldRendered))
 
     DebugMsg("Gossip: " + giverName + " told " + receiverName + ": " + gossipText)
+    SendStoryEvent("intel_social", akGiver, akReceiver, giverName + " told " + receiverName + " a rumor: " + gossipText)
 EndFunction
 
 Function CleanExpiredFacts(Actor akNPC)
@@ -1983,10 +2036,9 @@ Event OnDashboardCancelTask(String eventName, String strArg, Float numArg, Form 
     Int slot = numArg as Int
     If slot >= 0 && slot < MAX_SLOTS
         Actor agent = GetAgentAlias(slot).GetActorReference()
-        If agent != None
+        If agent != None && CancelCurrentTask(agent, true)
             DebugMsg("Dashboard: Cancelling task in slot " + slot + " for " + agent.GetDisplayName())
-            StorageUtil.SetStringValue(agent, "Intel_Result", "cancelled")
-            ClearSlotRestoreFollower(slot, agent)
+            NotifyPlayer(agent.GetDisplayName() + "'s task cancelled.")
             PushDashboardState()
         EndIf
     EndIf
@@ -2009,7 +2061,10 @@ Event OnDashboardCancelQuest(String eventName, String strArg, Float numArg, Form
 EndEvent
 
 Event OnDashboardRemovePackages(String eventName, String strArg, Float numArg, Form sender)
-    Int formId = numArg as Int
+    Int formId = IntelEngine.ParseFormID(strArg)
+    If formId == 0
+        Return
+    EndIf
     Actor npc = Game.GetForm(formId) as Actor
     If npc != None
         DebugMsg("Dashboard: Removing packages from " + npc.GetDisplayName())
@@ -2260,6 +2315,29 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
     ; No PushDashboardState() — React updates optimistically
 EndEvent
 
+Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false)
+    ; Include aliases retained during task completion, not just nonzero slot states.
+    Int slot = 0
+    While slot < MAX_SLOTS
+        ReferenceAlias taskAlias = GetAgentAlias(slot)
+        If taskAlias && taskAlias.GetActorReference() == npc
+            NotifyPlayer(npc.GetDisplayName() + " is already busy (" + IntelEngine.FriendlyKey(SlotTaskTypes[slot]) + "). Cancel it first.")
+            Return false
+        EndIf
+        slot += 1
+    EndWhile
+    If storyDispatch && StoryEngine && StoryEngine.IsActive
+        Actor activeNPC = StoryEngine.ActiveStoryNPC
+        String activeName = "an unknown NPC"
+        If activeNPC
+            activeName = activeNPC.GetDisplayName()
+        EndIf
+        NotifyPlayer("Story engine is busy with " + activeName + " (" + IntelEngine.FriendlyKey(StoryEngine.ActiveStoryType) + "). Cancel it first.")
+        Return false
+    EndIf
+    Return true
+EndFunction
+
 ; =============================================================================
 ; DIRECTOR MODE: Story Dispatch
 ; =============================================================================
@@ -2270,9 +2348,13 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     String narration = IntelEngine.StoryResponseGetField(strArg, "narration")
     String response = IntelEngine.StoryResponseGetField(strArg, "response")
 
-    Actor npc = IntelEngine.ResolveStoryCandidate(npcName)
-    If !npc || npc.IsDead()
+    Actor npc = IntelEngine.ResolveDirectorActor(npcName)
+    If !npc || npc.IsDead() || npc.IsDisabled()
         DebugMsg("Director: Could not find NPC '" + npcName + "' for story dispatch")
+        NotifyPlayer("Couldn't find NPC '" + npcName + "' (no unique match).")
+        Return
+    EndIf
+    If !DirectorCanDispatch(npc, true)
         Return
     EndIf
     If narration == ""
@@ -2286,17 +2368,14 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     DebugMsg("Director: Dispatching " + storyType + " with " + npc.GetDisplayName() + " - " + narration)
 
-    ; Quest and message memories are recorded only after the courier arrives.
-    If storyType != "message" && storyType != "quest"
-        SendPersistentMemory(npc, Game.GetPlayer(), npc.GetDisplayName() + " set out to find " + Game.GetPlayer().GetDisplayName())
-    EndIf
 
     ; Route through StoryEngine's actual type handlers (identical to automatic dispatch)
     ; Director skips cooldown/MCM checks intentionally — it's a manual DM override
+    Int g = StoryEngine.DispatchGeneration
     If storyType == "seek_player"
         InjectFact(npc, "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration)
         StoryEngine.ActiveStoryType = storyType
-        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
+        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
     ElseIf storyType == "informant"
         String fSubject = StoryEngine.ExtractJsonField(response, "subject")
@@ -2314,16 +2393,16 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
             EndIf
         EndIf
         StoryEngine.ActiveStoryType = "informant"
-        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
+        StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
     ElseIf storyType == "ambush" || storyType == "stalker"
-        StoryEngine.HandleAmbushStalkerDispatch(npc, narration, response, storyType)
+        StoryEngine.HandleAmbushStalkerDispatch(npc, narration, response, storyType, "Director")
 
     ElseIf storyType == "quest"
-        StoryEngine.HandleQuestDispatch(npc, narration, response, true)
+        StoryEngine.HandleQuestDispatch(npc, narration, response, true, "Director")
 
     ElseIf storyType == "message"
-        StoryEngine.HandleMessageDispatch(npc, narration, response)
+        StoryEngine.HandleMessageDispatch(npc, narration, response, "Director")
 
     ElseIf storyType == "road_encounter"
         InjectFact(npc, narration)
@@ -2331,6 +2410,9 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     Else
         DebugMsg("Director: unknown story type '" + storyType + "'")
+    EndIf
+    If StoryEngine.IsActive && StoryEngine.DispatchGeneration != g
+        NotifyPlayer(StoryEngine.ActiveStoryNPC.GetDisplayName() + " sets out (" + IntelEngine.FriendlyKey(storyType) + ").")
     EndIf
 
     PushDashboardState()
@@ -2349,47 +2431,50 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     String narration = IntelEngine.StoryResponseGetField(strArg, "narration")
     String response = IntelEngine.StoryResponseGetField(strArg, "response")
 
-    Actor npc1 = IntelEngine.FindNPCByName(npc1Name)
-    Actor npc2 = IntelEngine.FindNPCByName(npc2Name)
-    If !npc1 || npc1.IsDead()
+    Actor npc1 = IntelEngine.ResolveDirectorActor(npc1Name)
+    Actor npc2 = IntelEngine.ResolveDirectorActor(npc2Name)
+    If !npc1 || npc1.IsDead() || npc1.IsDisabled()
         DebugMsg("Director: Could not find NPC 1 '" + npc1Name + "' for social dispatch")
+        NotifyPlayer("Couldn't find NPC '" + npc1Name + "' (no unique match).")
         Return
     EndIf
-    If !npc2 || npc2.IsDead()
+    If !npc2 || npc2.IsDead() || npc2.IsDisabled()
         DebugMsg("Director: Could not find NPC 2 '" + npc2Name + "' for social dispatch")
+        NotifyPlayer("Couldn't find NPC '" + npc2Name + "' (no unique match).")
+        Return
+    EndIf
+    If !DirectorCanDispatch(npc1) || !DirectorCanDispatch(npc2)
         Return
     EndIf
 
     DebugMsg("Director: NPC Social " + socialType + " — " + npc1Name + " -> " + npc2Name + ": " + narration)
 
+    String fact1 = ""
+    String fact2 = ""
+    String gossip = ""
     If socialType == "npc_interaction"
-        String fact1 = StoryEngine.ExtractJsonField(response, "fact1")
-        String fact2 = StoryEngine.ExtractJsonField(response, "fact2")
-        If fact1 != ""
-            InjectFact(npc1, fact1)
-        EndIf
-        If fact2 != ""
-            InjectFact(npc2, fact2)
-        EndIf
+        fact1 = StoryEngine.ExtractJsonField(response, "fact1")
+        fact2 = StoryEngine.ExtractJsonField(response, "fact2")
         StoryEngine.AddNPCSocialLog("npc_interaction", npc1Name, npc2Name, narration, npc1)
         StoryEngine.AddRecentStoryEvent("npc_interaction: " + npc1Name + " and " + npc2Name + " — " + narration)
-
     ElseIf socialType == "npc_gossip"
-        String gossip = StoryEngine.ExtractJsonField(response, "gossip")
-        If gossip != ""
-            InjectFact(npc1, "told " + npc2Name + " that someone " + gossip)
-            InjectFact(npc2, "heard from " + npc1Name + " that someone " + gossip)
-        EndIf
+        gossip = StoryEngine.ExtractJsonField(response, "gossip")
         StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, narration, npc1)
         StoryEngine.AddRecentStoryEvent("npc_gossip: " + npc1Name + " told " + npc2Name + " — " + narration)
     EndIf
 
-    ; If NPCs are close enough, dispatch physical travel for face-to-face
+    ; Dispatch physical travel for face-to-face when NPCs are close enough.
     Float dist = npc1.GetDistance(npc2)
+    Bool ok = true
     If dist < 5000.0 && dist > 200.0
-        StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType)
+        ok = StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType, npc1, npc2, fact1, fact2, gossip, "Director")
     Else
+        ; Existing off-screen Director outcome: no travel is needed.
+        StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
         DebugMsg("Director: NPCs too far apart or already close — applied off-screen")
+    EndIf
+    If ok
+        NotifyPlayer(npc1Name + " and " + npc2Name + ": " + IntelEngine.FriendlyKey(socialType) + " started.")
     EndIf
 
     PushDashboardState()
@@ -2406,7 +2491,13 @@ Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg,
         DebugMsg("Director: Forwarding to Politics.OnPoliticalDMResponse")
         ; Director bypasses manifestation cooldown — player is manually triggering events
         IntelEngine.ResetManifestationCooldown()
-        Politics.OnPoliticalDMResponse(strArg, 1)
+        If Politics.OnPoliticalDMResponse(strArg, 1)
+            String eventLabel = IntelEngine.StoryResponseGetField(strArg, "event_label")
+            If eventLabel == ""
+                eventLabel = IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "event_type"))
+            EndIf
+            NotifyPlayer("Political event: " + eventLabel + " between " + IntelEngine.StoryResponseGetField(strArg, "faction_a_label") + " and " + IntelEngine.StoryResponseGetField(strArg, "faction_b_label") + ".")
+        EndIf
         DebugMsg("Director: Politics.OnPoliticalDMResponse returned")
     Else
         DebugMsg("Director: Politics script not available (property is None)")
@@ -2418,22 +2509,34 @@ EndEvent
 ; DIRECTOR MODE: Action Execution
 ; =============================================================================
 Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Form sender)
-    ; strArg = full JSON payload (race-safe), numArg = npcFormId
+    ; strArg = full JSON payload, including exact decimal npcFormId
     String actionName = IntelEngine.StoryResponseGetField(strArg, "actionName")
-    Actor npc = Game.GetForm(numArg as Int) as Actor
+    String formIdString = IntelEngine.StoryResponseGetField(strArg, "npcFormId")
+    Int formId = IntelEngine.ParseFormID(formIdString)
+    If formId == 0
+        Return
+    EndIf
+    Actor npc = Game.GetForm(formId) as Actor
 
     If !npc || npc.IsDead()
         DebugMsg("Director: Invalid or dead NPC for action execution")
         Return
     EndIf
+    If actionName != "CancelCurrentTask" && actionName != "ChangeSpeed" && actionName != "ReportPlayerConduct" && \
+        !DirectorCanDispatch(npc)
+        Return
+    EndIf
 
     DebugMsg("Director: Executing " + actionName + " on " + npc.GetDisplayName())
+    String actionReason = IntelEngine.StoryResponseGetField(strArg, "reason")
 
+    Bool ok = false
+    Bool handled = false
     If actionName == "GoToLocation"
         String destination = IntelEngine.StoryResponseGetField(strArg, "destination")
         Int speed = IntelEngine.StoryResponseGetField(strArg, "speed") as Int
         Int waitFP = IntelEngine.StoryResponseGetField(strArg, "waitForPlayer") as Int
-        Travel.GoToLocation(npc, destination, speed, waitFP, false)
+        ok = Travel.GoToLocation(npc, destination, speed, waitFP, false, "Director")
 
     ElseIf actionName == "FetchPerson"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
@@ -2441,25 +2544,36 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         If failReason == ""
             failReason = "none"
         EndIf
-        NPCTasks.FetchNPC(npc, targetName, failReason)
+        ok = NPCTasks.FetchNPC(npc, targetName, failReason, "Director")
 
     ElseIf actionName == "SearchForActor"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
         Int speed = IntelEngine.StoryResponseGetField(strArg, "speed") as Int
-        NPCTasks.SearchForActor(npc, targetName, speed)
+        ok = NPCTasks.SearchForActor(npc, targetName, speed, "Director")
 
     ElseIf actionName == "DeliverMessage"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
         String msgContent = IntelEngine.StoryResponseGetField(strArg, "msgContent")
-        String meetLoc = IntelEngine.StoryResponseGetField(strArg, "meetLocation")
-        String meetTime = IntelEngine.StoryResponseGetField(strArg, "meetTime")
+        String meetLoc = IntelEngine.StoryResponseGetOptionalField(strArg, "meetLocation")
+        String meetTime = IntelEngine.StoryResponseGetOptionalField(strArg, "meetTime")
         If meetLoc == ""
             meetLoc = "none"
         EndIf
         If meetTime == ""
             meetTime = "none"
         EndIf
-        NPCTasks.DeliverMessage(npc, targetName, msgContent, meetLoc, meetTime)
+        ok = NPCTasks.DeliverMessage(npc, targetName, msgContent, meetLoc, meetTime, "Director")
+
+    ElseIf actionName == "ReportPlayerConduct"
+        String factionId = IntelEngine.StoryResponseGetField(strArg, "factionId")
+        String sentiment = IntelEngine.StoryResponseGetField(strArg, "sentiment")
+        String reason = IntelEngine.StoryResponseGetField(strArg, "reason")
+        ; Native shows its own feedback when it rejects the report.
+        If Politics.ReportPlayerConduct(npc, factionId, sentiment, reason)
+            InjectFact(npc, actionReason)
+            NotifyPlayer(npc.GetDisplayName() + ": conduct reported.")
+        EndIf
+        handled = true
 
     ElseIf actionName == "EscortTarget"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
@@ -2468,41 +2582,55 @@ Event OnDashboardExecuteAction(String eventName, String strArg, Float numArg, Fo
         If destination == ""
             destination = "home"
         EndIf
-        NPCTasks.EscortTarget(npc, targetName, destination, shouldWait)
+        ok = NPCTasks.EscortTarget(npc, targetName, destination, shouldWait, "Director")
 
     ElseIf actionName == "CancelCurrentTask"
-        CancelCurrentTask(npc)
+        If CancelCurrentTask(npc, true)
+            InjectFact(npc, actionReason)
+            NotifyPlayer(npc.GetDisplayName() + "'s task was cancelled.")
+        Else
+            NotifyPlayer(npc.GetDisplayName() + " has no task to cancel.")
+        EndIf
+        handled = true
 
     ElseIf actionName == "ChangeSpeed"
         Int newSpeed = IntelEngine.StoryResponseGetField(strArg, "newSpeed") as Int
-        ChangeTaskSpeed(npc, newSpeed)
+        ok = ChangeTaskSpeed(npc, newSpeed)
 
     ElseIf actionName == "ScheduleMeeting"
         String destination = IntelEngine.StoryResponseGetField(strArg, "destination")
         String timeCond = IntelEngine.StoryResponseGetField(strArg, "timeCondition")
-        Schedule.ScheduleMeeting(npc, destination, timeCond)
+        ok = Schedule.ScheduleMeeting(npc, destination, timeCond, "Director")
 
     ElseIf actionName == "ScheduleFetch"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
         String timeCond = IntelEngine.StoryResponseGetField(strArg, "timeCondition")
-        Schedule.ScheduleFetch(npc, targetName, timeCond)
+        ok = Schedule.ScheduleFetch(npc, targetName, timeCond, "Director")
 
     ElseIf actionName == "ScheduleDelivery"
         String targetName = IntelEngine.StoryResponseGetField(strArg, "targetName")
         String msgContent = IntelEngine.StoryResponseGetField(strArg, "msgContent")
         String timeCond = IntelEngine.StoryResponseGetField(strArg, "timeCondition")
-        String meetLoc = IntelEngine.StoryResponseGetField(strArg, "meetLocation")
-        String meetTime = IntelEngine.StoryResponseGetField(strArg, "meetTime")
+        String meetLoc = IntelEngine.StoryResponseGetOptionalField(strArg, "meetLocation")
+        String meetTime = IntelEngine.StoryResponseGetOptionalField(strArg, "meetTime")
         If meetLoc == ""
             meetLoc = "none"
         EndIf
         If meetTime == ""
             meetTime = "none"
         EndIf
-        Schedule.ScheduleDelivery(npc, targetName, msgContent, timeCond, meetLoc, meetTime)
+        ok = Schedule.ScheduleDelivery(npc, targetName, msgContent, timeCond, meetLoc, meetTime, "Director")
 
     Else
         DebugMsg("Director: Unknown action " + actionName)
+    EndIf
+    If !handled
+    If ok
+        InjectFact(npc, actionReason)
+        NotifyPlayer(npc.GetDisplayName() + ": " + actionName + " started.")
+    Else
+        NotifyPlayer(npc.GetDisplayName() + ": " + actionName + " failed.")
+    EndIf
     EndIf
 
     Utility.Wait(0.5)
@@ -2539,6 +2667,15 @@ String Function BuildDashboardStateJson()
         Actor agent = GetAgentAlias(i).GetActorReference()
         If agent != None && SlotStates[i] != 0
             json += ",\"agentName\":\"" + EscapeJson(agent.GetDisplayName()) + "\""
+            json += ",\"origin\":\"" + EscapeJson(StorageUtil.GetStringValue(agent, "Intel_TaskOrigin")) + "\""
+            Float allocatedAt = StorageUtil.GetFloatValue(agent, "Intel_TaskAllocatedAt", -1.0)
+            If allocatedAt >= 0.0
+                json += ",\"startTime\":" + allocatedAt
+            EndIf
+            String taskReason = StorageUtil.GetStringValue(agent, "Intel_TaskReason")
+            If taskReason != ""
+                json += ",\"reason\":\"" + EscapeJson(taskReason) + "\""
+            EndIf
             json += ",\"agentFormId\":" + agent.GetFormID()
         Else
             json += ",\"agentName\":\"\",\"agentFormId\":0"
@@ -2563,12 +2700,24 @@ String Function BuildDashboardStateJson()
                 EndIf
                 first = false
                 json += "{"
+                Actor scheduledActor = Schedule.GetScheduleActor(i)
                 json += "\"agent\":\"" + EscapeJson(schedAgent) + "\""
                 json += ",\"destination\":\"" + EscapeJson(Schedule.GetScheduleDestination(i)) + "\""
                 json += ",\"taskType\":\"" + Schedule.GetScheduleTaskType(i) + "\""
                 json += ",\"targetName\":\"" + EscapeJson(Schedule.GetScheduleTargetName(i)) + "\""
                 json += ",\"timeDesc\":\"" + EscapeJson(Schedule.GetScheduleDisplay(i)) + "\""
                 json += ",\"schedStatus\":\"" + EscapeJson(Schedule.GetScheduleStatus(i)) + "\""
+                If scheduledActor != None
+                    json += ",\"origin\":\"" + EscapeJson(StorageUtil.GetStringValue(scheduledActor, "Intel_ScheduledOrigin", "Schedule")) + "\""
+                    Float scheduledAt = StorageUtil.GetFloatValue(scheduledActor, "Intel_ScheduledStartTime", -1.0)
+                    If scheduledAt >= 0.0
+                        json += ",\"startTime\":" + scheduledAt
+                    EndIf
+                    String scheduledReason = StorageUtil.GetStringValue(scheduledActor, "Intel_ScheduledReason")
+                    If scheduledReason != ""
+                        json += ",\"reason\":\"" + EscapeJson(scheduledReason) + "\""
+                    EndIf
+                EndIf
                 json += ",\"schedState\":" + Schedule.GetScheduleSlotState(i)
                 json += "}"
             EndIf
@@ -2653,6 +2802,7 @@ String Function BuildDashboardStateJson()
     ; ── NPC Social Log (last 5 interactions/gossip) ──
     Actor logPlayer = Game.GetPlayer()
     Int logCount = StorageUtil.StringListCount(logPlayer, "Intel_SocialLog_Type")
+    Int logTimeCount = StorageUtil.FloatListCount(logPlayer, "Intel_SocialLog_Time")
     json += ",\"npcSocialLog\":["
     ; Show newest first (reverse order)
     Int li = logCount - 1
@@ -2669,6 +2819,12 @@ String Function BuildDashboardStateJson()
         json += ",\"text\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Text", li)) + "\""
         json += ",\"location\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Location", li)) + "\""
         json += ",\"detail\":\"" + EscapeJson(StorageUtil.StringListGet(logPlayer, "Intel_SocialLog_Detail", li)) + "\""
+        If li < logTimeCount
+            Float socialTime = StorageUtil.FloatListGet(logPlayer, "Intel_SocialLog_Time", li)
+            If socialTime >= 0.0
+                json += ",\"time\":" + socialTime
+            EndIf
+        EndIf
         json += "}"
         li -= 1
     EndWhile

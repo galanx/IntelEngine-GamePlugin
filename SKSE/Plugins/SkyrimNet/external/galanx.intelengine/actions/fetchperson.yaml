@@ -42,6 +42,9 @@ parameterMapping:
     description: >
       Should the target refuse? Set to "none" if they come willingly.
       If they would refuse, write the reason.
+  - type: static
+    value: "SkyrimNet dialogue action"
+    name: taskOrigin
 
 eligibilityRules:
   - conditions:
