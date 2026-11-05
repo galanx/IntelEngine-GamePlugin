@@ -4,6 +4,7 @@
 
 - The dashboard no longer goes blank when a game or mod name has invalid text encoding; it shows � instead.
 - Fixed a crash near some modded NPCs whose faction list contains a non-faction record; the NPC is logged once so the mod can be found.
+- MCM Hold Restriction toggles now save when clicked (they were unreachable in the MCM; the dashboard Settings tab already worked).
 
 ## 3.7.0 — 2026-11-03
 
