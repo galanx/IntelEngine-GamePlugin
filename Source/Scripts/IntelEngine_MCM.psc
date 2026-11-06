@@ -960,6 +960,42 @@ Event OnOptionSelect(Int optionId)
             ShowMessage("Story engine restarted. All monitoring loops re-initialized.", false)
         EndIf
 
+    ; ---- Hold Restriction toggles ----
+    ElseIf optionId == OID_HoldSeekNone || optionId == OID_HoldSeekCivilian || \
+           optionId == OID_HoldSeekExceptFollower || optionId == OID_HoldSeekAll || \
+           optionId == OID_HoldSeekLocalCivilian || optionId == OID_HoldSeekLocalExceptFollower || optionId == OID_HoldSeekLocalAll
+        SetHoldPolicy("seek_player", optionId, OID_HoldSeekNone, OID_HoldSeekCivilian, OID_HoldSeekExceptFollower, OID_HoldSeekAll, OID_HoldSeekLocalCivilian, OID_HoldSeekLocalExceptFollower, OID_HoldSeekLocalAll)
+
+    ElseIf optionId == OID_HoldInformantNone || optionId == OID_HoldInformantCivilian || \
+           optionId == OID_HoldInformantExceptFollower || optionId == OID_HoldInformantAll || \
+           optionId == OID_HoldInformantLocalCivilian || optionId == OID_HoldInformantLocalExceptFollower || optionId == OID_HoldInformantLocalAll
+        SetHoldPolicy("informant", optionId, OID_HoldInformantNone, OID_HoldInformantCivilian, OID_HoldInformantExceptFollower, OID_HoldInformantAll, OID_HoldInformantLocalCivilian, OID_HoldInformantLocalExceptFollower, OID_HoldInformantLocalAll)
+
+    ElseIf optionId == OID_HoldRoadNone || optionId == OID_HoldRoadCivilian || \
+           optionId == OID_HoldRoadExceptFollower || optionId == OID_HoldRoadAll || \
+           optionId == OID_HoldRoadLocalCivilian || optionId == OID_HoldRoadLocalExceptFollower || optionId == OID_HoldRoadLocalAll
+        SetHoldPolicy("road_encounter", optionId, OID_HoldRoadNone, OID_HoldRoadCivilian, OID_HoldRoadExceptFollower, OID_HoldRoadAll, OID_HoldRoadLocalCivilian, OID_HoldRoadLocalExceptFollower, OID_HoldRoadLocalAll)
+
+    ElseIf optionId == OID_HoldAmbushNone || optionId == OID_HoldAmbushCivilian || \
+           optionId == OID_HoldAmbushExceptFollower || optionId == OID_HoldAmbushAll || \
+           optionId == OID_HoldAmbushLocalCivilian || optionId == OID_HoldAmbushLocalExceptFollower || optionId == OID_HoldAmbushLocalAll
+        SetHoldPolicy("ambush", optionId, OID_HoldAmbushNone, OID_HoldAmbushCivilian, OID_HoldAmbushExceptFollower, OID_HoldAmbushAll, OID_HoldAmbushLocalCivilian, OID_HoldAmbushLocalExceptFollower, OID_HoldAmbushLocalAll)
+
+    ElseIf optionId == OID_HoldStalkerNone || optionId == OID_HoldStalkerCivilian || \
+           optionId == OID_HoldStalkerExceptFollower || optionId == OID_HoldStalkerAll || \
+           optionId == OID_HoldStalkerLocalCivilian || optionId == OID_HoldStalkerLocalExceptFollower || optionId == OID_HoldStalkerLocalAll
+        SetHoldPolicy("stalker", optionId, OID_HoldStalkerNone, OID_HoldStalkerCivilian, OID_HoldStalkerExceptFollower, OID_HoldStalkerAll, OID_HoldStalkerLocalCivilian, OID_HoldStalkerLocalExceptFollower, OID_HoldStalkerLocalAll)
+
+    ElseIf optionId == OID_HoldMessageNone || optionId == OID_HoldMessageCivilian || \
+           optionId == OID_HoldMessageExceptFollower || optionId == OID_HoldMessageAll || \
+           optionId == OID_HoldMessageLocalCivilian || optionId == OID_HoldMessageLocalExceptFollower || optionId == OID_HoldMessageLocalAll
+        SetHoldPolicy("message", optionId, OID_HoldMessageNone, OID_HoldMessageCivilian, OID_HoldMessageExceptFollower, OID_HoldMessageAll, OID_HoldMessageLocalCivilian, OID_HoldMessageLocalExceptFollower, OID_HoldMessageLocalAll)
+
+    ElseIf optionId == OID_HoldQuestNone || optionId == OID_HoldQuestCivilian || \
+           optionId == OID_HoldQuestExceptFollower || optionId == OID_HoldQuestAll || \
+           optionId == OID_HoldQuestLocalCivilian || optionId == OID_HoldQuestLocalExceptFollower || optionId == OID_HoldQuestLocalAll
+        SetHoldPolicy("quest", optionId, OID_HoldQuestNone, OID_HoldQuestCivilian, OID_HoldQuestExceptFollower, OID_HoldQuestAll, OID_HoldQuestLocalCivilian, OID_HoldQuestLocalExceptFollower, OID_HoldQuestLocalAll)
+
     ElseIf Core != None && Core.StoryEngine != None
         If optionId == OID_TypeSeekPlayer
             Core.StoryEngine.TypeSeekPlayerEnabled = !Core.StoryEngine.TypeSeekPlayerEnabled
@@ -1016,42 +1052,6 @@ Event OnOptionSelect(Int optionId)
             Core.StoryEngine.QuestAllowVictimDeath = !Core.StoryEngine.QuestAllowVictimDeath
             SetToggleOptionValue(OID_QuestAllowDeath, Core.StoryEngine.QuestAllowVictimDeath)
         EndIf
-
-    ; ---- Hold Restriction toggles ----
-    ElseIf optionId == OID_HoldSeekNone || optionId == OID_HoldSeekCivilian || \
-           optionId == OID_HoldSeekExceptFollower || optionId == OID_HoldSeekAll || \
-           optionId == OID_HoldSeekLocalCivilian || optionId == OID_HoldSeekLocalExceptFollower || optionId == OID_HoldSeekLocalAll
-        SetHoldPolicy("seek_player", optionId, OID_HoldSeekNone, OID_HoldSeekCivilian, OID_HoldSeekExceptFollower, OID_HoldSeekAll, OID_HoldSeekLocalCivilian, OID_HoldSeekLocalExceptFollower, OID_HoldSeekLocalAll)
-
-    ElseIf optionId == OID_HoldInformantNone || optionId == OID_HoldInformantCivilian || \
-           optionId == OID_HoldInformantExceptFollower || optionId == OID_HoldInformantAll || \
-           optionId == OID_HoldInformantLocalCivilian || optionId == OID_HoldInformantLocalExceptFollower || optionId == OID_HoldInformantLocalAll
-        SetHoldPolicy("informant", optionId, OID_HoldInformantNone, OID_HoldInformantCivilian, OID_HoldInformantExceptFollower, OID_HoldInformantAll, OID_HoldInformantLocalCivilian, OID_HoldInformantLocalExceptFollower, OID_HoldInformantLocalAll)
-
-    ElseIf optionId == OID_HoldRoadNone || optionId == OID_HoldRoadCivilian || \
-           optionId == OID_HoldRoadExceptFollower || optionId == OID_HoldRoadAll || \
-           optionId == OID_HoldRoadLocalCivilian || optionId == OID_HoldRoadLocalExceptFollower || optionId == OID_HoldRoadLocalAll
-        SetHoldPolicy("road_encounter", optionId, OID_HoldRoadNone, OID_HoldRoadCivilian, OID_HoldRoadExceptFollower, OID_HoldRoadAll, OID_HoldRoadLocalCivilian, OID_HoldRoadLocalExceptFollower, OID_HoldRoadLocalAll)
-
-    ElseIf optionId == OID_HoldAmbushNone || optionId == OID_HoldAmbushCivilian || \
-           optionId == OID_HoldAmbushExceptFollower || optionId == OID_HoldAmbushAll || \
-           optionId == OID_HoldAmbushLocalCivilian || optionId == OID_HoldAmbushLocalExceptFollower || optionId == OID_HoldAmbushLocalAll
-        SetHoldPolicy("ambush", optionId, OID_HoldAmbushNone, OID_HoldAmbushCivilian, OID_HoldAmbushExceptFollower, OID_HoldAmbushAll, OID_HoldAmbushLocalCivilian, OID_HoldAmbushLocalExceptFollower, OID_HoldAmbushLocalAll)
-
-    ElseIf optionId == OID_HoldStalkerNone || optionId == OID_HoldStalkerCivilian || \
-           optionId == OID_HoldStalkerExceptFollower || optionId == OID_HoldStalkerAll || \
-           optionId == OID_HoldStalkerLocalCivilian || optionId == OID_HoldStalkerLocalExceptFollower || optionId == OID_HoldStalkerLocalAll
-        SetHoldPolicy("stalker", optionId, OID_HoldStalkerNone, OID_HoldStalkerCivilian, OID_HoldStalkerExceptFollower, OID_HoldStalkerAll, OID_HoldStalkerLocalCivilian, OID_HoldStalkerLocalExceptFollower, OID_HoldStalkerLocalAll)
-
-    ElseIf optionId == OID_HoldMessageNone || optionId == OID_HoldMessageCivilian || \
-           optionId == OID_HoldMessageExceptFollower || optionId == OID_HoldMessageAll || \
-           optionId == OID_HoldMessageLocalCivilian || optionId == OID_HoldMessageLocalExceptFollower || optionId == OID_HoldMessageLocalAll
-        SetHoldPolicy("message", optionId, OID_HoldMessageNone, OID_HoldMessageCivilian, OID_HoldMessageExceptFollower, OID_HoldMessageAll, OID_HoldMessageLocalCivilian, OID_HoldMessageLocalExceptFollower, OID_HoldMessageLocalAll)
-
-    ElseIf optionId == OID_HoldQuestNone || optionId == OID_HoldQuestCivilian || \
-           optionId == OID_HoldQuestExceptFollower || optionId == OID_HoldQuestAll || \
-           optionId == OID_HoldQuestLocalCivilian || optionId == OID_HoldQuestLocalExceptFollower || optionId == OID_HoldQuestLocalAll
-        SetHoldPolicy("quest", optionId, OID_HoldQuestNone, OID_HoldQuestCivilian, OID_HoldQuestExceptFollower, OID_HoldQuestAll, OID_HoldQuestLocalCivilian, OID_HoldQuestLocalExceptFollower, OID_HoldQuestLocalAll)
 
     EndIf
 EndEvent
