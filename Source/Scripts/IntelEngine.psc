@@ -403,8 +403,8 @@ ObjectReference Function GetEditorLocationRef(Actor akActor) Global Native
 
 ; Automatic DM/social responses resolve only within the latest candidate pools.
 ; Exact names precede unique case/whitespace/role-normalized matches.
-; Unknown names and duplicate entries reject; no global lookup fallback.
-Actor Function ResolveStoryCandidate(String name) Global Native
+; Unknown names and distinct-ID matches reject; repeated reference IDs resolve, with no global fallback.
+Actor Function ResolveStoryCandidate(String name, String partnerName = "", Actor anchor = None) Global Native
 
 ; Manual Director only: exact full display name across indexed actor references.
 ; Same-reference duplicates are allowed; distinct-reference clashes and dead/disabled/deleted actors reject.
@@ -783,6 +783,11 @@ String Function BuildPoliticalDashboardJson() Global Native
 
 ; Record a political event between factions, returns event ID (-1 on failure)
 Int Function RecordPoliticalEvent(String factionA, String factionB, String eventType, String description, Int delta, Float gameTime) Global Native
+; Return political events after an ID with feed identity and pagination metadata.
+String Function GetPoliticalEventsAfter(Int afterId, Int limit = 50) Global Native
+; Return configured political factions as JSON.
+String Function GetFactionsJson() Global Native
+
 
 ; Check if a political event should physically manifest near the player.
 ; Returns JSON spawn instructions or empty string if player is not at the event location.
@@ -859,6 +864,8 @@ String Function RunStandingMechanics() Global Native
 
 ; Runtime politics settings
 Function SetPoliticsEnabled(Bool enabled) Global Native
+Bool Function GetPEReactionsMoveRelations() Global Native
+Function SetPEReactionsMoveRelations(Bool enabled) Global Native
 Function SetPoliticsTickInterval(Int hours) Global Native
 
 ; === War Lifecycle ===

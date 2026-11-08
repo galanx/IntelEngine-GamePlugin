@@ -89,6 +89,8 @@ A living political system where 9 factions (configurable) scheme, trade, and wag
 
 **One political timeline per playthrough:** `IntelEngine-<id>.db` is one database shared by all saves in that playthrough, not a separate database per save. Loading an earlier save permanently removes later political events, wars, battles and standing history, and re-opens wars that ended after that save (`CleanupFutureEvents`). To keep a later timeline, back up the database and its `-wal`/`-shm` companions with the game closed before loading an earlier save; the `.ess`/`.skse` pair alone does not preserve it.
 
+**Unreleased PE bridge (offline only):** optional Political Engine API v3 supplies public campaign news and current-owner district sides to the Political DM. Initial attachment and loads do not replay news. “PE reactions move relations” in MCM/dashboard defaults on; off still records tagged reactions without their relation/player-standing deltas. IE's own politics, decay and battles remain independent. Existing user `settings.yaml` is preserved; the new key is `politics.pe_reactions_move_relations`. Staged builds and offline checks do not prove game behavior.
+
 No teleportation. No console commands. No hardcoded location lists. IntelEngine dynamically indexes every actor and location across every cell in the game — every inn, every home, every NPC is discoverable because the index is built from your actual load order.
 
 ---

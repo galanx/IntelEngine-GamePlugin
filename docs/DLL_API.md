@@ -715,3 +715,13 @@ IntelEngine.TestLocationResolve("upstairs")  ; Context-dependent
 ; Test validation
 IntelEngine.TestValidation("fetch_npc", "Nazeem")
 ```
+
+## Unreleased Political Engine bridge (offline only)
+
+Optional `PoliticalLetters.dll` API v3 provides public news and active-only Political DM context.
+`IntelEngine.GetPEReactionsMoveRelations()` returns the default-on persisted reaction toggle;
+`IntelEngine.SetPEReactionsMoveRelations(bool)` saves it through the shared settings path.
+Off records tagged `reacts_to` reactions without their relation/player-standing deltas.
+Current-owner PE sides are authoritative; only an absent sides export permits separate vanilla CWOwner context.
+IE wars/battles and NPC organization awareness remain independent; PE ranks/offices/reputation are not copied.
+DLL/PEX/dashboard staging and offline checks are not installed/runtime verification.
