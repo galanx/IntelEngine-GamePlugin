@@ -4,6 +4,9 @@ By Galanx 3/2026
 
 > **New in 3.6.0:** convert before loading an old save with 3.6.0. The tools install for everyone; fresh games do not need conversion. Eligible SE/AE saves from IE 3.5.2 or earlier and VR 1.4.15 saves from VR-capable IE 3.5.1 or earlier are supported, with bounded real-fixture acceptance, not blanket old-save safety. See [IntelEngine 3.6.0 update](#intelengine-360-update) for instructions and limits.
 
+**Q: The converter says “no conversion needed” and creates no files. What now?**
+If a valid co-save has a STRV record but no IntelEngine rendered-cache targets, `fix` leaves the originals unchanged and returns exit code **2** without creating a backup or converted pair. This result is not a repair or blanket old-save safety clearance. An absent STRV can instead produce a verified byte-identical copy (exit **0**).
+
 Original answers are preserved below; ~~struck text~~ is superseded by the dated update immediately after it, and dated notes qualify unverified claims.
 
 **Q: What is IntelEngine?**
