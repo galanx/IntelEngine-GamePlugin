@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Political Engine bridge (offline verified only)
+
+- Read optional API v3 public territory, campaign, ruler and initiative news without load replay.
+- Give the Political DM authoritative current-owner sides and one next-tick organization reaction per development.
+- Add a default-on persisted MCM/dashboard reaction-delta toggle and a provider detection indicator.
+- Keep IE wars/battles independent; PE ranks, offices and reputation remain in PE's own NPC bio.
+- Paired DLL, scripts, prompts, settings template and both dashboard hosts are staged; game behavior remains unverified.
+
 ## 3.7.1 — 2026-11-04
 
 - The dashboard no longer goes blank when a game or mod name has invalid text encoding; it shows � instead.
