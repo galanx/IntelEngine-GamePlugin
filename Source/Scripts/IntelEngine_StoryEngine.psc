@@ -2048,7 +2048,7 @@ EndFunction
 ; STORY ARRIVAL LINGER
 ; After a story NPC arrives and talks, they sandbox near the player until
 ; the player walks away (>1500u) or 5 min real-time elapses.
-; SkyrimNet follow packages (higher priority) override the sandbox naturally.
+; SkyrimNet follow packages do not override the sandbox while the linger is active.
 ; =============================================================================
 
 Bool Function HasLingerNPCs()
@@ -2158,7 +2158,7 @@ Function CheckStoryLingerCleanup()
             Bool timedOut = lingerStart > 0.0 && elapsed > LINGER_TIMEOUT_SECONDS
             ; Grace period: don't check distance for the first 30 seconds so
             ; NPCs that start far away (e.g. rescued victims) can pathfind to the player
-            Bool shouldRelease = elapsed > 30.0 && Core.ShouldReleaseLinger(npc)
+            Bool shouldRelease = npc.IsPlayerTeammate() || (elapsed > 30.0 && Core.ShouldReleaseLinger(npc))
 
             If timedOut || shouldRelease
                 ; Clean up narration (already fired or timed out)

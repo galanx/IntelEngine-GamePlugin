@@ -1256,7 +1256,7 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
 EndFunction
 
 Function SoftStuckRecovery(Actor npc, Int slot, ObjectReference dest)
-    {Soft stuck recovery: random displacement + re-apply travel + pathfinding nudge.
+    {Soft stuck recovery: random displacement + re-apply travel package.
     Shared by Travel and NPCTasks stuck handlers.}
     Float nudge = 100.0
     If !npc.Is3DLoaded()
@@ -1272,8 +1272,6 @@ Function SoftStuckRecovery(Actor npc, Int slot, ObjectReference dest)
     npc.EvaluatePackage()
 
     If dest != None
-        Utility.Wait(0.5)
-        npc.PathToReference(dest, 1.0)
         npc.EvaluatePackage()
     EndIf
 EndFunction
