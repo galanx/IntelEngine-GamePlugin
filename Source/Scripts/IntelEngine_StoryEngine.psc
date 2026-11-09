@@ -31,6 +31,8 @@ Actor Property ActiveStoryNPC = None Auto Hidden
 Int Property DispatchGeneration = 0 Auto Hidden
 Bool Property ArrivalHandling = false Auto Hidden
 Float Property NearPlayerSince = -1.0 Auto Hidden
+Float Property LastStretchSince = -1.0 Auto Hidden
+Int Property LastStretchRetry = 0 Auto Hidden
 String Property ActiveNarration = "" Auto Hidden
 String Property PendingStoryType = "" Auto Hidden
 Actor Property ActiveSecondNPC = None Auto Hidden
@@ -1715,12 +1717,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             If subjectNPC != None
                 Core.InjectFact(subjectNPC, gossipText)
             EndIf
-            ; Informant must know the gossip AND its source to relay during dialogue
-            If gossipSource != ""
-                Core.InjectFact(npc, "heard from " + gossipSource + " that " + subjectName + " " + gossipText)
-            Else
-                Core.InjectFact(npc, "witnessed that " + subjectName + " " + gossipText)
-            EndIf
+            Core.InjectFact(npc, Core.FormatInformantFact(subjectName, gossipText, gossipSource))
         EndIf
         ActiveStoryType = "informant"
         DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
@@ -1843,6 +1840,8 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     Int claimedGeneration = DispatchGeneration
     ArrivalHandling = false
     NearPlayerSince = -1.0
+    LastStretchSince = -1.0
+    LastStretchRetry = 0
     ActiveNarration = narration
     IsActive = true
     IntelEngine.MarkSystemPending("storyDM", Utility.GetCurrentGameTime())
@@ -2496,6 +2495,7 @@ Function CheckStoryNPCArrival()
     ; Pause arrival during combat (don't greet while fighting)
     If arrivalTarget == player && player.IsInCombat()
         NearPlayerSince = -1.0
+        LastStretchSince = -1.0
         return
     EndIf
 
@@ -2621,7 +2621,7 @@ Function CheckStoryNPCArrival()
             return
         EndIf
         Int offscreenStatus = IntelEngine.CheckOffScreenProgress(slot, storyNPC, Utility.GetCurrentGameTime())
-        If offscreenStatus == 1
+        If offscreenStatus == 1 && LastStretchSince < 0.0
             Core.DebugMsg(storyNPC.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
             If !StillOwns(storyNPC, claimedGeneration, storyType)
                 return
@@ -2632,18 +2632,31 @@ Function CheckStoryNPCArrival()
             EndIf
             ; Prevent timeout from re-firing while NPC walks the last stretch
             StorageUtil.UnsetFloatValue(storyNPC, "Intel_TaskStartTime")
+            LastStretchSince = Utility.GetCurrentRealTime()
         EndIf
         return
     EndIf
 
-    ; On-screen: stuck detection with leapfrog recovery
+    ; On-screen stuck check; ponytail: one re-place, then abort.
     If !StillOwns(storyNPC, claimedGeneration, storyType)
+        return
+    EndIf
+    If LastStretchSince >= 0.0 && nearNow - LastStretchSince > 75.0 && StillOwns(storyNPC, claimedGeneration, storyType)
+        If LastStretchRetry == 0
+            LastStretchRetry = 1
+            LastStretchSince = nearNow
+            Core.DebugMsg("Story: re-placing " + storyNPC.GetDisplayName() + " after last-stretch timeout")
+            ImmersiveTeleportToTarget(storyNPC, arrivalTarget)
+        Else
+            AbortStoryTravel("last-stretch timeout")
+            Core.NotifyPlayer("Story: " + storyNPC.GetDisplayName() + " couldn't reach you - story ended")
+        EndIf
         return
     EndIf
     Int stuckStatus = IntelEngine.CheckStuckStatus(storyNPC, slot, Core.STUCK_DISTANCE_THRESHOLD)
     If (stuckStatus == 1) && StillOwns(storyNPC, claimedGeneration, storyType)
         Core.SoftStuckRecovery(storyNPC, slot, arrivalTarget as ObjectReference)
-    ElseIf stuckStatus >= 3 && StillOwns(storyNPC, claimedGeneration, storyType)
+    ElseIf stuckStatus >= 3 && StillOwns(storyNPC, claimedGeneration, storyType) && LastStretchSince < 0.0
         If AllowStuckTeleport
             ImmersiveTeleportToTarget(storyNPC, arrivalTarget)
             If !StillOwns(storyNPC, claimedGeneration, storyType)
@@ -2651,6 +2664,7 @@ Function CheckStoryNPCArrival()
             EndIf
             ; Prevent timeout from re-firing while NPC walks the last stretch
             StorageUtil.UnsetFloatValue(storyNPC, "Intel_TaskStartTime")
+            LastStretchSince = Utility.GetCurrentRealTime()
         Else
             AbortStoryTravel("stuck, teleport disabled")
         EndIf
@@ -5207,6 +5221,8 @@ Function CleanupStoryDispatch()
     IsActive = false
     ArrivalHandling = false
     NearPlayerSince = -1.0
+    LastStretchSince = -1.0
+    LastStretchRetry = 0
     IntelEngine.ClearSystemPending("storyDM")
     ClearPending()
     ; Re-register game-time scheduling so TickScheduler keeps firing.

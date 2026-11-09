@@ -2339,6 +2339,16 @@ EndFunction
 ; =============================================================================
 ; DIRECTOR MODE: Story Dispatch
 ; =============================================================================
+String Function FormatInformantFact(String subject, String gossip, String sender)
+    String prefix = "witnessed that "
+    If sender != ""
+        prefix = "heard from " + sender + " that "
+    EndIf
+    If StringUtil.Find(gossip, subject) < 0
+        gossip = subject + " " + gossip
+    EndIf
+    Return prefix + gossip
+EndFunction
 Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Form sender)
     ; strArg = full JSON payload (race-safe: no shared state between C++ and Papyrus)
     String storyType = IntelEngine.StoryResponseGetField(strArg, "storyType")
@@ -2407,12 +2417,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
             If subjectNPC
                 InjectFact(subjectNPC, fGossip)
             EndIf
-            String fSender = StoryEngine.ExtractJsonField(response, "sender")
-            If fSender != ""
-                InjectFact(npc, "heard from " + fSender + " that " + fSubject + " " + fGossip)
-            Else
-                InjectFact(npc, "witnessed that " + fSubject + " " + fGossip)
-            EndIf
+            InjectFact(npc, FormatInformantFact(fSubject, fGossip, StoryEngine.ExtractJsonField(response, "sender")))
         EndIf
         StoryEngine.ActiveStoryType = "informant"
         StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
