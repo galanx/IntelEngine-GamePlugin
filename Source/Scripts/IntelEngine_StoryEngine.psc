@@ -2592,7 +2592,8 @@ Function CheckStoryNPCArrival()
             LastStretchRetry = 1
             LastStretchSince = nearNow
             Core.DebugMsg("Story: re-placing " + storyNPC.GetDisplayName() + " after last-stretch timeout")
-            Core.TeleportBehindPlayer(storyNPC, TELEPORT_OFFSET_INTERIOR)
+            Float[] closer = IntelEngine.GetOffsetBehind(arrivalTarget, TELEPORT_OFFSET_INTERIOR)
+            storyNPC.MoveTo(arrivalTarget, closer[0], closer[1], 0.0, false)
             ReapplyTravelPackage(storyNPC)
         Else
             AbortStoryTravel("last-stretch timeout")
