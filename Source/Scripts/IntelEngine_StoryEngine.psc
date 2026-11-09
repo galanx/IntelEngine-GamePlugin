@@ -32,6 +32,7 @@ Int Property DispatchGeneration = 0 Auto Hidden
 Bool Property ArrivalHandling = false Auto Hidden
 Float Property NearPlayerSince = -1.0 Auto Hidden
 Float Property LastStretchSince = -1.0 Auto Hidden
+Float Property LastPollRealTime = -1.0 Auto Hidden
 Int Property LastStretchRetry = 0 Auto Hidden
 String Property ActiveNarration = "" Auto Hidden
 String Property PendingStoryType = "" Auto Hidden
@@ -1841,6 +1842,7 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     ArrivalHandling = false
     NearPlayerSince = -1.0
     LastStretchSince = -1.0
+    LastPollRealTime = -1.0
     LastStretchRetry = 0
     ActiveNarration = narration
     IsActive = true
@@ -2340,6 +2342,14 @@ Function CheckStoryNPCArrival()
     If !IsActive || ActiveStoryNPC == None || (ArrivalHandling && ActiveStoryType != "ambush_combat")
         return
     EndIf
+    Float now = Utility.GetCurrentRealTime()
+    Float delta = now - LastPollRealTime
+    If LastPollRealTime < 0.0 || delta < 0.0
+        delta = 0.0
+    ElseIf delta > MONITOR_INTERVAL * 2.0
+        delta = MONITOR_INTERVAL * 2.0
+    EndIf
+    LastPollRealTime = now
     Actor storyNPC = ActiveStoryNPC
     Int claimedGeneration = DispatchGeneration
     String storyType = ActiveStoryType
@@ -2548,7 +2558,7 @@ Function CheckStoryNPCArrival()
     EndIf
 
     Float dist = storyNPC.GetDistance(arrivalTarget)
-    ; ponytail: tick-based timers assume the 3s poll cadence; native proximity remains the fast path.
+    ; ponytail: clamp pause gaps to 6s; shared-quest polls may run faster than MONITOR_INTERVAL.
     Cell nearCell = storyNPC.GetParentCell()
     Bool nearPlayer = arrivalTarget == player && storyNPC.Is3DLoaded() && player.Is3DLoaded() && dist >= 0.0 && dist <= 500.0
     nearPlayer = nearPlayer && ((nearCell != None && nearCell == player.GetParentCell()) || (storyNPC.GetWorldSpace() != None && storyNPC.GetWorldSpace() == player.GetWorldSpace()))
@@ -2558,11 +2568,11 @@ Function CheckStoryNPCArrival()
     If !nearPlayer
         NearPlayerSince = -1.0
     ElseIf NearPlayerSince < 0.0
-        NearPlayerSince = 1.0
+        NearPlayerSince = 0.0
     Else
-        NearPlayerSince += 1.0
+        NearPlayerSince += delta
     EndIf
-    If nearPlayer && NearPlayerSince >= 15.0 / MONITOR_INTERVAL && StillOwns(storyNPC, claimedGeneration, storyType)
+    If nearPlayer && NearPlayerSince >= 15.0 && StillOwns(storyNPC, claimedGeneration, storyType)
         OnStoryNPCArrived()
         return
     EndIf
@@ -2590,9 +2600,9 @@ Function CheckStoryNPCArrival()
     EndIf
 
     If LastStretchSince >= 0.0
-        LastStretchSince += 1.0
+        LastStretchSince += delta
     EndIf
-    If LastStretchSince >= 75.0 / MONITOR_INTERVAL && StillOwns(storyNPC, claimedGeneration, storyType)
+    If LastStretchSince >= 75.0 && StillOwns(storyNPC, claimedGeneration, storyType)
         If LastStretchRetry == 0
             LastStretchRetry = 1
             LastStretchSince = 0.0
@@ -5228,6 +5238,7 @@ Function CleanupStoryDispatch()
     ArrivalHandling = false
     NearPlayerSince = -1.0
     LastStretchSince = -1.0
+    LastPollRealTime = -1.0
     LastStretchRetry = 0
     IntelEngine.ClearSystemPending("storyDM")
     ClearPending()
