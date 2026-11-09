@@ -502,6 +502,7 @@ Function RestartMonitoring()
         StorageUtil.IntListClear(player, "Intel_FakeEncounterNPCs")
     EndIf
 
+    IntelEngine.StoryLoadRecovered(true)
     StartScheduler()
 EndFunction
 
@@ -2339,7 +2340,7 @@ Bool Function StillOwns(Actor npc, Int gen, String storyType, Bool arrivalContin
 EndFunction
 
 Function CheckStoryNPCArrival()
-    If !IsActive || ActiveStoryNPC == None || (ArrivalHandling && ActiveStoryType != "ambush_combat")
+    If !IntelEngine.StoryLoadRecovered() || !IsActive || ActiveStoryNPC == None || (ArrivalHandling && ActiveStoryType != "ambush_combat")
         return
     EndIf
     Float now = Utility.GetCurrentRealTime()

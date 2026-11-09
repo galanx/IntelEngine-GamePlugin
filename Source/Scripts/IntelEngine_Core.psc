@@ -2344,7 +2344,12 @@ String Function FormatInformantFact(String subject, String gossip, String sender
     If sender != ""
         prefix = "heard from " + sender + " that "
     EndIf
-    If StringUtil.Find(gossip, subject) < 0
+    Int subjectEnd = StringUtil.Find(subject, " [")
+    String untaggedSubject = subject
+    If subjectEnd >= 0
+        untaggedSubject = StringUtil.Substring(subject, 0, subjectEnd)
+    EndIf
+    If StringUtil.Find(gossip, untaggedSubject) < 0
         gossip = subject + " " + gossip
     EndIf
     Return prefix + gossip
