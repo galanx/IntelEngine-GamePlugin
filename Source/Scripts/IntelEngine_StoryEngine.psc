@@ -2548,19 +2548,21 @@ Function CheckStoryNPCArrival()
     EndIf
 
     Float dist = storyNPC.GetDistance(arrivalTarget)
-    ; ponytail: sampled 500u/15s talking-range fallback; native proximity remains the fast path.
+    ; ponytail: tick-based timers assume the 3s poll cadence; native proximity remains the fast path.
     Cell nearCell = storyNPC.GetParentCell()
     Bool nearPlayer = arrivalTarget == player && storyNPC.Is3DLoaded() && player.Is3DLoaded() && dist >= 0.0 && dist <= 500.0
     nearPlayer = nearPlayer && ((nearCell != None && nearCell == player.GetParentCell()) || (storyNPC.GetWorldSpace() != None && storyNPC.GetWorldSpace() == player.GetWorldSpace()))
     If !StillOwns(storyNPC, claimedGeneration, storyType)
         return
     EndIf
-    Float nearNow = Utility.GetCurrentRealTime()
     If !nearPlayer
         NearPlayerSince = -1.0
-    ElseIf NearPlayerSince < 0.0 || NearPlayerSince > nearNow
-        NearPlayerSince = nearNow
-    ElseIf nearNow - NearPlayerSince >= 15.0 && StillOwns(storyNPC, claimedGeneration, storyType)
+    ElseIf NearPlayerSince < 0.0
+        NearPlayerSince = 1.0
+    Else
+        NearPlayerSince += 1.0
+    EndIf
+    If nearPlayer && NearPlayerSince >= 15.0 / MONITOR_INTERVAL && StillOwns(storyNPC, claimedGeneration, storyType)
         OnStoryNPCArrived()
         return
     EndIf
@@ -2587,10 +2589,13 @@ Function CheckStoryNPCArrival()
         return
     EndIf
 
-    If LastStretchSince >= 0.0 && nearNow - LastStretchSince > 75.0 && StillOwns(storyNPC, claimedGeneration, storyType)
+    If LastStretchSince >= 0.0
+        LastStretchSince += 1.0
+    EndIf
+    If LastStretchSince >= 75.0 / MONITOR_INTERVAL && StillOwns(storyNPC, claimedGeneration, storyType)
         If LastStretchRetry == 0
             LastStretchRetry = 1
-            LastStretchSince = nearNow
+            LastStretchSince = 0.0
             Core.DebugMsg("Story: re-placing " + storyNPC.GetDisplayName() + " after last-stretch timeout")
             Float[] closer = IntelEngine.GetOffsetBehind(arrivalTarget, TELEPORT_OFFSET_INTERIOR)
             storyNPC.MoveTo(arrivalTarget, closer[0], closer[1], 0.0, false)
@@ -2645,7 +2650,7 @@ Function CheckStoryNPCArrival()
             EndIf
             ; Prevent timeout from re-firing while NPC walks the last stretch
             StorageUtil.UnsetFloatValue(storyNPC, "Intel_TaskStartTime")
-            LastStretchSince = Utility.GetCurrentRealTime()
+            LastStretchSince = 0.0
         EndIf
         return
     EndIf
@@ -2665,7 +2670,7 @@ Function CheckStoryNPCArrival()
             EndIf
             ; Prevent timeout from re-firing while NPC walks the last stretch
             StorageUtil.UnsetFloatValue(storyNPC, "Intel_TaskStartTime")
-            LastStretchSince = Utility.GetCurrentRealTime()
+            LastStretchSince = 0.0
         Else
             AbortStoryTravel("stuck, teleport disabled")
         EndIf
