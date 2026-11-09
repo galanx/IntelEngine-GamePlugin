@@ -2495,7 +2495,6 @@ Function CheckStoryNPCArrival()
     ; Pause arrival during combat (don't greet while fighting)
     If arrivalTarget == player && player.IsInCombat()
         NearPlayerSince = -1.0
-        LastStretchSince = -1.0
         return
     EndIf
 
@@ -2588,6 +2587,19 @@ Function CheckStoryNPCArrival()
         return
     EndIf
 
+    If LastStretchSince >= 0.0 && nearNow - LastStretchSince > 75.0 && StillOwns(storyNPC, claimedGeneration, storyType)
+        If LastStretchRetry == 0
+            LastStretchRetry = 1
+            LastStretchSince = nearNow
+            Core.DebugMsg("Story: re-placing " + storyNPC.GetDisplayName() + " after last-stretch timeout")
+            Core.TeleportBehindPlayer(storyNPC, TELEPORT_OFFSET_INTERIOR)
+            ReapplyTravelPackage(storyNPC)
+        Else
+            AbortStoryTravel("last-stretch timeout")
+            Core.NotifyPlayer("Story: " + storyNPC.GetDisplayName() + " couldn't reach you - story ended")
+        EndIf
+        return
+    EndIf
     ; Off-screen: NPC not loaded — leapfrog won't work, use time-based arrival
     If !storyNPC.Is3DLoaded()
         ; Shared abort checks (off-screen path)
@@ -2639,18 +2651,6 @@ Function CheckStoryNPCArrival()
 
     ; On-screen stuck check; ponytail: one re-place, then abort.
     If !StillOwns(storyNPC, claimedGeneration, storyType)
-        return
-    EndIf
-    If LastStretchSince >= 0.0 && nearNow - LastStretchSince > 75.0 && StillOwns(storyNPC, claimedGeneration, storyType)
-        If LastStretchRetry == 0
-            LastStretchRetry = 1
-            LastStretchSince = nearNow
-            Core.DebugMsg("Story: re-placing " + storyNPC.GetDisplayName() + " after last-stretch timeout")
-            ImmersiveTeleportToTarget(storyNPC, arrivalTarget)
-        Else
-            AbortStoryTravel("last-stretch timeout")
-            Core.NotifyPlayer("Story: " + storyNPC.GetDisplayName() + " couldn't reach you - story ended")
-        EndIf
         return
     EndIf
     Int stuckStatus = IntelEngine.CheckStuckStatus(storyNPC, slot, Core.STUCK_DISTANCE_THRESHOLD)
