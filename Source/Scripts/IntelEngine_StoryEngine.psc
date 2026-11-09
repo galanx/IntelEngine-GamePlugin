@@ -153,7 +153,7 @@ Float Property QUEST_EXPIRY_DAYS = 1.0 Auto Hidden
 Float Property QUEST_GUIDE_WAIT_DIST = 2000.0 AutoReadOnly
 Float Property QUEST_GUIDE_RESUME_DIST = 800.0 AutoReadOnly
 Float Property QUEST_GUIDE_TIMEOUT_HOURS = 5.0 AutoReadOnly
-Float Property LINGER_TIMEOUT_SECONDS = 300.0 AutoReadOnly
+Float Property LINGER_TIMEOUT_SECONDS = 180.0 AutoReadOnly
 Float Property ENCOUNTER_RESUME_DISTANCE = 1500.0 AutoReadOnly
 Float Property TELEPORT_OFFSET_INTERIOR = 500.0 AutoReadOnly
 Float Property TELEPORT_OFFSET_EXTERIOR = 3500.0 AutoReadOnly
@@ -457,6 +457,7 @@ Function RestartMonitoring()
             If lingerNPC != None
                 Core.ReleaseLinger(lingerNPC)
                 StorageUtil.UnsetFloatValue(lingerNPC, "Intel_StoryLingerStart")
+                StorageUtil.UnsetFloatValue(lingerNPC, "Intel_StoryLingerElapsed")
             EndIf
             li += 1
         EndWhile
@@ -473,6 +474,7 @@ Function RestartMonitoring()
             If lingerNPC2 != None
                 Core.ReleaseLinger(lingerNPC2)
                 StorageUtil.UnsetFloatValue(lingerNPC2, "Intel_StoryLingerStart")
+                StorageUtil.UnsetFloatValue(lingerNPC2, "Intel_StoryLingerElapsed")
             EndIf
             li2 += 1
         EndWhile
@@ -494,6 +496,7 @@ Function RestartMonitoring()
                 StorageUtil.UnsetStringValue(encounterNPC, "Intel_FakeEncounterNarration")
                 StorageUtil.UnsetIntValue(encounterNPC, "Intel_FakeEncounterInteracted")
                 StorageUtil.UnsetFloatValue(encounterNPC, "Intel_FakeEncounterGreetTime")
+                StorageUtil.UnsetFloatValue(encounterNPC, "Intel_FakeEncounterElapsed")
                 StorageUtil.UnsetFloatValue(encounterNPC, "Intel_FakeEncounterTime")
                 encounterNPC.MoveToMyEditorLocation()
             EndIf
@@ -2022,7 +2025,7 @@ Function CheckRoadEncounterProximity()
                 ; Lingering -- resume travel when player walks away or max linger exceeded
                 Float dist = npc.GetDistance(player)
                 Float greetTime = StorageUtil.GetFloatValue(npc, "Intel_FakeEncounterGreetTime", 0.0)
-                Float elapsed = Utility.GetCurrentRealTime() - greetTime
+                Float elapsed = AccumulateLingerElapsed(npc, "Intel_FakeEncounterGreetTime", "Intel_FakeEncounterElapsed")
                 Bool shouldResume = (dist > ENCOUNTER_RESUME_DISTANCE) || (greetTime > 0.0 && elapsed > LINGER_TIMEOUT_SECONDS) || !npc.Is3DLoaded()
                 If shouldResume
                     ; Restore destination travel (or just remove sandbox if no destination)
@@ -2037,6 +2040,7 @@ Function CheckRoadEncounterProximity()
                     npc.EvaluatePackage()
                     StorageUtil.SetIntValue(npc, "Intel_FakeEncounterInteracted", 2)
                     StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterGreetTime")
+                    StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterElapsed")
                     Core.DebugMsg("Story [encounter]: " + npc.GetDisplayName() + " resuming travel")
                 EndIf
             ; Phase 2: traveling to destination (post-linger) -- no action needed, just skip
@@ -2049,7 +2053,7 @@ EndFunction
 ; =============================================================================
 ; STORY ARRIVAL LINGER
 ; After a story NPC arrives and talks, they sandbox near the player until
-; the player walks away (>1500u) or 5 min real-time elapses.
+; the player walks away (>1500u) or 3 min unpaused time elapses.
 ; SkyrimNet follow packages do not override the sandbox while the linger is active.
 ; =============================================================================
 
@@ -2059,11 +2063,27 @@ Bool Function HasLingerNPCs()
            StorageUtil.IntListCount(player, "Intel_FakeEncounterNPCs") > 0
 EndFunction
 
+Float Function AccumulateLingerElapsed(Actor npc, String stampKey, String elapsedKey)
+    Float now = Utility.GetCurrentRealTime()
+    Float delta = now - StorageUtil.GetFloatValue(npc, stampKey, 0.0)
+    If delta < 0.0
+        delta = 0.0
+    ElseIf delta > 6.0
+        delta = 6.0
+    EndIf
+    ; ponytail: pause gaps count at most 6 s per check.
+    StorageUtil.SetFloatValue(npc, stampKey, now)
+    Float elapsed = StorageUtil.GetFloatValue(npc, elapsedKey, 0.0) + delta
+    StorageUtil.SetFloatValue(npc, elapsedKey, elapsed)
+    return elapsed
+EndFunction
+
 Function StartStoryLinger(Actor npc)
     Actor player = Game.GetPlayer()
     If StorageUtil.FormListFind(player, "Intel_StoryLingerActors", npc as Form) < 0
         StorageUtil.FormListAdd(player, "Intel_StoryLingerActors", npc as Form)
     EndIf
+    StorageUtil.SetFloatValue(npc, "Intel_StoryLingerElapsed", 0.0)
     StorageUtil.SetFloatValue(npc, "Intel_StoryLingerStart", Utility.GetCurrentRealTime())
 EndFunction
 
@@ -2156,12 +2176,12 @@ Function CheckStoryLingerCleanup()
 
             ; Real-time timeout (story-specific safety valve)
             Float lingerStart = StorageUtil.GetFloatValue(npc, "Intel_StoryLingerStart", 0.0)
-            Float elapsed = Utility.GetCurrentRealTime() - lingerStart
+            Float elapsed = AccumulateLingerElapsed(npc, "Intel_StoryLingerStart", "Intel_StoryLingerElapsed")
             Bool timedOut = lingerStart > 0.0 && elapsed > LINGER_TIMEOUT_SECONDS
             ; Grace period: don't check distance for the first 30 seconds so
             ; NPCs that start far away (e.g. rescued victims) can pathfind to the player
-            Bool shouldRelease = npc.IsPlayerTeammate() || (elapsed > 30.0 && Core.ShouldReleaseLinger(npc))
 
+            Bool shouldRelease = npc.IsPlayerTeammate() || (elapsed > 30.0 && Core.ShouldReleaseLinger(npc))
             If timedOut || shouldRelease
                 ; Clean up narration (already fired or timed out)
                 StorageUtil.UnsetStringValue(npc, "Intel_RescueNarration")
@@ -2170,6 +2190,7 @@ Function CheckStoryLingerCleanup()
                 ; post-linger kills and inject facts to the quest giver.
                 Core.ReleaseLinger(npc)
                 StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerStart")
+                StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerElapsed")
                 StorageUtil.FormListRemoveAt(player, "Intel_StoryLingerActors", i)
             EndIf
         EndIf
@@ -2257,7 +2278,6 @@ EndFunction
 
 Function TriggerRoadEncounterGreeting(Actor npc)
     {NPC noticed the player nearby -- greet and linger. Sandbox near player until
-    player walks away (>1500u) or max linger time (5 min real) exceeded.
     Destination restored by CheckRoadEncounterProximity.}
     Actor player = Game.GetPlayer()
     String narration = StorageUtil.GetStringValue(npc, "Intel_FakeEncounterNarration")
@@ -2276,7 +2296,7 @@ Function TriggerRoadEncounterGreeting(Actor npc)
     ; Mark as interacted + store time for max-linger fallback
     StorageUtil.SetIntValue(npc, "Intel_FakeEncounterInteracted", 1)
     StorageUtil.SetFloatValue(npc, "Intel_FakeEncounterGreetTime", Utility.GetCurrentRealTime())
-
+    StorageUtil.SetFloatValue(npc, "Intel_FakeEncounterElapsed", 0.0)
     Core.DebugMsg("Story [encounter]: " + npc.GetDisplayName() + " lingering near player")
 EndFunction
 
@@ -2319,6 +2339,7 @@ Function CleanupStrandedEncounters()
                 StorageUtil.UnsetIntValue(npc, "Intel_FakeEncounterInteracted")
                 StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterGreetTime")
                 npc.MoveToMyEditorLocation()
+                StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterElapsed")
                 StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterTime")
                 StorageUtil.IntListRemoveAt(player, "Intel_FakeEncounterNPCs", i)
                 Debug.Trace("[IntelEngine] StoryEngine: Returned road encounter NPC " + npc.GetDisplayName())
