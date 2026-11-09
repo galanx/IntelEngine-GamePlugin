@@ -2560,7 +2560,7 @@ Function CheckStoryNPCArrival()
     Float dist = storyNPC.GetDistance(arrivalTarget)
     ; ponytail: clamp pause gaps to 6s; shared-quest polls may run faster than MONITOR_INTERVAL.
     Cell nearCell = storyNPC.GetParentCell()
-    Bool nearPlayer = arrivalTarget == player && storyNPC.Is3DLoaded() && player.Is3DLoaded() && dist >= 0.0 && dist <= 500.0
+    Bool nearPlayer = arrivalTarget == player && storyNPC.Is3DLoaded() && player.Is3DLoaded() && dist >= 0.0 && dist <= 350.0
     nearPlayer = nearPlayer && ((nearCell != None && nearCell == player.GetParentCell()) || (storyNPC.GetWorldSpace() != None && storyNPC.GetWorldSpace() == player.GetWorldSpace()))
     If !StillOwns(storyNPC, claimedGeneration, storyType)
         return
