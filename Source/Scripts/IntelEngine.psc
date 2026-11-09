@@ -365,6 +365,7 @@ Function SetSlotOffscreenArrival(Int slot, Float arrival) Global Native
 
 ; Returns true if slot state was recovered from SKSE co-save (skip StorageUtil recovery).
 Bool Function HasCoSaveTaskData() Global Native
+Bool Function StoryLoadRecovered(Bool complete = false) Global Native
 
 ; Push C++ SlotTracker state to Papyrus arrays (reverse of SyncSlotTrackerFromArrays).
 ; Called from Maintenance when co-save data exists.
