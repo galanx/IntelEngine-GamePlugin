@@ -80,7 +80,7 @@ Function RestartMonitoring()
 
     ; Safety: if arrays still None after init attempt (shouldn't happen), bail
     If !ScheduledAgents
-        Core.DebugMsg("Schedule: arrays still None after init — skipping recount")
+        Core.DebugMsg("Schedule: arrays still None after init - skipping recount")
         ScheduledCount = 0
         RegisterForNextDispatch()
         return

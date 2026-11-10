@@ -385,7 +385,7 @@ Function SaveTaskToHistory(Actor akAgent, String taskType, String target, String
 
     ; Skip cancelled tasks — they shouldn't appear in history
     If result == "cancelled"
-        DebugMsg(akAgent.GetDisplayName() + " task cancelled — skipping history")
+        DebugMsg(akAgent.GetDisplayName() + " task cancelled - skipping history")
         Return
     EndIf
 
@@ -1366,7 +1366,7 @@ Int Function CheckDepartureProgress(Int slot, Actor agent, Float threshold)
 
     If status == 2
         ; Soft recovery — nudge AI packages to get NPC moving
-        DebugMsg(agent.GetDisplayName() + " hasn't departed — nudging package evaluation")
+        DebugMsg(agent.GetDisplayName() + " hasn't departed - nudging package evaluation")
         agent.EvaluatePackage()
 
         ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
@@ -1414,7 +1414,7 @@ Function RecoverActiveTasks()
                     Else
                         ; No saved deadline — set a fresh one so the task can't stall forever
                         SlotDeadlines[i] = Utility.GetCurrentGameTime() + (6.0 / 24.0)
-                        DebugMsg("No saved deadline for slot " + i + " — set fallback 6h from now")
+                        DebugMsg("No saved deadline for slot " + i + " - set fallback 6h from now")
                     EndIf
 
                     ; Re-init off-screen tracker from persisted arrival estimate
@@ -1918,7 +1918,7 @@ Bool Function TryWaypointNavigation(Int slot, Actor npc, ObjectReference dest)
     If currentWP == waypoint
         ; Already tried walking to this waypoint and still stuck —
         ; teleport to it (short hop to known-good navmesh position)
-        DebugMsg(npc.GetDisplayName() + " stuck at waypoint — teleporting to it")
+        DebugMsg(npc.GetDisplayName() + " stuck at waypoint - teleporting to it")
         npc.MoveTo(waypoint, 0.0, 0.0, 50.0)
         StorageUtil.UnsetFormValue(npc, "Intel_CurrentWaypoint")
         PO3_SKSEFunctions.SetLinkedRef(npc, dest, IntelEngine_TravelTarget)
@@ -2024,9 +2024,9 @@ Event OnAutoBioUpdate(String eventName, String strArg, Float numArg, Form sender
     DebugMsg("Auto Bio Update: " + npc.GetDisplayName())
     String result = SkyrimNetApi.UpdateActorDynamicBio(npc)
     If result != ""
-        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " — " + result)
+        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " - " + result)
     Else
-        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " — failed or no changes")
+        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " - failed or no changes")
     EndIf
 EndEvent
 
@@ -2513,7 +2513,7 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
         EndIf
     EndIf
 
-    DebugMsg("Director: NPC Social " + socialType + " — " + npc1Name + " -> " + npc2Name + ": " + narration)
+    DebugMsg("Director: NPC Social " + socialType + " - " + npc1Name + " -> " + npc2Name + ": " + narration)
 
     String fact1 = ""
     String fact2 = ""
@@ -2522,11 +2522,11 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
         fact1 = StoryEngine.ExtractJsonField(response, "fact1")
         fact2 = StoryEngine.ExtractJsonField(response, "fact2")
         StoryEngine.AddNPCSocialLog("npc_interaction", npc1Name, npc2Name, narration, npc1)
-        StoryEngine.AddRecentStoryEvent("npc_interaction: " + npc1Name + " and " + npc2Name + " — " + narration)
+        StoryEngine.AddRecentStoryEvent("npc_interaction: " + npc1Name + " and " + npc2Name + " - " + narration)
     ElseIf socialType == "npc_gossip"
         gossip = StoryEngine.ExtractJsonField(response, "gossip")
         StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, narration, npc1)
-        StoryEngine.AddRecentStoryEvent("npc_gossip: " + npc1Name + " told " + npc2Name + " — " + narration)
+        StoryEngine.AddRecentStoryEvent("npc_gossip: " + npc1Name + " told " + npc2Name + " - " + narration)
     EndIf
 
     ; Dispatch physical travel for face-to-face when NPCs are close enough.
@@ -2537,7 +2537,7 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     Else
         ; Existing off-screen Director outcome: no travel is needed.
         StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
-        DebugMsg("Director: NPCs too far apart or already close — applied off-screen")
+        DebugMsg("Director: NPCs too far apart or already close - applied off-screen")
     EndIf
     If ok
         NotifyPlayer(npc1Name + " and " + npc2Name + ": " + IntelEngine.FriendlyKey(socialType) + " started.")
@@ -2552,7 +2552,7 @@ EndEvent
 Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg, Form sender)
     ; strArg = fake Political DM response JSON (built by C++ from UI fields)
     ; Feed it directly to ProcessPoliticalDMResponse — same path as a real DM response
-    DebugMsg("Director: Political event received — eventName=" + eventName + " strArg length=" + StringUtil.GetLength(strArg))
+    DebugMsg("Director: Political event received - eventName=" + eventName + " strArg length=" + StringUtil.GetLength(strArg))
     If Politics
         DebugMsg("Director: Forwarding to Politics.OnPoliticalDMResponse")
         ; Director bypasses manifestation cooldown — player is manually triggering events
