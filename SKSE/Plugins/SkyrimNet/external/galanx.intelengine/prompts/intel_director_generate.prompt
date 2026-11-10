@@ -29,6 +29,8 @@ options={{ options }}
 - `currentLocation` is where the scene is now. Destinations must be somewhere else: never `currentLocation` or a place inside it. (Actors still come from `options.npcs`.)
 - Selects use only their listed options.
 - Story narration is a third-person, past-tense verb phrase without a subject prefix; include who and why, refer to the player as {{ playerName }} (never "the player", "you", "your" or "I"), and stay under 120 characters. Never describe a scene: no appearance, staging or raised weapons. Follow `schema.narration.hint` and the chosen variant's field hints.
+- Narration must not start with an NPC name other than the chosen `npcName`; a later mention is allowed.
+- For an informant, use a subject-less phrase such as `heard from Narfi about Brynjolf's wild night in Ivarstead and came to tell {{ playerName }}`.
 - Ambush narration describes the chosen NPC's own motive (for example, `set out to settle a feud with Prisoner over stolen goods`), never starts with "A hostile NPC" or "An NPC", and never restates the type hint.
 - Keep text concise and lore-consistent.
 
