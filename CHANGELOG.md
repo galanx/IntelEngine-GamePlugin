@@ -1,12 +1,31 @@
 # Changelog
 
-## Unreleased — Political Engine bridge (offline verified only)
+## 3.8.0 — unreleased
 
-- Read optional API v3 public territory, campaign, ruler and initiative news without load replay.
-- Give the Political DM authoritative current-owner sides and one next-tick organization reaction per development.
-- Add a default-on persisted MCM/dashboard reaction-delta toggle and a provider detection indicator.
-- Keep IE wars/battles independent; PE ranks, offices and reputation remain in PE's own NPC bio.
-- Paired DLL, scripts, prompts, settings template and both dashboard hosts are staged; game behavior remains unverified.
+### Director
+- Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "Skip follower" setting still applies).
+- Story replacement accepts Director fields and explains refusals; a cancelling story must finish before it is replaced.
+- Generate requires real NPC names and no longer makes another NPC approach you in informant narration; NPC suggestions rank exact names first.
+- When an NPC can't be sent because they aren't loaded (they only exist near their home), the Director now says so instead of "no unique match".
+- The dashboard hotkey is ignored while you type in a text field.
+
+### Story travel and arrival
+- A story NPC counts as arrived after 15 seconds within talking range.
+- Arrival timers use real time; a late NPC is re-placed once behind the target, then the story aborts with a notice.
+- Story arrival waits until save-load recovery finishes. Director stories ignore the Hold Restriction; automatic stories still turn back and say why.
+- Story NPCs who become your teammate are released from linger; linger timeouts survive pausing.
+
+### Off-screen placement and fetch
+- NPCs travelling while unloaded are now placed near the target when their estimated travel time runs out (they used to walk on indefinitely).
+- A fetched NPC walking toward you is no longer sent home early, and one already beside you is no longer teleported away across an exterior cell boundary.
+
+### Other
+- Soft stuck recovery no longer waits on latent calls; stuck detection samples at most every three seconds.
+- Informant gossip keeps the subject's name.
+- Notifications and Papyrus log lines use plain dashes (em dashes showed as "â€”").
+- Optional Political Engine API v3 bridge: public campaign news reaches the Political DM as faction-less rumors, with one organization reaction per development and a persisted MCM/dashboard toggle for reaction relation changes. IE's own wars and battles are unaffected.
+- Action and scheduling prompts ask for exact in-game place names in the game's language.
+- Extra travel and Director diagnostics at DebugLevel 4.
 
 ## 3.7.1 — 2026-11-04
 
