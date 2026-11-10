@@ -189,7 +189,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     If !isScheduled
         String currentTaskType = Core.GetNPCTaskType(akNPC)
         If currentTaskType == "fetch_npc" || currentTaskType == "escort_target" || currentTaskType == "search_for_actor"
-            Core.DebugMsg("GoToLocation: Blocked — " + akNPC.GetDisplayName() + " is busy with " + currentTaskType)
+            Core.DebugMsg("GoToLocation: Blocked - " + akNPC.GetDisplayName() + " is busy with " + currentTaskType)
             Return false
         EndIf
     EndIf
@@ -372,7 +372,7 @@ Function CheckTravelSlot(Int slot)
                         If hoursLate > 6.0
                             String npcName2 = npc.GetDisplayName()
                             String meetDest = StorageUtil.GetStringValue(npc, "Intel_MeetingDest")
-                            Core.DebugMsg(npcName2 + " is " + hoursLate + "h late for meeting — cancelling")
+                            Core.DebugMsg(npcName2 + " is " + hoursLate + "h late for meeting - cancelling")
                             Core.StoreMeetingOutcome(npc, "npc_late", meetDest)
                             Core.NotifyPlayer(npcName2 + " never made it to the meeting at " + meetDest)
                             Core.ClearSlotRestoreFollower(slot, npc)
@@ -383,7 +383,7 @@ Function CheckTravelSlot(Int slot)
                         EndIf
                     EndIf
                 EndIf
-                Core.DebugMsg("Travel timeout (" + elapsedHours + "h) for " + npc.GetDisplayName() + " — force-arriving")
+                Core.DebugMsg("Travel timeout (" + elapsedHours + "h) for " + npc.GetDisplayName() + " - force-arriving")
                 Core.NotifyPlayer(npc.GetDisplayName() + " took too long - teleporting to destination")
                 ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
                 If dest != None
@@ -743,7 +743,7 @@ Function CheckWaiting(Int slot, Actor npc)
         ; Log once per NPC so we know if waitForPlayer=0 is the reason approach/narration doesn't fire
         If StorageUtil.GetIntValue(npc, "Intel_SelfMotivatedLogged") != 1
             StorageUtil.SetIntValue(npc, "Intel_SelfMotivatedLogged", 1)
-            Core.DebugMsg(npc.GetDisplayName() + " at destination (self-motivated, waitForPlayer=0) — no approach/narration")
+            Core.DebugMsg(npc.GetDisplayName() + " at destination (self-motivated, waitForPlayer=0) - no approach/narration")
         EndIf
     EndIf
     If isWaitingForPlayer
@@ -1068,7 +1068,7 @@ Function HandleLeapfrogRecovery(Int slot, Actor npc, ObjectReference dest)
 
     If totalDist <= leapDist + Core.ARRIVAL_DISTANCE
         ; Close enough — teleport directly and arrive
-        Core.DebugMsg("Stuck recovery: " + npc.GetDisplayName() + " close enough (" + totalDist + "u) — teleporting to dest")
+        Core.DebugMsg("Stuck recovery: " + npc.GetDisplayName() + " close enough (" + totalDist + "u) - teleporting to dest")
         Core.NotifyPlayer(npc.GetDisplayName() + " arrived (teleported)")
         npc.MoveTo(dest, 0.0, 0.0, 50.0)
         npc.EvaluatePackage()
@@ -1139,7 +1139,7 @@ Function HandleMeetingDepartureFailure(Int slot, Actor npc)
         ; Player isn't looking — teleport silently to destination
         ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
         If dest != None
-            Core.DebugMsg(npcName + " failed to depart for meeting (off-screen) — teleporting to destination")
+            Core.DebugMsg(npcName + " failed to depart for meeting (off-screen) - teleporting to destination")
             npc.MoveTo(dest, 0.0, 0.0, 50.0)
             npc.EvaluatePackage()
             OnArrival(slot, npc)
@@ -1148,7 +1148,7 @@ Function HandleMeetingDepartureFailure(Int slot, Actor npc)
     EndIf
 
     ; Player is watching — narrate failure in past tense
-    Core.DebugMsg(npcName + " failed to depart for meeting (visible) — narrating failure")
+    Core.DebugMsg(npcName + " failed to depart for meeting (visible) - narrating failure")
     String meetDest = StorageUtil.GetStringValue(npc, "Intel_MeetingDest")
     If meetDest == ""
         meetDest = Core.SlotTargetNames[slot]
@@ -1237,13 +1237,13 @@ Function CheckMeetingApproach(Int slot, Actor npc)
     ; Stuck while approaching player
     If !npc.Is3DLoaded()
         ; Not visible — teleport behind player
-        Core.DebugMsg(npc.GetDisplayName() + " stuck approaching player (off-screen) — teleporting behind")
+        Core.DebugMsg(npc.GetDisplayName() + " stuck approaching player (off-screen) - teleporting behind")
         Core.TeleportBehindPlayer(npc)
         StopApproachingPlayer(npc)
         OnPlayerArrived(slot, npc)
     Else
         ; Visible — soft recovery: nudge + PathToReference
-        Core.DebugMsg(npc.GetDisplayName() + " stuck approaching player (visible) — nudging")
+        Core.DebugMsg(npc.GetDisplayName() + " stuck approaching player (visible) - nudging")
 
         ; Narrate once so NPC can react to being stuck near the player
         If StorageUtil.GetIntValue(npc, "Intel_ApproachStuckNarrated") != 1

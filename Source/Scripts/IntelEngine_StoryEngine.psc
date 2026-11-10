@@ -232,7 +232,7 @@ Function StartScheduler()
     EndIf
     If IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive
         RegisterForSingleUpdate(MONITOR_INTERVAL)
-        Core.DebugMsg("Story: StartScheduler — real-time mode (active=" + IsActive + " npcStory=" + IsNPCStoryActive + " quest=" + QuestActive + ")")
+        Core.DebugMsg("Story: StartScheduler - real-time mode (active=" + IsActive + " npcStory=" + IsNPCStoryActive + " quest=" + QuestActive + ")")
     Else
         ; Game-time timer: fires instantly during Wait/Sleep.
         ; Use the SHORTEST interval across all systems (Story, NPC, Politics)
@@ -259,7 +259,7 @@ Function StartScheduler()
         RegisterForSingleUpdateGameTime(interval)
         ; Real-time backup: ensures tick fires even at low timescales (timescale 2-6).
         RegisterForSingleUpdate(IDLE_POLL_INTERVAL)
-        Core.DebugMsg("Story: StartScheduler — game-time mode (interval=" + interval + "h = min of story=" + storyInterval + " npc=" + npcInterval + " politics=" + politicsInterval + ")")
+        Core.DebugMsg("Story: StartScheduler - game-time mode (interval=" + interval + "h = min of story=" + storyInterval + " npc=" + npcInterval + " politics=" + politicsInterval + ")")
     EndIf
 EndFunction
 
@@ -426,7 +426,7 @@ Function RestartMonitoring()
     ; If QuestBattleScheduled persists but the battle system was wiped, fail the quest cleanly.
     If QuestActive && QuestBattleScheduled
         If Core.Battle == None || (!Core.Battle.BattleScheduled && !IntelEngine.IsBattleActive())
-            Core.DebugMsg("Story: faction_battle quest — battle schedule lost on load, granting partial credit")
+            Core.DebugMsg("Story: faction_battle quest - battle schedule lost on load, granting partial credit")
             Debug.Notification("The fighting has ended before you arrived.")
             ; Partial standing for willingness to fight
             If QuestAlliedFaction != ""
@@ -592,7 +592,7 @@ Event OnUpdate()
     Float intervalDays = minInterval / 24.0
     Float sinceLastTick = now - LastIdlePollTickTime
     If sinceLastTick >= intervalDays
-        Core.DebugMsg("Story: OnUpdate idle-poll — triggering TickScheduler (elapsed=" + (sinceLastTick * 24.0) + "h, threshold=" + minInterval + "h)")
+        Core.DebugMsg("Story: OnUpdate idle-poll - triggering TickScheduler (elapsed=" + (sinceLastTick * 24.0) + "h, threshold=" + minInterval + "h)")
         LastIdlePollTickTime = now
         TickScheduler()
     EndIf
@@ -601,9 +601,9 @@ Event OnUpdate()
     ; (needsRealTime was true at the top but everything got cleaned up during processing),
     ; ensure game-time scheduling is alive.
     If needsRealTime && !IsActive && !IsNPCStoryActive && !HasLingerNPCs() && !QuestActive && !FactionAmbushActive
-        Core.DebugMsg("Story: OnUpdate — transitioning real-time to game-time (all flags cleared). Calling StartScheduler.")
+        Core.DebugMsg("Story: OnUpdate - transitioning real-time to game-time (all flags cleared). Calling StartScheduler.")
         StartScheduler()
-        Core.DebugMsg("Story: OnUpdate — StartScheduler returned after transition")
+        Core.DebugMsg("Story: OnUpdate - StartScheduler returned after transition")
     EndIf
 EndEvent
 
@@ -613,10 +613,10 @@ EndEvent
 
 Function TickScheduler()
     If Core == None
-        Debug.Trace("[IntelEngine] TickScheduler: Core is None — aborting")
+        Debug.Trace("[IntelEngine] TickScheduler: Core is None - aborting")
         return
     EndIf
-    Core.DebugMsg("Story: TickScheduler — running (IsActive=" + IsActive + ", storyEnabled=" + Core.IsStoryEngineEnabled() + ")")
+    Core.DebugMsg("Story: TickScheduler - running (IsActive=" + IsActive + ", storyEnabled=" + Core.IsStoryEngineEnabled() + ")")
 
     ; Save migration: old saves have separate Bool properties, migrate to Int policy
     If DangerZonePolicy == 0 && (BlockCiviliansInDanger || BlockAllInDanger)
@@ -665,11 +665,11 @@ Function TickScheduler()
 
     ; Story interval reached — update timestamp BEFORE processing (prevents re-entry)
     LastStoryTickTime = Utility.GetCurrentGameTime()
-    Core.DebugMsg("Story: TickScheduler — story interval reached (" + storyElapsed + "h >= " + storyInterval + "h)")
+    Core.DebugMsg("Story: TickScheduler - story interval reached (" + storyElapsed + "h >= " + storyInterval + "h)")
 
     ; --- Player-centric Story DM tick (only if enabled) ---
     If !Core.IsStoryEngineEnabled()
-        Core.DebugMsg("Story: TickScheduler — story engine disabled, skipping DM call")
+        Core.DebugMsg("Story: TickScheduler - story engine disabled, skipping DM call")
         return
     EndIf
 
@@ -693,7 +693,7 @@ Function TickScheduler()
         If !player.IsInCombat()
             String excludeList = BuildExcludeList(player)
             If AllStoryTypesExcluded(excludeList)
-                Core.DebugMsg("Story: TickScheduler — all player-facing types excluded, skipping DM call")
+                Core.DebugMsg("Story: TickScheduler - all player-facing types excluded, skipping DM call")
                 return
             EndIf
 
@@ -1609,14 +1609,14 @@ Function OnDungeonMasterResponse(String response, Int success)
         ;   - "quest" is exempt: courier/sender logic in HandleQuestDispatch handles this
         ; Block: seek_player, informant, road_encounter, ambush, stalker
         If IntelEngine.IsHighStatusNPC(npc) && storyType != "message" && storyType != "quest"
-            Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " is high-status — rejected (should use courier mode)")
+            Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " is high-status - rejected (should use courier mode)")
             IntelEngine.MarkLastDispatchFailed("high-status NPC cannot physically travel")
             return
         EndIf
         ; Hold restriction enforcement — the LLM may ignore the Eligible line.
         ; Server-side reject if the NPC doesn't pass hold restriction for this type.
         If !IntelEngine.CheckHoldRestriction(npc, storyType)
-            Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " rejected — hold restriction for " + storyType)
+            Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " rejected - hold restriction for " + storyType)
             IntelEngine.MarkLastDispatchFailed("hold restriction")
             return
         EndIf
@@ -2266,7 +2266,7 @@ Function CheckRescuedNPCDeaths()
                     ; Unknown killer (engine didn't track it)
                     Core.InjectFact(rescueGiver, "learned that " + victimName + " died shortly after being rescued")
                 EndIf
-                Core.DebugMsg("Story [quest/rescue]: " + victimName + " killed post-rescue (killer=" + killer + ") — fact injected to " + rescueGiver.GetDisplayName())
+                Core.DebugMsg("Story [quest/rescue]: " + victimName + " killed post-rescue (killer=" + killer + ") - fact injected to " + rescueGiver.GetDisplayName())
             EndIf
             ; Clean up all rescue metadata
             StorageUtil.UnsetFormValue(npc, "Intel_RescueQuestGiver")
@@ -2735,7 +2735,7 @@ Function CheckStoryNPCArrival()
     ; re-teleport every 3s. Fix: teleport + force-arrive in one step.
     Float taskStart = StorageUtil.GetFloatValue(storyNPC, "Intel_TaskStartTime", 0.0)
     If taskStart > 0.0 && (Utility.GetCurrentGameTime() - taskStart) > MaxTravelDaysConfig
-        Debug.Trace("[IntelEngine] StoryEngine: Travel timeout for " + storyNPC.GetDisplayName() + " — force-arriving")
+        Debug.Trace("[IntelEngine] StoryEngine: Travel timeout for " + storyNPC.GetDisplayName() + " - force-arriving")
         If (AllowStuckTeleport) && StillOwns(storyNPC, claimedGeneration, storyType)
             ImmersiveTeleportToTarget(storyNPC, arrivalTarget)
             If !StillOwns(storyNPC, claimedGeneration, storyType)
@@ -3360,7 +3360,7 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     Actor departureNPC = npc
     String departureFact = ""
     If npc != None && !fromDirector && !IntelEngine.NPCKnowsPlayer(npc)
-        departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " personally — approaching a stranger, should introduce themselves and confirm identity"
+        departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " personally - approaching a stranger, should introduce themselves and confirm identity"
     EndIf
 
     ; Jarls never travel personally — reject DIRECT mode (sender empty = npc IS the quest giver)
@@ -3445,7 +3445,7 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
         Core.DebugMsg("Story DM: quest/" + questSubTypeStr + " -- faction member " + npc.GetDisplayName() + " selected for " + alliedFaction)
         departureNPC = npc
         If !IntelEngine.NPCKnowsPlayer(npc)
-            departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " before — was given a physical description and told to look for them. Should introduce themselves and confirm identity before delivering the message."
+            departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " before - was given a physical description and told to look for them. Should introduce themselves and confirm identity before delivering the message."
         EndIf
     EndIf
 
@@ -3455,7 +3455,7 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
         return
     EndIf
     If IntelEngine.IsLocationNonCombative(questDest)
-        Core.DebugMsg("Story DM: quest location '" + questLocationStr + "' is non-combative (temple/castle/guild) — rejecting")
+        Core.DebugMsg("Story DM: quest location '" + questLocationStr + "' is non-combative (temple/castle/guild) - rejecting")
         return
     EndIf
 
@@ -3939,7 +3939,7 @@ Function PrePlaceQuestTargets()
 
     ObjectReference bossAnchor = IntelEngine.GetDungeonBossAnchor(QuestLocationName)
     If bossAnchor == None
-        Core.DebugMsg("Story [quest/" + QuestSubType + "]: no dungeon boss anchor for '" + QuestLocationName + "' — using deferred spawn")
+        Core.DebugMsg("Story [quest/" + QuestSubType + "]: no dungeon boss anchor for '" + QuestLocationName + "' - using deferred spawn")
         return
     EndIf
 
@@ -4047,9 +4047,9 @@ Function CheckQuestProximity()
             EndIf
             If bossLoaded || targetNearby
                 If targetNearby && !bossLoaded
-                    Core.DebugMsg("Story [quest]: pre-placed target nearby but boss anchor not loaded — safety spawn")
+                    Core.DebugMsg("Story [quest]: pre-placed target nearby but boss anchor not loaded - safety spawn")
                 Else
-                    Core.DebugMsg("Story [quest]: boss room cell loaded — spawning enemies/chest at anchor")
+                    Core.DebugMsg("Story [quest]: boss room cell loaded - spawning enemies/chest at anchor")
                 EndIf
                 ; Use pre-placed target as spawn point if anchor isn't loaded
                 ObjectReference spawnPoint = QuestBossAnchor
@@ -4177,7 +4177,7 @@ Function CheckQuestProximity()
                     atQuestArea = true
                     Core.DebugMsg("Story [quest]: BGSLocation spawn fallback triggered (dist=" + locDist + ")")
                 Else
-                    Core.DebugMsg("Story [quest]: BGSLocation match but too far (" + locDist + " units) — waiting")
+                    Core.DebugMsg("Story [quest]: BGSLocation match but too far (" + locDist + " units) - waiting")
                 EndIf
             EndIf
         EndIf
@@ -4198,27 +4198,27 @@ Function CheckQuestProximity()
             ; If QuestLocation Is3DLoaded, the player is near the entrance — trust it.
             If QuestLocation.Is3DLoaded()
                 atQuestArea = true
-                Core.DebugMsg("Story [quest]: deferred interior entry — quest exterior still loaded (player near entrance)")
+                Core.DebugMsg("Story [quest]: deferred interior entry - quest exterior still loaded (player near entrance)")
             Else
                 ; Exterior unloaded but check if IsPlayerInDangerousLocation matches
                 ; the quest location's BGSLocation hierarchy
                 Location questLoc = QuestLocation.GetCurrentLocation()
                 If questLoc != None && player.IsInLocation(questLoc)
                     atQuestArea = true
-                    Core.DebugMsg("Story [quest]: deferred interior entry — BGSLocation match")
+                    Core.DebugMsg("Story [quest]: deferred interior entry - BGSLocation match")
                 Else
                     ; Last resort: the player entered SOME dungeon while deferred was set.
                     ; We can't reliably verify it's the quest dungeon without coordinate math.
                     ; Be conservative: do NOT spawn. The dungeon scan path (lines below)
                     ; will handle it once they go deeper and ScanAheadForAnchor finds something.
-                    Core.DebugMsg("Story [quest]: deferred interior but can't verify quest dungeon — waiting for scan")
+                    Core.DebugMsg("Story [quest]: deferred interior but can't verify quest dungeon - waiting for scan")
                 EndIf
             EndIf
         EndIf
         If atQuestArea
             ; faction_battle: trigger battle system instead of spawning enemies
             If QuestSubType == "faction_battle" && QuestAlliedFaction != "" && !QuestBattleScheduled
-                Core.DebugMsg("Story [quest/faction_battle]: player arrived at " + QuestLocationName + " — triggering battle")
+                Core.DebugMsg("Story [quest/faction_battle]: player arrived at " + QuestLocationName + " - triggering battle")
                 ; Use the validated enemy from dispatch (not re-derived) — prevents DM's choice being overridden
                 String enemyFaction = QuestBattleEnemyFaction
                 If enemyFaction == ""
@@ -4247,7 +4247,7 @@ Function CheckQuestProximity()
                             CleanupQuest()
                             return
                         EndIf
-                        Core.DebugMsg("Story [quest/faction_battle]: battle started — " + QuestAlliedFaction + " vs " + enemyFaction)
+                        Core.DebugMsg("Story [quest/faction_battle]: battle started - " + QuestAlliedFaction + " vs " + enemyFaction)
                     Else
                         Core.DebugMsg("Story [quest/faction_battle]: battle system busy, granting partial credit")
                         Debug.Notification("The fighting is already underway elsewhere.")
@@ -4385,7 +4385,7 @@ Function CheckQuestProximity()
                     QuestDungeonScanFails += 1
                     If QuestDungeonDepth >= 3 || QuestDungeonScanFails >= 5
                         ; Enough attempts — spawn near player as last resort
-                        Core.DebugMsg("Story [quest]: no anchors found (depth=" + QuestDungeonDepth + ", scans=" + QuestDungeonScanFails + ") — using fallback spawn")
+                        Core.DebugMsg("Story [quest]: no anchors found (depth=" + QuestDungeonDepth + ", scans=" + QuestDungeonScanFails + ") - using fallback spawn")
                         SpawnQuestEnemies()
                     EndIf
                 EndIf
@@ -4471,7 +4471,7 @@ Function CheckQuestProximity()
 
             ; === Completion checks ===
             If QuestVictimNPC != None && QuestVictimNPC.IsDead()
-                Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimName + " died — quest failed")
+                Core.DebugMsg("Story [quest/rescue]: victim " + QuestVictimName + " died - quest failed")
                 OnQuestFailed()
             ElseIf AreAllQuestEnemiesDead() && IsAreaClearOfHostiles()
                 ; Auto-complete: all quest enemies dead + area clear
@@ -4750,7 +4750,7 @@ Function OnQuestComplete()
     If QuestSubType == "rescue"
         ; Double-check victim is alive — IsDead() can lag behind bleedout/kill-cam
         If QuestVictimNPC != None && QuestVictimNPC.IsDead()
-            Core.DebugMsg("Story [quest/rescue]: victim died before completion could finalize — redirecting to failed")
+            Core.DebugMsg("Story [quest/rescue]: victim died before completion could finalize - redirecting to failed")
             OnQuestFailed()
             return
         EndIf
@@ -4767,7 +4767,7 @@ Function OnQuestComplete()
                 StorageUtil.SetStringValue(QuestVictimNPC, "Intel_RescueNarration", "was just freed from " + QuestEnemyType + " captivity by a stranger whose name they don't know")
             ElseIf victimAwareness == 1
                 ; Seen before — witnessed the player nearby but never directly interacted
-                Core.InjectFact(QuestVictimNPC, "was rescued by " + playerName + " from " + QuestEnemyType + " captivity at " + QuestLocationName + ". I recognized them — I'd seen them around before but we had never actually spoken")
+                Core.InjectFact(QuestVictimNPC, "was rescued by " + playerName + " from " + QuestEnemyType + " captivity at " + QuestLocationName + ". I recognized them - I'd seen them around before but we had never actually spoken")
                 StorageUtil.SetStringValue(QuestVictimNPC, "Intel_RescueNarration", "was just freed from " + QuestEnemyType + " captivity by " + playerName + ", someone they recognized from around town but had never spoken to before")
             Else
                 ; Acquainted — has direct dialogue history
@@ -4887,7 +4887,7 @@ Function OnQuestComplete()
 EndFunction
 
 Function OnQuestFailed()
-    Core.DebugMsg("Story [quest/" + QuestSubType + "]: Failed at " + QuestLocationName + " — victim died")
+    Core.DebugMsg("Story [quest/" + QuestSubType + "]: Failed at " + QuestLocationName + " - victim died")
 
     String playerName = Game.GetPlayer().GetDisplayName()
 
@@ -5092,7 +5092,7 @@ Function CleanupQuest()
     If !courierWasPending
         AddRecentStoryEvent(eventText)
     EndIf
-    Core.DebugMsg("Story [quest]: CleanupQuest done — QuestActive=" + QuestActive + " IsActive=" + IsActive + " IsNPCStoryActive=" + IsNPCStoryActive + " HasLingerNPCs=" + HasLingerNPCs())
+    Core.DebugMsg("Story [quest]: CleanupQuest done - QuestActive=" + QuestActive + " IsActive=" + IsActive + " IsNPCStoryActive=" + IsNPCStoryActive + " HasLingerNPCs=" + HasLingerNPCs())
 EndFunction
 
 ; =============================================================================
@@ -5255,7 +5255,7 @@ Function CleanupStoryDispatch()
         If QuestActive
             ; Notify quest giver that the quest fell through (courier aborted, stuck, etc.)
             If !QuestCourierPending && QuestGiver != None && QuestEnemyType != "" && QuestLocationName != ""
-                Core.InjectFact(QuestGiver, "never heard back about the " + QuestEnemyType + " threat at " + QuestLocationName + " — the request seems to have fallen through")
+                Core.InjectFact(QuestGiver, "never heard back about the " + QuestEnemyType + " threat at " + QuestLocationName + " - the request seems to have fallen through")
             EndIf
             CleanupQuest()
         EndIf
@@ -5425,7 +5425,7 @@ String Function BuildFactionQuestNarration(String factionName, String questLocat
     ElseIf variant == 1
         return "arrived bearing a warning from the " + factionName + " concerning " + questLocation
     ElseIf variant == 2
-        return "brought word of trouble brewing at " + questLocation + " — the " + factionName + " need help"
+        return "brought word of trouble brewing at " + questLocation + " - the " + factionName + " need help"
     Else
         return "rushed over with grim news from the " + factionName + " about " + questLocation
     EndIf
