@@ -291,7 +291,7 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     String npcName = akNPC.GetDisplayName()
     String timePreview = GetPreciseTimeDescription(targetHour)
     String promptText = npcName + " wants to " + taskDescription + " " + timePreview + "."
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, promptText, scheduleActionName)
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, promptText, scheduleActionName, taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule that.")
         Core.InjectFact(akNPC, "invited " + Game.GetPlayer().GetDisplayName() + " to " + taskDescription + " but was turned down")

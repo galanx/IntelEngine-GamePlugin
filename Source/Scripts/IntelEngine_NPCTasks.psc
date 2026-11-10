@@ -366,7 +366,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to go fetch " + targetName + ".", "FetchPerson")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to go fetch " + targetName + ".", "FetchPerson", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to go fetch " + targetName + ".")
         Return false
@@ -550,7 +550,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to deliver a message to " + targetName + ".", "DeliverMessage")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to deliver a message to " + targetName + ".", "DeliverMessage", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to deliver the message.")
         Return false
@@ -707,7 +707,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to help search for " + targetName + ".", "SearchForActor")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to help search for " + targetName + ".", "SearchForActor", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to search for " + targetName + ".")
         Return false
@@ -854,7 +854,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to escort " + targetName + " to " + destLabel + ".", "EscortTarget")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to escort " + targetName + " to " + destLabel + ".", "EscortTarget", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to escort " + targetName + ".")
         Return false

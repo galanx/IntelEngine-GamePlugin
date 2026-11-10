@@ -1090,7 +1090,7 @@ Int Function ShowTaskConfirmation(Actor npc, String promptText)
     return ShowTaskConfirmationForAction(npc, promptText, "")
 EndFunction
 
-Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String actionName)
+Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String actionName, String taskOrigin = "")
     {Per-action confirmation prompt. Returns: 0=allow, 1=deny (narrate), 2=deny silent.
     Mode per action: 0=disabled, 1=followers only, 2=everyone.}
 
@@ -1118,6 +1118,10 @@ Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String 
             DebugMsg("Skipping " + actionName + " for follower " + npc.GetDisplayName())
             Return 2  ; deny silent
         EndIf
+    EndIf
+
+    If taskOrigin == "Director"
+        Return 0  ; Director-dispatched actions skip the confirmation prompt
     EndIf
 
     Int mode = 0

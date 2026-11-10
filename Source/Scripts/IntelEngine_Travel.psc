@@ -196,7 +196,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
 
     ; MCM task confirmation prompt (skip for scheduled meetings - player already agreed)
     If !isScheduled
-        Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, akNPC.GetDisplayName() + " wants to travel to " + destination + ".", "GoToLocation")
+        Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, akNPC.GetDisplayName() + " wants to travel to " + destination + ".", "GoToLocation", taskOrigin)
         If confirmResult == 1
             Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + akNPC.GetDisplayName() + " they cannot go to " + destination + ".")
             Return false
