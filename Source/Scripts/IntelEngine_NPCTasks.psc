@@ -1313,7 +1313,7 @@ Function CheckArrivalAtTarget(Int slot, Actor agent, Actor target)
     ; cell can be 4000+ units apart. Let HandleOffScreenTravel estimate arrival.
     Cell agentCell = agent.GetParentCell()
     If agentCell != None && agentCell.IsInterior() && agentCell == target.GetParentCell()
-        Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName() + "'s cell (off-screen)")
+        Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " reached target cell " + IntelEngine.DescribeDistance(agent, target))
         OnArrivedAtTarget(slot, agent, target)
         Return
     EndIf
@@ -1334,7 +1334,7 @@ Function OnArrivedAtTarget(Int slot, Actor agent, Actor target)
         Return
     EndIf
 
-    Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName())
+    Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " reached " + target.GetDisplayName() + " " + IntelEngine.DescribeDistance(agent, target))
 
     ; Remove travel package, apply sandbox near target to hold agent in place
     ; during interaction. Without this, NPCs with schedule AI (innkeepers, etc.)
@@ -1553,7 +1553,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
         EndIf
 
         If targetAtPlayer
-            Core.DebugMsg(target.GetDisplayName() + " reached player — completing fetch")
+            Core.DebugMsg("[diag:arrival] " + target.GetDisplayName() + " reached player -- completing fetch " + IntelEngine.DescribeDistance(target, player))
             OnReturnedWithTarget(slot, agent, target)
             Return
         EndIf
@@ -1607,7 +1607,9 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
                         Core.DebugMsg("Target soft recovery (cycle " + waitCycles + ")")
                         target.EvaluatePackage()
                         ObjectReference playerRef = returnMarker
+                        Core.DebugMsg("[diag:path] start " + target.GetDisplayName() + " slot=" + slot + " site=CheckReturnArrival")
                         target.PathToReference(playerRef, 1.0)
+                        Core.DebugMsg("[diag:path] end " + target.GetDisplayName() + " slot=" + slot + " site=CheckReturnArrival")
                         target.EvaluatePackage()
                     EndIf
 
@@ -1643,7 +1645,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
 
     ; Same cell off-screen — failure returns can complete immediately
     If !waitForTarget || target == None
-        Core.DebugMsg(agent.GetDisplayName() + " returned to destination cell (off-screen)")
+        Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " returned to destination cell " + IntelEngine.DescribeDistance(agent, returnMarker))
         OnReturnedWithTarget(slot, agent, target)
         Return
     EndIf
@@ -1653,7 +1655,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
 
     ; Close enough off-screen? Complete.
     If dist <= IntelEngine.GetArrivalThreshold(agent, returnMarker)
-        Core.DebugMsg(agent.GetDisplayName() + " arrived off-screen (dist=" + dist + ")")
+        Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " arrived off-screen " + IntelEngine.DescribeDistance(agent, returnMarker))
         OnReturnedWithTarget(slot, agent, target)
         Return
     EndIf

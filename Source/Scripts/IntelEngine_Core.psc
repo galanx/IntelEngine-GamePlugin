@@ -1245,8 +1245,14 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
     Returns true if teleported (caller should handle arrival).
     Returns false if still in transit (do nothing).}
     Int status = IntelEngine.CheckOffScreenProgress(slot, npc, Utility.GetCurrentGameTime())
+    Float now = Utility.GetCurrentRealTime()
+    Float lastDiag = StorageUtil.GetFloatValue(npc, "Intel_OffscreenDiagAt", -10.0)
+    If now < lastDiag || now - lastDiag >= 10.0
+        DebugMsg("[diag:offscreen] " + npc.GetDisplayName() + " status=" + status)
+        StorageUtil.SetFloatValue(npc, "Intel_OffscreenDiagAt", now)
+    EndIf
     If status == 1
-        DebugMsg(npc.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
+        DebugMsg("[diag:arrival] " + npc.GetDisplayName() + " off-screen arrival " + IntelEngine.DescribeDistance(npc, dest))
         npc.MoveTo(dest)
         Utility.Wait(0.3)
         npc.EvaluatePackage()
@@ -1359,7 +1365,9 @@ Int Function CheckDepartureProgress(Int slot, Actor agent, Float threshold)
 
         ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
         If dest != None
+            DebugMsg("[diag:path] start " + agent.GetDisplayName() + " slot=" + slot + " site=CheckDepartureProgress")
             agent.PathToReference(dest, 1.0)
+            DebugMsg("[diag:path] end " + agent.GetDisplayName() + " slot=" + slot + " site=CheckDepartureProgress")
             agent.EvaluatePackage()
         EndIf
     EndIf
