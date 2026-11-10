@@ -5187,6 +5187,14 @@ Bool Function ShouldAbortForDangerZone(Actor npc, Actor player, String storyType
     If !IntelEngine.IsPlayerInDangerousLocation()
         return false
     EndIf
+    If storyType == "informant"
+        Core.DebugMsg("Story: aborting informant for " + npc.GetDisplayName() + " -- danger zone" + logSuffix)
+        Core.SendTaskNarration(npc, "thought better of chasing " + player.GetDisplayName() + " into danger just for gossip and turned back", player)
+        If StillOwns(npc, claimedGeneration, storyType)
+            AbortStoryTravel("informant in danger zone" + logSuffix)
+        EndIf
+        return true
+    EndIf
     If DangerZonePolicy == 3 || \
        (DangerZonePolicy == 2 && !IntelEngine.IsPotentialFollower(npc)) || \
        (DangerZonePolicy == 1 && IntelEngine.IsCivilianClass(npc))

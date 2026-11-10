@@ -1278,11 +1278,11 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_AllowStuckTeleport
         SetInfoText("When enabled, NPCs stuck during travel or exceeding the max travel time are teleported to the target. When disabled, the NPC gives up instead.")
     ElseIf optionId == OID_DangerAllowAll
-        SetInfoText("No danger zone filtering. All NPC types can visit you in dungeons and caves.")
+        SetInfoText("No danger zone filtering. All NPC types can visit you in dungeons and caves. Informants always turn back.")
     ElseIf optionId == OID_DangerBlockCivilians
-        SetInfoText("Farmers, merchants and other civilians stay away from dangerous locations. Warriors and mages can still visit.")
+        SetInfoText("Farmers, merchants and other civilians stay away from dangerous locations. Warriors and mages can still visit. Informants always turn back.")
     ElseIf optionId == OID_DangerFollowersOnly
-        SetInfoText("Only NPCs who can be recruited as followers (PotentialFollowerFaction) can visit you in dangerous locations.")
+        SetInfoText("Only NPCs who can be recruited as followers (PotentialFollowerFaction) can visit you in dangerous locations. Informants always turn back.")
     ElseIf optionId == OID_DangerBlockAll
         SetInfoText("Nobody visits you in dangerous locations (dungeons, caves, etc).")
     ElseIf optionId == OID_HomeAllowAll
