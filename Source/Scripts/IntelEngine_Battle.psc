@@ -621,7 +621,7 @@ Function SpawnMidBattle()
     ElseIf arrivalVar == 1
         Debug.Notification("You arrive to find " + nameA + " and " + nameB + " forces locked in combat.")
     Else
-        Debug.Notification("Sounds of battle carry across the field — " + nameA + " and " + nameB + " clash ahead.")
+        Debug.Notification("Sounds of battle carry across the field - " + nameA + " and " + nameB + " clash ahead.")
     EndIf
 
     ; Spawn reduced forces near center (they've already marched and engaged)

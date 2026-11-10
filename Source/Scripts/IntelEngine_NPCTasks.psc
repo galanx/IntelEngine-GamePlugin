@@ -1593,7 +1593,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
                         PO3_SKSEFunctions.SetLinkedRef(agent, Game.GetPlayer() as ObjectReference, Core.IntelEngine_TravelTarget)
                         ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
                         agent.EvaluatePackage()
-                        Core.NotifyPlayer(agent.GetDisplayName() + " arrived — " + target.GetDisplayName() + " is still on the way")
+                        Core.NotifyPlayer(agent.GetDisplayName() + " arrived - " + target.GetDisplayName() + " is still on the way")
                         Core.SendTransientEvent(agent, target, agent.GetDisplayName() + " arrived but " + target.GetDisplayName() + " is still making their way here.")
                     EndIf
 
@@ -1723,7 +1723,7 @@ Function OnReturnedWithTarget(Int slot, Actor agent, Actor target)
         Core.DebugMsg(targetName + " not loaded — teleporting behind camera")
         Core.TeleportBehindPlayer(target)
     ElseIf target.GetDistance(player) > Core.LINGER_RELEASE_DISTANCE
-        Core.DebugMsg(targetName + " far (" + target.GetDistance(player) + ") — teleporting behind camera")
+        Core.DebugMsg(targetName + " far (" + target.GetDistance(player) + ") - teleporting behind camera")
         Core.TeleportBehindPlayer(target)
     EndIf
 
@@ -1781,7 +1781,7 @@ Function OnReturnedAfterFailure(Int slot, Actor agent)
         Core.SendTransientEvent(agent, player, agentName + " returned to report that " + targetName + " refused: " + failReason)
     EndIf
 
-    Core.NotifyPlayer(agentName + ": " + targetName + " refused — " + failReason)
+    Core.NotifyPlayer(agentName + ": " + targetName + " refused - " + failReason)
 
     Core.ClearSlotRestoreFollower(slot, agent)
     ; Cooldown prevents narration-triggered re-selection

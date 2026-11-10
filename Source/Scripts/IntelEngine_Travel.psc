@@ -384,7 +384,7 @@ Function CheckTravelSlot(Int slot)
                     EndIf
                 EndIf
                 Core.DebugMsg("Travel timeout (" + elapsedHours + "h) for " + npc.GetDisplayName() + " — force-arriving")
-                Core.NotifyPlayer(npc.GetDisplayName() + " took too long — teleporting to destination")
+                Core.NotifyPlayer(npc.GetDisplayName() + " took too long - teleporting to destination")
                 ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
                 If dest != None
                     npc.MoveTo(dest)

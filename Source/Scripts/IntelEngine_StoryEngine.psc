@@ -4913,7 +4913,7 @@ Function CheckQuestExpiry()
     ; Warning at 75% of expiry time
     If !QuestExpiryWarned && elapsed > (QUEST_EXPIRY_DAYS * 0.75)
         QuestExpiryWarned = true
-        Debug.Notification("You should hurry — the situation won't hold much longer.")
+        Debug.Notification("You should hurry - the situation won't hold much longer.")
     EndIf
     If elapsed > QUEST_EXPIRY_DAYS
         Core.DebugMsg("Story [quest/" + QuestSubType + "]: Expired after " + QUEST_EXPIRY_DAYS + " days")
@@ -5230,7 +5230,7 @@ Bool Function ShouldAbortForHoldRestriction(Actor npc, Actor player, String stor
         Core.DebugMsg("Story: aborting " + storyType + " for " + npc.GetDisplayName() + " -- hold restriction" + logSuffix)
         Core.SendTaskNarration(npc, "decided the journey to find " + player.GetDisplayName() + " was too far and turned back", player)
         If StillOwns(npc, claimedGeneration, storyType)
-            Core.NotifyPlayer("Story: " + npc.GetDisplayName() + " turned back — hold restriction" + logSuffix)
+            Core.NotifyPlayer("Story: " + npc.GetDisplayName() + " turned back - hold restriction" + logSuffix)
             AbortStoryTravel("hold restriction" + logSuffix)
         EndIf
         return true
