@@ -292,7 +292,7 @@ Int Function GetStuckRecoveryAttempts(Int slot) Global Native
 Function InitOffScreenTravel(Int slot, Float estimatedArrivalGameTime, Actor npc) Global Native
 
 ; Check off-screen progress. Returns 0=in transit, 1=should teleport.
-; Before estimated arrival: always 0. After: checks position for movement.
+; Before estimated arrival: always 0. After: unloaded=1; loaded waits for stationary ticks.
 Int Function CheckOffScreenProgress(Int slot, Actor npc, Float currentGameTime) Global Native
 String Function DescribeDistance(ObjectReference a, ObjectReference b) Global Native
 
@@ -411,6 +411,7 @@ Actor Function ResolveStoryCandidate(String name, String partnerName = "", Actor
 ; Manual Director only: exact full display name across indexed actor references.
 ; Same-reference duplicates are allowed; distinct-reference clashes and dead/disabled/deleted actors reject.
 Actor Function ResolveDirectorActor(String name) Global Native
+String Function GetDirectorFailureMessage(String name) Global Native
 
 ; Find a suitable messenger to deliver a message on behalf of sender.
 ; Cascade: household member → social associate → same-hold guard → any civilian.
