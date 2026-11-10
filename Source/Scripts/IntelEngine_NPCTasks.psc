@@ -1715,15 +1715,15 @@ Function OnReturnedWithTarget(Int slot, Actor agent, Actor target)
     String targetName = target.GetDisplayName()
     Core.DebugMsg(agentName + " returned with " + targetName)
 
-    ; Ensure target is at least in the same cell as the player.
-    ; If not loaded or in a different cell, teleport behind the camera as a
-    ; last resort. Otherwise let the NPC stand where they are — TalkToPlayer
-    ; (priority 1) will naturally pathfind them to the player for conversation.
+    ; Ensure target is near the player.
+    ; If not loaded or loaded but far, teleport behind the camera as a last resort.
+    ; Loaded means same space as the player, so adjacent exterior cells are not
+    ; "elsewhere". Otherwise TalkToPlayer (priority 1) pathfinds them in.
     If !target.Is3DLoaded()
         Core.DebugMsg(targetName + " not loaded — teleporting behind camera")
         Core.TeleportBehindPlayer(target)
-    ElseIf target.GetParentCell() != player.GetParentCell()
-        Core.DebugMsg(targetName + " different cell — teleporting behind camera")
+    ElseIf target.GetDistance(player) > Core.LINGER_RELEASE_DISTANCE
+        Core.DebugMsg(targetName + " far (" + target.GetDistance(player) + ") — teleporting behind camera")
         Core.TeleportBehindPlayer(target)
     EndIf
 
