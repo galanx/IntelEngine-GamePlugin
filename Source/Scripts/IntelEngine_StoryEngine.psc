@@ -1071,7 +1071,9 @@ Function CheckNPCSocialArrival()
     EndIf
 
     Float dist = NPCSocialTraveler.GetDistance(NPCSocialTarget)
-
+    If !IntelEngine.StoryLoadRecovered()
+        Core.DebugMsg("[diag:load-recovery] social arrival check " + NPCSocialTraveler.GetDisplayName())
+    EndIf
     ; Arrival check
     If dist <= IntelEngine.GetArrivalThreshold(NPCSocialTraveler, NPCSocialTarget as ObjectReference) && dist > 0.0
         OnNPCSocialArrived()
@@ -1144,7 +1146,7 @@ Function OnNPCSocialArrived()
     String fact1 = NPCSocialFact1
     String fact2 = NPCSocialFact2
     String gossipContent = NPCSocialGossip
-    Core.DebugMsg("NPC Social: " + traveler.GetDisplayName() + " arrived at " + target.GetDisplayName())
+    Core.DebugMsg("[diag:arrival] NPC Social: " + traveler.GetDisplayName() + " arrived at " + target.GetDisplayName() + " " + IntelEngine.DescribeDistance(traveler, target))
     PerformVisibleInteraction(traveler, target, narration, storyType)
     If !NPCSocialArrivalHandling || NPCSocialTraveler != traveler || NPCSocialTarget != target
         Return
@@ -1850,6 +1852,7 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     LastStretchRetry = 0
     ActiveNarration = narration
     IsActive = true
+    Core.DebugMsg("[diag:story-active] " + npc.GetDisplayName() + " at=" + Utility.GetCurrentRealTime())
     IntelEngine.MarkSystemPending("storyDM", Utility.GetCurrentGameTime())
     StorageUtil.SetIntValue(npc, "Intel_IsStoryDispatch", 1)
     StorageUtil.SetStringValue(npc, "Intel_StoryNarration", narration)
@@ -2064,6 +2067,9 @@ Bool Function HasLingerNPCs()
 EndFunction
 
 Float Function AccumulateLingerElapsed(Actor npc, String stampKey, String elapsedKey)
+    If !IntelEngine.StoryLoadRecovered()
+        Core.DebugMsg("[diag:load-recovery] linger timer check " + npc.GetDisplayName())
+    EndIf
     Float now = Utility.GetCurrentRealTime()
     Float delta = now - StorageUtil.GetFloatValue(npc, stampKey, 0.0)
     If delta < 0.0
@@ -2075,6 +2081,11 @@ Float Function AccumulateLingerElapsed(Actor npc, String stampKey, String elapse
     StorageUtil.SetFloatValue(npc, stampKey, now)
     Float elapsed = StorageUtil.GetFloatValue(npc, elapsedKey, 0.0) + delta
     StorageUtil.SetFloatValue(npc, elapsedKey, elapsed)
+    Float lastDiag = StorageUtil.GetFloatValue(npc, "Intel_LingerDiagAt", -10.0)
+    If now < lastDiag || now - lastDiag >= 10.0
+        Core.DebugMsg("[diag:linger] " + npc.GetDisplayName() + " delta=" + delta + " elapsed=" + elapsed + " " + IntelEngine.DescribeDistance(npc, Game.GetPlayer()))
+        StorageUtil.SetFloatValue(npc, "Intel_LingerDiagAt", now)
+    EndIf
     return elapsed
 EndFunction
 
@@ -2595,12 +2606,14 @@ Function CheckStoryNPCArrival()
         NearPlayerSince += delta
     EndIf
     If nearPlayer && NearPlayerSince >= 15.0 && StillOwns(storyNPC, claimedGeneration, storyType)
+        Core.DebugMsg("[diag:fix5][diag:arrival] " + storyNPC.GetDisplayName() + " near-player fallback path=350 " + IntelEngine.DescribeDistance(storyNPC, arrivalTarget))
         OnStoryNPCArrived()
         return
     EndIf
 
     ; Arrived when within standard arrival distance
     If (dist <= IntelEngine.GetArrivalThreshold(storyNPC, arrivalTarget as ObjectReference) && dist > 0.0) && StillOwns(storyNPC, claimedGeneration, storyType)
+        Core.DebugMsg("[diag:arrival] " + storyNPC.GetDisplayName() + " path=200 " + IntelEngine.DescribeDistance(storyNPC, arrivalTarget))
         OnStoryNPCArrived()
         return
     EndIf
@@ -2611,6 +2624,7 @@ Function CheckStoryNPCArrival()
     Cell npcCell2 = storyNPC.GetParentCell()
     If npcCell2 != None && targetCell != None && npcCell2 == targetCell
         If (targetCell.IsInterior() && dist <= IntelEngine.GetArrivalThreshold(storyNPC, arrivalTarget as ObjectReference) && dist > 0.0) && StillOwns(storyNPC, claimedGeneration, storyType)
+            Core.DebugMsg("[diag:arrival] " + storyNPC.GetDisplayName() + " path=200-interior " + IntelEngine.DescribeDistance(storyNPC, arrivalTarget))
             OnStoryNPCArrived()
             return
         EndIf
@@ -2633,6 +2647,7 @@ Function CheckStoryNPCArrival()
             storyNPC.MoveTo(arrivalTarget, closer[0], closer[1], 0.0, false)
             ReapplyTravelPackage(storyNPC)
         Else
+            Core.DebugMsg("[diag:fix9] " + storyNPC.GetDisplayName() + " abort last-stretch timeout " + IntelEngine.DescribeDistance(storyNPC, arrivalTarget))
             AbortStoryTravel("last-stretch timeout")
             Core.NotifyPlayer("Story: " + storyNPC.GetDisplayName() + " couldn't reach you - story ended")
         EndIf
@@ -2671,8 +2686,13 @@ Function CheckStoryNPCArrival()
             return
         EndIf
         Int offscreenStatus = IntelEngine.CheckOffScreenProgress(slot, storyNPC, Utility.GetCurrentGameTime())
+        Float lastDiag = StorageUtil.GetFloatValue(storyNPC, "Intel_OffscreenDiagAt", -10.0)
+        If now < lastDiag || now - lastDiag >= 10.0
+            Core.DebugMsg("[diag:offscreen] " + storyNPC.GetDisplayName() + " status=" + offscreenStatus + " LastStretchSince=" + LastStretchSince)
+            StorageUtil.SetFloatValue(storyNPC, "Intel_OffscreenDiagAt", now)
+        EndIf
         If offscreenStatus == 1 && LastStretchSince < 0.0
-            Core.DebugMsg(storyNPC.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
+            Core.DebugMsg("[diag:offscreen] " + storyNPC.GetDisplayName() + " estimated time elapsed " + IntelEngine.DescribeDistance(storyNPC, arrivalTarget))
             If !StillOwns(storyNPC, claimedGeneration, storyType)
                 return
             EndIf
@@ -2746,6 +2766,7 @@ Function ImmersiveTeleportToTarget(Actor npc, Actor target)
         npc.MoveTo(target, offset[0], offset[1], 0.0, false)
     EndIf
 
+    Core.DebugMsg("[diag:placement] " + npc.GetDisplayName() + " x=" + npc.GetPositionX() + " y=" + npc.GetPositionY() + " " + IntelEngine.DescribeDistance(npc, Game.GetPlayer()) + " angle=" + Game.GetPlayer().GetHeadingAngle(npc))
     ReapplyTravelPackage(npc)
 EndFunction
 
@@ -2768,7 +2789,7 @@ Function OnStoryNPCArrived()
     ; Preserve the journey outcome before quest/message handlers can wait or enter a new phase.
     StorageUtil.SetStringValue(ActiveStoryNPC, "Intel_Result", "arrived")
 
-    Core.DebugMsg("Story: " + ActiveStoryNPC.GetDisplayName() + " arrived! [" + ActiveStoryType + "]")
+    Core.DebugMsg("[diag:arrival] Story: " + ActiveStoryNPC.GetDisplayName() + " arrived! [" + ActiveStoryType + "] player " + IntelEngine.DescribeDistance(ActiveStoryNPC, Game.GetPlayer()))
 
     ; === Ambush arrival (both stealth and charge variants) ===
     If ActiveStoryType == "ambush_charge" || ActiveStoryType == "ambush"
@@ -3763,6 +3784,9 @@ Function CheckQuestGuide()
     EndIf
 
     ; Guide timeout: if walking for too long, give up and let player use map marker
+    If !IntelEngine.StoryLoadRecovered()
+        Core.DebugMsg("[diag:load-recovery] quest timer check " + QuestGuideNPC.GetDisplayName())
+    EndIf
     Float guideElapsed = (Utility.GetCurrentGameTime() - QuestGuideStartTime) * 24.0
     If guideElapsed > QUEST_GUIDE_TIMEOUT_HOURS
         Core.DebugMsg("Story [quest_guide]: guide timed out after " + guideElapsed + " hours")
@@ -4370,6 +4394,9 @@ Function CheckQuestProximity()
     Else
         ; faction_battle: monitor for battle end (quest completes when battle finishes)
         If QuestBattleScheduled
+            If !IntelEngine.StoryLoadRecovered()
+                Core.DebugMsg("[diag:load-recovery] battle quest timer check")
+            EndIf
             ; Second buildup notification — fires once during the waiting period
             Float battleElapsed = Utility.GetCurrentGameTime() - QuestGuideStartTime
             If battleElapsed > BATTLE_BUILDUP_NOTIFY_MIN && battleElapsed < BATTLE_BUILDUP_NOTIFY_MAX && QuestSpawnAttempts == 0
@@ -4879,6 +4906,9 @@ Function CheckQuestExpiry()
     If !QuestActive || QuestStartTime <= 0.0
         return
     EndIf
+    If !IntelEngine.StoryLoadRecovered()
+        Core.DebugMsg("[diag:load-recovery] quest expiry timer check")
+    EndIf
     Float elapsed = Utility.GetCurrentGameTime() - QuestStartTime
     ; Warning at 75% of expiry time
     If !QuestExpiryWarned && elapsed > (QUEST_EXPIRY_DAYS * 0.75)
@@ -5157,14 +5187,6 @@ Bool Function ShouldAbortForDangerZone(Actor npc, Actor player, String storyType
     If !IntelEngine.IsPlayerInDangerousLocation()
         return false
     EndIf
-    If storyType == "informant"
-        Core.DebugMsg("Story: aborting informant for " + npc.GetDisplayName() + " -- danger zone" + logSuffix)
-        Core.SendTaskNarration(npc, "thought better of chasing " + player.GetDisplayName() + " into danger just for gossip and turned back", player)
-        If StillOwns(npc, claimedGeneration, storyType)
-            AbortStoryTravel("informant in danger zone" + logSuffix)
-        EndIf
-        return true
-    EndIf
     If DangerZonePolicy == 3 || \
        (DangerZonePolicy == 2 && !IntelEngine.IsPotentialFollower(npc)) || \
        (DangerZonePolicy == 1 && IntelEngine.IsCivilianClass(npc))
@@ -5210,7 +5232,7 @@ EndFunction
 
 Function AbortStoryTravel(String reason)
     {Abort active story travel: clear slot, remove packages, full cleanup.}
-    Core.DebugMsg("Story: " + ActiveStoryNPC.GetDisplayName() + " " + reason + " — aborting")
+    Core.DebugMsg("[diag:abort] " + ActiveStoryNPC.GetDisplayName() + " " + reason + " " + IntelEngine.DescribeDistance(ActiveStoryNPC, Game.GetPlayer()))
     Int abortSlot = Core.FindSlotByAgent(ActiveStoryNPC)
     If abortSlot >= 0
         Core.ClearSlot(abortSlot)

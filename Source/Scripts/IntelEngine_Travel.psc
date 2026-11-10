@@ -1252,7 +1252,9 @@ Function CheckMeetingApproach(Int slot, Actor npc)
         EndIf
 
         npc.EvaluatePackage()
+        Core.DebugMsg("[diag:path] start " + npc.GetDisplayName() + " slot=" + slot + " site=CheckApproachStuck")
         npc.PathToReference(player as ObjectReference, 1.0)
+        Core.DebugMsg("[diag:path] end " + npc.GetDisplayName() + " slot=" + slot + " site=CheckApproachStuck")
         npc.EvaluatePackage()
 
         ; Reset tracking for another round

@@ -294,6 +294,7 @@ Function InitOffScreenTravel(Int slot, Float estimatedArrivalGameTime, Actor npc
 ; Check off-screen progress. Returns 0=in transit, 1=should teleport.
 ; Before estimated arrival: always 0. After: checks position for movement.
 Int Function CheckOffScreenProgress(Int slot, Actor npc, Float currentGameTime) Global Native
+String Function DescribeDistance(ObjectReference a, ObjectReference b) Global Native
 
 ; Reset/clear off-screen tracking for a slot
 Function ResetOffScreenSlot(Int slot) Global Native
