@@ -1298,8 +1298,9 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
     If StorageUtil.GetIntValue(npc, "Intel_MeetingLingerApproaching") == 1
         Bool closeEnough = false
         Bool stillFar = true
+        Float dist = -1.0
         If npc.Is3DLoaded() && player.Is3DLoaded()
-            Float dist = npc.GetDistance(player)
+            dist = npc.GetDistance(player)
             closeEnough = dist <= Core.LINGER_APPROACH_DISTANCE
             stillFar = dist > Core.LINGER_RELEASE_DISTANCE
         ElseIf npc.GetParentCell() == player.GetParentCell()
@@ -1322,7 +1323,11 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
         ElseIf stillFar
             ; Player still far during approach — increment far ticks
             Int farTicks = StorageUtil.GetIntValue(npc, "Intel_LingerFarTicks", 0) + 1
+            If dist >= 0.0 && dist < StorageUtil.GetFloatValue(npc, "Intel_LingerLastDist", -1.0) - 50.0
+                farTicks = 0
+            EndIf
             StorageUtil.SetIntValue(npc, "Intel_LingerFarTicks", farTicks)
+            StorageUtil.SetFloatValue(npc, "Intel_LingerLastDist", dist)
             If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
                 Return true
             EndIf
