@@ -212,6 +212,7 @@ Function ClearLingerSlot(Actor target)
     StorageUtil.UnsetIntValue(target, "Intel_LingerPhase")
     StorageUtil.UnsetFormValue(target, "Intel_LingerAgent")
     StorageUtil.UnsetIntValue(target, "Intel_LingerFarTicks")
+    StorageUtil.UnsetFloatValue(target, "Intel_LingerLastDist")
     ; Escort-wait keys (safe to unset even if not present)
     StorageUtil.UnsetStringValue(target, "Intel_LingerDestName")
     StorageUtil.UnsetFloatValue(target, "Intel_LingerStart")
@@ -244,8 +245,9 @@ Function CheckLingeringTargets()
                 ; Switch to sandbox when within 100 units.
                 Bool closeEnough = false
                 Bool stillFar = true
+                Float targetDist = -1.0
                 If target.Is3DLoaded() && player.Is3DLoaded()
-                    Float targetDist = target.GetDistance(player)
+                    targetDist = target.GetDistance(player)
                     closeEnough = targetDist <= Core.LINGER_APPROACH_DISTANCE
                     stillFar = targetDist > Core.LINGER_RELEASE_DISTANCE
                 ElseIf target.GetParentCell() == player.GetParentCell()
@@ -269,7 +271,11 @@ Function CheckLingeringTargets()
                 ElseIf stillFar
                     ; Player still far during approach — keep incrementing far ticks
                     Int farTicks = StorageUtil.GetIntValue(target, "Intel_LingerFarTicks", 0) + 1
+                    If targetDist >= 0.0 && targetDist < StorageUtil.GetFloatValue(target, "Intel_LingerLastDist", -1.0) - 50.0
+                        farTicks = 0
+                    EndIf
                     StorageUtil.SetIntValue(target, "Intel_LingerFarTicks", farTicks)
+                    StorageUtil.SetFloatValue(target, "Intel_LingerLastDist", targetDist)
                     If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
                         ActorUtil.RemovePackageOverride(target, Core.TravelPackage_Walk)
                         Utility.Wait(0.1)
