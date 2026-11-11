@@ -376,6 +376,18 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 
 **SkyrimNet Plugin Configuration** — IntelEngine's LLM variant, settings schema, generated `settings.yaml`, and user-editable `factions.yaml` remain under `SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`. This configuration path is separate from the Beta 25 external content bundle.
 
+**Extra faction files (`factions.d/`)** — besides `factions.yaml`, IntelEngine loads every `factions.d/*.yaml` next to it (`SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`), in filename order. A faction whose `id` already exists is replaced whole; a new `id` is added. A relation for the same pair replaces the earlier one. A broken file is skipped with a log warning. If a file's first line is `requires: political_engine`, it loads only when Political Engine is installed and its integration setting is on; IntelEngine ships `political_engine.yaml` this way. Edits are whole-faction only: copy the full faction into your file to change it, because single fields cannot be overridden.
+
+```yaml
+# factions.d/my_changes.yaml
+factions:
+  - id: "PE_Whiterun"
+    name: "Whiterun (mine)"
+    type: "political"
+    hold: "Whiterun"
+    leader_names: ["Balgruuf the Greater"]
+```
+
 ---
 
 ## Story Engine — The Dungeon Master
