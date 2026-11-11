@@ -26,7 +26,8 @@ Holds and districts are owned as listed. Battles may be fought near or over a pl
 District side_id follows its CURRENT owner: 0 Independent, 1 Empire, 2 Stormcloaks, 3 Aldmeri Dominion. Use civil_war_organizations only for the listed engine-faction matches. vanilla_civil_war is fallback vanilla context only: never apply it to PE districts or infer a captured district's side from its original hold. Missing side_id means unknown.
 {% endif %}
 
-## Available Event Types
+## Available Event Types{% if exists("peActive") and peActive %}
+- **political_reaction** — An organization responds to a listed political_engine.react_to development. Requires "reacts_to". Prefer this whenever react_to is not empty.{% endif %}
 
 ### Diplomatic Events (relation changes: +1 to +15)
 - **trade_deal** — Two factions agree to trade goods/services. (+5 to +10)
@@ -186,7 +187,9 @@ Battle result: {{ "{" }}"should_act":true,"faction_a":"ImperialFaction","faction
 
 Surrender: {{ "{" }}"should_act":true,"faction_a":"StormcloakFaction","faction_b":"ImperialFaction","event_type":"surrender","description":"The Stormcloaks sued for peace after a devastating defeat at Eastmarch","relation_delta":8}
 
-Event with player standing: {{ "{" }}"should_act":true,"faction_a":"FactionIdA","faction_b":"FactionIdB","event_type":"trade_deal","description":"Trade routes reopened between Solitude and Riften","relation_delta":8,"instigator_npc":"Maven Black-Briar","player_standing_changes":[{{ "{" }}"faction":"ImperialFaction","delta":5,"reason":"spoke favorably of the Legion"}]}
+Event with player standing: {{ "{" }}"should_act":true,"faction_a":"FactionIdA","faction_b":"FactionIdB","event_type":"trade_deal","description":"Trade routes reopened between Solitude and Riften","relation_delta":8,"instigator_npc":"Maven Black-Briar","player_standing_changes":[{{ "{" }}"faction":"ImperialFaction","delta":5,"reason":"spoke favorably of the Legion"}]}{% if exists("peActive") and peActive %}
+
+Reaction to a listed PE development (use the real listed id): {{ "{" }}"should_act":true,"faction_a":"StormcloakFaction","faction_b":"ImperialFaction","event_type":"political_reaction","reacts_to":26,"description":"Ulfric's court vowed to retake White River Valley from the Legion's allies","relation_delta":-5}{% endif %}
 
 {% else %}
 [ system ]
