@@ -1070,8 +1070,8 @@ EndFunction
 Function HandlePollResult(String stateJson)
     ; Parse key fields from poll JSON
     Bool battleOver = IntelEngine.StoryResponseGetField(stateJson, "battle_over") == "true"
-    String result = IntelEngine.StoryResponseGetField(stateJson, "result")
-    String victor = IntelEngine.StoryResponseGetField(stateJson, "victor")
+    String result = IntelEngine.StoryResponseGetOptionalField(stateJson, "result")
+    String victor = IntelEngine.StoryResponseGetOptionalField(stateJson, "victor")
 
     ; Check wave spawn triggers
     If !battleOver
@@ -1117,7 +1117,7 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
     String playerSideWas = IntelEngine.StoryResponseGetField(resultJson, "playerSideWas")
     Bool playerWon = IntelEngine.StoryResponseGetField(resultJson, "playerWon") == "true"
     String notification = IntelEngine.StoryResponseGetField(resultJson, "notification")
-    String spectatorNotif = IntelEngine.StoryResponseGetField(resultJson, "spectatorNotification")
+    String spectatorNotif = IntelEngine.StoryResponseGetOptionalField(resultJson, "spectatorNotification")
     String witnessFact = IntelEngine.StoryResponseGetField(resultJson, "witnessFact")
 
     ; Inject witness memories (requires Papyrus Actor handles for SkyrimNet API)
