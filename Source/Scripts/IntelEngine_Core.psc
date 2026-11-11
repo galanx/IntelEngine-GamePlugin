@@ -134,7 +134,7 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 Int Property DEPARTURE_CHECK_CYCLES = 5 AutoReadOnly
 {Update cycles before checking if NPC actually departed (~15s at 3s interval)}
 
-Float Property LINGER_RELEASE_DISTANCE = 800.0 Auto Hidden
+Float Property LINGER_RELEASE_DISTANCE = 500.0 Auto Hidden
 {Distance (game units) the player must walk away before a lingering NPC loses interest.
 Configurable via MCM. Shared between Travel, NPCTasks, and StoryEngine linger systems.}
 
@@ -1803,10 +1803,10 @@ Function SetMaxTasks(Int val)
 EndFunction
 
 Function SetReleaseDistance(Float val)
-    ; Minimum 400 — sandbox radius is 200 units, so anything less causes
+    ; Minimum 300 — sandbox radius is 200 units, so anything less causes
     ; false releases when the NPC walks to a sandbox idle point.
-    If val < 400.0
-        val = 400.0
+    If val < 300.0
+        val = 300.0
     EndIf
     LINGER_RELEASE_DISTANCE = val
 EndFunction
