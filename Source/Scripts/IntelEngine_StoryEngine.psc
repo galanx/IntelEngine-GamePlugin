@@ -918,9 +918,11 @@ Function OnNPCInteractionResponse(String response, Int success)
         npc2 = IntelEngine.ResolveStoryCandidate(npc2Name, npc1Name, npc1)
     EndIf
     If npc1 == None || npc1.IsDead() || npc1.IsDisabled()
+        Core.DebugMsg("NPC DM: dropped - unresolved, dead or disabled for '" + npc1Name + "'")
         return
     EndIf
     If npc2 == None || npc2.IsDead() || npc2.IsDisabled()
+        Core.DebugMsg("NPC DM: dropped - unresolved, dead or disabled for '" + npc2Name + "'")
         return
     EndIf
 
@@ -1477,6 +1479,13 @@ EndFunction
 ; DUNGEON MASTER RESPONSE HANDLER
 ; =============================================================================
 
+; Record the rejected dispatch FIRST so the failure flag lands on it, not on the previous entry (or an empty history).
+; Rejections return before the success-path record and stale/racing callbacks never reach here, so nothing double-records.
+Function RejectStory(String typeWithSub, String npcName, String narration, String reason)
+    IntelEngine.RecordStoryDispatch(typeWithSub, npcName, narration)
+    IntelEngine.MarkLastDispatchFailed(reason)
+EndFunction
+
 Function OnDungeonMasterResponse(String response, Int success)
     If IsActive
         return
@@ -1596,7 +1605,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             EndIf
             If npc == None || npc.IsDead() || npc.IsDisabled()
                 Core.DebugMsg("Story DM: NPC '" + npcName + "' not found or invalid")
-                IntelEngine.MarkLastDispatchFailed("npc not found / dead / disabled")
+                RejectStory(typeWithSub, npcName, narration, "npc not found / dead / disabled")
                 return
             EndIf
         EndIf
@@ -1610,14 +1619,14 @@ Function OnDungeonMasterResponse(String response, Int success)
         ; Block: seek_player, informant, road_encounter, ambush, stalker
         If IntelEngine.IsHighStatusNPC(npc) && storyType != "message" && storyType != "quest"
             Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " is high-status - rejected (should use courier mode)")
-            IntelEngine.MarkLastDispatchFailed("high-status NPC cannot physically travel")
+            RejectStory(typeWithSub, npcName, narration, "high-status NPC cannot physically travel")
             return
         EndIf
         ; Hold restriction enforcement — the LLM may ignore the Eligible line.
         ; Server-side reject if the NPC doesn't pass hold restriction for this type.
         If !IntelEngine.CheckHoldRestriction(npc, storyType)
             Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " rejected - hold restriction for " + storyType)
-            IntelEngine.MarkLastDispatchFailed("hold restriction")
+            RejectStory(typeWithSub, npcName, narration, "hold restriction")
             return
         EndIf
 
@@ -1628,7 +1637,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             Cell playerCell = Game.GetPlayer().GetParentCell()
             If npcCell != None && playerCell != None && npcCell == playerCell
                 Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " already in player's cell, skipping " + storyType)
-                IntelEngine.MarkLastDispatchFailed("npc already in player's cell")
+                RejectStory(typeWithSub, npcName, narration, "npc already in player's cell")
                 return
             EndIf
         EndIf
@@ -1638,7 +1647,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             Cell playerCell2 = Game.GetPlayer().GetParentCell()
             If playerCell2 != None && playerCell2.IsInterior()
                 Core.DebugMsg("Story DM: rejecting " + storyType + " -- player is in interior")
-                IntelEngine.MarkLastDispatchFailed("interior cell rejects stalker/ambush")
+                RejectStory(typeWithSub, npcName, narration, "interior cell rejects stalker/ambush")
                 return
             EndIf
         EndIf
@@ -1658,7 +1667,7 @@ Function OnDungeonMasterResponse(String response, Int success)
     If IntelEngine.StoryResponseGetField(validateJson, "valid") != "true"
         String validationReason = IntelEngine.StoryResponseGetField(validateJson, "reason")
         Core.DebugMsg("Story DM: C++ validation rejected -- " + validationReason)
-        IntelEngine.MarkLastDispatchFailed("validation: " + validationReason)
+        RejectStory(typeWithSub, npcName, narration, "validation: " + validationReason)
         return
     EndIf
 
@@ -1667,7 +1676,7 @@ Function OnDungeonMasterResponse(String response, Int success)
         Core.DebugMsg("Story DM: rejecting " + storyType + " for Jarl " + npc.GetDisplayName())
         ; Reuse the high-status reason — a Jarl is semantically a high-status NPC; collapsing
         ; the two strings keeps Rule 14's bullet count tight and avoids drift.
-        IntelEngine.MarkLastDispatchFailed("high-status NPC cannot physically travel")
+        RejectStory(typeWithSub, npcName, narration, "high-status NPC cannot physically travel")
         return
     EndIf
 
@@ -1675,7 +1684,7 @@ Function OnDungeonMasterResponse(String response, Int success)
     If storyType == "quest"
         If QuestActive
             Core.DebugMsg("Story DM: quest rejected -- one already active")
-            IntelEngine.MarkLastDispatchFailed("a quest is already active")
+            RejectStory(typeWithSub, npcName, narration, "a quest is already active")
             return
         EndIf
         ; Field validation handled by C++ ValidateStoryResponse above
@@ -1684,7 +1693,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             Core.DebugMsg("Story DM: message rejected -- missing msgContent")
             ; Prefix with "validation: " so it falls under Rule 14's existing validation bullet
             ; instead of being a one-off undocumented reason.
-            IntelEngine.MarkLastDispatchFailed("validation: missing msgContent")
+            RejectStory(typeWithSub, npcName, narration, "validation: missing msgContent")
             return
         EndIf
     EndIf
@@ -1694,7 +1703,7 @@ Function OnDungeonMasterResponse(String response, Int success)
     EndIf
     If npc != None && !ApplyCooldownCheck(npc)
         Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " on cooldown")
-        IntelEngine.MarkLastDispatchFailed("on story cooldown")
+        RejectStory(typeWithSub, npcName, narration, "on story cooldown")
         return
     EndIf
     IntelEngine.NotifyStoryTypePicked(typeWithSub)
