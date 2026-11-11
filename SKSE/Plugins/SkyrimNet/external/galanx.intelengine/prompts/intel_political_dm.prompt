@@ -160,6 +160,7 @@ Generating "Ulfric Stormcloak rallied his troops" when his faction's world_knowl
 
 When `active_wars` is non-empty, prioritize war-related events for those factions:
 - **Generate battle_result events** for active wars (subject to Rule 8: never two in a row for one war; never reuse the previous battle's `battle_location` for the same war) — these drive the war forward. Include a `battle_location` that is a real named location on Skyrim's map. Copy the name EXACTLY as it appears in the game/context, in the game's language; NEVER translate it. Use just the place name, no added hold suffix. If unsure of a specific location near the factions' territories, use the nearest hold capital's exact in-game/context name — never invent a location name.
+- **No back-to-back battles** — never pick `battle_result` for an `active_wars` entry whose `battle_result_allowed_now` starts with "no"; choose another event instead.
 - **Low morale triggers surrender** — if a faction's `morale_a` or `morale_b` in the `active_wars` entry is below 20, generate a `surrender` event. This is the hard threshold enforced by the engine.
 - **War fatigue spreads** — wars between two factions can generate negative events between their allies/rivals too (alliances tested, trade disrupted).
 - **Balance war and non-war events** — not every tick during a war needs to be a battle. Political intrigue, espionage, and trade disruptions between non-warring factions keep the world alive.
