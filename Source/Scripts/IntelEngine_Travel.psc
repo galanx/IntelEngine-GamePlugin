@@ -700,7 +700,7 @@ Function CheckWaiting(Int slot, Actor npc)
     Float deadline = Core.SlotDeadlines[slot]
     ; Phase: Post-meeting linger (player already met NPC, NPC hanging around)
     If StorageUtil.GetIntValue(npc, "Intel_MeetingLingering") == 1
-        If ProcessLingerProximity(slot, npc)
+        If ProcessLingerProximity(slot, npc) || currentTime > StorageUtil.GetFloatValue(npc, "Intel_MeetingLingerDeadline", 999999.0)
             CompleteMeeting(slot, npc)
         EndIf
         Return
@@ -708,7 +708,7 @@ Function CheckWaiting(Int slot, Actor npc)
 
     ; Phase: Travel linger (GoToLocation — NPC arrived, player nearby, sandboxing near player)
     If StorageUtil.GetIntValue(npc, "Intel_TravelLingering") == 1
-        If ProcessLingerProximity(slot, npc)
+        If ProcessLingerProximity(slot, npc) || currentTime > StorageUtil.GetFloatValue(npc, "Intel_MeetingLingerDeadline", 999999.0)
             CompleteTravelLinger(slot, npc)
         EndIf
         Return
@@ -1363,6 +1363,8 @@ Function StartMeetingLinger(Int slot, Actor npc)
 
     StorageUtil.SetIntValue(npc, "Intel_MeetingLingering", 1)
     StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
+    ; Waiting/sleeping ends the linger after 1 game hour.
+    StorageUtil.SetFloatValue(npc, "Intel_MeetingLingerDeadline", Utility.GetCurrentGameTime() + 1.0 / 24.0)
 
     ; Update schedule slot to meeting_active
     If Core.Schedule
@@ -1413,6 +1415,8 @@ Function StartTravelLinger(Int slot, Actor npc)
 
     StorageUtil.SetIntValue(npc, "Intel_TravelLingering", 1)
     StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
+    ; Waiting/sleeping ends the linger after 1 game hour.
+    StorageUtil.SetFloatValue(npc, "Intel_MeetingLingerDeadline", Utility.GetCurrentGameTime() + 1.0 / 24.0)
     StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
 EndFunction
 

@@ -2121,6 +2121,7 @@ Function StartStoryLinger(Actor npc)
     EndIf
     StorageUtil.SetFloatValue(npc, "Intel_StoryLingerElapsed", 0.0)
     StorageUtil.SetFloatValue(npc, "Intel_StoryLingerStart", Utility.GetCurrentRealTime())
+    StorageUtil.SetFloatValue(npc, "Intel_StoryLingerGameStart", Utility.GetCurrentGameTime())
 EndFunction
 
 Function FinishArrivalWithLinger(Actor arrivedNPC, ObjectReference lingerTarget)
@@ -2214,6 +2215,9 @@ Function CheckStoryLingerCleanup()
             Float lingerStart = StorageUtil.GetFloatValue(npc, "Intel_StoryLingerStart", 0.0)
             Float elapsed = AccumulateLingerElapsed(npc, "Intel_StoryLingerStart", "Intel_StoryLingerElapsed")
             Bool timedOut = lingerStart > 0.0 && elapsed > LINGER_TIMEOUT_SECONDS
+            ; Pauses count at most 6 s above, so waiting/sleeping needs a game-time limit too.
+            Float lingerGameStart = StorageUtil.GetFloatValue(npc, "Intel_StoryLingerGameStart", 0.0)
+            timedOut = timedOut || (lingerGameStart > 0.0 && Utility.GetCurrentGameTime() - lingerGameStart > 1.0 / 24.0)
             ; Grace period: don't check distance for the first 30 seconds so
             ; NPCs that start far away (e.g. rescued victims) can pathfind to the player
 
@@ -2227,6 +2231,7 @@ Function CheckStoryLingerCleanup()
                 Core.ReleaseLinger(npc)
                 StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerStart")
                 StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerElapsed")
+                StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerGameStart")
                 StorageUtil.FormListRemoveAt(player, "Intel_StoryLingerActors", i)
             EndIf
         EndIf
