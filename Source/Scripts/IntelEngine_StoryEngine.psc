@@ -682,9 +682,20 @@ Function TickScheduler()
             return
         EndIf
         If IntelEngine.ShouldResetPending("storyDM", 6.0, Utility.GetCurrentGameTime())
+            ; A long wait/sleep can pass the timeout before the arrival poll runs; check arrival first.
+            CheckStoryNPCArrival()
+            If ArrivalHandling || !IsActive
+                return
+            EndIf
             Core.DebugMsg("Story: watchdog reset IsActive (stuck or stale)")
             If ActiveStoryNPC != None
                 Core.InjectFact(ActiveStoryNPC, "never finished: " + ActiveNarration)
+                ; Same teardown as every other abandon path, or the NPC keeps its travel package.
+                Int watchdogSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+                If watchdogSlot >= 0
+                    Core.ClearSlot(watchdogSlot)
+                EndIf
+                Core.RemoveAllPackages(ActiveStoryNPC, false)
             EndIf
             CleanupStoryDispatch()
             ; Don't fall through to dispatch a new story in the same tick —
