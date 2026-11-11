@@ -14,6 +14,7 @@ story:
   npc_blocklist: ""
 politics:
   enabled: true
+  pe_integration: true
   pe_reactions_move_relations: true
   tick_interval_hours: 6
   max_relation_change_per_tick: 15

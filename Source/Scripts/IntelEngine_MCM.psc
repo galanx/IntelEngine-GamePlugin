@@ -119,6 +119,7 @@ Int OID_QuestAllowDeath
 ; Faction Politics
 Int OID_PoliticsEnabled
 Int OID_PoliticsTickInterval
+Int OID_PEIntegration
 Int OID_PEReactions
 
 ; Hold Restriction page (per-story-type radio groups)
@@ -585,6 +586,7 @@ Function ShowSettingsPage()
 
     Float tickInterval = IntelEngine.GetPoliticsTickInterval() as Float
     OID_PoliticsTickInterval = AddSliderOption("Tick Interval (hours)", tickInterval, "{0}")
+    OID_PEIntegration = AddToggleOption("Political Engine integration", IntelEngine.GetPEIntegration())
     OID_PEReactions = AddToggleOption("PE reactions move relations", IntelEngine.GetPEReactionsMoveRelations())
 
 EndFunction
@@ -953,6 +955,9 @@ Event OnOptionSelect(Int optionId)
         ElseIf !newVal && Core != None && Core.Politics != None
             Core.Politics.StopScheduler()
         EndIf
+    ElseIf optionId == OID_PEIntegration
+        IntelEngine.SetPEIntegration(!IntelEngine.GetPEIntegration())
+        SetToggleOptionValue(OID_PEIntegration, IntelEngine.GetPEIntegration())
     ElseIf optionId == OID_PEReactions
         IntelEngine.SetPEReactionsMoveRelations(!IntelEngine.GetPEReactionsMoveRelations())
         SetToggleOptionValue(OID_PEReactions, IntelEngine.GetPEReactionsMoveRelations())
