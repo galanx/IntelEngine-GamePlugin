@@ -1,0 +1,102 @@
+requires: political_engine
+# Political Engine realms as IntelEngine factions. Loaded only when Political Engine is detected and
+# politics.pe_integration is on. Leaders are overwritten with the live rulers while PE is running.
+# Same-id entries in a later fragment replace these whole. Realm 9 (the player's) is not listed.
+factions:
+  - id: "PE_Solitude"
+    name: "Solitude (Political Engine)"
+    type: "political"
+    hold: "Solitude"
+    leader_names: ["Elisif the Fair"]
+    rivals: ["StormcloakFaction"]
+    allies: ["ImperialFaction"]
+    war_threshold: -50
+  - id: "PE_Windhelm"
+    name: "Windhelm (Political Engine)"
+    type: "political"
+    hold: "Windhelm"
+    leader_names: ["Ulfric Stormcloak"]
+    rivals: ["ImperialFaction"]
+    allies: ["StormcloakFaction"]
+    war_threshold: -50
+  - id: "PE_Whiterun"
+    name: "Whiterun (Political Engine)"
+    type: "political"
+    hold: "Whiterun"
+    leader_names: ["Balgruuf the Greater"]
+    rivals: []
+    allies: []
+    war_threshold: -50
+  - id: "PE_Markarth"
+    name: "Markarth (Political Engine)"
+    type: "political"
+    hold: "Markarth"
+    leader_names: ["Igmund"]
+    rivals: ["StormcloakFaction"]
+    allies: ["ImperialFaction"]
+    war_threshold: -50
+  - id: "PE_Riften"
+    name: "Riften (Political Engine)"
+    type: "political"
+    hold: "Riften"
+    leader_names: ["Laila Law-Giver"]
+    rivals: ["ImperialFaction"]
+    allies: ["StormcloakFaction"]
+    war_threshold: -50
+  - id: "PE_Dawnstar"
+    name: "Dawnstar (Political Engine)"
+    type: "political"
+    hold: "Dawnstar"
+    leader_names: ["Skald the Elder"]
+    rivals: ["ImperialFaction"]
+    allies: ["StormcloakFaction"]
+    war_threshold: -50
+  - id: "PE_Falkreath"
+    name: "Falkreath (Political Engine)"
+    type: "political"
+    hold: "Falkreath"
+    leader_names: ["Siddgeir"]
+    rivals: ["StormcloakFaction"]
+    allies: ["ImperialFaction"]
+    war_threshold: -50
+  - id: "PE_Morthal"
+    name: "Morthal (Political Engine)"
+    type: "political"
+    hold: "Morthal"
+    leader_names: ["Idgrod Ravencrone"]
+    rivals: ["StormcloakFaction"]
+    allies: ["ImperialFaction"]
+    war_threshold: -50
+  - id: "PE_Winterhold"
+    name: "Winterhold (Political Engine)"
+    type: "political"
+    hold: "Winterhold"
+    leader_names: ["Korir"]
+    rivals: ["ImperialFaction"]
+    allies: ["StormcloakFaction"]
+    war_threshold: -50
+default_relations:
+  - faction_a: "PE_Solitude"
+    faction_b: "ImperialFaction"
+    relation: 40
+  - faction_a: "PE_Windhelm"
+    faction_b: "StormcloakFaction"
+    relation: 40
+  - faction_a: "PE_Markarth"
+    faction_b: "ImperialFaction"
+    relation: 40
+  - faction_a: "PE_Riften"
+    faction_b: "StormcloakFaction"
+    relation: 40
+  - faction_a: "PE_Dawnstar"
+    faction_b: "StormcloakFaction"
+    relation: 40
+  - faction_a: "PE_Falkreath"
+    faction_b: "ImperialFaction"
+    relation: 40
+  - faction_a: "PE_Morthal"
+    faction_b: "ImperialFaction"
+    relation: 40
+  - faction_a: "PE_Winterhold"
+    faction_b: "StormcloakFaction"
+    relation: 40
