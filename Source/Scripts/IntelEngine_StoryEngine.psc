@@ -676,6 +676,11 @@ Function TickScheduler()
     If IsActive
         ; C++ watchdog: 6h timeout (stories legitimately run for hours, but not this long).
         ; Also catches stale flags from save reloads (DLL loads fresh, has no record).
+        ; An NPC that already arrived (ArrivalHandling latch, set by OnStoryNPCArrived) is not stuck.
+        If ArrivalHandling
+            Core.DebugMsg("Story: TickScheduler - arrival in progress, watchdog skipped")
+            return
+        EndIf
         If IntelEngine.ShouldResetPending("storyDM", 6.0, Utility.GetCurrentGameTime())
             Core.DebugMsg("Story: watchdog reset IsActive (stuck or stale)")
             If ActiveStoryNPC != None
