@@ -47,7 +47,7 @@ factions:
     name: "Dawnstar (Political Engine)"
     type: "political"
     hold: "Dawnstar"
-    leader_names: ["Skald the Elder"]
+    leader_names: ["Skald"]
     rivals: ["ImperialFaction"]
     allies: ["StormcloakFaction"]
     war_threshold: -50
