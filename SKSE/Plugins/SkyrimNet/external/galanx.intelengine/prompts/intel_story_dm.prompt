@@ -20,7 +20,7 @@ Study the candidate pool below. Each NPC has a bio, archetype, location, distanc
 
 ## Available Story Types
 
-Allowed types this tick: {% if show_seek_player == "1" %}seek_player; {% endif %}{% if show_informant == "1" %}informant; {% endif %}{% if show_road_encounter == "1" %}road_encounter; {% endif %}{% if show_ambush == "1" %}ambush; {% endif %}{% if show_faction_ambush == "1" and hostile_factions and hostile_factions != "" %}faction_ambush; {% endif %}{% if show_stalker == "1" %}stalker; {% endif %}{% if show_message == "1" %}message; {% endif %}{% if show_quest == "1" %}quest; {% endif %}any other type will be rejected.
+Allowed types this tick: {% if show_seek_player == "1" %}seek_player; {% endif %}{% if show_informant == "1" %}informant; {% endif %}{% if show_road_encounter == "1" %}road_encounter; {% endif %}{% if show_ambush == "1" %}ambush; {% endif %}{% if show_faction_ambush == "1" and hostile_factions and hostile_factions != "" %}faction_ambush; {% endif %}{% if show_stalker == "1" %}stalker; {% endif %}{% if show_message == "1" %}message; {% endif %}{% if show_quest == "1" %}quest; {% endif %}any other type will be rejected. A candidate may only be used for the types on its own `Eligible:` line; others are rejected.
 
 {% if show_seek_player == "1" %}
 ### seek_player
