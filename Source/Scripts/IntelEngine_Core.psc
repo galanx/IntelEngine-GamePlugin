@@ -2363,23 +2363,27 @@ String Function UntagName(String name)
 EndFunction
 
 String Function ReplaceText(String text, String what, String with)
-    ; ponytail: Find is case-insensitive and matches inside words; fine for full NPC names.
+    ; Whole-word, case-insensitive: "Ria" must not hit "Riften" or "Victoria".
     String result = ""
+    Int len = StringUtil.GetLength(what)
+    Int total = StringUtil.GetLength(text)
+    Int copied = 0
     Int at = StringUtil.Find(text, what)
-    While at >= 0 && what != ""
-        If at > 0
-            result += StringUtil.Substring(text, 0, at)
+    While at >= 0 && len > 0
+        Int rest = at + len
+        If (at == 0 || !StringUtil.IsLetter(StringUtil.GetNthChar(text, at - 1))) && (rest >= total || !StringUtil.IsLetter(StringUtil.GetNthChar(text, rest)))
+            If at > copied
+                result += StringUtil.Substring(text, copied, at - copied)
+            EndIf
+            result += with
+            copied = rest
         EndIf
-        result += with
-        Int rest = at + StringUtil.GetLength(what)
-        If rest >= StringUtil.GetLength(text)
-            text = ""
-        Else
-            text = StringUtil.Substring(text, rest)
-        EndIf
-        at = StringUtil.Find(text, what)
+        at = StringUtil.Find(text, what, at + 1)
     EndWhile
-    Return result + text
+    If copied < total
+        result += StringUtil.Substring(text, copied)
+    EndIf
+    Return result
 EndFunction
 
 String Function InformantRumor(String subject, String rumor, String gossip)
