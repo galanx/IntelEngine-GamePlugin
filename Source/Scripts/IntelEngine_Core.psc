@@ -2694,9 +2694,21 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     If dist < 5000.0 && dist > 200.0
         ok = StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType, npc1, npc2, fact1, fact2, gossip, "Director")
     Else
-        ; Existing off-screen Director outcome: no travel is needed.
-        StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
-        DebugMsg("Director: NPCs too far apart or already close - applied off-screen")
+        Cell playerCell = Game.GetPlayer().GetParentCell()
+        If dist <= 200.0 && playerCell != None && npc1.GetParentCell() == playerCell && npc2.GetParentCell() == playerCell
+            ; fix 95: already together where the player is - play it there (in earshot) or hold until the player comes in range
+            If StoryEngine.InNarrationRange(npc1)
+                StoryEngine.PerformVisibleInteraction(npc1, npc2, narration, socialType)
+                StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
+            Else
+                StoryEngine.HoldSocialScene(npc1, npc2, npc1, npc2, narration, socialType, fact1, fact2, gossip)
+            EndIf
+            DebugMsg("Director: NPCs already together near the player - scene played in place")
+        Else
+            ; Existing off-screen Director outcome: no travel is needed.
+            StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
+            DebugMsg("Director: NPCs too far apart or already close - applied off-screen")
+        EndIf
     EndIf
     If ok
         NotifyPlayer(npc1Name + " and " + npc2Name + ": " + IntelEngine.FriendlyKey(socialType) + " started.")
