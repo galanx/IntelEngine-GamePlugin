@@ -154,6 +154,7 @@ Float Property QUEST_GUIDE_WAIT_DIST = 2000.0 AutoReadOnly
 Float Property QUEST_GUIDE_RESUME_DIST = 800.0 AutoReadOnly
 Float Property QUEST_GUIDE_TIMEOUT_HOURS = 5.0 AutoReadOnly
 Float Property LINGER_TIMEOUT_SECONDS = 180.0 AutoReadOnly
+Float Property SOCIAL_HOLD_PAIR_DISTANCE = 600.0 AutoReadOnly
 Float Property ENCOUNTER_RESUME_DISTANCE = 1500.0 AutoReadOnly
 Float Property TELEPORT_OFFSET_INTERIOR = 500.0 AutoReadOnly
 Float Property TELEPORT_OFFSET_EXTERIOR = 3500.0 AutoReadOnly
@@ -475,6 +476,7 @@ Function RestartMonitoring()
                 Core.ReleaseLinger(lingerNPC2)
                 StorageUtil.UnsetFloatValue(lingerNPC2, "Intel_StoryLingerStart")
                 StorageUtil.UnsetFloatValue(lingerNPC2, "Intel_StoryLingerElapsed")
+                ClearSocialHold(lingerNPC2)
             EndIf
             li2 += 1
         EndWhile
@@ -986,8 +988,15 @@ Function OnNPCInteractionResponse(String response, Int success)
     Bool npc2Visible = (playerCell != None && npc2.GetParentCell() == playerCell)
 
     If npc1Visible && npc2Visible
-        PerformVisibleInteraction(npc1, npc2, narration, storyType)
-        CompleteNPCSocialOutcome(npc1, npc2, storyType, fact1, fact2, gossipContent)
+        If InNarrationRange(npc1)
+            PerformVisibleInteraction(npc1, npc2, narration, storyType)
+            CompleteNPCSocialOutcome(npc1, npc2, storyType, fact1, fact2, gossipContent)
+        ElseIf npc1.GetDistance(npc2) > SOCIAL_HOLD_PAIR_DISTANCE && !IsNPCStoryActive && !npc1.IsPlayerTeammate() && !npc2.IsPlayerTeammate()
+            ; Same cell but far apart and out of earshot: one walks to the other
+            DispatchNPCSocial(npc1, npc2, narration, storyType, npc1, npc2, fact1, fact2, gossipContent)
+        Else
+            HoldSocialScene(npc1, npc2, npc1, npc2, narration, storyType, fact1, fact2, gossipContent)
+        EndIf
     ElseIf (npc1Visible || npc2Visible) && !IsNPCStoryActive && !npc1.IsPlayerTeammate() && !npc2.IsPlayerTeammate()
         ; One visible -- dispatch the off-screen NPC to walk over
         If npc2Visible
@@ -1165,7 +1174,10 @@ Function OnNPCSocialArrived()
     String fact2 = NPCSocialFact2
     String gossipContent = NPCSocialGossip
     Core.DebugMsg("[diag:arrival] NPC Social: " + traveler.GetDisplayName() + " arrived at " + target.GetDisplayName() + " " + IntelEngine.DescribeDistance(traveler, target))
-    PerformVisibleInteraction(traveler, target, narration, storyType)
+    Bool narrate = InNarrationRange(traveler)
+    If narrate
+        PerformVisibleInteraction(traveler, target, narration, storyType)
+    EndIf
     If !NPCSocialArrivalHandling || NPCSocialTraveler != traveler || NPCSocialTarget != target
         Return
     EndIf
@@ -1178,9 +1190,109 @@ Function OnNPCSocialArrived()
         ResetNPCSocialDispatchState()
         Return
     EndIf
-    CompleteNPCSocialOutcome(socialNPC1, socialNPC2, storyType, fact1, fact2, gossipContent)
+    If narrate
+        CompleteNPCSocialOutcome(socialNPC1, socialNPC2, storyType, fact1, fact2, gossipContent)
+    EndIf
     StorageUtil.SetStringValue(traveler, "Intel_Result", "arrived")
     CleanupNPCSocialDispatch()
+    ; Hold AFTER cleanup: ClearSlot strips packages, which would drop the hold sandbox.
+    If !narrate
+        HoldSocialScene(traveler, target, socialNPC1, socialNPC2, narration, storyType, fact1, fact2, gossipContent)
+    EndIf
+EndFunction
+
+Bool Function InNarrationRange(Actor originator)
+    {True when SkyrimNet will voice a scene originated by this actor (originator-to-player within 0.85 x awareness distance). Read at check time: whisper mode changes it.}
+    Actor player = Game.GetPlayer()
+    If originator == None || !originator.Is3DLoaded() || !player.Is3DLoaded()
+        Return false
+    EndIf
+    Float maxDist = SkyrimNetApi.GetConfigFloat("game", "interaction.maxDistance", 800.0)
+    Float mult = SkyrimNetApi.GetConfigFloat("game", "interaction.nearbyNPCAwarenessMultiplier", 2.0)
+    Float limit = 0.85 * maxDist * mult
+    Float dist = originator.GetDistance(player)
+    Core.DebugMsg("[diag:narration-range] " + originator.GetDisplayName() + " dist=" + dist + " limit=" + limit + " (maxDistance=" + maxDist + " mult=" + mult + ")")
+    Return dist <= limit
+EndFunction
+
+Function HoldSocialScene(Actor orig, Actor other, Actor a, Actor b, String narration, String storyType, String fact1, String fact2, String gossip)
+    {Player out of SkyrimNet range: keep the pair together on the story linger; CheckStoryLingerCleanup narrates when the player comes in range, else facts only.}
+    If orig == None || other == None
+        Return
+    EndIf
+    If !orig.Is3DLoaded() || !other.Is3DLoaded() || orig.GetDistance(other) > SOCIAL_HOLD_PAIR_DISTANCE
+        FinishSocialScene(orig, other, a, b, narration, storyType, fact1, fact2, gossip, false)
+        Return
+    EndIf
+    StorageUtil.SetFormValue(orig, "Intel_SocHoldOther", other as Form)
+    StorageUtil.SetFormValue(orig, "Intel_SocHoldA", a as Form)
+    StorageUtil.SetFormValue(orig, "Intel_SocHoldB", b as Form)
+    StorageUtil.SetStringValue(orig, "Intel_SocHoldType", storyType)
+    StorageUtil.SetStringValue(orig, "Intel_SocHoldFact1", fact1)
+    StorageUtil.SetStringValue(orig, "Intel_SocHoldFact2", fact2)
+    StorageUtil.SetStringValue(orig, "Intel_SocHoldGossip", gossip)
+    StorageUtil.SetStringValue(orig, "Intel_SocHoldNarr", narration)
+    HoldSandbox(orig, other)
+    HoldSandbox(other, orig)
+    Core.DebugMsg("NPC Social: holding " + orig.GetDisplayName() + " + " + other.GetDisplayName() + " until the player is in range")
+    RegisterForSingleUpdate(MONITOR_INTERVAL)
+EndFunction
+
+Function HoldSandbox(Actor who, Actor partner)
+    PO3_SKSEFunctions.SetLinkedRef(who, partner as ObjectReference, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(who, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+    who.EvaluatePackage()
+    StartStoryLinger(who)
+EndFunction
+
+Function ClearSocialHold(Actor orig)
+    StorageUtil.UnsetStringValue(orig, "Intel_SocHoldNarr")
+    StorageUtil.UnsetStringValue(orig, "Intel_SocHoldType")
+    StorageUtil.UnsetStringValue(orig, "Intel_SocHoldFact1")
+    StorageUtil.UnsetStringValue(orig, "Intel_SocHoldFact2")
+    StorageUtil.UnsetStringValue(orig, "Intel_SocHoldGossip")
+    StorageUtil.UnsetFormValue(orig, "Intel_SocHoldOther")
+    StorageUtil.UnsetFormValue(orig, "Intel_SocHoldA")
+    StorageUtil.UnsetFormValue(orig, "Intel_SocHoldB")
+EndFunction
+
+Function FinishSocialScene(Actor orig, Actor other, Actor a, Actor b, String narration, String storyType, String fact1, String fact2, String gossip, Bool narrate)
+    If narrate
+        PerformVisibleInteraction(orig, other, narration, storyType)
+    Else
+        String summary = BuildInteractionSummary(orig, narration, other)
+        AddRecentStoryEvent(storyType + ": " + summary)
+        Debug.Trace("[IntelEngine] StoryEngine: Off-screen " + storyType + " (player out of narration range, facts only)")
+        Core.DebugMsg("Story: off-screen " + summary)
+    EndIf
+    CompleteNPCSocialOutcome(a, b, storyType, fact1, fact2, gossip)
+EndFunction
+
+Bool Function TickSocialHold(Actor orig, Bool expired)
+    {One linger tick for a held scene. Returns true when it is finished (narrated or facts only).}
+    Actor other = StorageUtil.GetFormValue(orig, "Intel_SocHoldOther") as Actor
+    Bool narrate = false
+    If !expired && other != None && !other.IsDead() && !orig.IsInCombat() && !other.IsInCombat()
+        narrate = InNarrationRange(orig)
+        If !narrate
+            Return false
+        EndIf
+    EndIf
+    Actor a = StorageUtil.GetFormValue(orig, "Intel_SocHoldA") as Actor
+    Actor b = StorageUtil.GetFormValue(orig, "Intel_SocHoldB") as Actor
+    String narration = StorageUtil.GetStringValue(orig, "Intel_SocHoldNarr", "")
+    String storyType = StorageUtil.GetStringValue(orig, "Intel_SocHoldType", "")
+    String fact1 = StorageUtil.GetStringValue(orig, "Intel_SocHoldFact1", "")
+    String fact2 = StorageUtil.GetStringValue(orig, "Intel_SocHoldFact2", "")
+    String gossip = StorageUtil.GetStringValue(orig, "Intel_SocHoldGossip", "")
+    ClearSocialHold(orig)
+    FinishSocialScene(orig, other, a, b, narration, storyType, fact1, fact2, gossip, narrate)
+    ; Expire both actors' linger on the next tick (release + sandbox removal)
+    StorageUtil.SetFloatValue(orig, "Intel_StoryLingerElapsed", LINGER_TIMEOUT_SECONDS + 1.0)
+    If other != None
+        StorageUtil.SetFloatValue(other, "Intel_StoryLingerElapsed", LINGER_TIMEOUT_SECONDS + 1.0)
+    EndIf
+    Return true
 EndFunction
 
 Function ResetNPCSocialDispatchState()
@@ -2209,6 +2321,11 @@ Function CheckStoryLingerCleanup()
                 EndIf
             EndIf
 
+            ; Held NPC-to-NPC scene: narrate once the player is in SkyrimNet range
+            If StorageUtil.GetStringValue(npc, "Intel_SocHoldNarr", "") != ""
+                TickSocialHold(npc, false)
+            EndIf
+
             ; Real-time timeout (story-specific safety valve)
             Float lingerStart = StorageUtil.GetFloatValue(npc, "Intel_StoryLingerStart", 0.0)
             Float elapsed = AccumulateLingerElapsed(npc, "Intel_StoryLingerStart", "Intel_StoryLingerElapsed")
@@ -2221,6 +2338,9 @@ Function CheckStoryLingerCleanup()
 
             Bool shouldRelease = npc.IsPlayerTeammate() || (elapsed > 30.0 && Core.ShouldReleaseLinger(npc))
             If timedOut || shouldRelease
+                If StorageUtil.GetStringValue(npc, "Intel_SocHoldNarr", "") != ""
+                    TickSocialHold(npc, true)
+                EndIf
                 ; Clean up narration (already fired or timed out)
                 StorageUtil.UnsetStringValue(npc, "Intel_RescueNarration")
                 ; NOTE: Intel_RescueQuestGiver and Intel_RescuePlayerName are NOT cleaned here.
