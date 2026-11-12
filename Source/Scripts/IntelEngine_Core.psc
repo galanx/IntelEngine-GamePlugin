@@ -2562,7 +2562,11 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     ; Director skips cooldown/MCM checks intentionally — it's a manual DM override
     Int g = StoryEngine.DispatchGeneration
     If storyType == "seek_player"
-        InjectFact(npc, "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration)
+        String seekFact = narration
+        If StringUtil.Find(narration, Game.GetPlayer().GetDisplayName()) < 0
+            seekFact = "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration
+        EndIf
+        InjectFact(npc, seekFact)
         StoryEngine.ActiveStoryType = storyType
         StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
@@ -2662,7 +2666,17 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     If socialType == "npc_interaction"
         fact1 = StoryEngine.ExtractJsonField(response, "fact1")
         fact2 = StoryEngine.ExtractJsonField(response, "fact2")
-        StoryEngine.AddNPCSocialLog("npc_interaction", npc1Name, npc2Name, narration, npc1)
+        String logDetail = ""
+        If fact1 != ""
+            logDetail = npc1Name + ": " + fact1
+        EndIf
+        If fact2 != ""
+            If logDetail != ""
+                logDetail += " | "
+            EndIf
+            logDetail += npc2Name + ": " + fact2
+        EndIf
+        StoryEngine.AddNPCSocialLog("npc_interaction", npc1Name, npc2Name, narration, npc1, logDetail)
         StoryEngine.AddRecentStoryEvent("npc_interaction: " + npc1Name + " and " + npc2Name + " - " + narration)
     ElseIf socialType == "npc_gossip"
         gossip = InformantRumor(StoryEngine.ExtractJsonField(response, "subject"), "", StoryEngine.ExtractJsonField(response, "gossip")) ; fix84: "<Subject> <gossip>"
