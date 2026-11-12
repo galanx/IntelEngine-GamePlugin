@@ -1221,8 +1221,9 @@ Function ResetState()
     EndIf
     DeferredCleanupActive = false
     DeferredCleanupStart = 0.0
-    UnregisterForUpdate()
-    UnregisterForUpdateGameTime()
+    ; No Unregister here: update timers are per-quest and shared by every IntelEngine script,
+    ; so unregistering stopped Story/NPC/Politics ticks after a battle. Battle only uses
+    ; single updates, and its handlers return when nothing is active.
 EndFunction
 
 ; =============================================================================
