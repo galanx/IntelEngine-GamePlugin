@@ -1,6 +1,7 @@
 {% if render_mode == "full" or render_mode == "static" %}
 {# Political Awareness — 3-tier NPC matching: (1) leader name, (2) engine faction, (3) location fallback.
-   Members/leaders see all their faction's events; everyone sees public events; secret ones only reach involved factions. #}
+   Members/leaders see all their faction's events; everyone sees public events; secret ones only reach involved factions.
+   Display: same type + same unordered faction pair = one line (newest occurrence + "(reported N times)"); pe_* events (no faction_b) never merge. #}
 {% set polState = read_json("IntelEngine/political_state") %}
 {% if polState %}
 {% set npcName = "" %}
@@ -25,9 +26,9 @@
 {% if length(relevantEvents) > 0 %}
 
 Recent political events {{ npcName }} would know about:
-{% for evt in relevantEvents %}
-- {% if existsIn(evt, "when") %}({{ evt.when }}) {% endif %}{{ evt.description }}
-{% endfor %}
+{% for evt in relevantEvents %}{% set i = loop.index %}{% set n = 0 %}{% set newest = true %}{% if existsIn(evt, "faction_b") %}{% for o in relevantEvents %}{% if existsIn(o, "faction_b") and o.type == evt.type and ((o.faction_a == evt.faction_a and o.faction_b == evt.faction_b) or (o.faction_a == evt.faction_b and o.faction_b == evt.faction_a)) %}{% set n = n + 1 %}{% if loop.index > i %}{% set newest = false %}{% endif %}{% endif %}{% endfor %}{% endif %}{% if newest %}
+- {% if existsIn(evt, "when") %}({{ evt.when }}) {% endif %}{{ evt.description }}{% if n > 1 %} (reported {{ n }} times){% endif %}
+{% endif %}{% endfor %}
 {% endif %}
 {% if length(relevantRelations) > 0 %}
 
