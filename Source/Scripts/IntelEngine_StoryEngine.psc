@@ -1857,6 +1857,10 @@ Function OnDungeonMasterResponse(String response, Int success)
         String rumor = Core.InformantRumor(subjectName, ExtractJsonField(response, "rumor"), ExtractJsonField(response, "gossip"))
         String gossipSource = ExtractJsonField(response, "sender")
         If subjectName != "" && rumor != ""
+            If gossipSource == ""
+                gossipSource = Core.InformantLead(npc.GetDisplayName(), rumor, true)
+            EndIf
+            rumor = Core.InformantLead(npc.GetDisplayName(), rumor, false)
             ; Nothing is injected on the subject: the bare phrase used to read as the subject's own act.
             Core.InjectFact(npc, Core.FormatInformantFact(subjectName, rumor, gossipSource, npc.GetDisplayName()))
             narration = Core.InformantNarration(npc.GetDisplayName(), Game.GetPlayer().GetDisplayName(), gossipSource, rumor)
