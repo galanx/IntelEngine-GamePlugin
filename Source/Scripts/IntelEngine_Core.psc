@@ -971,6 +971,7 @@ Function ReleaseLinger(Actor npc)
     stand frozen at the linger location forever.
     Shared by Travel, StoryEngine, and NPCTasks.}
     StorageUtil.UnsetStringValue(npc, "Intel_ArrivalPurpose")
+    StorageUtil.UnsetStringValue(npc, "Intel_ArrivalTopic")
     DebugMsg("Linger release START: " + npc.GetDisplayName() + " [formID=" + npc.GetFormID() + ", 3Dloaded=" + npc.Is3DLoaded() + ", isTeammate=" + npc.IsPlayerTeammate() + "]")
     ActorUtil.RemovePackageOverride(npc, SandboxNearPlayerPackage)
     DebugMsg("Linger release: removed sandbox from " + npc.GetDisplayName())
@@ -2473,6 +2474,15 @@ String Function FormatInformantFact(String subject, String rumor, String sender,
     Return "heard from " + sender + " that " + rumor
 EndFunction
 
+Function SetInformantTopic(Actor npc, String subject)
+    {Short topic for Current Task ("speaking with X about <topic>"); read at arrival, cleared by ReleaseLinger.}
+    String subj = UntagName(subject)
+    If subj == "" || subj == UntagName(npc.GetDisplayName())
+        subj = "something they saw"
+    EndIf
+    StorageUtil.SetStringValue(npc, "Intel_ArrivalTopic", subj)
+EndFunction
+
 String Function InformantNarration(String npcName, String playerName, String sender, String rumor)
     If StringUtil.Find(rumor, UntagName(npcName) + " ") == 0
         Return npcName + " came to tell " + playerName + ": " + rumor
@@ -2564,6 +2574,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
             narration = InformantNarration(npc.GetDisplayName(), Game.GetPlayer().GetDisplayName(), fSender, fRumor)
         EndIf
         StoryEngine.ActiveStoryType = "informant"
+        SetInformantTopic(npc, fSubject)
         StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
     ElseIf storyType == "ambush" || storyType == "stalker"
