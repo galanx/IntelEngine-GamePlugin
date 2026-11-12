@@ -973,7 +973,7 @@ Function OnNPCInteractionResponse(String response, Int success)
             logDetail += npc2.GetDisplayName() + ": " + fact2
         EndIf
     ElseIf storyType == "npc_gossip"
-        gossipContent = ExtractJsonField(response, "gossip")
+        gossipContent = Core.InformantRumor(ExtractJsonField(response, "subject"), "", ExtractJsonField(response, "gossip")) ; fix84: "<Subject> <gossip>"
         If gossipContent != ""
             logDetail = "Gossip: " + gossipContent
             dashboardText = gossipContent
