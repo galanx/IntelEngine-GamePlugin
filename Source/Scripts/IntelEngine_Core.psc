@@ -2397,6 +2397,27 @@ String Function InformantRumor(String subject, String rumor, String gossip)
     Return gossip
 EndFunction
 
+String Function InformantRejection(String subject, String rumor)
+    {Same checks as C++ InformantRumorRejection; "" = accepted.}
+    String name = UntagName(subject)
+    If rumor == ""
+        Return "rumor is empty"
+    ElseIf name == ""
+        Return "subject is empty"
+    ElseIf StringUtil.Find(rumor, name) < 0
+        Return "rumor does not name the subject"
+    EndIf
+    Int sp = StringUtil.Find(rumor, " ")
+    If sp < 0
+        sp = StringUtil.GetLength(rumor)
+    EndIf
+    String first = StringUtil.Substring(rumor, 0, sp)
+    If sp > 3 && StringUtil.Substring(first, sp - 3) == "ing" && StringUtil.Find(name, first) != 0
+        Return "rumor starts with an -ing word"
+    EndIf
+    Return ""
+EndFunction
+
 String Function FormatInformantFact(String subject, String rumor, String sender, String informant)
     ; The informant's own name inside the rumor becomes "me"/"my".
     rumor = ReplaceText(ReplaceText(rumor, UntagName(informant) + "'s", "my"), UntagName(informant), "me")
@@ -2436,6 +2457,15 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
         DebugMsg("Director: StoryEngine not available")
         NotifyPlayer("Story dispatch refused: StoryEngine is unavailable.")
         Return
+    EndIf
+    If storyType == "informant"
+        String badSubject = StoryEngine.ExtractJsonField(response, "subject")
+        String badWhy = InformantRejection(badSubject, InformantRumor(badSubject, StoryEngine.ExtractJsonField(response, "rumor"), StoryEngine.ExtractJsonField(response, "gossip")))
+        If badWhy != ""
+            DebugMsg("Director: informant refused (" + badWhy + "): subject='" + badSubject + "'")
+            NotifyPlayer("Informant dispatch refused: " + badWhy + ".")
+            Return
+        EndIf
     EndIf
     Actor replacing = None
     If StoryEngine.IsActive && IntelEngine.StoryResponseGetField(strArg, "replaceGeneration") == StoryEngine.DispatchGeneration as String
