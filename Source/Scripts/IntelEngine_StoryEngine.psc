@@ -1866,6 +1866,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             narration = Core.InformantNarration(npc.GetDisplayName(), Game.GetPlayer().GetDisplayName(), gossipSource, rumor)
         EndIf
         ActiveStoryType = "informant"
+        Core.SetInformantTopic(npc, subjectName)
         DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
 
     ElseIf storyType == "road_encounter"
@@ -2975,6 +2976,9 @@ Function OnStoryNPCArrived()
         ActiveStoryNPC.SetLookAt(Game.GetPlayer())
         ; Bio section "Why I came to find <player>" (7200_intel_arrival_purpose); cleared by Core.ReleaseLinger.
         StorageUtil.SetStringValue(ActiveStoryNPC, "Intel_ArrivalPurpose", ActiveNarration)
+        If ActiveStoryType != "informant"
+            StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_ArrivalTopic")
+        EndIf
         Core.SendTaskNarration(ActiveStoryNPC, ActiveNarration, Game.GetPlayer())
     EndIf
     If ActiveStoryType == "seek_player" || ActiveStoryType == "informant"
