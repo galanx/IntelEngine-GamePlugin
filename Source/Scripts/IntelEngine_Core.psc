@@ -2666,7 +2666,11 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
         StoryEngine.AddRecentStoryEvent("npc_interaction: " + npc1Name + " and " + npc2Name + " - " + narration)
     ElseIf socialType == "npc_gossip"
         gossip = InformantRumor(StoryEngine.ExtractJsonField(response, "subject"), "", StoryEngine.ExtractJsonField(response, "gossip")) ; fix84: "<Subject> <gossip>"
-        StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, narration, npc1)
+        If gossip == ""
+            StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, narration, npc1)
+        Else
+            StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, gossip, npc1) ; fix87: log the rumour
+        EndIf
         StoryEngine.AddRecentStoryEvent("npc_gossip: " + npc1Name + " told " + npc2Name + " - " + narration)
     EndIf
 
