@@ -2410,6 +2410,10 @@ String Function InformantLead(String informant, String rumor, Bool wantSender)
     {Rumors are the gossip itself. Drops a leading "<informant> heard/overheard/saw/was told/learned that" and a
     trailing period. wantSender=false: the cleaned rumor; true: Y of "<informant> heard from Y that", else "".}
     String name = UntagName(informant) + " "
+    Int sp = StringUtil.Find(name, " ")
+    If StringUtil.Find(rumor, name) != 0 && sp < StringUtil.GetLength(name) - 1 ; first-name-only lead
+        name = StringUtil.Substring(name, 0, sp + 1)
+    EndIf
     String rest = rumor
     String teller = ""
     If StringUtil.Find(rumor, name) == 0
@@ -2445,13 +2449,13 @@ String Function InformantRejection(String subject, String rumor)
         Return "rumor is empty"
     ElseIf name == ""
         Return "subject is empty"
-    ElseIf StringUtil.Find(rumor, name) < 0
+    ElseIf ReplaceText(rumor, name, "") == rumor ; whole-word, like the C++ check
         Return "rumor does not name the subject"
     EndIf
-    Int sp = StringUtil.Find(rumor, " ")
-    If sp < 0
-        sp = StringUtil.GetLength(rumor)
-    EndIf
+    Int sp = 0 ; first word ends at " ,.;:" like the C++ check
+    While sp < StringUtil.GetLength(rumor) && StringUtil.Find(" ,.;:", StringUtil.GetNthChar(rumor, sp)) < 0
+        sp += 1
+    EndWhile
     String first = StringUtil.Substring(rumor, 0, sp)
     If sp > 3 && StringUtil.Substring(first, sp - 3) == "ing" && StringUtil.Find(name, first) != 0
         Return "rumor starts with an -ing word"
