@@ -133,3 +133,11 @@ default_relations:
   - faction_a: "BlackBriarFamily"
     faction_b: "ThievesGuildFaction"
     relation: 60
+
+# Which factions may go to war with each other. One side listing the other is enough.
+# Entries: "*" (any faction), a faction id or name, or a type (military, guild, political).
+# A war still starts only when the pair's relation is Critical. Political Engine realms never go to war here.
+# Examples:  CompanionsFaction: ["*"]    ThalmorFaction: ["StormcloakFaction", "guild"]
+# If this section is missing, only Imperial Legion vs Stormcloaks may go to war.
+war_allowed:
+  ImperialFaction: ["StormcloakFaction"]
