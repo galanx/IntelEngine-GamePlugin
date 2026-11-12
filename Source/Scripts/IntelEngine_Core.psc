@@ -2475,10 +2475,11 @@ String Function FormatInformantFact(String subject, String rumor, String sender,
 EndFunction
 
 Function SetInformantTopic(Actor npc, String subject)
-    {Short topic for Current Task ("speaking with X about <topic>"); read at arrival, cleared by ReleaseLinger.}
+    {Short topic for Current Task ("speaking with X about <topic>"); none when the subject is empty or the informant; cleared by ReleaseLinger.}
     String subj = UntagName(subject)
     If subj == "" || subj == UntagName(npc.GetDisplayName())
-        subj = "something they saw"
+        StorageUtil.UnsetStringValue(npc, "Intel_ArrivalTopic")
+        Return
     EndIf
     StorageUtil.SetStringValue(npc, "Intel_ArrivalTopic", subj)
 EndFunction
