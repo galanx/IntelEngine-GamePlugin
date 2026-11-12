@@ -63,7 +63,7 @@ District side_id follows its CURRENT owner: 0 Independent, 1 Empire, 2 Stormcloa
 ## Faction-Specific Conflict Styles
 
 Match conflict events to the faction's type:
-- **military** factions (Imperial Legion, Stormcloaks, Thalmor): border_skirmish, war_declaration
+- **military** factions (Imperial Legion, Stormcloaks, Thalmor): border_skirmish, and war_declaration only for pairs with `war_possible: true`
 - **guild/brawl** factions (Companions): brawl, territory_dispute
 - **guild/sabotage** factions (Thieves Guild, College): sabotage, espionage
 - **guild/assassination** factions (Dark Brotherhood, Black-Briars): assassination_attempt
