@@ -970,6 +970,7 @@ Function ReleaseLinger(Actor npc)
     NPCs with only sandbox AI or no AI get a walk-home fallback so they don't
     stand frozen at the linger location forever.
     Shared by Travel, StoryEngine, and NPCTasks.}
+    StorageUtil.UnsetStringValue(npc, "Intel_ArrivalPurpose")
     DebugMsg("Linger release START: " + npc.GetDisplayName() + " [formID=" + npc.GetFormID() + ", 3Dloaded=" + npc.Is3DLoaded() + ", isTeammate=" + npc.IsPlayerTeammate() + "]")
     ActorUtil.RemovePackageOverride(npc, SandboxNearPlayerPackage)
     DebugMsg("Linger release: removed sandbox from " + npc.GetDisplayName())
@@ -2353,20 +2354,61 @@ EndFunction
 ; =============================================================================
 ; DIRECTOR MODE: Story Dispatch
 ; =============================================================================
-String Function FormatInformantFact(String subject, String gossip, String sender)
-    String prefix = "witnessed that "
-    If sender != ""
-        prefix = "heard from " + sender + " that "
+String Function UntagName(String name)
+    Int tagAt = StringUtil.Find(name, " [")
+    If tagAt > 0
+        Return StringUtil.Substring(name, 0, tagAt)
     EndIf
-    Int subjectEnd = StringUtil.Find(subject, " [")
-    String untaggedSubject = subject
-    If subjectEnd >= 0
-        untaggedSubject = StringUtil.Substring(subject, 0, subjectEnd)
+    Return name
+EndFunction
+
+String Function ReplaceText(String text, String what, String with)
+    ; ponytail: Find is case-insensitive and matches inside words; fine for full NPC names.
+    String result = ""
+    Int at = StringUtil.Find(text, what)
+    While at >= 0 && what != ""
+        If at > 0
+            result += StringUtil.Substring(text, 0, at)
+        EndIf
+        result += with
+        Int rest = at + StringUtil.GetLength(what)
+        If rest >= StringUtil.GetLength(text)
+            text = ""
+        Else
+            text = StringUtil.Substring(text, rest)
+        EndIf
+        at = StringUtil.Find(text, what)
+    EndWhile
+    Return result + text
+EndFunction
+
+String Function InformantRumor(String subject, String rumor, String gossip)
+    {The checked rumor sentence. Legacy responses without "rumor" get subject + gossip phrase.}
+    If rumor != "" || gossip == ""
+        Return rumor
     EndIf
-    If StringUtil.Find(gossip, untaggedSubject) < 0
+    If StringUtil.Find(gossip, UntagName(subject)) < 0
         gossip = subject + " " + gossip
     EndIf
-    Return prefix + gossip
+    Return gossip
+EndFunction
+
+String Function FormatInformantFact(String subject, String rumor, String sender, String informant)
+    ; The informant's own name inside the rumor becomes "me"/"my".
+    rumor = ReplaceText(ReplaceText(rumor, UntagName(informant) + "'s", "my"), UntagName(informant), "me")
+    If sender == ""
+        Return "witnessed that " + rumor
+    ElseIf UntagName(sender) == UntagName(subject)
+        Return sender + " told me that " + rumor
+    EndIf
+    Return "heard from " + sender + " that " + rumor
+EndFunction
+
+String Function InformantNarration(String npcName, String playerName, String sender, String rumor)
+    If sender == ""
+        Return npcName + " came to tell " + playerName + " what they witnessed: " + rumor
+    EndIf
+    Return npcName + " came to tell " + playerName + " what " + sender + " told them: " + rumor
 EndFunction
 Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Form sender)
     ; strArg = full JSON payload (race-safe: no shared state between C++ and Papyrus)
@@ -2400,7 +2442,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     EndIf
     If replacing
         If (storyType != "seek_player" && storyType != "informant" && storyType != "ambush" && storyType != "stalker" && storyType != "quest" && storyType != "message" && storyType != "road_encounter") || \
-            (storyType == "message" && StoryEngine.ExtractJsonField(response, "msgContent") == "") || (storyType == "informant" && (StoryEngine.ExtractJsonField(response, "subject") == "" || StoryEngine.ExtractJsonField(response, "gossip") == ""))
+            (storyType == "message" && StoryEngine.ExtractJsonField(response, "msgContent") == "") || (storyType == "informant" && (StoryEngine.ExtractJsonField(response, "subject") == "" || InformantRumor(StoryEngine.ExtractJsonField(response, "subject"), StoryEngine.ExtractJsonField(response, "rumor"), StoryEngine.ExtractJsonField(response, "gossip")) == ""))
             NotifyPlayer("Story replacement refused: unknown type or missing message content / informant subject and gossip.")
             Return
         EndIf
@@ -2430,13 +2472,11 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     ElseIf storyType == "informant"
         String fSubject = StoryEngine.ExtractJsonField(response, "subject")
-        String fGossip = StoryEngine.ExtractJsonField(response, "gossip")
-        If fSubject != "" && fGossip != ""
-            Actor subjectNPC = IntelEngine.FindNPCByName(fSubject)
-            If subjectNPC
-                InjectFact(subjectNPC, fGossip)
-            EndIf
-            InjectFact(npc, FormatInformantFact(fSubject, fGossip, StoryEngine.ExtractJsonField(response, "sender")))
+        String fRumor = InformantRumor(fSubject, StoryEngine.ExtractJsonField(response, "rumor"), StoryEngine.ExtractJsonField(response, "gossip"))
+        String fSender = StoryEngine.ExtractJsonField(response, "sender")
+        If fSubject != "" && fRumor != ""
+            InjectFact(npc, FormatInformantFact(fSubject, fRumor, fSender, npc.GetDisplayName()))
+            narration = InformantNarration(npc.GetDisplayName(), Game.GetPlayer().GetDisplayName(), fSender, fRumor)
         EndIf
         StoryEngine.ActiveStoryType = "informant"
         StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")

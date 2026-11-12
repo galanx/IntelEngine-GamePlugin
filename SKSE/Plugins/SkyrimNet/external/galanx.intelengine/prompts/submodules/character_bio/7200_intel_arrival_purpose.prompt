@@ -1,0 +1,10 @@
+{# Last bio submodule in "full" mode (7100_memories is the previous one); set by StoryEngine on arrival, cleared by Core.ReleaseLinger. #}
+{% if render_mode == "full" %}
+{% if actorUUID and isValidActor(actorUUID) %}
+{% set purpose = papyrus_util("GetStringValue", actorUUID, "Intel_ArrivalPurpose", "") %}
+{% if purpose != "" %}
+## Why I came to find {{ player.name }}
+**Important:** {{ purpose }}
+{% endif %}
+{% endif %}
+{% endif %}
