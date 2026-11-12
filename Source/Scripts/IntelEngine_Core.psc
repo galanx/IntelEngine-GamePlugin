@@ -2510,7 +2510,7 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
         NotifyPlayer(IntelEngine.GetDirectorFailureMessage(npcName))
         Return
     EndIf
-    If narration == ""
+    If narration == "" && storyType != "informant"
         DebugMsg("Director: Empty narration, aborting")
         NotifyPlayer("Story dispatch refused: narration is empty.")
         Return
