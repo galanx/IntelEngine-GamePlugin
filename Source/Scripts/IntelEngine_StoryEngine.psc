@@ -2067,11 +2067,8 @@ Function PerformVisibleInteraction(Actor npc1, Actor npc2, String eventText, Str
     npc2.SetLookAt(npc1)
     Utility.Wait(0.5)
 
-    Debug.Trace("[IntelEngine] [diag:visible-timing] summary start t=" + Utility.GetCurrentRealTime())
     String summary = BuildInteractionSummary(npc1, eventText, npc2)
-    Debug.Trace("[IntelEngine] [diag:visible-timing] narration start t=" + Utility.GetCurrentRealTime())
     Core.SendTaskNarration(npc1, summary, npc2)
-    Debug.Trace("[IntelEngine] [diag:visible-timing] narration sent t=" + Utility.GetCurrentRealTime())
 
     AddRecentStoryEvent(eventType + ": " + summary)
     ; NOTE: AddNPCSocialLog is called BEFORE the visibility branch in OnNPCInteractionResponse
