@@ -2392,7 +2392,7 @@ String Function InformantRumor(String subject, String rumor, String gossip)
     If rumor != "" || gossip == ""
         Return rumor
     EndIf
-    If StringUtil.Find(gossip, UntagName(subject)) < 0
+    If ReplaceText(gossip, UntagName(subject), "") == gossip ; fix96: whole-word, "Ria" is not in "Victoria" (live 17:27)
         gossip = subject + " " + gossip
     EndIf
     Return gossip
