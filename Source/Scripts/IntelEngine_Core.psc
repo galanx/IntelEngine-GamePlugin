@@ -2397,6 +2397,45 @@ String Function InformantRumor(String subject, String rumor, String gossip)
     Return gossip
 EndFunction
 
+String Function DropLead(String text, String lead)
+    ; Papyrus Find is case-insensitive.
+    If StringUtil.Find(text, lead) == 0
+        Return StringUtil.Substring(text, StringUtil.GetLength(lead))
+    EndIf
+    Return text
+EndFunction
+
+String Function InformantLead(String informant, String rumor, Bool wantSender)
+    {Rumors are the gossip itself. Drops a leading "<informant> heard/overheard/saw/was told/learned (that)" and a
+    trailing period. wantSender=false: the cleaned rumor; true: Y of "<informant> heard from Y that", else "".}
+    String name = UntagName(informant) + " "
+    String rest = rumor
+    String teller = ""
+    If StringUtil.Find(rumor, name) == 0
+        rest = StringUtil.Substring(rumor, StringUtil.GetLength(name))
+        If StringUtil.Find(rest, "heard from ") == 0
+            Int at = StringUtil.Find(rest, " that ")
+            If at > 11
+                teller = StringUtil.Substring(rest, 11, at - 11)
+                rest = StringUtil.Substring(rest, at + 6)
+            EndIf
+        Else
+            rest = DropLead(DropLead(DropLead(DropLead(DropLead(DropLead(DropLead(rest, "overheard that "), "overheard "), "heard that "), "saw that "), "saw "), "was told that "), "learned that ")
+        EndIf
+        If rest == ""
+            rest = rumor
+        EndIf
+    EndIf
+    Int last = StringUtil.GetLength(rest) - 1
+    If last > 0 && StringUtil.GetNthChar(rest, last) == "."
+        rest = StringUtil.Substring(rest, 0, last)
+    EndIf
+    If wantSender
+        Return teller
+    EndIf
+    Return rest
+EndFunction
+
 String Function InformantRejection(String subject, String rumor)
     {Same checks as C++ InformantRumorRejection; "" = accepted.}
     String name = UntagName(subject)
@@ -2422,7 +2461,7 @@ String Function FormatInformantFact(String subject, String rumor, String sender,
     ; The informant's own name inside the rumor becomes "me"/"my".
     rumor = ReplaceText(ReplaceText(rumor, UntagName(informant) + "'s", "my"), UntagName(informant), "me")
     If sender == ""
-        Return "witnessed that " + rumor
+        Return "saw that " + rumor
     ElseIf UntagName(sender) == UntagName(subject)
         Return sender + " told me that " + rumor
     EndIf
@@ -2431,7 +2470,7 @@ EndFunction
 
 String Function InformantNarration(String npcName, String playerName, String sender, String rumor)
     If sender == ""
-        Return npcName + " came to tell " + playerName + " what they witnessed: " + rumor
+        Return npcName + " came to tell " + playerName + " what they saw: " + rumor
     EndIf
     Return npcName + " came to tell " + playerName + " what " + sender + " told them: " + rumor
 EndFunction
@@ -2509,6 +2548,10 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
         String fRumor = InformantRumor(fSubject, StoryEngine.ExtractJsonField(response, "rumor"), StoryEngine.ExtractJsonField(response, "gossip"))
         String fSender = StoryEngine.ExtractJsonField(response, "sender")
         If fSubject != "" && fRumor != ""
+            If fSender == ""
+                fSender = InformantLead(npc.GetDisplayName(), fRumor, true)
+            EndIf
+            fRumor = InformantLead(npc.GetDisplayName(), fRumor, false)
             InjectFact(npc, FormatInformantFact(fSubject, fRumor, fSender, npc.GetDisplayName()))
             narration = InformantNarration(npc.GetDisplayName(), Game.GetPlayer().GetDisplayName(), fSender, fRumor)
         EndIf
