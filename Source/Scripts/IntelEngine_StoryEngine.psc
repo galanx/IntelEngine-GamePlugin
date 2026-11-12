@@ -1843,7 +1843,11 @@ Function OnDungeonMasterResponse(String response, Int success)
 
     ; Route by type
     If storyType == "seek_player"
-        Core.InjectFact(npc, "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration)
+        String seekFact = narration
+        If StringUtil.Find(narration, Game.GetPlayer().GetDisplayName()) < 0
+            seekFact = "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration
+        EndIf
+        Core.InjectFact(npc, seekFact)
         ActiveStoryType = storyType
         DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
 
