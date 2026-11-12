@@ -2707,7 +2707,7 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
         Else
             ; Existing off-screen Director outcome: no travel is needed.
             StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
-            DebugMsg("Director: NPCs too far apart or already close - applied off-screen")
+            DebugMsg("Director: NPCs too far apart or already close - applied off-screen (dist=" + dist + " npc1InPlayerCell=" + (npc1.GetParentCell() == playerCell) + " npc2InPlayerCell=" + (npc2.GetParentCell() == playerCell) + ")")
         EndIf
     EndIf
     If ok
