@@ -54,8 +54,8 @@ NPC approaches the player to relay gossip about a third party.
 - The gossip MUST trace to real data in the candidate pool or the Recent Gossip section. Never fabricate.
 - **Location matters for gossip**: Each gossip entry shows its hold in brackets (e.g., [Whiterun Hold]). An NPC can only relay gossip from their own hold or about widely-known public figures (Jarls, faction leaders). A Riften merchant wouldn't know about a private conversation in [Eastmarch].
 - **Chain of knowledge**: The informant must plausibly know the gossip. If they heard it from someone, set "sender" to that person's name. If they witnessed it firsthand, set "sender" to "". The narration should mention WHO told them: "rushed over after hearing from Mikael that Sven had been..." not just "had heard a rumor".
-- Provide "subject" (NPC the gossip is about) and "gossip" (past-tense verb phrase without subject prefix).
-- Provide "sender" = who the informant heard it from (or "" if witnessed firsthand).
+- Provide "rumor" = ONE complete past-tense sentence that names everyone involved, e.g. "Mikael mocked Sinmir's views on the city's rot". It must start with a name (never a verb or an -ing word) and use no pronouns like "his"/"her".
+- Provide "subject" (the NPC the rumor is about; its name must appear in "rumor") and "sender" = who told the informant (or "" if witnessed firsthand). The sender may be the subject.
 - Narration MUST hint at what the gossip is about AND who told them. Good: "rushed over after Mikael told her that Sven had been boasting about Camilla". Bad: "had gossip burning on his tongue" (too vague, no source).
 {% endif %}
 
@@ -243,14 +243,14 @@ CRITICAL: Respond with ONLY a raw JSON object. No analysis, no explanation, no m
 If nothing compelling: {{ "{" }}"should_act":false,"reason":"brief explanation why no candidate fits"}
 
 Otherwise use the matching format. **OMIT optional fields you are not using UNLESS the type definition explicitly requires an empty value.** Keep narration under 120 characters and msgContent under 150 characters. **TOTAL JSON response MUST be under 700 characters** — the system truncates longer responses, breaking parsing. Be concise:
-For "destination", "questLocation", and any place named in narration, msgContent, or gossip, copy the name EXACTLY as it appears in the game/context, in the game's language; NEVER translate it. English place names below are examples only, not names to substitute for localized context.
+For "destination", "questLocation", and any place named in narration, msgContent, gossip, or rumor, copy the name EXACTLY as it appears in the game/context, in the game's language; NEVER translate it. English place names below are examples only, not names to substitute for localized context.
 
 {% if show_seek_player == "1" %}
 seek_player (absence-driven, acquainted): {{ "{" }}"should_act":true,"type":"seek_player","npc":"Name","narration":"gave up waiting at the inn and set out to find {{ playerName }} after days of silence"}
 seek_player (event-driven): {{ "{" }}"should_act":true,"type":"seek_player","npc":"Name","narration":"tracked {{ playerName }} down after hearing about the dragon attack"}
 {% endif %}
 {% if show_informant == "1" %}
-informant: {{ "{" }}"should_act":true,"type":"informant","npc":"Name","narration":"overheard Sven boasting about Camilla","subject":"SubjectName","gossip":"was seen arguing with...","sender":"Sven"}
+informant: {{ "{" }}"should_act":true,"type":"informant","npc":"Name","narration":"overheard Sven boasting about Camilla","subject":"Sven","rumor":"Sven was seen arguing with Camilla at the market","sender":"Sven"}
 {% endif %}
 {% if show_road_encounter == "1" %}
 road_encounter: {{ "{" }}"should_act":true,"type":"road_encounter","npc":"Name","narration":"set out to trade pelts at the market","destination":"Falkreath"}

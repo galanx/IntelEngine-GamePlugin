@@ -1742,14 +1742,12 @@ Function OnDungeonMasterResponse(String response, Int success)
 
     ElseIf storyType == "informant"
         String subjectName = ExtractJsonField(response, "subject")
-        String gossipText = ExtractJsonField(response, "gossip")
+        String rumor = Core.InformantRumor(subjectName, ExtractJsonField(response, "rumor"), ExtractJsonField(response, "gossip"))
         String gossipSource = ExtractJsonField(response, "sender")
-        If subjectName != "" && gossipText != ""
-            Actor subjectNPC = IntelEngine.FindNPCByName(subjectName)
-            If subjectNPC != None
-                Core.InjectFact(subjectNPC, gossipText)
-            EndIf
-            Core.InjectFact(npc, Core.FormatInformantFact(subjectName, gossipText, gossipSource))
+        If subjectName != "" && rumor != ""
+            ; Nothing is injected on the subject: the bare phrase used to read as the subject's own act.
+            Core.InjectFact(npc, Core.FormatInformantFact(subjectName, rumor, gossipSource, npc.GetDisplayName()))
+            narration = Core.InformantNarration(npc.GetDisplayName(), Game.GetPlayer().GetDisplayName(), gossipSource, rumor)
         EndIf
         ActiveStoryType = "informant"
         DispatchToTarget(npc, Game.GetPlayer(), narration, "story")
@@ -2851,6 +2849,8 @@ Function OnStoryNPCArrived()
     Else
         ; seek_player / informant: narrate on arrival (single narration, no early phase)
         ActiveStoryNPC.SetLookAt(Game.GetPlayer())
+        ; Bio section "Why I came to find <player>" (7200_intel_arrival_purpose); cleared by Core.ReleaseLinger.
+        StorageUtil.SetStringValue(ActiveStoryNPC, "Intel_ArrivalPurpose", ActiveNarration)
         Core.SendTaskNarration(ActiveStoryNPC, ActiveNarration, Game.GetPlayer())
     EndIf
     If ActiveStoryType == "seek_player" || ActiveStoryType == "informant"
