@@ -2406,7 +2406,7 @@ String Function DropLead(String text, String lead)
 EndFunction
 
 String Function InformantLead(String informant, String rumor, Bool wantSender)
-    {Rumors are the gossip itself. Drops a leading "<informant> heard/overheard/saw/was told/learned (that)" and a
+    {Rumors are the gossip itself. Drops a leading "<informant> heard/overheard/saw/was told/learned that" and a
     trailing period. wantSender=false: the cleaned rumor; true: Y of "<informant> heard from Y that", else "".}
     String name = UntagName(informant) + " "
     String rest = rumor
@@ -2421,7 +2421,7 @@ String Function InformantLead(String informant, String rumor, Bool wantSender)
                 rest = StringUtil.Substring(rest, at + 6)
             EndIf
         Else
-            rest = DropLead(DropLead(DropLead(DropLead(DropLead(DropLead(DropLead(rest, "overheard that "), "overheard "), "heard that "), "saw that "), "saw "), "was told that "), "learned that ")
+            rest = DropLead(DropLead(DropLead(DropLead(DropLead(rest, "overheard that "), "heard that "), "saw that "), "was told that "), "learned that ")
         EndIf
         If rest == "" || rest == afterName ; no lead phrase matched: the name is part of the gossip
             rest = rumor
@@ -2459,7 +2459,11 @@ String Function InformantRejection(String subject, String rumor)
 EndFunction
 
 String Function FormatInformantFact(String subject, String rumor, String sender, String informant)
-    ; The informant's own name inside the rumor becomes "me"/"my".
+    ; The informant's own name inside the rumor becomes "me"/"my"; a rumor about the informant themself is first person.
+    String own = UntagName(informant) + " "
+    If StringUtil.Find(rumor, own) == 0
+        Return "I " + ReplaceText(ReplaceText(StringUtil.Substring(rumor, StringUtil.GetLength(own)), UntagName(informant) + "'s", "my"), UntagName(informant), "me")
+    EndIf
     rumor = ReplaceText(ReplaceText(rumor, UntagName(informant) + "'s", "my"), UntagName(informant), "me")
     If sender == ""
         Return "saw that " + rumor
@@ -2470,6 +2474,9 @@ String Function FormatInformantFact(String subject, String rumor, String sender,
 EndFunction
 
 String Function InformantNarration(String npcName, String playerName, String sender, String rumor)
+    If StringUtil.Find(rumor, UntagName(npcName) + " ") == 0
+        Return npcName + " came to tell " + playerName + ": " + rumor
+    EndIf
     If sender == ""
         Return npcName + " came to tell " + playerName + " what they saw: " + rumor
     EndIf
