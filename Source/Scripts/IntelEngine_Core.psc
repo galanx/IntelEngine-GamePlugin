@@ -2413,6 +2413,7 @@ String Function InformantLead(String informant, String rumor, Bool wantSender)
     String teller = ""
     If StringUtil.Find(rumor, name) == 0
         rest = StringUtil.Substring(rumor, StringUtil.GetLength(name))
+        String afterName = rest
         If StringUtil.Find(rest, "heard from ") == 0
             Int at = StringUtil.Find(rest, " that ")
             If at > 11
@@ -2422,7 +2423,7 @@ String Function InformantLead(String informant, String rumor, Bool wantSender)
         Else
             rest = DropLead(DropLead(DropLead(DropLead(DropLead(DropLead(DropLead(rest, "overheard that "), "overheard "), "heard that "), "saw that "), "saw "), "was told that "), "learned that ")
         EndIf
-        If rest == ""
+        If rest == "" || rest == afterName ; no lead phrase matched: the name is part of the gossip
             rest = rumor
         EndIf
     EndIf
