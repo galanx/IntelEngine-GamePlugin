@@ -5565,7 +5565,30 @@ EndFunction
 ; =============================================================================
 
 String Function BuildInteractionSummary(Actor npc1, String eventText, Actor npc2)
-    return npc1.GetDisplayName() + " " + eventText + " with " + npc2.GetDisplayName()
+    {"<npc1> <eventText> with <npc2>", without a leading npc1 name or "with npc2" the text already carries (fix86: "Hulda Hulda told...").
+    Names match on the first word of the untagged name, as the narration writes them ("Ollfar told Aldis").}
+    String text = eventText
+    If StringUtil.Find(text, FirstName(npc1.GetDisplayName()) + " ") != 0
+        text = npc1.GetDisplayName() + " " + text
+    EndIf
+    ; ponytail: substring match ("Ria" in "Riften") only drops the "with" tail; whole-word if that shows up
+    If npc2 && StringUtil.Find(text, FirstName(npc2.GetDisplayName())) < 0
+        Int last = StringUtil.GetLength(text) - 1
+        If last > 0 && StringUtil.GetNthChar(text, last) == "."
+            text = StringUtil.Substring(text, 0, last)
+        EndIf
+        text += " with " + npc2.GetDisplayName()
+    EndIf
+    return text
+EndFunction
+
+String Function FirstName(String name)
+    String n = Core.UntagName(name)
+    Int sp = StringUtil.Find(n, " ")
+    If sp > 0
+        Return StringUtil.Substring(n, 0, sp)
+    EndIf
+    Return n
 EndFunction
 
 ; =============================================================================
