@@ -2694,8 +2694,8 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     If dist < 5000.0 && dist > 200.0
         ok = StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType, npc1, npc2, fact1, fact2, gossip, "Director")
     Else
-        Cell playerCell = Game.GetPlayer().GetParentCell()
-        If dist <= 200.0 && playerCell != None && npc1.GetParentCell() == playerCell && npc2.GetParentCell() == playerCell
+        ; fix 95c: loaded near the player, not same parent cell (outdoor grid cells split a few steps; live 16:55:11 dist=59 both cells False)
+        If dist <= 200.0 && npc1.Is3DLoaded() && npc2.Is3DLoaded()
             ; fix 95: already together where the player is - play it there (in earshot) or hold until the player comes in range
             If StoryEngine.InNarrationRange(npc1)
                 StoryEngine.PerformVisibleInteraction(npc1, npc2, narration, socialType)
@@ -2707,7 +2707,7 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
         Else
             ; Existing off-screen Director outcome: no travel is needed.
             StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
-            DebugMsg("Director: NPCs too far apart or already close - applied off-screen (dist=" + dist + " npc1InPlayerCell=" + (npc1.GetParentCell() == playerCell) + " npc2InPlayerCell=" + (npc2.GetParentCell() == playerCell) + ")")
+            DebugMsg("Director: NPCs too far apart or already close - applied off-screen (dist=" + dist + " npc1Loaded=" + npc1.Is3DLoaded() + " npc2Loaded=" + npc2.Is3DLoaded() + ")")
         EndIf
     EndIf
     If ok
