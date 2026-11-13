@@ -2,7 +2,7 @@
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 > [!IMPORTANT]
-> **Compatibility:** IntelEngine 3.7.1 updates the DLL and scripts and requires SkyrimNet Beta 27 or newer (its travel prompt uses the `get_place_names` decorator added in Beta 27). The 3.6.0 runtime components were tested with official Beta 28. Beta 26 and earlier are incompatible.
+> **Compatibility:** IntelEngine 3.8.0 updates the DLL and scripts and requires SkyrimNet Beta 27 or newer (its travel prompt uses the `get_place_names` decorator added in Beta 27). The 3.6.0 runtime components were tested with official Beta 28. Beta 26 and earlier are incompatible.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 > **Have issues? Report them here:** [IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues). Include your Skyrim, SKSE, SkyrimNet and IntelEngine versions and relevant logs with personal information removed.
@@ -89,7 +89,7 @@ A living political system where 9 factions (configurable) scheme, trade, and wag
 
 **One political timeline per playthrough:** `IntelEngine-<id>.db` is one database shared by all saves in that playthrough, not a separate database per save. Loading an earlier save permanently removes later political events, wars, battles and standing history, and re-opens wars that ended after that save (`CleanupFutureEvents`). To keep a later timeline, back up the database and its `-wal`/`-shm` companions with the game closed before loading an earlier save; the `.ess`/`.skse` pair alone does not preserve it.
 
-**Unreleased PE bridge (offline only):** optional Political Engine API v3 supplies public campaign news and current-owner district sides to the Political DM. Initial attachment and loads do not replay news. “PE reactions move relations” in MCM/dashboard defaults on; off still records tagged reactions without their relation/player-standing deltas. IE's own politics, decay and battles remain independent. Existing user `settings.yaml` is preserved; the new key is `politics.pe_reactions_move_relations`. Staged builds and offline checks do not prove game behavior.
+**Political Engine bridge (3.8.0, optional):** optional Political Engine API v3 supplies public campaign news and current-owner district sides to the Political DM. Initial attachment and loads do not replay news. “PE reactions move relations” in MCM/dashboard defaults on; off still records tagged reactions without their relation/player-standing deltas. IE's own politics, decay and battles remain independent. Existing user `settings.yaml` is preserved; the new key is `politics.pe_reactions_move_relations`.
 
 No teleportation. No console commands. No hardcoded location lists. IntelEngine dynamically indexes every actor and location across every cell in the game — every inn, every home, every NPC is discoverable because the index is built from your actual load order.
 
@@ -376,6 +376,18 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 
 **SkyrimNet Plugin Configuration** — IntelEngine's LLM variant, settings schema, generated `settings.yaml`, and user-editable `factions.yaml` remain under `SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`. This configuration path is separate from the Beta 25 external content bundle.
 
+**Extra faction files (`factions.d/`)** — besides `factions.yaml`, IntelEngine loads every `factions.d/*.yaml` next to it (`SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`), in filename order. A faction whose `id` already exists is replaced whole; a new `id` is added. A relation for the same pair replaces the earlier one. A broken file is skipped with a log warning. If a file's first line is `requires: political_engine`, it loads only when Political Engine is installed and its integration setting is on; IntelEngine ships `political_engine.yaml` this way. Edits are whole-faction only: copy the full faction into your file to change it, because single fields cannot be overridden. A faction may set an optional `pe_side: 0-3` (Political Engine side: 0 Independent, 1 Empire, 2 Stormcloaks, 3 Aldmeri Dominion); without it the Imperial, Stormcloak and Thalmor engine factions map to 1, 2 and 3.
+
+```yaml
+# factions.d/my_changes.yaml
+factions:
+  - id: "PE_Whiterun"
+    name: "Whiterun (mine)"
+    type: "political"
+    hold: "Whiterun"
+    leader_names: ["Balgruuf the Greater"]
+```
+
 ---
 
 ## Story Engine — The Dungeon Master
@@ -464,7 +476,7 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 - Skyrim Special Edition / Anniversary Edition: 3.6.0 tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested. Skyrim SE 1.5.x: untested.
 - [SKSE](https://skse.silverlock.org/)
-- [SkyrimNet Beta 28](https://github.com/MinLL/SkyrimNet-GamePlugin) was used for 3.6.0 testing. Declared minimum for 3.7.1: Beta 27.
+- [SkyrimNet Beta 28](https://github.com/MinLL/SkyrimNet-GamePlugin) was used for 3.6.0 testing. Declared minimum for 3.8.0: Beta 27.
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)

@@ -212,6 +212,7 @@ Function ClearLingerSlot(Actor target)
     StorageUtil.UnsetIntValue(target, "Intel_LingerPhase")
     StorageUtil.UnsetFormValue(target, "Intel_LingerAgent")
     StorageUtil.UnsetIntValue(target, "Intel_LingerFarTicks")
+    StorageUtil.UnsetFloatValue(target, "Intel_LingerLastDist")
     ; Escort-wait keys (safe to unset even if not present)
     StorageUtil.UnsetStringValue(target, "Intel_LingerDestName")
     StorageUtil.UnsetFloatValue(target, "Intel_LingerStart")
@@ -244,8 +245,9 @@ Function CheckLingeringTargets()
                 ; Switch to sandbox when within 100 units.
                 Bool closeEnough = false
                 Bool stillFar = true
+                Float targetDist = -1.0
                 If target.Is3DLoaded() && player.Is3DLoaded()
-                    Float targetDist = target.GetDistance(player)
+                    targetDist = target.GetDistance(player)
                     closeEnough = targetDist <= Core.LINGER_APPROACH_DISTANCE
                     stillFar = targetDist > Core.LINGER_RELEASE_DISTANCE
                 ElseIf target.GetParentCell() == player.GetParentCell()
@@ -269,7 +271,11 @@ Function CheckLingeringTargets()
                 ElseIf stillFar
                     ; Player still far during approach — keep incrementing far ticks
                     Int farTicks = StorageUtil.GetIntValue(target, "Intel_LingerFarTicks", 0) + 1
+                    If targetDist >= 0.0 && targetDist < StorageUtil.GetFloatValue(target, "Intel_LingerLastDist", -1.0) - 50.0
+                        farTicks = 0
+                    EndIf
                     StorageUtil.SetIntValue(target, "Intel_LingerFarTicks", farTicks)
+                    StorageUtil.SetFloatValue(target, "Intel_LingerLastDist", targetDist)
                     If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
                         ActorUtil.RemovePackageOverride(target, Core.TravelPackage_Walk)
                         Utility.Wait(0.1)
@@ -360,7 +366,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to go fetch " + targetName + ".", "FetchPerson")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to go fetch " + targetName + ".", "FetchPerson", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to go fetch " + targetName + ".")
         Return false
@@ -420,7 +426,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     ; Don't interrupt if the target is actively doing their own task
     Int existingSlot = Core.FindSlotByAgent(targetNPC)
     If existingSlot >= 0
-        Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " — cannot fetch")
+        Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " - cannot fetch")
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " tried to fetch " + targetNPC.GetDisplayName() + " but they are busy with another task.")
         Return false
     EndIf
@@ -429,7 +435,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     If Core.Schedule
         Int schedSlot = Core.Schedule.FindScheduleSlotByAgent(targetNPC)
         If schedSlot >= 0
-            Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " has scheduled task — cancelling")
+            Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " has scheduled task - cancelling")
             Core.Schedule.ClearScheduleSlot(schedSlot)
         EndIf
     EndIf
@@ -544,7 +550,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to deliver a message to " + targetName + ".", "DeliverMessage")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to deliver a message to " + targetName + ".", "DeliverMessage", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to deliver the message.")
         Return false
@@ -701,7 +707,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to help search for " + targetName + ".", "SearchForActor")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to help search for " + targetName + ".", "SearchForActor", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to search for " + targetName + ".")
         Return false
@@ -848,7 +854,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to escort " + targetName + " to " + destLabel + ".", "EscortTarget")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to escort " + targetName + " to " + destLabel + ".", "EscortTarget", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to escort " + targetName + ".")
         Return false
@@ -908,7 +914,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     Int existingSlot = Core.FindSlotByAgent(targetNPC)
     If existingSlot >= 0
         ; Target is actively doing a task — don't interrupt, reject this escort instead
-        Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " — cannot escort")
+        Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " - cannot escort")
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " tried to escort " + targetNPC.GetDisplayName() + " but they are busy with another task.")
         Return false
     EndIf
@@ -1099,7 +1105,7 @@ Function CheckNPCTaskSlot(Int slot)
         If deadline > 0.0 && Utility.GetCurrentGameTime() > deadline
             Float startTime = StorageUtil.GetFloatValue(agent, "Intel_TaskStartTime")
             Float elapsedHours = (Utility.GetCurrentGameTime() - startTime) * 24.0
-            Core.DebugMsg("Task deadline reached (" + elapsedHours + "h) for " + agent.GetDisplayName() + " — force-completing")
+            Core.DebugMsg("Task deadline reached (" + elapsedHours + "h) for " + agent.GetDisplayName() + " - force-completing")
             HandleTaskTimeout(slot, agent, taskType, taskState)
             Return
         EndIf
@@ -1146,7 +1152,7 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
         ; State 8: agent found the target but interaction cycles are stuck.
         ; Force-complete by zeroing cycles and calling the task handler directly.
         If taskState == Core.STATE_AT_TARGET && target != None && !target.IsDead()
-            Core.DebugMsg(agent.GetDisplayName() + " interaction timed out while visible — force-completing")
+            Core.DebugMsg(agent.GetDisplayName() + " interaction timed out while visible - force-completing")
             StorageUtil.SetIntValue(agent, "Intel_InteractCyclesRemaining", 0)
             If taskType == "fetch_npc"
                 HandleAtTarget(slot, agent, target)
@@ -1160,16 +1166,16 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
         ; State 3: task nearly done — complete instead of canceling
         If taskState == 3 && target != None && !target.IsDead()
             If taskType == "fetch_npc"
-                Core.DebugMsg(agent.GetDisplayName() + " fetch timed out while returning — completing")
+                Core.DebugMsg(agent.GetDisplayName() + " fetch timed out while returning - completing")
                 OnReturnedWithTarget(slot, agent, target)
                 Return
             ElseIf taskType == "escort_target"
-                Core.DebugMsg(agent.GetDisplayName() + " escort timed out while walking — completing")
+                Core.DebugMsg(agent.GetDisplayName() + " escort timed out while walking - completing")
                 OnEscortComplete(slot, agent, target, false)
                 Return
             EndIf
         EndIf
-        Core.DebugMsg(agent.GetDisplayName() + " timed out while visible — narrating cancel")
+        Core.DebugMsg(agent.GetDisplayName() + " timed out while visible - narrating cancel")
         Actor player = Game.GetPlayer()
         Core.SendTaskNarration(agent, agent.GetDisplayName() + " " + IntelEngine.BuildStuckNarration(taskType), player)
         Core.RemoveAllPackages(agent)
@@ -1313,7 +1319,7 @@ Function CheckArrivalAtTarget(Int slot, Actor agent, Actor target)
     ; cell can be 4000+ units apart. Let HandleOffScreenTravel estimate arrival.
     Cell agentCell = agent.GetParentCell()
     If agentCell != None && agentCell.IsInterior() && agentCell == target.GetParentCell()
-        Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName() + "'s cell (off-screen)")
+        Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " reached target cell " + IntelEngine.DescribeDistance(agent, target))
         OnArrivedAtTarget(slot, agent, target)
         Return
     EndIf
@@ -1330,11 +1336,11 @@ Function OnArrivedAtTarget(Int slot, Actor agent, Actor target)
     ; state 9 (presenting) if a duplicate task fires mid-completion.
     Int currentState = Core.SlotStates[slot]
     If currentState != 1 && currentState != Core.STATE_AT_TARGET
-        Core.DebugMsg(agent.GetDisplayName() + " OnArrivedAtTarget ignored — state " + currentState + " (expected 1 or 8)")
+        Core.DebugMsg(agent.GetDisplayName() + " OnArrivedAtTarget ignored - state " + currentState + " (expected 1 or 8)")
         Return
     EndIf
 
-    Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName())
+    Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " reached " + target.GetDisplayName() + " " + IntelEngine.DescribeDistance(agent, target))
 
     ; Remove travel package, apply sandbox near target to hold agent in place
     ; during interaction. Without this, NPCs with schedule AI (innkeepers, etc.)
@@ -1553,7 +1559,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
         EndIf
 
         If targetAtPlayer
-            Core.DebugMsg(target.GetDisplayName() + " reached player — completing fetch")
+            Core.DebugMsg("[diag:arrival] " + target.GetDisplayName() + " reached player -- completing fetch " + IntelEngine.DescribeDistance(target, player))
             OnReturnedWithTarget(slot, agent, target)
             Return
         EndIf
@@ -1587,7 +1593,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
                         PO3_SKSEFunctions.SetLinkedRef(agent, Game.GetPlayer() as ObjectReference, Core.IntelEngine_TravelTarget)
                         ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
                         agent.EvaluatePackage()
-                        Core.NotifyPlayer(agent.GetDisplayName() + " arrived — " + target.GetDisplayName() + " is still on the way")
+                        Core.NotifyPlayer(agent.GetDisplayName() + " arrived - " + target.GetDisplayName() + " is still on the way")
                         Core.SendTransientEvent(agent, target, agent.GetDisplayName() + " arrived but " + target.GetDisplayName() + " is still making their way here.")
                     EndIf
 
@@ -1607,7 +1613,9 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
                         Core.DebugMsg("Target soft recovery (cycle " + waitCycles + ")")
                         target.EvaluatePackage()
                         ObjectReference playerRef = returnMarker
+                        Core.DebugMsg("[diag:path] start " + target.GetDisplayName() + " slot=" + slot + " site=CheckReturnArrival")
                         target.PathToReference(playerRef, 1.0)
+                        Core.DebugMsg("[diag:path] end " + target.GetDisplayName() + " slot=" + slot + " site=CheckReturnArrival")
                         target.EvaluatePackage()
                     EndIf
 
@@ -1643,7 +1651,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
 
     ; Same cell off-screen — failure returns can complete immediately
     If !waitForTarget || target == None
-        Core.DebugMsg(agent.GetDisplayName() + " returned to destination cell (off-screen)")
+        Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " returned to destination cell " + IntelEngine.DescribeDistance(agent, returnMarker))
         OnReturnedWithTarget(slot, agent, target)
         Return
     EndIf
@@ -1653,7 +1661,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
 
     ; Close enough off-screen? Complete.
     If dist <= IntelEngine.GetArrivalThreshold(agent, returnMarker)
-        Core.DebugMsg(agent.GetDisplayName() + " arrived off-screen (dist=" + dist + ")")
+        Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " arrived off-screen " + IntelEngine.DescribeDistance(agent, returnMarker))
         OnReturnedWithTarget(slot, agent, target)
         Return
     EndIf
@@ -1707,15 +1715,15 @@ Function OnReturnedWithTarget(Int slot, Actor agent, Actor target)
     String targetName = target.GetDisplayName()
     Core.DebugMsg(agentName + " returned with " + targetName)
 
-    ; Ensure target is at least in the same cell as the player.
-    ; If not loaded or in a different cell, teleport behind the camera as a
-    ; last resort. Otherwise let the NPC stand where they are — TalkToPlayer
-    ; (priority 1) will naturally pathfind them to the player for conversation.
+    ; Ensure target is near the player.
+    ; If not loaded or loaded but far, teleport behind the camera as a last resort.
+    ; Loaded means same space as the player, so adjacent exterior cells are not
+    ; "elsewhere". Otherwise TalkToPlayer (priority 1) pathfinds them in.
     If !target.Is3DLoaded()
-        Core.DebugMsg(targetName + " not loaded — teleporting behind camera")
+        Core.DebugMsg(targetName + " not loaded - teleporting behind camera")
         Core.TeleportBehindPlayer(target)
-    ElseIf target.GetParentCell() != player.GetParentCell()
-        Core.DebugMsg(targetName + " different cell — teleporting behind camera")
+    ElseIf target.GetDistance(player) > Core.LINGER_RELEASE_DISTANCE
+        Core.DebugMsg(targetName + " far (" + target.GetDistance(player) + ") - teleporting behind camera")
         Core.TeleportBehindPlayer(target)
     EndIf
 
@@ -1773,7 +1781,7 @@ Function OnReturnedAfterFailure(Int slot, Actor agent)
         Core.SendTransientEvent(agent, player, agentName + " returned to report that " + targetName + " refused: " + failReason)
     EndIf
 
-    Core.NotifyPlayer(agentName + ": " + targetName + " refused — " + failReason)
+    Core.NotifyPlayer(agentName + ": " + targetName + " refused - " + failReason)
 
     Core.ClearSlotRestoreFollower(slot, agent)
     ; Cooldown prevents narration-triggered re-selection
@@ -2408,7 +2416,7 @@ Function HandleDepartureFailure(Int slot, Actor agent)
         ; Player isn't looking — teleport silently to destination instead of cancelling
         ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
         If dest != None
-            Core.DebugMsg(agentName + " failed to depart (off-screen) — teleporting to destination")
+            Core.DebugMsg(agentName + " failed to depart (off-screen) - teleporting to destination")
             agent.MoveTo(dest, 0.0, 0.0, 50.0)
             agent.EvaluatePackage()
             Return
@@ -2416,7 +2424,7 @@ Function HandleDepartureFailure(Int slot, Actor agent)
     EndIf
 
     ; Player is watching — narrate and cancel
-    Core.DebugMsg(agentName + " failed to depart (visible) — narrating cancel")
+    Core.DebugMsg(agentName + " failed to depart (visible) - narrating cancel")
 
     If agent.GetParentCell() == player.GetParentCell()
         Core.SendTaskNarration(agent, agentName + " " + IntelEngine.BuildStuckNarration(Core.SlotTaskTypes[slot]), player)
@@ -2506,7 +2514,7 @@ Function CheckIfStuck(Int slot, Actor npc)
                 Actor searchTarget = StorageUtil.GetFormValue(npc, \
                     "Intel_TargetNPC") as Actor
                 If searchTarget != None
-                    Core.DebugMsg("Search exhausted — bringing " + \
+                    Core.DebugMsg("Search exhausted - bringing " + \
                         searchTarget.GetDisplayName() + " to player area")
                     Core.TeleportBehindPlayer(searchTarget, 500.0)
                     IntelEngine.ResetStuckSlot(slot, npc)
@@ -2528,7 +2536,7 @@ Function CheckIfStuck(Int slot, Actor npc)
             EndIf
             npc.EvaluatePackage()
         ElseIf dest != None
-            Core.DebugMsg("Task stuck recovery exhausted — teleporting " + npc.GetDisplayName())
+            Core.DebugMsg("Task stuck recovery exhausted - teleporting " + npc.GetDisplayName())
             npc.MoveTo(dest, 0.0, 0.0, 50.0)
             npc.EvaluatePackage()
         EndIf
