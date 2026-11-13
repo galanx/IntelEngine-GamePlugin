@@ -95,6 +95,8 @@ Bool Property ManifestActive = false Auto Hidden
 Float Property ManifestStartTime = 0.0 Auto Hidden
 Actor Property ManifestLeaderTarget = None Auto Hidden  ; Leader added to BattleSideA during assassination — must be cleaned up
 Bool Property ManifestAssassinAttacked = false Auto Hidden  ; true after assassination attack triggers — gates cleanup
+Bool Property ManifestAssassinStruck = false Auto Hidden    ; true once the assassin has really been set on the leader (after the pause)
+Float Property ManifestAssassinArrivedAt = 0.0 Auto Hidden  ; real time the assassin arrived, to bound the pause before the strike
 Float Property ManifestCleanupDelay = 90.0 Auto Hidden  ; real seconds before cleanup
 
 ; =============================================================================
@@ -267,6 +269,29 @@ Event OnUpdate()
             Else
                 Core.RequestTick(PollInterval)
                 return
+            EndIf
+        EndIf
+
+        ; Assassination, between arriving and striking (HandleAssassinArrival is in its pause). Nobody is
+        ; fighting yet and the clock still counts from the spawn, so the cleanup below used to run here
+        ; whenever the walk had taken fifteen seconds: it untracked the assassin, and the strike then went
+        ; ahead with an attacker nothing removed any more, hostile to everyone in reach.
+        If ManifestLeaderTarget != None && ManifestAssassinAttacked && !ManifestAssassinStruck
+            Float pending = Utility.GetCurrentRealTime() - ManifestAssassinArrivedAt
+            If pending >= 0.0 && pending < 30.0
+                Core.RequestTick(PollInterval)
+                return
+            EndIf
+            Core.DebugMsg("Battle: Assassination never struck - cleaning up")
+            CleanupManifestation()
+            Core.RequestTick(PollInterval)
+            return
+        EndIf
+
+        ; Assassination under way: the assassin stays on the leader, and stops once it is decided.
+        If ManifestLeaderTarget != None && ManifestAssassinStruck
+            If AssassinAttemptIsOver()
+                combatOver = true
             EndIf
         EndIf
 
@@ -1344,6 +1369,14 @@ Function ManifestEvent(String manifestJson)
     ManifestCount = 0
     ManifestLeaderTarget = None
     ManifestAssassinAttacked = false
+    ManifestAssassinStruck = false
+    ; Everyone spawned below joins battle side B, the enemy of side A. The player only belongs to a side
+    ; during a full battle; a membership left over from one that ended badly would turn every brawl and
+    ; skirmish on the player.
+    If PlayerBattleSide == ""
+        player.RemoveFromFaction(Intel_BattleSideA)
+        player.RemoveFromFaction(Intel_BattleSideB)
+    EndIf
 
     ; Pre-calculate spawn offset — actors spawn at offset, not at player position
     Float playerAngle = player.GetAngleZ()
@@ -1392,6 +1425,9 @@ Function ManifestEvent(String manifestJson)
                 EndIf
                 ; CONVENTION: BattleSideA = player's allied side, BattleSideB = enemy side.
                 attackers[i].AddToFaction(Intel_BattleSideB)
+                ; They are here for each other. Several soldier templates, and the bandit stand-in used for
+                ; factions without one, attack any neutral on sight: the player first, being nearest.
+                attackers[i].SetActorValue("Aggression", 1)
                 ManifestActors[ManifestCount] = attackers[i]
                 ManifestCount += 1
             EndIf
@@ -1496,6 +1532,7 @@ Function ManifestEvent(String manifestJson)
                 Float offsetY = Math.Cos(angle) * dist
                 defenders[i].MoveTo(player, offsetX, offsetY, 0.0)
                 defenders[i].AddToFaction(Intel_BattleSideB)
+                defenders[i].SetActorValue("Aggression", 1)
                 ManifestActors[ManifestCount] = defenders[i]
                 ManifestCount += 1
             EndIf
@@ -1574,6 +1611,8 @@ Function HandleAssassinArrival(Actor assassin, String targetName)
         return
     EndIf
     ManifestAssassinAttacked = true
+    ManifestAssassinStruck = false
+    ManifestAssassinArrivedAt = Utility.GetCurrentRealTime()
 
     Core.DebugMsg("Battle: Assassin " + assassin.GetDisplayName() + " reached " + targetName + " - beginning buildup")
 
@@ -1599,9 +1638,23 @@ Function HandleAssassinArrival(Actor assassin, String targetName)
     ; Phase 2: Dramatic pause — assassin keeps tailing, tension builds
     Utility.Wait(Utility.RandomFloat(5.0, 8.0))
 
+    ; Cleaned up during the pause (a reload, the reset button, the stale-state guard): the assassin is no
+    ; longer tracked, and a strike now would leave an attacker that nothing ever removes.
+    If !ManifestActive || ManifestActors[0] != assassin
+        Core.DebugMsg("Battle: Assassination dropped - the manifestation was cleaned up during the pause")
+        return
+    EndIf
+
     ; Phase 3: Attack
     If assassin.IsDead() || target == None || target.IsDead()
         Core.DebugMsg("Battle: Assassination aborted - assassin or target dead")
+        CleanupManifestation()
+        return
+    EndIf
+    ; The leader may have left during the walk and the pause (gone to bed behind a door, disabled by a
+    ; quest). An attack on somebody who is not there left an armed stranger with nobody to fight.
+    If !AssassinCanReach(assassin, target)
+        Core.DebugMsg("Battle: Assassination aborted - " + targetName + " is out of reach")
         CleanupManifestation()
         return
     EndIf
@@ -1609,6 +1662,7 @@ Function HandleAssassinArrival(Actor assassin, String targetName)
     ; C++ sets aggression + combat target; Papyrus StartCombat initiates AI
     IntelEngine.TriggerAssassinationAttack()
     assassin.StartCombat(target)
+    ManifestAssassinStruck = true
 
     ; Inject facts + SkyrimNet event
     String infiltrationFact = "witnessed an assassination attempt on " + targetName
@@ -1631,6 +1685,55 @@ Function HandleAssassinArrival(Actor assassin, String targetName)
     Debug.Notification("Assassin strikes at " + targetName + "!")
     IntelEngine.ConfirmManifestationCooldown()
     Core.DebugMsg("Battle: Assassination attack triggered on " + targetName)
+EndFunction
+
+; The target is here to be attacked: loaded, enabled, and on the same side of every door as the assassin.
+Bool Function AssassinCanReach(Actor assassin, Actor target)
+    If assassin == None || target == None
+        Return false
+    EndIf
+    If target.IsDisabled() || !target.Is3DLoaded() || !assassin.Is3DLoaded()
+        Return false
+    EndIf
+    If assassin.IsInInterior() != target.IsInInterior()
+        Return false
+    EndIf
+    If assassin.IsInInterior() && assassin.GetParentCell() != target.GetParentCell()
+        Return false
+    EndIf
+    Return true
+EndFunction
+
+; Keeps a striking assassin on the leader and nobody else. Returns true when the attempt is over: the
+; leader is dead, down (an essential leader only goes to their knees) or gone, or the assassin is.
+Bool Function AssassinAttemptIsOver()
+    Actor striker = ManifestActors[0]
+    If striker == None || striker.IsDead()
+        Return true
+    EndIf
+    Actor leader = ManifestLeaderTarget
+    If leader == None || leader.IsDead() || leader.IsBleedingOut() || !AssassinCanReach(striker, leader)
+        CalmManifestActor(striker)
+        Return true
+    EndIf
+    ; Still at it. The engine picks its own target once the first exchange is over (a guard who stepped
+    ; in, then whoever stands nearest): point the assassin back at the leader when the fight has lapsed.
+    If !striker.IsInCombat()
+        striker.StartCombat(leader)
+    EndIf
+    Return false
+EndFunction
+
+; A spawned fighter whose event is over stops fighting: without this a survivor kept the aggression of
+; its template and its last target until the area unloaded.
+Function CalmManifestActor(Actor fighter)
+    If fighter == None || fighter.IsDead()
+        Return
+    EndIf
+    fighter.SetActorValue("Aggression", 0)
+    fighter.StopCombat()
+    fighter.StopCombatAlarm()
+    fighter.EvaluatePackage()
 EndFunction
 
 Function CleanupManifestation()
@@ -1657,6 +1760,12 @@ Function CleanupManifestation()
             Else
                 ManifestActors[i].RemoveFromFaction(Intel_BattleSideA)
                 ManifestActors[i].RemoveFromFaction(Intel_BattleSideB)
+                ; Delete only flags a living actor: it stays until the area unloads. It must not stay armed
+                ; and looking for a fight, and where nobody is watching it can go at once.
+                CalmManifestActor(ManifestActors[i])
+                If !Core.PlayerCanSee(ManifestActors[i])
+                    ManifestActors[i].DisableNoWait()
+                EndIf
                 ManifestActors[i].Delete() ; fix98: spawned survivors used to stay forever (live 2026-11-12)
             EndIf
             ManifestActors[i] = None
@@ -1666,6 +1775,7 @@ Function CleanupManifestation()
     ManifestCount = 0
     ManifestActive = false
     ManifestAssassinAttacked = false
+    ManifestAssassinStruck = false
     ManifestLeaderTarget = None
 EndFunction
 

@@ -93,6 +93,14 @@
 - A war that ends by exhaustion or collapse is recorded as a surrender or a ceasefire, something NPCs can hear about and talk about. It used to end in the database only, with nothing in the world to show for it.
 - A faction's own `war_threshold` is honoured when a war is declared in code, not only when the Political DM proposes one.
 
+### Assassins and soldiers that turned on the player
+- An assassin sent after a faction leader goes for that leader and nobody else. They were made hostile to every neutral in reach, the player included, and attacked whoever stood nearest once the leader was down or out of reach.
+- The pause between an assassin reaching the leader and striking no longer runs into the cleanup timer. When the walk had taken fifteen seconds, the assassin was taken off the books during that pause and then struck anyway: an attacker nothing ever removed. This is the assassin that "kept attacking".
+- The attempt ends when the leader is dead, on their knees (leaders who cannot die) or gone; the assassin then stands down instead of looking for the next target. An attempt on a leader who has left the room is called off.
+- Soldiers spawned for a brawl or a skirmish fight each other and their factions' enemies, not bystanders. Several soldier types, and the stand-in used for Political Engine realms, attacked any neutral on sight.
+- Spawned fighters who survive their event put their weapons away, and are removed at once where nobody is looking.
+- A faction ambush only comes from a faction that is hostile to you (standing -40 or lower), and stays small until the feud is deep. The model could pick any enemy of one of your friends, or a faction that does not exist.
+
 ### Fixes to 3.8 changes found in review
 - NPC gossip without a subject no longer starts with a blank.
 - The second NPC of a scene resolves again when they are not in the first one's cell (the pair was dropped as unresolved).

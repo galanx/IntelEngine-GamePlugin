@@ -3605,11 +3605,24 @@ Function HandleFactionAmbushDispatch(String narration, String response)
         return
     EndIf
 
+    ; The list the model picks from also names the enemies of the player's friends (it serves the faction
+    ; quests too), and nothing held the model to the rule that only a faction hostile to the player sends
+    ; a patrol after them. A made-up faction id reads as standing 0 and stops here as well.
+    Int ambushStanding = IntelEngine.GetPlayerFactionStanding(factionId)
+    If ambushStanding > -40
+        Core.DebugMsg("Story [faction_ambush]: " + factionId + " is not hostile to the player (standing " + ambushStanding + "), skipping")
+        return
+    EndIf
+
     Int count = countStr as Int
     If count < 3
         count = 3
     ElseIf count > 7
         count = 7
+    EndIf
+    ; Size follows hostility, as the prompt asks: a small party until the feud is deep.
+    If ambushStanding > -60 && count > 4
+        count = 4
     EndIf
 
     ; Guard: don't overlap with active battle, existing faction ambush, or manifestation
