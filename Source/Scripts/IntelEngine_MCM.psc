@@ -412,7 +412,7 @@ Function ShowSettingsPage()
     EndIf
     OID_MeetingGracePeriod = AddSliderOption("Meeting Grace Period (hours)", gracePeriod, "{1}")
 
-    Float lingerDist = 500.0
+    Float lingerDist = 800.0
     If Core != None
         lingerDist = Core.LINGER_RELEASE_DISTANCE
     EndIf
@@ -1111,12 +1111,12 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogRange(5.0, 1000.0)
         SetSliderDialogInterval(5.0)
     ElseIf optionId == OID_LingerReleaseDistance
-        Float currentValue = 500.0
+        Float currentValue = 800.0
         If Core != None
             currentValue = Core.LINGER_RELEASE_DISTANCE
         EndIf
         SetSliderDialogStartValue(currentValue)
-        SetSliderDialogDefaultValue(500.0)
+        SetSliderDialogDefaultValue(800.0)
         SetSliderDialogRange(300.0, 2000.0)
         SetSliderDialogInterval(100.0)
     ElseIf optionId == OID_StoryEngineInterval
@@ -1277,7 +1277,7 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_MeetingGracePeriod
         SetInfoText("Arrival tolerance for meetings (±hours). Handles Dynamic Time Scaling mods. Default 0.5 (30 minutes). Set higher if using variable timescales.")
     ElseIf optionId == OID_LingerReleaseDistance
-        SetInfoText("How far (game units) you must walk away before an NPC stops lingering and returns to normal. Affects all systems: travel arrivals, task completions, story encounters. Default 500.")
+        SetInfoText("How far (game units) you must walk away before an NPC stops lingering and returns to normal. Affects all systems: travel arrivals, task completions, story encounters. Default 800.")
     ElseIf optionId == OID_CancelAllSchedules
         SetInfoText("Cancel all scheduled meetings and tasks.")
     ElseIf optionId == OID_StoryEngineEnabled
