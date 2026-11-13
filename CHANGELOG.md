@@ -4,7 +4,7 @@
 
 ### Contributors
 - **Gerkinfeltser** developed 3.8: the sections Director, Story travel and arrival, Stories and NPC scenes, Off-screen placement and fetch, Politics and Other below, with the Magelight prompts, the Political Engine bridge and the faction fragments.
-- **Lanosity** wrote the natural-language time parser and its tests.
+- **Lanosity** wrote the natural-language time parser.
 - **Galanx** reviewed the release and wrote the sections Stuck NPCs and package handling, Meetings and visits, Prompts, dashboard and controller, Wars that end stay ended, Assassins and soldiers that turned on the player, and Fixes to 3.8 changes found in review.
 
 ### Director
