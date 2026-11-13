@@ -83,9 +83,13 @@
 - Stories: a refused faction courier gets their aggression back; an ambusher gets their own essential flag, aggression and confidence back; quest enemies, bosses and ambush soldiers are removed once out of sight; a dead guide ends the guiding, not the quest; a visitor walks the last stretch; two NPCs stay together for the length of their scene.
 - Battles: spawned soldiers are remembered across a restart and removed; your crime factions are restored after a battle you joined; an assassin is no longer deleted at the moment of striking.
 - An NPC sent on a task while the inn's bard is singing no longer sits through the song first, and one caught by a song on the way out walks on. The game takes the people in the room into the bard's audience and holds them until the song is over, whatever they were told to do.
+- The inn's own bard can be sent on a task: he finishes the song he is singing, the next piece does not start, and he goes. He plays again the next time you come into the inn. He used to stay at his spot whatever he was told, because the game holds a performing bard in a scene.
 - An NPC the game is holding in a scene or a quest is not treated as stuck: no recovery moves, and no line about their feet catching on something from someone who has not left their chair.
 - An NPC can no longer cancel the task they were just given with their own first reaction to it (a fetch was called off six seconds in, when the AI answered its start with "stop current task"). A task you cancel yourself ends at once, as before.
 - A message delivered out of your sight is reported back again when the messenger lives where you are waiting. They were back home before the handover was counted, so it was taken as delivered in front of you: no way back and no report.
+- A task that runs out of time is finished quietly when you cannot see the NPC, also when the game still has them loaded out in the street while you sit indoors (it keeps a town's outdoor cells in memory once you have walked through). It used to be called off as if you had been watching: an escort was cut off three times in one evening on a full load order.
+- An NPC who reaches a named building unseen is inside it, like one who walks there in view. They used to be left outside the door.
+- A quest whose guide you leave behind no longer stalls. With "Lead the way", the quest's enemies, captive or chest appear only once the guiding is over, and it ended only with the guide beside you at the place: go ahead into the dungeon and it held nothing of the quest until you came back out to her (and she was moved near the place again every three seconds meanwhile). The guiding now ends when she gets there unseen, and at once when you are there already.
 
 ### Meetings and visits
 - An NPC who is already inside the meeting place has arrived (they were sent to its outside door and the meeting was called off).
@@ -103,6 +107,18 @@
 - A Director political event that is refused now says so (it showed "Sent" and did nothing).
 - The middle answer of a prompt reads "Deny" (it showed as "deny").
 - The MCM offered 500 as the default of the linger release distance; the default is 800. Default Wait Hours moves in steps of one hour on the dashboard, as it does in the MCM.
+- Two story types in the MCM read "Informant (rumor)" and "Stalker (follows unseen)"; they showed in lower case.
+- Settings that showed or said the wrong thing (found by Gerkinfeltser):
+  - The dashboard's switches for NPC-to-NPC Interactions and NPC Gossip always showed ON; they show the real state now, and the two are no longer listed among the Story tab's story types.
+  - "Story NPC Cooldown" is gone from the MCM and the dashboard. The game used the longer of it and Long Absence, so with the default of three days its 6 to 72 hours changed nothing. Long Absence is the setting.
+  - "Allow NPC death in rescue" is gone from the MCM and the dashboard: nothing read it, a rescue's victim is always kept alive.
+  - Hold Restrictions no longer claims "Default: Same Hold (Civilians)" for every story type (true for three of seven): the MCM names each type's default in the help text, the dashboard beside the type.
+  - Debug Mode's help says what it does (notices on screen; the Papyrus log has them either way) and points to DebugLevel=4 in IntelEngine.ini for the DLL's log.
+  - Dashboard sliders show as many decimals as their step has (0.25 days showed as 0.3).
+  - Director quest form: the fields that one sub-type needs (Victim, Item description) carry a yellow star until a sub-type is picked, then the red one or none.
+  - `min_event_interval_hours` is gone from settings.sample.yaml; nothing read it.
+  - The Hold Restrictions options read "(except followers)" throughout; six of the seven groups had "(-followers)".
+  - README: Danger Zone default, Story Check Interval, the Max Travel Time row, the quest sub-types, the hold defaults, the prompt's 20 seconds, and the visit clock that also ends a lingering visit. FAQ: the cooldown tip.
 
 ### Wars that end stay ended
 - A war that ends leaves the two factions at an uneasy truce instead of still being at each other's throats, so the same pair no longer declares war again after every cooldown, a little worse off each time.

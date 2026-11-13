@@ -604,7 +604,7 @@ schema:
     - name: "Debug messages"
       path: "other.debug_messages"
       type: "bool"
-      description: "Writes what IntelEngine does to the Papyrus log and shows more notices on screen."
+      description: "Shows what IntelEngine does as notices on screen. The Papyrus log has it either way; for more in the DLL's own log set DebugLevel=4 in IntelEngine.ini."
       defaultValue: false
       category: "Other"
 

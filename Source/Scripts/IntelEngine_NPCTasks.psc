@@ -259,6 +259,7 @@ Function StartTargetLinger(Actor target, Actor agent)
     Core.RemoveIntelPackages(target, false)
 
     ; Phase 1: Walk toward the player
+    Core.ReleaseFromBardHold(target)
     PO3_SKSEFunctions.SetLinkedRef(target, player as ObjectReference, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
@@ -1461,7 +1462,8 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
     ; State 8 (at target): interaction cycles stuck — force-complete them.
     ; State 3 (returning): task nearly done — complete instead of canceling.
     ; Other states: narrate failure and cancel.
-    If agent.Is3DLoaded()
+    ; (Seen by the player, not merely loaded: see Core.OutOfPlayersSight.)
+    If !Core.OutOfPlayersSight(agent)
         ; State 8: agent found the target but interaction cycles are stuck.
         ; Force-complete by zeroing cycles and calling the task handler directly.
         If taskState == Core.STATE_AT_TARGET && target != None && !target.IsDead()
@@ -1894,6 +1896,8 @@ Function BeginReturn(Int slot, Actor agent, Actor target, Actor player)
 
     ; Target pathfinds to player independently — same priority as agent.
     ; Must use PRIORITY_TRAVEL to override sandbox and other ambient packages.
+    ; (Someone fetched from the bard's audience, or the bard himself, would otherwise stay put.)
+    Core.ReleaseFromBardHold(target)
     PO3_SKSEFunctions.SetLinkedRef(target, player, Core.IntelEngine_TravelTarget)
     If sameCell
         ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
@@ -2317,6 +2321,7 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
     ForgetLinger(target)
 
     ; Both NPCs walk to destination together
+    Core.ReleaseFromBardHold(target)
     PO3_SKSEFunctions.SetLinkedRef(target, destMarkerRef, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
@@ -2926,7 +2931,7 @@ Function HandleDepartureFailure(Int slot, Actor agent)
     String agentName = agent.GetDisplayName()
     Actor player = Game.GetPlayer()
 
-    If !agent.Is3DLoaded()
+    If Core.OutOfPlayersSight(agent)
         ; Player isn't looking — teleport silently to destination instead of cancelling
         ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
         If dest != None
