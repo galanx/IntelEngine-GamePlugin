@@ -428,8 +428,10 @@ Function ShowSettingsPage()
     Float storyInterval = Core.GetStoryEngineInterval()
     OID_StoryEngineInterval = AddSliderOption("Check Interval (hours)", storyInterval, "{1}")
 
-    Float storyCooldown = Core.GetStoryEngineCooldown()
-    OID_StoryEngineCooldown = AddSliderOption("Story NPC Cooldown (hours)", storyCooldown, "{0}")
+    ; "Story NPC Cooldown" is not offered: the game uses the longer of it and Long Absence (three days by
+    ; default), so its 6 to 72 hours changed nothing. Long Absence, under Story Tuning, is the setting.
+    ; -1: no option of this page answers to the id.
+    OID_StoryEngineCooldown = -1
 
     AddEmptyOption()
     AddHeaderOption("Danger Zone Visits")
@@ -585,7 +587,9 @@ Function ShowSettingsPage()
     OID_QuestFactionCombat = AddToggleOption("Faction combat quests", tQuestFactionCombat)
     OID_QuestFactionRescue = AddToggleOption("Faction rescue quests", tQuestFactionRescue)
     OID_QuestFactionBattle = AddToggleOption("Faction battle quests", tQuestFactionBattle)
-    OID_QuestAllowDeath = AddToggleOption("Allow NPC death in rescue", tQuestAllowDeath)
+    ; "Allow NPC death in rescue" is not offered: nothing reads the setting, and a rescue's victim is always
+    ; kept alive (made essential) for its length.
+    OID_QuestAllowDeath = -1
 
     AddEmptyOption()
     AddHeaderOption("Faction Politics")
@@ -611,15 +615,16 @@ Function ShowHoldRestrictionsPage()
     AddHeaderOption("Hold Restrictions")
     AddTextOption("Controls whether NPCs can", "", OPTION_FLAG_DISABLED)
     AddTextOption("travel across holds by type.", "", OPTION_FLAG_DISABLED)
-    AddTextOption("Default: Same Hold (Civilians)", "", OPTION_FLAG_DISABLED)
+    AddTextOption("Defaults differ: see the help text", "", OPTION_FLAG_DISABLED)
 
+    ; The defaults of StoryEngine's HoldPolicy properties (they differ by type).
     Int pSeek = 1
-    Int pInformant = 1
-    Int pRoad = 1
+    Int pInformant = 6
+    Int pRoad = 0
     Int pAmbush = 1
     Int pStalker = 1
-    Int pMessage = 1
-    Int pQuest = 1
+    Int pMessage = 2
+    Int pQuest = 0
     If Core != None && Core.StoryEngine != None
         pSeek = Core.StoryEngine.HoldPolicySeekPlayer
         pInformant = Core.StoryEngine.HoldPolicyInformant
@@ -637,31 +642,31 @@ Function ShowHoldRestrictionsPage()
     OID_HoldSeekExceptFollower = AddToggleOption("Same hold (except followers)", pSeek == 2)
     OID_HoldSeekAll = AddToggleOption("Same hold (everyone)", pSeek == 3)
     OID_HoldSeekLocalCivilian = AddToggleOption("Same town (civilians)", pSeek == 4)
-    OID_HoldSeekLocalExceptFollower = AddToggleOption("Same town (-followers)", pSeek == 5)
+    OID_HoldSeekLocalExceptFollower = AddToggleOption("Same town (except followers)", pSeek == 5)
     OID_HoldSeekLocalAll = AddToggleOption("Same town (everyone)", pSeek == 6)
     AddHeaderOption("Informant (rumor)")
     OID_HoldInformantNone = AddToggleOption("No restriction", pInformant == 0)
     OID_HoldInformantCivilian = AddToggleOption("Same hold (civilians)", pInformant == 1)
-    OID_HoldInformantExceptFollower = AddToggleOption("Same hold (-followers)", pInformant == 2)
+    OID_HoldInformantExceptFollower = AddToggleOption("Same hold (except followers)", pInformant == 2)
     OID_HoldInformantAll = AddToggleOption("Same hold (everyone)", pInformant == 3)
     OID_HoldInformantLocalCivilian = AddToggleOption("Same town (civilians)", pInformant == 4)
-    OID_HoldInformantLocalExceptFollower = AddToggleOption("Same town (-followers)", pInformant == 5)
+    OID_HoldInformantLocalExceptFollower = AddToggleOption("Same town (except followers)", pInformant == 5)
     OID_HoldInformantLocalAll = AddToggleOption("Same town (everyone)", pInformant == 6)
     AddHeaderOption("Road Encounter")
     OID_HoldRoadNone = AddToggleOption("No restriction", pRoad == 0)
     OID_HoldRoadCivilian = AddToggleOption("Same hold (civilians)", pRoad == 1)
-    OID_HoldRoadExceptFollower = AddToggleOption("Same hold (-followers)", pRoad == 2)
+    OID_HoldRoadExceptFollower = AddToggleOption("Same hold (except followers)", pRoad == 2)
     OID_HoldRoadAll = AddToggleOption("Same hold (everyone)", pRoad == 3)
     OID_HoldRoadLocalCivilian = AddToggleOption("Same town (civilians)", pRoad == 4)
-    OID_HoldRoadLocalExceptFollower = AddToggleOption("Same town (-followers)", pRoad == 5)
+    OID_HoldRoadLocalExceptFollower = AddToggleOption("Same town (except followers)", pRoad == 5)
     OID_HoldRoadLocalAll = AddToggleOption("Same town (everyone)", pRoad == 6)
     AddHeaderOption("Ambush")
     OID_HoldAmbushNone = AddToggleOption("No restriction", pAmbush == 0)
     OID_HoldAmbushCivilian = AddToggleOption("Same hold (civilians)", pAmbush == 1)
-    OID_HoldAmbushExceptFollower = AddToggleOption("Same hold (-followers)", pAmbush == 2)
+    OID_HoldAmbushExceptFollower = AddToggleOption("Same hold (except followers)", pAmbush == 2)
     OID_HoldAmbushAll = AddToggleOption("Same hold (everyone)", pAmbush == 3)
     OID_HoldAmbushLocalCivilian = AddToggleOption("Same town (civilians)", pAmbush == 4)
-    OID_HoldAmbushLocalExceptFollower = AddToggleOption("Same town (-followers)", pAmbush == 5)
+    OID_HoldAmbushLocalExceptFollower = AddToggleOption("Same town (except followers)", pAmbush == 5)
     OID_HoldAmbushLocalAll = AddToggleOption("Same town (everyone)", pAmbush == 6)
 
     ; ---- Right column (3 groups × 8 rows = 24, under 32) ----
@@ -669,26 +674,26 @@ Function ShowHoldRestrictionsPage()
     AddHeaderOption("Stalker (follows unseen)")
     OID_HoldStalkerNone = AddToggleOption("No restriction", pStalker == 0)
     OID_HoldStalkerCivilian = AddToggleOption("Same hold (civilians)", pStalker == 1)
-    OID_HoldStalkerExceptFollower = AddToggleOption("Same hold (-followers)", pStalker == 2)
+    OID_HoldStalkerExceptFollower = AddToggleOption("Same hold (except followers)", pStalker == 2)
     OID_HoldStalkerAll = AddToggleOption("Same hold (everyone)", pStalker == 3)
     OID_HoldStalkerLocalCivilian = AddToggleOption("Same town (civilians)", pStalker == 4)
-    OID_HoldStalkerLocalExceptFollower = AddToggleOption("Same town (-followers)", pStalker == 5)
+    OID_HoldStalkerLocalExceptFollower = AddToggleOption("Same town (except followers)", pStalker == 5)
     OID_HoldStalkerLocalAll = AddToggleOption("Same town (everyone)", pStalker == 6)
     AddHeaderOption("Message")
     OID_HoldMessageNone = AddToggleOption("No restriction", pMessage == 0)
     OID_HoldMessageCivilian = AddToggleOption("Same hold (civilians)", pMessage == 1)
-    OID_HoldMessageExceptFollower = AddToggleOption("Same hold (-followers)", pMessage == 2)
+    OID_HoldMessageExceptFollower = AddToggleOption("Same hold (except followers)", pMessage == 2)
     OID_HoldMessageAll = AddToggleOption("Same hold (everyone)", pMessage == 3)
     OID_HoldMessageLocalCivilian = AddToggleOption("Same town (civilians)", pMessage == 4)
-    OID_HoldMessageLocalExceptFollower = AddToggleOption("Same town (-followers)", pMessage == 5)
+    OID_HoldMessageLocalExceptFollower = AddToggleOption("Same town (except followers)", pMessage == 5)
     OID_HoldMessageLocalAll = AddToggleOption("Same town (everyone)", pMessage == 6)
     AddHeaderOption("Quest")
     OID_HoldQuestNone = AddToggleOption("No restriction", pQuest == 0)
     OID_HoldQuestCivilian = AddToggleOption("Same hold (civilians)", pQuest == 1)
-    OID_HoldQuestExceptFollower = AddToggleOption("Same hold (-followers)", pQuest == 2)
+    OID_HoldQuestExceptFollower = AddToggleOption("Same hold (except followers)", pQuest == 2)
     OID_HoldQuestAll = AddToggleOption("Same hold (everyone)", pQuest == 3)
     OID_HoldQuestLocalCivilian = AddToggleOption("Same town (civilians)", pQuest == 4)
-    OID_HoldQuestLocalExceptFollower = AddToggleOption("Same town (-followers)", pQuest == 5)
+    OID_HoldQuestLocalExceptFollower = AddToggleOption("Same town (except followers)", pQuest == 5)
     OID_HoldQuestLocalAll = AddToggleOption("Same town (everyone)", pQuest == 6)
 EndFunction
 
@@ -1253,7 +1258,7 @@ EndEvent
 
 Event OnOptionHighlight(Int optionId)
     If optionId == OID_DebugMode
-        SetInfoText("Enable debug notifications and logging.")
+        SetInfoText("Shows what IntelEngine does as notices on screen. The Papyrus log has it either way. For more in the DLL's own log (IntelEngine.log), set DebugLevel=4 in IntelEngine.ini.")
     ElseIf optionId == OID_MaxTasks
         SetInfoText("Maximum number of NPCs that can be on tasks at once.")
     ElseIf optionId == OID_DefaultWaitHours
@@ -1287,7 +1292,7 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_StoryEngineCooldown
         SetInfoText("How long (game hours) a picked NPC's priority stays reduced. Higher = more variety in NPC picks, lower = favorites return sooner.")
     ElseIf optionId == OID_StoryLongAbsence
-        SetInfoText("Minimum game days since your last interaction with an NPC before the Story Engine considers them as a candidate.")
+        SetInfoText("Minimum game days since your last interaction with an NPC before the Story Engine considers them as a candidate. An NPC who has just come to you is left alone for at least as long.")
     ElseIf optionId == OID_StoryMaxTravel
         SetInfoText("Maximum game days an NPC will travel before being teleported to the target. Lower = faster delivery, higher = more realistic.")
     ElseIf optionId == OID_AllowStuckTeleport
@@ -1358,8 +1363,35 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("Experimental, off by default. Needs the mod Political Engine and does nothing without it. When on, its realms, rulers and campaign news feed IntelEngine's politics. Load a save after turning it on: the realms are added at game start and on load.")
     ElseIf optionId == OID_PEReactions
         SetInfoText("Only matters with Political Engine integration on. When off, reactions to Political Engine's news are recorded without changing faction relations or your standing.")
+    Else
+        String holdDefault = HoldDefaultText(optionId)
+        If holdDefault != ""
+            SetInfoText(holdDefault)
+        EndIf
     EndIf
 EndEvent
+
+String Function HoldDefaultText(Int optionId)
+    {Help text of a Hold Restrictions option: what it limits, and the default of its story type. The page used
+    to say "Default: Same Hold (Civilians)" for all seven types, which is true for three.}
+    String what = "Which NPCs may come from further away for this kind of story. "
+    If optionId >= OID_HoldSeekNone && optionId <= OID_HoldSeekLocalAll
+        Return what + "Default for Seek Player: Same hold (civilians)."
+    ElseIf optionId >= OID_HoldInformantNone && optionId <= OID_HoldInformantLocalAll
+        Return what + "Default for Informant: Same town (everyone)."
+    ElseIf optionId >= OID_HoldRoadNone && optionId <= OID_HoldRoadLocalAll
+        Return what + "Default for Road Encounter: No restriction."
+    ElseIf optionId >= OID_HoldAmbushNone && optionId <= OID_HoldAmbushLocalAll
+        Return what + "Default for Ambush: Same hold (civilians)."
+    ElseIf optionId >= OID_HoldStalkerNone && optionId <= OID_HoldStalkerLocalAll
+        Return what + "Default for Stalker: Same hold (civilians)."
+    ElseIf optionId >= OID_HoldMessageNone && optionId <= OID_HoldMessageLocalAll
+        Return what + "Default for Message: Same hold (except followers)."
+    ElseIf optionId >= OID_HoldQuestNone && optionId <= OID_HoldQuestLocalAll
+        Return what + "Default for Quest: No restriction."
+    EndIf
+    Return ""
+EndFunction
 
 ; =============================================================================
 ; UTILITY

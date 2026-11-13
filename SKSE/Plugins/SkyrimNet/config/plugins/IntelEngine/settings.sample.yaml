@@ -19,4 +19,3 @@ politics:
   tick_interval_hours: 6
   max_relation_change_per_tick: 15
   max_active_wars: 2
-  min_event_interval_hours: 4

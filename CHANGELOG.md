@@ -89,6 +89,7 @@
 - A message delivered out of your sight is reported back again when the messenger lives where you are waiting. They were back home before the handover was counted, so it was taken as delivered in front of you: no way back and no report.
 - A task that runs out of time is finished quietly when you cannot see the NPC, also when the game still has them loaded out in the street while you sit indoors (it keeps a town's outdoor cells in memory once you have walked through). It used to be called off as if you had been watching: an escort was cut off three times in one evening on a full load order.
 - An NPC who reaches a named building unseen is inside it, like one who walks there in view. They used to be left outside the door.
+- A quest whose guide you leave behind no longer stalls. With "Lead the way", the quest's enemies, captive or chest appear only once the guiding is over, and it ended only with the guide beside you at the place: go ahead into the dungeon and it held nothing of the quest until you came back out to her (and she was moved near the place again every three seconds meanwhile). The guiding now ends when she gets there unseen, and at once when you are there already.
 
 ### Meetings and visits
 - An NPC who is already inside the meeting place has arrived (they were sent to its outside door and the meeting was called off).
@@ -107,6 +108,17 @@
 - The middle answer of a prompt reads "Deny" (it showed as "deny").
 - The MCM offered 500 as the default of the linger release distance; the default is 800. Default Wait Hours moves in steps of one hour on the dashboard, as it does in the MCM.
 - Two story types in the MCM read "Informant (rumor)" and "Stalker (follows unseen)"; they showed in lower case.
+- Settings that showed or said the wrong thing (found by Gerkinfeltser):
+  - The dashboard's switches for NPC-to-NPC Interactions and NPC Gossip always showed ON; they show the real state now, and the two are no longer listed among the Story tab's story types.
+  - "Story NPC Cooldown" is gone from the MCM and the dashboard. The game used the longer of it and Long Absence, so with the default of three days its 6 to 72 hours changed nothing. Long Absence is the setting.
+  - "Allow NPC death in rescue" is gone from the MCM and the dashboard: nothing read it, a rescue's victim is always kept alive.
+  - Hold Restrictions no longer claims "Default: Same Hold (Civilians)" for every story type (true for three of seven): the MCM names each type's default in the help text, the dashboard beside the type.
+  - Debug Mode's help says what it does (notices on screen; the Papyrus log has them either way) and points to DebugLevel=4 in IntelEngine.ini for the DLL's log.
+  - Dashboard sliders show as many decimals as their step has (0.25 days showed as 0.3).
+  - Director quest form: the fields that one sub-type needs (Victim, Item description) carry a yellow star until a sub-type is picked, then the red one or none.
+  - `min_event_interval_hours` is gone from settings.sample.yaml; nothing read it.
+  - The Hold Restrictions options read "(except followers)" throughout; six of the seven groups had "(-followers)".
+  - README: Danger Zone default, Story Check Interval, the Max Travel Time row, the quest sub-types, the hold defaults, the prompt's 20 seconds, and the visit clock that also ends a lingering visit. FAQ: the cooldown tip.
 
 ### Wars that end stay ended
 - A war that ends leaves the two factions at an uneasy truce instead of still being at each other's throats, so the same pair no longer declares war again after every cooldown, a little worse off each time.
