@@ -216,7 +216,7 @@ schema:
     - name: "Someone brings a rumor"
       path: "stories.reach_informant"
       type: "select"
-      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      description: "How far this kind of story may reach for its NPC."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -246,7 +246,7 @@ schema:
     - name: "A message is delivered"
       path: "stories.reach_message"
       type: "select"
-      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      description: "How far this kind of story may reach for its NPC."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -261,7 +261,7 @@ schema:
     - name: "Someone has work for you"
       path: "stories.reach_quest"
       type: "select"
-      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      description: "How far this kind of story may reach for its NPC."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -276,7 +276,7 @@ schema:
     - name: "An ambush"
       path: "stories.reach_ambush"
       type: "select"
-      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      description: "How far this kind of story may reach for its NPC."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -291,7 +291,7 @@ schema:
     - name: "Someone follows you unseen"
       path: "stories.reach_stalker"
       type: "select"
-      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      description: "How far this kind of story may reach for its NPC."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -509,62 +509,62 @@ schema:
       defaultValue: "Followers only"
       category: "Tasks: ask before starting"
 
-    # ── Tasks: not for followers ──
+    # ── Tasks: what followers can be asked to do ──
     - name: "Go somewhere"
-      path: "tasks.no_follower_go_to_location"
+      path: "tasks.followers_go_to_location"
       type: "bool"
-      description: "Your followers are never offered this action."
-      defaultValue: false
-      category: "Tasks: not for followers"
+      description: "On: your followers can be given this action like anyone else. Off: it is refused for your active followers, without a prompt."
+      defaultValue: true
+      category: "Tasks: what followers can be asked to do"
 
     - name: "Deliver a message"
-      path: "tasks.no_follower_deliver_message"
+      path: "tasks.followers_deliver_message"
       type: "bool"
-      description: "Your followers are never offered this action."
-      defaultValue: false
-      category: "Tasks: not for followers"
+      description: "On: your followers can be given this action like anyone else. Off: it is refused for your active followers, without a prompt."
+      defaultValue: true
+      category: "Tasks: what followers can be asked to do"
 
     - name: "Fetch someone"
-      path: "tasks.no_follower_fetch_person"
+      path: "tasks.followers_fetch_person"
       type: "bool"
-      description: "Your followers are never offered this action."
-      defaultValue: false
-      category: "Tasks: not for followers"
+      description: "On: your followers can be given this action like anyone else. Off: it is refused for your active followers, without a prompt."
+      defaultValue: true
+      category: "Tasks: what followers can be asked to do"
 
     - name: "Escort someone"
-      path: "tasks.no_follower_escort_target"
+      path: "tasks.followers_escort_target"
       type: "bool"
-      description: "Your followers are never offered this action."
-      defaultValue: false
-      category: "Tasks: not for followers"
+      description: "On: your followers can be given this action like anyone else. Off: it is refused for your active followers, without a prompt."
+      defaultValue: true
+      category: "Tasks: what followers can be asked to do"
 
     - name: "Search for someone"
-      path: "tasks.no_follower_search_for_actor"
+      path: "tasks.followers_search_for_actor"
       type: "bool"
-      description: "Your followers are never offered this action."
-      defaultValue: false
-      category: "Tasks: not for followers"
+      description: "On: your followers can be given this action like anyone else. Off: it is refused for your active followers, without a prompt."
+      defaultValue: true
+      category: "Tasks: what followers can be asked to do"
 
     - name: "Arrange a meeting"
-      path: "tasks.no_follower_schedule_meeting"
+      path: "tasks.followers_schedule_meeting"
       type: "bool"
-      description: "Your followers are never offered this action."
-      defaultValue: false
-      category: "Tasks: not for followers"
+      description: "On: your followers can be given this action like anyone else. Off: it is refused for your active followers, without a prompt."
+      defaultValue: true
+      category: "Tasks: what followers can be asked to do"
 
     - name: "Fetch someone later"
-      path: "tasks.no_follower_schedule_fetch"
+      path: "tasks.followers_schedule_fetch"
       type: "bool"
-      description: "Your followers are never offered this action."
-      defaultValue: false
-      category: "Tasks: not for followers"
+      description: "On: your followers can be given this action like anyone else. Off: it is refused for your active followers, without a prompt."
+      defaultValue: true
+      category: "Tasks: what followers can be asked to do"
 
     - name: "Deliver a message later"
-      path: "tasks.no_follower_schedule_delivery"
+      path: "tasks.followers_schedule_delivery"
       type: "bool"
-      description: "Your followers are never offered this action."
-      defaultValue: false
-      category: "Tasks: not for followers"
+      description: "On: your followers can be given this action like anyone else. Off: it is refused for your active followers, without a prompt."
+      defaultValue: true
+      category: "Tasks: what followers can be asked to do"
 
     # ── Meetings ──
     - name: "Wait for you at a meeting (game hours)"

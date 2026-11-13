@@ -37,7 +37,7 @@ Nine factions form alliances, negotiate trade deals, spy on each other, declare 
 
 MCM or Dashboard → Settings → Skip Action for Followers. Toggle ON for any actions you want blocked ~~(`Go To Location`, `Fetch Person`, `Deliver Message`, `Escort Target`)~~. ~~Followers will still talk, gossip, and interact — they just won't physically leave your side.~~
 
-> **Updated 2026-10-19 (3.6.0 update):** MCM or Dashboard → Settings → Skip Action for Followers: turn ON each action you want blocked, including Search For Actor and all three scheduling actions. These default OFF; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
+> **Updated for 3.8.0:** MCM or Dashboard → Settings → Actions Followers Can Do (called Skip Action for Followers before 3.8): turn OFF each action you want blocked, including Search For Actor and all three scheduling actions. These default ON; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
 
 **Q: Can I get a confirmation prompt instead of blocking entirely?**
 
