@@ -5,7 +5,7 @@
 ### Contributors
 - **Gerkinfeltser** developed 3.8: the sections Director, Story travel and arrival, Stories and NPC scenes, Off-screen placement and fetch, Politics and Other below, with the Magelight prompts, the Political Engine bridge and the faction fragments.
 - **Lanosity** wrote the natural-language time parser.
-- **Galanx** reviewed the release and wrote the sections Stuck NPCs and package handling, Meetings and visits, Prompts, dashboard and controller, Wars that end stay ended, Assassins and soldiers that turned on the player, and Fixes to 3.8 changes found in review.
+- **Galanx** reviewed the release and wrote the sections Stuck NPCs and package handling, Meetings and visits, Prompts, dashboard and controller, Wars that end stay ended, Working with SkyrimNet, Assassins and soldiers that turned on the player, and Fixes to 3.8 changes found in review.
 
 ### Director
 - Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "Skip follower" setting still applies).
@@ -88,6 +88,7 @@
 - After a load, an NPC waiting at a destination keeps their place.
 - A visit no longer ends one game hour in, whatever is being said. It lasts while the NPC is talking with you and a little after, and six game hours at most. This applies to meetings, errands, story visitors and fetched NPCs.
 - Times are understood in many more forms ("in 2 hours", "tomorrow at 6", "at dusk"). The natural-language time parser is by Lanosity.
+- More spellings of a time are read: a spelled-out hour with am or pm ("six a.m."), and a clock time with the part of the day ("6:30 in the evening" was taken for half past six in the morning). A bare hour for another day follows the waking hours: "tomorrow at 6" is the evening, "tomorrow at 9" the morning.
 
 ### Prompts, dashboard and controller
 - The choice popup scales with the screen (4K, ultrawide, VR), answers on key release (Enter no longer leaks into the game), takes Left/Right and E, and takes a gamepad when Magelight's gamepad layer is there. Its footer says what Esc answers.
@@ -100,6 +101,12 @@
 - A war that ends by exhaustion or collapse is recorded as a surrender or a ceasefire, something NPCs can hear about and talk about. It used to end in the database only, with nothing in the world to show for it.
 - A faction's own `war_threshold` is honoured when a war is declared in code, not only when the Political DM proposes one.
 
+### Working with SkyrimNet
+- An NPC who is given a task in conversation finishes what they are saying before they set off, also when their answer is still being synthesized. IntelEngine now hears from SkyrimNet itself that a line is on its way; it used to ask the game whether the NPC's mouth was moving, which is not yet the case in those seconds, and wait seven seconds at most.
+- A running task shows on SkyrimNet's Package Manager page as a row of its own ("IntelEngine task: travel, Dragonsreach"). Remove on that page cancels the task cleanly, the way IntelEngine's own dashboard does, so an NPC you want back can be freed from either place. Needs a SkyrimNet with the package manager; older versions are left alone.
+- IntelEngine's settings are on SkyrimNet's dashboard too, on the plugin settings page: stories and their types, how far NPCs travel for each kind of story, quest kinds, NPCs among themselves, tasks and their confirmation prompts, meetings, politics. A change there takes effect in the running game when you press Save; a change in the MCM or on IntelEngine's own dashboard shows there a few seconds later.
+- These settings now belong to the installation, not to one save: a new game starts with what you set. A save from before this update keeps its own settings the first time it is loaded and writes them to the shared file.
+
 ### Assassins and soldiers that turned on the player
 - An assassin sent after a faction leader goes for that leader and nobody else. They were made hostile to every neutral in reach, the player included, and attacked whoever stood nearest once the leader was down or out of reach.
 - The pause between an assassin reaching the leader and striking no longer runs into the cleanup timer. When the walk had taken fifteen seconds, the assassin was taken off the books during that pause and then struck anyway: an attacker nothing ever removed. This is the assassin that "kept attacking".
@@ -107,6 +114,7 @@
 - Soldiers spawned for a brawl or a skirmish fight each other and their factions' enemies, not bystanders. Several soldier types, and the stand-in used for Political Engine realms, attacked any neutral on sight.
 - Spawned fighters who survive their event put their weapons away, and are removed at once where nobody is looking.
 - A faction ambush only comes from a faction that is hostile to you (standing -40 or lower), and stays small until the feud is deep. The model could pick any enemy of one of your friends, or a faction that does not exist.
+- The people who remember an assassination attempt are those who stood around the victim. They were counted around you, so someone two rooms from the attack remembered having witnessed it, and the victim remembered having "witnessed an attempt on" a person with their own name; the victim now remembers being attacked.
 
 ### Fixes to 3.8 changes found in review
 - NPC gossip without a subject no longer starts with a blank.
