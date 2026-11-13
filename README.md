@@ -348,7 +348,7 @@ Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet 
 
 The dashboard communicates through a shared C++ host bridge and existing Papyrus ModEvents. All JSON is built with `nlohmann::json` for proper escaping. Papyrus reads live quest properties and pushes comprehensive JSON snapshots. Remove Packages and Execute Action retain exact decimal-string actor FormIDs, including high-bit IDs.
 
-Accepted Director submissions show an on-screen notice; rejected ones show the reason and keep the form open. The dashboard does not close on submission. SkyMessage confirmations are unchanged.
+Accepted Director submissions show an on-screen notice; rejected ones show the reason and keep the form open. The dashboard does not close on submission.
 
 ---
 
@@ -480,11 +480,11 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)
-- Papyrus MessageBox (confirmation prompts): [Papyrus MessageBox - SKSE NG](https://www.nexusmods.com/skyrimspecialedition/mods/83578) for Skyrim 1.6 and earlier, or [PapyrusMessageBox-1.7.104](https://www.nexusmods.com/skyrimspecialedition/mods/193932) for Skyrim 1.7
+- Papyrus MessageBox (choice prompts; only needed without Magelight UI): [Papyrus MessageBox - SKSE NG](https://www.nexusmods.com/skyrimspecialedition/mods/83578) for Skyrim 1.6 and earlier, or [PapyrusMessageBox-1.7.104](https://www.nexusmods.com/skyrimspecialedition/mods/193932) for Skyrim 1.7
 
 ### Optional
 
-- [Magelight UI](https://github.com/Severause/MagelightUI) **1.7.1+** — optional, recommended dashboard host. Install separately.
+- [Magelight UI](https://github.com/Severause/MagelightUI) **1.7.1+** — optional, recommended dashboard host. Install separately. With it, IE's choice prompts (Allow/Deny, door knock, quest offer) open as a Magelight page instead of a message box; a prompt waits while another Magelight window, such as the dashboard, holds the screen.
 - [PrismaUI](https://www.prismaui.dev/) — optional frozen dashboard fallback; no new features or fixes on this path. Neither host is required for IE gameplay.
 
 ---
