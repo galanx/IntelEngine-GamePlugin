@@ -88,6 +88,7 @@
 - After a load, an NPC waiting at a destination keeps their place.
 - A visit no longer ends one game hour in, whatever is being said. It lasts while the NPC is talking with you and a little after, and six game hours at most. This applies to meetings, errands, story visitors and fetched NPCs.
 - Times are understood in many more forms ("in 2 hours", "tomorrow at 6", "at dusk"). The natural-language time parser is by Lanosity.
+- More spellings of a time are read: a spelled-out hour with am or pm ("six a.m."), and a clock time with the part of the day ("6:30 in the evening" was taken for half past six in the morning). A bare hour for another day follows the waking hours: "tomorrow at 6" is the evening, "tomorrow at 9" the morning.
 
 ### Prompts, dashboard and controller
 - The choice popup scales with the screen (4K, ultrawide, VR), answers on key release (Enter no longer leaks into the game), takes Left/Right and E, and takes a gamepad when Magelight's gamepad layer is there. Its footer says what Esc answers.
