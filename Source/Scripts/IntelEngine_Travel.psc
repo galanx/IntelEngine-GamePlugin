@@ -174,6 +174,12 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
         Return false
     EndIf
 
+    ; Carriage drivers and children are never sent travelling (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akNPC)
+        Core.DebugMsg("GoToLocation: " + akNPC.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        Return false
+    EndIf
+
     If destination == ""
         Core.DebugMsg("GoToLocation: Empty destination")
         Return false
@@ -396,6 +402,10 @@ Function CheckTravelSlot(Int slot)
     EndIf
 
     If taskState == 1
+        ; Already inside the place they are headed for: nothing to walk, and nothing to "fail to depart" from.
+        If ArrivedByBeingInside(slot, npc)
+            Return
+        EndIf
         ; For scheduled meetings, check departure first (did NPC actually start moving?)
         If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
             If CheckMeetingDeparture(slot, npc)
@@ -408,6 +418,31 @@ Function CheckTravelSlot(Int slot)
         ; At destination - check for player arrival or timeout
         CheckWaiting(slot, npc)
     EndIf
+EndFunction
+
+Bool Function ArrivedByBeingInside(Int slot, Actor npc)
+    {A named interior ("The Bannered Mare") resolves to its outside door. An NPC who is inside that very place
+    when the trip starts (they live or work there, or the meeting was arranged on the spot) has arrived.
+    Without this they were sent to the outside door, usually never left, and a scheduled meeting was then
+    called off as a failed departure, so the NPC "never showed up" at the place both were standing in.}
+    ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+    If dest == None
+        Return false
+    EndIf
+    Cell npcCell = npc.GetParentCell()
+    If npcCell == None || !npcCell.IsInterior()
+        Return false
+    EndIf
+    ObjectReference inside = IntelEngine.GetDoorDestinationRef(dest)
+    If inside == None || inside.GetParentCell() != npcCell
+        Return false
+    EndIf
+    Core.DebugMsg(npc.GetDisplayName() + " is already inside the destination -> arrived")
+    ; Same bookkeeping as walking through the door: the anchor for waiting is the door on this side.
+    PO3_SKSEFunctions.SetLinkedRef(npc, inside, Core.IntelEngine_TravelTarget)
+    StorageUtil.SetFormValue(npc, "Intel_DestMarker", inside)
+    OnArrival(slot, npc)
+    Return true
 EndFunction
 
 Function CheckForArrival(Int slot, Actor npc)
@@ -1165,6 +1200,8 @@ Function HandleMeetingDepartureFailure(Int slot, Actor npc)
 
     Core.RemoveAllPackages(npc)
     Core.ClearSlot(slot, true)
+    ; Never drop a meeting the player agreed to without telling them.
+    Core.NotifyPlayer(npcName + " could not set out for the meeting at " + meetDest + ". It is off.")
 
     ; Clear schedule slot — departure failed
     If Core.Schedule

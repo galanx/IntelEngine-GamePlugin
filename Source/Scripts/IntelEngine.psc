@@ -568,6 +568,17 @@ Int[] Function GetNPCCandidatePoolFormIDs() Global Native
 ; Returns JSON: [{"name":"...","formId":123,"pkgFormId":456},...]
 String Function ScanActorsWithPackages(Int[] packageFormIDs) Global Native
 
+; The same scan, returning the actors themselves (for Core.SweepStalePackages).
+Actor[] Function GetActorsWithPackages(Int[] packageFormIDs) Global Native
+
+; Timed prompt: a card with up to three answers and a draining time bar, shown by the dashboard's page through
+; Magelight or Prisma UI. ShowPrompt returns an id, or 0 when no prompt can be shown now. GetPromptResult returns
+; -1 while it is open, the chosen answer (0-based) once decided, and -2 when the view could not be shown at all.
+; timeoutSeconds 0 = no time limit; timeoutChoice = the answer taken when the time runs out or the card is closed
+; (-1 = the last answer). Use Core.AskPlayer, which also falls back to a message box.
+Int Function ShowPrompt(String title, String body, String option1, String option2 = "", String option3 = "", Float timeoutSeconds = 20.0, Int timeoutChoice = -1) Global Native
+Int Function GetPromptResult(Int promptId) Global Native
+
 ; Spawn leveled enemies at a location for quest system.
 ; Looks up vanilla ActorBases by EditorID (no CK properties needed).
 ; enemyType: "bandit", "draugr", or "dragon"
