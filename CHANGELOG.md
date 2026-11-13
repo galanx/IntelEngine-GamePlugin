@@ -8,12 +8,12 @@
 - **Galanx** reviewed the release and wrote the sections Stuck NPCs and package handling, Meetings and visits, Prompts, dashboard and controller, Wars that end stay ended, Working with SkyrimNet, Assassins and soldiers that turned on the player, and Fixes to 3.8 changes found in review.
 
 ### Director
-- Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "Actions Followers Can Do" setting still applies).
+- Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "What followers can be asked to do" setting still applies).
 - Story replacement accepts Director fields and explains refusals; a cancelling story must finish before it is replaced.
 - Generate requires real NPC names and no longer makes another NPC approach you in informant narration; NPC suggestions rank exact names first.
 - When an NPC can't be sent because they aren't loaded (they only exist near their home), the Director now says so instead of "no unique match".
 - The dashboard hotkey is ignored while you type in a text field.
-- "Skip Action for Followers" is now "Actions Followers Can Do" in the MCM, on the dashboard and on SkyrimNet's settings page, with every action on by default. Nothing changes in what followers do: the old list of switches that were off read as if the actions were switched off for followers.
+- "Skip Action for Followers" is now "What followers can be asked to do" in the MCM, on the dashboard and on SkyrimNet's settings page, with every action on by default. Nothing changes in what followers do: the old list of switches that were off read as if the actions were switched off for followers.
 - Informant stories have their own form: Informant NPC, Subject (an NPC, a faction or you), optional Source and a required one-sentence Rumor. IE writes the informant's line, so there is no Narration field.
 - A rumour is refused, with the reason, when it doesn't name the Subject as a whole word ("Ria" inside "Victoria" doesn't count) or starts with an -ing word.
 - NPC Social gossip has a Subject field; the rumour is stored as "<Subject> <what they did>".
@@ -108,14 +108,20 @@
 - The dashboard has a larger layout and can be driven with a gamepad or the arrow keys.
 - A Director political event that is refused now says so (it showed "Sent" and did nothing).
 - The middle answer of a prompt reads "Deny" (it showed as "deny").
-- The MCM offered 500 as the default of the linger release distance; the default is 800. Default Wait Hours moves in steps of one hour on the dashboard, as it does in the MCM.
-- Two story types in the MCM read "Informant (rumor)" and "Stalker (follows unseen)"; they showed in lower case.
+- The MCM offered 500 as the default of "Visit ends when you walk away"; the default is 800. "Wait at a destination" moves in steps of one hour on the dashboard, as it does in the MCM.
+- One name per setting (asked for by Gerkinfeltser). The MCM, the dashboard and SkyrimNet's plugin settings page each had their own name for the same setting ("Max Travel Time", "Max Travel Time (days)", "Longest journey (days)"). All three now use the names of SkyrimNet's page, in plain words, and so do the README's tables. The same goes for the names of the options: "Followers only", "Block civilians only", "Same hold (except followers)". Some of what you will look for under a new name:
+  - Story types: "Seek Player" is "Someone comes to see you", "Informant" is "Someone brings a rumor", "Road Encounter" is "A meeting on the road", "Message" is "A message is delivered", "Quest" is "Someone has work for you", "Ambush" is "An ambush", "Faction Ambush" is "A faction's patrol hunts you", "Stalker" is "Someone follows you unseen". The Director, the notices and the log keep the short names, and each switch's help text says which one it is. (Two of these showed in lower case in the MCM before.)
+  - Tasks: "Action Confirmation Prompts" is "Ask before starting", and the actions read "Go somewhere", "Deliver a message", "Fetch someone", "Escort someone", "Search for someone", "Arrange a meeting", "Fetch someone later", "Deliver a message later". "Max Concurrent Tasks" is "NPCs on a task at once", "Default Wait Hours" is "Wait at a destination", "NPC Release Distance" is "Visit ends when you walk away", "Meeting Timeout" is "Wait for you at a meeting", "Meeting Grace Period" is "On time until".
+  - Stories: "Enable Story Engine" is "Stories", "Max Travel Time" is "Longest journey", "Teleport on stuck/timeout" is "Move a stuck traveller along", "Quest Timeout" is "Quest expires after", "Danger Zone Visits" is "NPCs sent into dangerous places", "Player Home Visits" is "NPCs sent into your home", and the quest types are "Quest kinds" ("Clear out enemies", "Rescue someone", "Find an item", and the three for factions).
+  - NPCs among themselves: "Enable NPC Interactions" is "NPCs visit and talk to each other", with "Kind: one NPC goes to see another", "Kind: gossip passed on", "Check interval" and "Rest per NPC".
+  - Others: "Debug Mode" is "Debug messages"; Auto Dynamic Bio's "Enabled" is "Refresh an NPC's profile after much talk"; politics' "Tick Interval" is "Check interval".
+  - Nothing is stored under a name: your settings and your `settings.yaml` are untouched.
 - Settings that showed or said the wrong thing (found by Gerkinfeltser):
-  - The dashboard's switches for NPC-to-NPC Interactions and NPC Gossip always showed ON; they show the real state now, and the two are no longer listed among the Story tab's story types.
-  - "Story NPC Cooldown" is gone from the MCM and the dashboard. The game used the longer of it and Long Absence, so with the default of three days its 6 to 72 hours changed nothing. Long Absence is the setting.
+  - The dashboard's switches for the two kinds of "NPCs among themselves" (one NPC goes to see another, gossip passed on) always showed ON; they show the real state now, and the two are no longer listed among the Story tab's story types.
+  - "Story NPC Cooldown" is gone from the MCM and the dashboard. The game used the longer of it and "Long absence", so with the default of three days its 6 to 72 hours changed nothing. "Long absence" is the setting.
   - "Allow NPC death in rescue" is gone from the MCM and the dashboard: nothing read it, a rescue's victim is always kept alive.
   - Hold Restrictions no longer claims "Default: Same Hold (Civilians)" for every story type (true for three of seven): the MCM names each type's default in the help text, the dashboard beside the type.
-  - Debug Mode's help says what it does (notices on screen; the Papyrus log has them either way) and points to DebugLevel=4 in IntelEngine.ini for the DLL's log.
+  - The help of "Debug messages" (Debug Mode until now) says what it does (notices on screen; the Papyrus log has them either way) and points to DebugLevel=4 in IntelEngine.ini for the DLL's log.
   - Dashboard sliders show as many decimals as their step has (0.25 days showed as 0.3).
   - Director quest form: the fields that one sub-type needs (Victim, Item description) carry a yellow star until a sub-type is picked, then the red one or none.
   - `min_event_interval_hours` is gone from settings.sample.yaml; nothing read it.

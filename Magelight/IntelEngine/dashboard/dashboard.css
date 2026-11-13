@@ -589,9 +589,6 @@ video {
 .mb-1 {
   margin-bottom: 0.25rem;
 }
-.mb-1\.5 {
-  margin-bottom: 0.375rem;
-}
 .mb-2 {
   margin-bottom: 0.5rem;
 }
@@ -733,6 +730,9 @@ video {
 }
 .flex-col {
   flex-direction: column;
+}
+.flex-wrap {
+  flex-wrap: wrap;
 }
 .items-start {
   align-items: flex-start;
@@ -1056,9 +1056,6 @@ video {
 }
 .leading-tight {
   line-height: 1.25;
-}
-.tracking-normal {
-  letter-spacing: 0em;
 }
 .tracking-wider {
   letter-spacing: 0.05em;
