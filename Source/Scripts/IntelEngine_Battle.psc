@@ -1533,6 +1533,13 @@ Function CleanupManifestation()
         EndIf
     EndIf
 
+    ; fix98: survivors walk off toward Solitude (Whiterun when the player is near Solitude) and are deleted once unloaded;
+    ; they used to stay forever (live 2026-11-12: brawl thieves standing around Whiterun).
+    Actor player = Game.GetPlayer()
+    ObjectReference away = IntelEngine.ResolveAnyDestination(player, "Solitude")
+    If away == None || (away.GetWorldSpace() == player.GetWorldSpace() && player.GetDistance(away) < 8000.0)
+        away = IntelEngine.ResolveAnyDestination(player, "Whiterun")
+    EndIf
     Int i = 0
     While i < ManifestCount
         If ManifestActors[i] != None
@@ -1540,9 +1547,14 @@ Function CleanupManifestation()
                 ManifestActors[i].DisableNoWait()
                 ManifestActors[i].Delete()
             Else
-                ; Living actors: remove from battle factions, let them wander off
                 ManifestActors[i].RemoveFromFaction(Intel_BattleSideA)
                 ManifestActors[i].RemoveFromFaction(Intel_BattleSideB)
+                If away
+                    PO3_SKSEFunctions.SetLinkedRef(ManifestActors[i], away, Core.IntelEngine_TravelTarget)
+                    ActorUtil.AddPackageOverride(ManifestActors[i], Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+                    ManifestActors[i].EvaluatePackage()
+                EndIf
+                ManifestActors[i].Delete()
             EndIf
             ManifestActors[i] = None
         EndIf
