@@ -82,6 +82,569 @@ schema:
       defaultValue: ""
       category: "Story Engine"
 
+    # >>> settings shared with the game: generated from SKSE/src/SettingsBridge.cpp (SKSE/tests/RunSettingsBridgeCheck.py --write)
+    # ── Stories ──
+    - name: "Stories"
+      path: "stories.enabled"
+      type: "bool"
+      description: "The dungeon master: NPCs who know you come to you, send word, lie in wait or bring work."
+      defaultValue: true
+      category: "Stories"
+
+    - name: "Check interval (game hours)"
+      path: "stories.check_interval_hours"
+      type: "float"
+      description: "How often the dungeon master considers starting something."
+      defaultValue: 3
+      min: 0.5
+      max: 168
+      category: "Stories"
+
+    - name: "Long absence (days)"
+      path: "stories.long_absence_days"
+      type: "float"
+      description: "After this many days without meeting you, an NPC counts as not having seen you for a long time."
+      defaultValue: 3
+      min: 1
+      max: 14
+      category: "Stories"
+
+    - name: "Longest journey (days)"
+      path: "stories.max_travel_days"
+      type: "float"
+      description: "A story NPC who has been on the way for this long is brought to the end of the journey."
+      defaultValue: 1
+      min: 0.25
+      max: 3
+      category: "Stories"
+
+    - name: "Move a stuck traveller along"
+      path: "stories.teleport_when_stuck"
+      type: "bool"
+      description: "A story NPC who cannot get on is placed further along the way, out of your sight."
+      defaultValue: true
+      category: "Stories"
+
+    - name: "Story type: someone comes to see you"
+      path: "stories.type_seek_player"
+      type: "bool"
+      defaultValue: true
+      category: "Stories"
+
+    - name: "Story type: someone brings a rumor"
+      path: "stories.type_informant"
+      type: "bool"
+      defaultValue: true
+      category: "Stories"
+
+    - name: "Story type: a meeting on the road"
+      path: "stories.type_road_encounter"
+      type: "bool"
+      defaultValue: true
+      category: "Stories"
+
+    - name: "Story type: a message is delivered"
+      path: "stories.type_message"
+      type: "bool"
+      defaultValue: true
+      category: "Stories"
+
+    - name: "Story type: someone has work for you"
+      path: "stories.type_quest"
+      type: "bool"
+      defaultValue: true
+      category: "Stories"
+
+    - name: "Story type: an ambush"
+      path: "stories.type_ambush"
+      type: "bool"
+      defaultValue: true
+      category: "Stories"
+
+    - name: "Story type: a faction's patrol hunts you"
+      path: "stories.type_faction_ambush"
+      type: "bool"
+      defaultValue: true
+      category: "Stories"
+
+    - name: "Story type: someone follows you unseen"
+      path: "stories.type_stalker"
+      type: "bool"
+      defaultValue: true
+      category: "Stories"
+
+    - name: "NPCs sent into dangerous places"
+      path: "stories.danger_zone_policy"
+      type: "select"
+      description: "Who may be sent to you while you are in a dungeon or another dangerous place."
+      options:
+        - "Allow all NPCs"
+        - "Block civilians only"
+        - "Allow followers only"
+        - "Block all NPCs"
+      defaultValue: "Block civilians only"
+      category: "Stories"
+
+    - name: "NPCs sent into your home"
+      path: "stories.player_home_policy"
+      type: "select"
+      description: "Who may come to you while you are in one of your homes."
+      options:
+        - "Allow all NPCs"
+        - "Block civilians only"
+        - "Allow followers only"
+        - "Block all NPCs"
+      defaultValue: "Allow all NPCs"
+      category: "Stories"
+
+    # ── Stories: how far NPCs travel ──
+    - name: "Someone comes to see you"
+      path: "stories.reach_seek_player"
+      type: "select"
+      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      options:
+        - "No restriction"
+        - "Same hold (civilians)"
+        - "Same hold (except followers)"
+        - "Same hold (everyone)"
+        - "Same town (civilians)"
+        - "Same town (except followers)"
+        - "Same town (everyone)"
+      defaultValue: "Same hold (civilians)"
+      category: "Stories: how far NPCs travel"
+
+    - name: "Someone brings a rumor"
+      path: "stories.reach_informant"
+      type: "select"
+      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      options:
+        - "No restriction"
+        - "Same hold (civilians)"
+        - "Same hold (except followers)"
+        - "Same hold (everyone)"
+        - "Same town (civilians)"
+        - "Same town (except followers)"
+        - "Same town (everyone)"
+      defaultValue: "Same town (everyone)"
+      category: "Stories: how far NPCs travel"
+
+    - name: "A meeting on the road"
+      path: "stories.reach_road_encounter"
+      type: "select"
+      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      options:
+        - "No restriction"
+        - "Same hold (civilians)"
+        - "Same hold (except followers)"
+        - "Same hold (everyone)"
+        - "Same town (civilians)"
+        - "Same town (except followers)"
+        - "Same town (everyone)"
+      defaultValue: "No restriction"
+      category: "Stories: how far NPCs travel"
+
+    - name: "A message is delivered"
+      path: "stories.reach_message"
+      type: "select"
+      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      options:
+        - "No restriction"
+        - "Same hold (civilians)"
+        - "Same hold (except followers)"
+        - "Same hold (everyone)"
+        - "Same town (civilians)"
+        - "Same town (except followers)"
+        - "Same town (everyone)"
+      defaultValue: "Same hold (except followers)"
+      category: "Stories: how far NPCs travel"
+
+    - name: "Someone has work for you"
+      path: "stories.reach_quest"
+      type: "select"
+      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      options:
+        - "No restriction"
+        - "Same hold (civilians)"
+        - "Same hold (except followers)"
+        - "Same hold (everyone)"
+        - "Same town (civilians)"
+        - "Same town (except followers)"
+        - "Same town (everyone)"
+      defaultValue: "No restriction"
+      category: "Stories: how far NPCs travel"
+
+    - name: "An ambush"
+      path: "stories.reach_ambush"
+      type: "select"
+      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      options:
+        - "No restriction"
+        - "Same hold (civilians)"
+        - "Same hold (except followers)"
+        - "Same hold (everyone)"
+        - "Same town (civilians)"
+        - "Same town (except followers)"
+        - "Same town (everyone)"
+      defaultValue: "Same hold (civilians)"
+      category: "Stories: how far NPCs travel"
+
+    - name: "Someone follows you unseen"
+      path: "stories.reach_stalker"
+      type: "select"
+      description: "How far this kind of story may reach for its NPC. Same hold or same town keeps visitors local; the groups in brackets are the ones the limit applies to."
+      options:
+        - "No restriction"
+        - "Same hold (civilians)"
+        - "Same hold (except followers)"
+        - "Same hold (everyone)"
+        - "Same town (civilians)"
+        - "Same town (except followers)"
+        - "Same town (everyone)"
+      defaultValue: "Same hold (civilians)"
+      category: "Stories: how far NPCs travel"
+
+    # ── Stories: quests ──
+    - name: "Quest kind: clear out enemies"
+      path: "stories.quest_combat"
+      type: "bool"
+      defaultValue: true
+      category: "Stories: quests"
+
+    - name: "Quest kind: rescue someone"
+      path: "stories.quest_rescue"
+      type: "bool"
+      defaultValue: true
+      category: "Stories: quests"
+
+    - name: "Quest kind: find an item"
+      path: "stories.quest_find_item"
+      type: "bool"
+      defaultValue: true
+      category: "Stories: quests"
+
+    - name: "Quest kind: fight a faction's enemies"
+      path: "stories.quest_faction_combat"
+      type: "bool"
+      defaultValue: true
+      category: "Stories: quests"
+
+    - name: "Quest kind: rescue for a faction"
+      path: "stories.quest_faction_rescue"
+      type: "bool"
+      defaultValue: true
+      category: "Stories: quests"
+
+    - name: "Quest kind: join a faction's battle"
+      path: "stories.quest_faction_battle"
+      type: "bool"
+      defaultValue: true
+      category: "Stories: quests"
+
+    - name: "Quest expires after (days)"
+      path: "stories.quest_timeout_days"
+      type: "float"
+      description: "A quest you were offered and did not finish ends after this many days."
+      defaultValue: 1
+      min: 1
+      max: 30
+      category: "Stories: quests"
+
+    # ── NPCs among themselves ──
+    - name: "NPCs visit and talk to each other"
+      path: "social.enabled"
+      type: "bool"
+      description: "NPCs who know each other meet without you, and what comes of it spreads as gossip."
+      defaultValue: true
+      category: "NPCs among themselves"
+
+    - name: "Kind: one NPC goes to see another"
+      path: "social.type_interaction"
+      type: "bool"
+      defaultValue: true
+      category: "NPCs among themselves"
+
+    - name: "Kind: gossip passed on"
+      path: "social.type_gossip"
+      type: "bool"
+      defaultValue: true
+      category: "NPCs among themselves"
+
+    - name: "Check interval (game hours)"
+      path: "social.interval_hours"
+      type: "float"
+      defaultValue: 1.5
+      min: 0.5
+      max: 168
+      category: "NPCs among themselves"
+
+    - name: "Rest per NPC (game hours)"
+      path: "social.cooldown_hours"
+      type: "float"
+      defaultValue: 24
+      min: 6
+      max: 72
+      category: "NPCs among themselves"
+
+    # ── Tasks ──
+    - name: "NPCs on a task at once"
+      path: "tasks.max_concurrent"
+      type: "int"
+      description: "Travel, errands, meetings and stories all take one of these places."
+      defaultValue: 5
+      min: 1
+      max: 5
+      category: "Tasks"
+
+    - name: "Wait at a destination (game hours)"
+      path: "tasks.default_wait_hours"
+      type: "float"
+      description: "How long an NPC you sent somewhere waits there for you before going home."
+      defaultValue: 48
+      min: 6
+      max: 168
+      category: "Tasks"
+
+    - name: "Visit ends when you walk away (units)"
+      path: "tasks.release_distance"
+      type: "float"
+      description: "An NPC who stayed with you after a task goes back to their own day once you are this far away."
+      defaultValue: 800
+      min: 300
+      max: 2000
+      category: "Tasks"
+
+    - name: "Report back after a delivery"
+      path: "tasks.report_back_after_delivery"
+      type: "bool"
+      description: "An NPC who delivered a message for you comes back to tell you how it went."
+      defaultValue: true
+      category: "Tasks"
+
+    # ── Tasks: ask before starting ──
+    - name: "Go somewhere"
+      path: "tasks.confirm_go_to_location"
+      type: "select"
+      description: "Ask you before an NPC starts this task: never, only for your followers, or for everyone."
+      options:
+        - "Disabled"
+        - "Followers only"
+        - "Everyone"
+      defaultValue: "Followers only"
+      category: "Tasks: ask before starting"
+
+    - name: "Deliver a message"
+      path: "tasks.confirm_deliver_message"
+      type: "select"
+      description: "Ask you before an NPC starts this task: never, only for your followers, or for everyone."
+      options:
+        - "Disabled"
+        - "Followers only"
+        - "Everyone"
+      defaultValue: "Followers only"
+      category: "Tasks: ask before starting"
+
+    - name: "Fetch someone"
+      path: "tasks.confirm_fetch_person"
+      type: "select"
+      description: "Ask you before an NPC starts this task: never, only for your followers, or for everyone."
+      options:
+        - "Disabled"
+        - "Followers only"
+        - "Everyone"
+      defaultValue: "Followers only"
+      category: "Tasks: ask before starting"
+
+    - name: "Escort someone"
+      path: "tasks.confirm_escort_target"
+      type: "select"
+      description: "Ask you before an NPC starts this task: never, only for your followers, or for everyone."
+      options:
+        - "Disabled"
+        - "Followers only"
+        - "Everyone"
+      defaultValue: "Followers only"
+      category: "Tasks: ask before starting"
+
+    - name: "Search for someone"
+      path: "tasks.confirm_search_for_actor"
+      type: "select"
+      description: "Ask you before an NPC starts this task: never, only for your followers, or for everyone."
+      options:
+        - "Disabled"
+        - "Followers only"
+        - "Everyone"
+      defaultValue: "Followers only"
+      category: "Tasks: ask before starting"
+
+    - name: "Arrange a meeting"
+      path: "tasks.confirm_schedule_meeting"
+      type: "select"
+      description: "Ask you before an NPC starts this task: never, only for your followers, or for everyone."
+      options:
+        - "Disabled"
+        - "Followers only"
+        - "Everyone"
+      defaultValue: "Everyone"
+      category: "Tasks: ask before starting"
+
+    - name: "Fetch someone later"
+      path: "tasks.confirm_schedule_fetch"
+      type: "select"
+      description: "Ask you before an NPC starts this task: never, only for your followers, or for everyone."
+      options:
+        - "Disabled"
+        - "Followers only"
+        - "Everyone"
+      defaultValue: "Followers only"
+      category: "Tasks: ask before starting"
+
+    - name: "Deliver a message later"
+      path: "tasks.confirm_schedule_delivery"
+      type: "select"
+      description: "Ask you before an NPC starts this task: never, only for your followers, or for everyone."
+      options:
+        - "Disabled"
+        - "Followers only"
+        - "Everyone"
+      defaultValue: "Followers only"
+      category: "Tasks: ask before starting"
+
+    # ── Tasks: not for followers ──
+    - name: "Go somewhere"
+      path: "tasks.no_follower_go_to_location"
+      type: "bool"
+      description: "Your followers are never offered this action."
+      defaultValue: false
+      category: "Tasks: not for followers"
+
+    - name: "Deliver a message"
+      path: "tasks.no_follower_deliver_message"
+      type: "bool"
+      description: "Your followers are never offered this action."
+      defaultValue: false
+      category: "Tasks: not for followers"
+
+    - name: "Fetch someone"
+      path: "tasks.no_follower_fetch_person"
+      type: "bool"
+      description: "Your followers are never offered this action."
+      defaultValue: false
+      category: "Tasks: not for followers"
+
+    - name: "Escort someone"
+      path: "tasks.no_follower_escort_target"
+      type: "bool"
+      description: "Your followers are never offered this action."
+      defaultValue: false
+      category: "Tasks: not for followers"
+
+    - name: "Search for someone"
+      path: "tasks.no_follower_search_for_actor"
+      type: "bool"
+      description: "Your followers are never offered this action."
+      defaultValue: false
+      category: "Tasks: not for followers"
+
+    - name: "Arrange a meeting"
+      path: "tasks.no_follower_schedule_meeting"
+      type: "bool"
+      description: "Your followers are never offered this action."
+      defaultValue: false
+      category: "Tasks: not for followers"
+
+    - name: "Fetch someone later"
+      path: "tasks.no_follower_schedule_fetch"
+      type: "bool"
+      description: "Your followers are never offered this action."
+      defaultValue: false
+      category: "Tasks: not for followers"
+
+    - name: "Deliver a message later"
+      path: "tasks.no_follower_schedule_delivery"
+      type: "bool"
+      description: "Your followers are never offered this action."
+      defaultValue: false
+      category: "Tasks: not for followers"
+
+    # ── Meetings ──
+    - name: "Wait for you at a meeting (game hours)"
+      path: "meetings.timeout_hours"
+      type: "float"
+      description: "How long an NPC waits at the agreed place before giving up."
+      defaultValue: 5
+      min: 1
+      max: 12
+      category: "Meetings"
+
+    - name: "On time until (game hours late)"
+      path: "meetings.grace_period_hours"
+      type: "float"
+      description: "Arriving within this time after the agreed hour still counts as on time."
+      defaultValue: 0.5
+      min: 0
+      max: 2
+      category: "Meetings"
+
+    # ── Other ──
+    - name: "Refresh an NPC's profile after much talk"
+      path: "other.auto_bio_enabled"
+      type: "bool"
+      description: "Asks SkyrimNet to update an NPC's dynamic profile once you have exchanged enough lines with them."
+      defaultValue: false
+      category: "Other"
+
+    - name: "Lines before a profile refresh"
+      path: "other.auto_bio_threshold"
+      type: "int"
+      defaultValue: 20
+      min: 5
+      max: 1000
+      category: "Other"
+
+    - name: "Debug messages"
+      path: "other.debug_messages"
+      type: "bool"
+      description: "Writes what IntelEngine does to the Papyrus log and shows more notices on screen."
+      defaultValue: false
+      category: "Other"
+
+    # <<< settings shared with the game
+
+    # ── Politics (the same values the MCM and the dashboard change) ──
+    - name: "Faction politics"
+      path: "politics.enabled"
+      type: "bool"
+      description: "Factions change their relations, quarrel and go to war while you play."
+      defaultValue: true
+      category: "Politics"
+
+    - name: "Check interval (game hours)"
+      path: "politics.tick_interval_hours"
+      type: "int"
+      description: "How often the political game master considers a new event."
+      defaultValue: 6
+      min: 1
+      max: 168
+      category: "Politics"
+
+    - name: "Largest change of a relation per check"
+      path: "politics.max_relation_change_per_tick"
+      type: "int"
+      description: "How far two factions' relation can move in one check."
+      defaultValue: 15
+      min: 5
+      max: 30
+      category: "Politics"
+
+    - name: "Wars at the same time"
+      path: "politics.max_active_wars"
+      type: "int"
+      description: "No new war is declared while this many are being fought."
+      defaultValue: 2
+      min: 1
+      max: 5
+      category: "Politics"
+
     # ── LLM Overrides (leave empty to use base OpenRouter config) ──
     - name: "API Endpoint"
       path: "llm.endpoint"

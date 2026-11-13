@@ -96,6 +96,8 @@
 ### Working with SkyrimNet
 - An NPC who is given a task in conversation finishes what they are saying before they set off, also when their answer is still being synthesized. IntelEngine now hears from SkyrimNet itself that a line is on its way; it used to ask the game whether the NPC's mouth was moving, which is not yet the case in those seconds, and wait seven seconds at most.
 - A running task shows on SkyrimNet's Package Manager page as a row of its own ("IntelEngine task: travel, Dragonsreach"). Remove on that page cancels the task cleanly, the way IntelEngine's own dashboard does, so an NPC you want back can be freed from either place. Needs a SkyrimNet with the package manager; older versions are left alone.
+- IntelEngine's settings are on SkyrimNet's dashboard too, on the plugin settings page: stories and their types, how far NPCs travel for each kind of story, quest kinds, NPCs among themselves, tasks and their confirmation prompts, meetings, politics. A change there takes effect in the running game when you press Save; a change in the MCM or on IntelEngine's own dashboard shows there a few seconds later.
+- These settings now belong to the installation, not to one save: a new game starts with what you set. A save from before this update keeps its own settings the first time it is loaded and writes them to the shared file.
 
 ### Assassins and soldiers that turned on the player
 - An assassin sent after a faction leader goes for that leader and nobody else. They were made hostile to every neutral in reach, the player included, and attacked whoever stood nearest once the leader was down or out of reach.
