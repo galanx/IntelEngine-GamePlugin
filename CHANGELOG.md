@@ -83,9 +83,12 @@
 - Stories: a refused faction courier gets their aggression back; an ambusher gets their own essential flag, aggression and confidence back; quest enemies, bosses and ambush soldiers are removed once out of sight; a dead guide ends the guiding, not the quest; a visitor walks the last stretch; two NPCs stay together for the length of their scene.
 - Battles: spawned soldiers are remembered across a restart and removed; your crime factions are restored after a battle you joined; an assassin is no longer deleted at the moment of striking.
 - An NPC sent on a task while the inn's bard is singing no longer sits through the song first, and one caught by a song on the way out walks on. The game takes the people in the room into the bard's audience and holds them until the song is over, whatever they were told to do.
+- The inn's own bard can be sent on a task: he finishes the song he is singing, the next piece does not start, and he goes. He plays again the next time you come into the inn. He used to stay at his spot whatever he was told, because the game holds a performing bard in a scene.
 - An NPC the game is holding in a scene or a quest is not treated as stuck: no recovery moves, and no line about their feet catching on something from someone who has not left their chair.
 - An NPC can no longer cancel the task they were just given with their own first reaction to it (a fetch was called off six seconds in, when the AI answered its start with "stop current task"). A task you cancel yourself ends at once, as before.
 - A message delivered out of your sight is reported back again when the messenger lives where you are waiting. They were back home before the handover was counted, so it was taken as delivered in front of you: no way back and no report.
+- A task that runs out of time is finished quietly when you cannot see the NPC, also when the game still has them loaded out in the street while you sit indoors (it keeps a town's outdoor cells in memory once you have walked through). It used to be called off as if you had been watching: an escort was cut off three times in one evening on a full load order.
+- An NPC who reaches a named building unseen is inside it, like one who walks there in view. They used to be left outside the door.
 
 ### Meetings and visits
 - An NPC who is already inside the meeting place has arrived (they were sent to its outside door and the meeting was called off).
@@ -103,6 +106,7 @@
 - A Director political event that is refused now says so (it showed "Sent" and did nothing).
 - The middle answer of a prompt reads "Deny" (it showed as "deny").
 - The MCM offered 500 as the default of the linger release distance; the default is 800. Default Wait Hours moves in steps of one hour on the dashboard, as it does in the MCM.
+- Two story types in the MCM read "Informant (rumor)" and "Stalker (follows unseen)"; they showed in lower case.
 
 ### Wars that end stay ended
 - A war that ends leaves the two factions at an uneasy truce instead of still being at each other's throats, so the same pair no longer declares war again after every cooldown, a little worse off each time.

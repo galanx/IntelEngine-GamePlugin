@@ -656,8 +656,10 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
 
     ; Add to task faction
     akAgent.AddToFaction(IntelEngine_TaskFaction)
-    ; Someone listening to the bard would stay seated until the song is over.
-    ReleaseFromBardAudience(akAgent)
+    ; Someone listening to the bard would stay seated until the song is over, and the bard himself would
+    ; go on playing.
+    StorageUtil.UnsetIntValue(akAgent, "Intel_BardReleases")
+    ReleaseFromBardHold(akAgent)
     ; When the task began, in real seconds (CancelCurrentTask: the NPC's own first reaction does not end it).
     StorageUtil.SetFloatValue(akAgent, "Intel_TaskStartedRT", Utility.GetCurrentRealTime())
 
@@ -1935,6 +1937,8 @@ Function DiagDeparture(Actor npc, Int seconds = 60)
 EndFunction
 
 Quest _bardAudienceQuest
+Quest _bardSongsQuest
+Int Property BARD_RELEASE_TRIES = 4 AutoReadOnly
 Float Property HELD_PATIENCE_SECONDS = 120.0 AutoReadOnly
 ; How long after a task starts the NPC's own reaction (the CancelCurrentTask action) cannot end it.
 Float Property TASK_CANCEL_GRACE_SECONDS = 45.0 AutoReadOnly
@@ -1959,12 +1963,72 @@ Bool Function ReleaseFromBardAudience(Actor npc)
     While n > 0
         n -= 1
         ReferenceAlias seat = _bardAudienceQuest.GetNthAlias(n) as ReferenceAlias
-        If seat != None && seat.GetReference() == npc
+        ; Listeners only. The quest's "Bard" seat is the performer's and is a required alias: the game logs
+        ; "Cannot clear a non-optional alias" for trying, and it was tried every three seconds for a bard
+        ; sent on an errand (see ReleaseBardFromSong).
+        If seat != None && seat.GetReference() == npc && seat.GetName() != "Bard"
             seat.Clear()
             released = true
         EndIf
     EndWhile
     Return released
+EndFunction
+
+Bool Function ReleaseBardFromSong(Actor npc)
+    {The inn's own bard is held by the scenes of the vanilla quest BardSongs for as long as the player is in
+    the room: he walks to his spot and plays, one piece after another, and a scene beats any package override.
+    A bard sent on an errand never left (Mikael in the Bannered Mare, 2026-11-13). The game's own way to free
+    a bard is BardSongsScript.StopAllSongs(): it ends the piece and keeps the next one from starting by
+    itself. He plays again when his own routine next asks for a song. True when the NPC was performing.}
+    If npc == None
+        Return false
+    EndIf
+    Scene playing = npc.GetCurrentScene()
+    If playing == None
+        Return false
+    EndIf
+    If _bardSongsQuest == None
+        _bardSongsQuest = Game.GetFormFromFile(0x00074A55, "Skyrim.esm") as Quest
+    EndIf
+    If _bardSongsQuest == None || playing.GetOwningQuest() != _bardSongsQuest
+        Return false
+    EndIf
+    BardSongsScript songs = _bardSongsQuest as BardSongsScript
+    If songs != None
+        songs.StopAllSongs()
+    EndIf
+    If playing.IsPlaying()
+        playing.Stop()          ; a second bard's pieces are not on that list
+    EndIf
+    Return true
+EndFunction
+
+Int Function ReleaseFromBardHold(Actor npc)
+    {Out of whatever a bard's performance has someone doing: 2 when they were the one performing, 1 when they
+    were listening, 0 when neither.}
+    If ReleaseBardFromSong(npc)
+        Return 2
+    EndIf
+    If ReleaseFromBardAudience(npc)
+        Return 1
+    EndIf
+    Return 0
+EndFunction
+
+Bool Function OutOfPlayersSight(Actor npc)
+    {Is nobody watching this NPC? A task that ran out of time, or never got going, is finished quietly when
+    nobody is, and called off aloud when the player has been looking on. "Not loaded" was the test for it.
+    But once the player has walked through a town its outdoor cells stay in memory: someone sent from the inn
+    is still loaded out in the street while the player sits indoors, and their errand was called off as if
+    watched (seen three times in one evening on a full load order). In the player's own cell they count as
+    watched; elsewhere it is what the player can actually see.}
+    If npc == None || !npc.Is3DLoaded()
+        Return true
+    EndIf
+    If npc.GetParentCell() == Game.GetPlayer().GetParentCell()
+        Return false
+    EndIf
+    Return !PlayerCanSee(npc)
 EndFunction
 
 Bool Function HeldByAnotherPackage(Int slot, Actor npc)
@@ -1982,11 +2046,22 @@ Bool Function HeldByAnotherPackage(Int slot, Actor npc)
         StorageUtil.UnsetFloatValue(npc, "Intel_HeldSince")
         Return false
     EndIf
-    If ReleaseFromBardAudience(npc)
-        DebugMsg(npc.GetDisplayName() + " was taken into the bard's audience -> released, the task goes on")
-        npc.EvaluatePackage()
-        IntelEngine.ResetStuckSlot(slot, npc)
-        Return true
+    ; A few times per task at most. If the game takes them straight back every time, repeating it every
+    ; three seconds for as long as the task lasts helps nobody: the ordinary patience below applies instead.
+    Int releases = StorageUtil.GetIntValue(npc, "Intel_BardReleases")
+    If releases < BARD_RELEASE_TRIES
+        Int held = ReleaseFromBardHold(npc)
+        If held > 0
+            StorageUtil.SetIntValue(npc, "Intel_BardReleases", releases + 1)
+            If held == 2
+                DebugMsg(npc.GetDisplayName() + " was performing as the bard -> the song is ended, the task goes on")
+            Else
+                DebugMsg(npc.GetDisplayName() + " was taken into the bard's audience -> released, the task goes on")
+            EndIf
+            npc.EvaluatePackage()
+            IntelEngine.ResetStuckSlot(slot, npc)
+            Return true
+        EndIf
     EndIf
     If ActorUtil.CountPackageOverride(npc) > 1
         Return false
