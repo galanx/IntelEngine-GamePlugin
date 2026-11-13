@@ -256,6 +256,9 @@ Function Maintenance(Bool isFirstLoad = false)
         EndIf
     EndIf
 
+    ; No task has "only just started" at a load.
+    ForgetTaskStartStamps()
+
     ; Self-heal script references if CK properties were lost (e.g. after
     ; console stopquest/startquest). All scripts live on the same quest,
     ; so casting via Quest base type recovers them.
@@ -561,6 +564,25 @@ EndFunction
 Bool Function SlotIsVacant(Int slot)
     ReferenceAlias slotAlias = GetAgentAlias(slot)
     Return slotAlias == None || slotAlias.GetActorReference() == None
+EndFunction
+
+Function ForgetTaskStartStamps()
+    {Called at every load. A task's start stamp (Intel_TaskStartedRT) is in real seconds since the game was
+    launched, and it is saved with the game. The clock of a later session starts again at zero and passes the
+    saved value at some point: for 45 seconds from then the NPC's own cancel was refused once more, as if the
+    task had only just started (found by Gerkinfeltser in review). The grace is for the NPC's first reaction to
+    being sent off, which does not come again after a load.}
+    Int slot = 0
+    While slot < MAX_SLOTS
+        ReferenceAlias slotAlias = GetAgentAlias(slot)
+        If slotAlias != None
+            Actor agent = slotAlias.GetActorReference()
+            If agent != None
+                StorageUtil.UnsetFloatValue(agent, "Intel_TaskStartedRT")
+            EndIf
+        EndIf
+        slot += 1
+    EndWhile
 EndFunction
 
 Bool Function SlotHolds(Int slot, Actor npc)
@@ -978,8 +1000,8 @@ Bool Function CancelCurrentTask(Actor akNPC, Bool force = false)
     ; Nor in the first moments of any task. The start is narrated, the NPC gets a turn, and the model readily
     ; answers "stop current task": sent to fetch someone standing in the same room, the fetcher cancelled the
     ; fetch six seconds in, with the player out of the "nearby" range above (seen 2026-11-13). A cancel the
-    ; player asks for is forced (dashboard, MCM, SkyrimNet's package page). Real time restarts with the game,
-    ; so a stamp from an earlier session never blocks.
+    ; player asks for is forced (dashboard, MCM, SkyrimNet's package page). The stamp is in real seconds since
+    ; the game was launched and is dropped at every load (ForgetTaskStartStamps).
     Float startedRT = StorageUtil.GetFloatValue(akNPC, "Intel_TaskStartedRT", 0.0)
     Float nowRT = Utility.GetCurrentRealTime()
     If !force && startedRT > 0.0 && nowRT >= startedRT && nowRT - startedRT < TASK_CANCEL_GRACE_SECONDS
@@ -2037,7 +2059,8 @@ Bool Function HeldByAnotherPackage(Int slot, Actor npc)
     case, after doing what can be done: out of the bard's audience at once; anyone else is left to it for up
     to HELD_PATIENCE_SECONDS, without the "feet caught on something" line and without recovery moves. After
     that, or when another mod's override sits on top of ours (SoftStuckRecovery clears those), false: the
-    stuck handling takes over.}
+    stuck handling takes over. It also takes over at once when no override is on them at all: then nobody
+    holds them, our package is simply missing.}
     If npc == None || !npc.Is3DLoaded()
         Return false
     EndIf
@@ -2063,7 +2086,12 @@ Bool Function HeldByAnotherPackage(Int slot, Actor npc)
             Return true
         EndIf
     EndIf
-    If ActorUtil.CountPackageOverride(npc) > 1
+    ; Exactly one override, ours, with something else running: a scene or a quest's alias package holds them.
+    ; More than one: another mod's override sits on top (SoftStuckRecovery clears those). None at all: our
+    ; package is gone and nobody holds them; that used to count as "held" for two minutes before the stuck
+    ; handling put the package back (found by Gerkinfeltser in review).
+    If ActorUtil.CountPackageOverride(npc) != 1
+        StorageUtil.UnsetFloatValue(npc, "Intel_HeldSince")
         Return false
     EndIf
     Float now = Utility.GetCurrentRealTime()

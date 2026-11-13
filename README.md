@@ -89,7 +89,7 @@ A living political system where 9 factions (configurable) scheme, trade, and wag
 
 **One political timeline per playthrough:** `IntelEngine-<id>.db` is one database shared by all saves in that playthrough, not a separate database per save. Loading an earlier save permanently removes later political events, wars, battles and standing history, and re-opens wars that ended after that save (`CleanupFutureEvents`). To keep a later timeline, back up the database and its `-wal`/`-shm` companions with the game closed before loading an earlier save; the `.ess`/`.skse` pair alone does not preserve it.
 
-**Political Engine bridge (3.8.0, optional, off by default):** switch on "Political Engine integration" in the MCM (Faction Politics), on the dashboard's Settings tab or on SkyrimNet's plugin settings page (`politics.pe_integration` in `settings.yaml`). With it on, Political Engine API v3 supplies public campaign news and current-owner district sides to the Political DM. Initial attachment and loads do not replay news. “PE reactions move relations” in MCM/dashboard defaults on; off still records tagged reactions without their relation/player-standing deltas. IE's own politics, decay and battles remain independent. Existing user `settings.yaml` is preserved; the new key is `politics.pe_reactions_move_relations`.
+**Political Engine bridge (3.8.0, optional, off by default):** switch on "Political Engine integration" in the MCM (Faction politics), on the dashboard's Settings tab or on SkyrimNet's plugin settings page (`politics.pe_integration` in `settings.yaml`). With it on, Political Engine API v3 supplies public campaign news and current-owner district sides to the Political DM. Initial attachment and loads do not replay news. “PE reactions move relations” in MCM/dashboard defaults on; off still records tagged reactions without their relation/player-standing deltas. IE's own politics, decay and battles remain independent. Existing user `settings.yaml` is preserved; the new key is `politics.pe_reactions_move_relations`.
 
 No teleportation. No console commands. No hardcoded location lists. IntelEngine dynamically indexes every actor and location across every cell in the game — every inn, every home, every NPC is discoverable because the index is built from your actual load order.
 
@@ -306,27 +306,54 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 
 ### Settings
 
+Every setting has one name: the MCM, the dashboard's Settings tab and SkyrimNet's plugin settings page call it the same. Two things differ by place. On the dashboard a unit stands beside the value instead of in brackets ("Check interval", 3 game hours). Under a heading that says what its switches are, they carry the rest of the name: "Story type: an ambush" on SkyrimNet's page is "An ambush" under "Story types".
+
 | Setting | Default | Range | Description |
 |---|---|---|---|
-| Debug Mode | Off | On/Off | Shows IE debug messages as in-game notifications (always logged to Papyrus.0.log). |
-| Max Concurrent Tasks | 5 | 1-5 | How many NPCs can be active at once |
-| Default Wait Hours | 48 | 6-168 | How long NPCs wait at destinations |
-| Action Confirmation Prompts | Followers Only (Schedule Meeting: Everyone) | Disabled / Followers Only / Everyone | Set per action. With Magelight the prompt is a Magelight popup. It closes after 20 seconds, and no answer counts as a silent deny. Director actions never prompt |
-| Report Back After Delivery | On | On/Off | Messengers narrate delivery completion |
-| Meeting Timeout | 5 hrs | 1-12 | How long NPCs wait at meeting spots |
+| Debug messages | Off | On/Off | Shows what IntelEngine does as notices on screen (the Papyrus log has it either way). |
+| NPCs on a task at once | 5 | 1-5 | How many NPCs can be active at once |
+| Wait at a destination (game hours) | 48 | 6-168 | How long an NPC you sent somewhere waits there for you |
+| Visit ends when you walk away (units) | 800 | 300-2000 | How far you walk before an NPC who stayed with you after a task goes back to their own day |
+| Ask before starting | Followers only (Arrange a meeting: Everyone) | Disabled / Followers only / Everyone | Set per action. With Magelight the prompt is a Magelight popup. It closes after 20 seconds, and no answer counts as a silent deny. Director actions never prompt |
+| What followers can be asked to do | All on | On/Off per action | Off: that action is refused for your active followers, without a prompt |
+| Report back after a delivery | On | On/Off | Messengers narrate delivery completion |
+| Wait for you at a meeting (game hours) | 5 | 1-12 | How long NPCs wait at meeting spots |
+| On time until (game hours late) | 0.5 | 0-2 | Arriving within this time after the agreed hour still counts as on time |
+
+The two per-action groups list the actions in plain words: Go somewhere (GoToLocation), Deliver a message (DeliverMessage), Fetch someone (FetchPerson), Escort someone (EscortTarget), Search for someone (SearchForActor), Arrange a meeting (ScheduleMeeting), Fetch someone later (ScheduleFetch), Deliver a message later (ScheduleDelivery).
 
 ### Hold Restrictions
-Per story type (Seek Player, Informant, Road Encounter, Ambush, Stalker, Message, Quest), choose which NPCs may travel from other places: No restriction, Same hold (civilians / except followers / everyone), or Same town (civilians / except followers / everyone). The defaults differ by type: Seek Player, Ambush and Stalker: same hold (civilians); Informant: same town (everyone); Message: same hold (except followers); Road Encounter and Quest: no restriction.
+How far each kind of story may reach for its NPC ("Stories: how far NPCs travel" on SkyrimNet's page): No restriction, Same hold (civilians / except followers / everyone), or Same town (civilians / except followers / everyone). The defaults differ by kind: Someone comes to see you, An ambush and Someone follows you unseen: same hold (civilians); Someone brings a rumor: same town (everyone); A message is delivered: same hold (except followers); A meeting on the road and Someone has work for you: no restriction.
 
 ### Story Tuning
 
 | Setting | Default | Description |
 |---|---|---|
-| Danger Zone Policy | Block Civilians | Who can be dispatched to dangerous areas (Allow All / Block Civilians / Followers Only / Block All) |
-| Player Home Visit Policy | Allow All | Who can visit when you're at home (same 4 levels) |
-| Story Check Interval | 3 hrs | How often the Dungeon Master evaluates the world (0.5–168 hours) |
-| Max Travel Time | 1 day | How long a story NPC stays on the road before being brought to the end of the journey (0.25–3 days) |
-| Quest Sub-Types | All On | One switch each: combat (clear out enemies), rescue (save a captive), find item, faction combat, faction rescue, faction battle |
+| Stories | On | The Story Engine itself: the Dungeon Master |
+| Check interval (game hours) | 3 | How often the Dungeon Master evaluates the world (0.5–168) |
+| Long absence (days) | 3 | After this many days without meeting you an NPC becomes a candidate; one who has just come to you is left alone for at least as long (1–14) |
+| Longest journey (days) | 1 | How long a story NPC stays on the road before being brought to the end of the journey (0.25–3) |
+| Move a stuck traveller along | On | A story NPC who cannot get on is placed further along, out of your sight; off, they give up |
+| NPCs sent into dangerous places | Block civilians only | Who can be dispatched to dangerous areas (Allow all NPCs / Block civilians only / Allow followers only / Block all NPCs) |
+| NPCs sent into your home | Allow all NPCs | Who can visit when you're at home (the same four) |
+| Quest kinds | All on | One switch each: Clear out enemies, Rescue someone, Find an item, Fight a faction's enemies, Rescue for a faction, Join a faction's battle |
+| Quest expires after (days) | 1 | A quest you were offered and did not finish ends after this many days (1–30) |
+| NPCs visit and talk to each other | On | What NPCs do among themselves, with its two kinds (one NPC goes to see another, gossip passed on), a check interval (1.5 game hours) and a rest per NPC (24 game hours) |
+
+### Story types
+
+One switch per kind of story. The switch carries a name in plain words; the Director tab, the notices and the log use the type's short name.
+
+| Switch | Type |
+|---|---|
+| Someone comes to see you | Seek Player |
+| Someone brings a rumor | Informant |
+| A meeting on the road | Road Encounter |
+| A message is delivered | Message |
+| Someone has work for you | Quest |
+| An ambush | Ambush |
+| A faction's patrol hunts you | Faction Ambush |
+| Someone follows you unseen | Stalker |
 
 ---
 
