@@ -734,6 +734,18 @@ Int Function EnableMagelightGamepadKeys(Int view) Global Native
 ; Is this NPC saying a line right now? False for an unloaded actor.
 Bool Function IsActorTalking(Actor akActor) Global Native
 
+; Has SkyrimNet a generated line of this NPC queued, being synthesized or playing? Known from SkyrimNet's
+; speech events, so it is also true in the seconds before the voice starts. Always false when SkyrimNet sends
+; no such events (outbound mod events switched off, or an old version): use IsActorTalking beside it.
+Bool Function IsNPCSpeechPending(Actor akActor) Global Native
+
+; Seconds since this NPC's last generated line stopped playing; -1 when none was heard since the game loaded.
+Float Function GetSecondsSinceNPCSpoke(Actor akActor) Global Native
+
+; Version of SkyrimNet's package contract; 0 when SkyrimNet has none. SkyrimNetApi.ListPackage, HoldPackages,
+; ReleaseHeldPackages and UnregisterPackageEx may only be called when this is 1 or more.
+Int Function GetSkyrimNetPackageApiVersion() Global Native
+
 
 ; =============================================================================
 ; DEBUG / TESTING FUNCTIONS

@@ -93,6 +93,10 @@
 - A war that ends by exhaustion or collapse is recorded as a surrender or a ceasefire, something NPCs can hear about and talk about. It used to end in the database only, with nothing in the world to show for it.
 - A faction's own `war_threshold` is honoured when a war is declared in code, not only when the Political DM proposes one.
 
+### Working with SkyrimNet
+- An NPC who is given a task in conversation finishes what they are saying before they set off, also when their answer is still being synthesized. IntelEngine now hears from SkyrimNet itself that a line is on its way; it used to ask the game whether the NPC's mouth was moving, which is not yet the case in those seconds, and wait seven seconds at most.
+- A running task shows on SkyrimNet's Package Manager page as a row of its own ("IntelEngine task: travel, Dragonsreach"). Remove on that page cancels the task cleanly, the way IntelEngine's own dashboard does, so an NPC you want back can be freed from either place. Needs a SkyrimNet with the package manager; older versions are left alone.
+
 ### Assassins and soldiers that turned on the player
 - An assassin sent after a faction leader goes for that leader and nobody else. They were made hostile to every neutral in reach, the player included, and attacked whoever stood nearest once the leader was down or out of reach.
 - The pause between an assassin reaching the leader and striking no longer runs into the cleanup timer. When the walk had taken fifteen seconds, the assassin was taken off the books during that pause and then struck anyway: an attacker nothing ever removed. This is the assassin that "kept attacking".
