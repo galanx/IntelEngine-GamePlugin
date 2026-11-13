@@ -1943,8 +1943,8 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
 
             ; NPC stays at their origin (unloaded/far away) — player never sees them.
             ; The prompt fires before MoveTo, slot allocation, or package application.
-            String knockResult = SkyMessage.Show(npcName + " is knocking at your door.", \
-                "Let them in", "Send them away", "Ignore", "", "", "", "", "", "", "", false, 0.1, 30.0)
+            String knockResult = Core.ShowChoice(npcName, "At the door", npcName + " is knocking at your door.", \
+                "Let them in", "Send them away", "Ignore", 30.0)
 
             If knockResult == "Let them in"
                 ; Unlock player's home door for NPC entry (player cell, not NPC's home)
@@ -3852,9 +3852,9 @@ Function OnQuestNPCArrived()
     ; Faction couriers are local guards/soldiers — already at the location.
     Bool canGuide = isDirect && !ActiveStoryNPC.IsPlayerTeammate() && QuestAlliedFaction == ""
     If canGuide
-        choice = SkyMessage.Show(questPromptText, "Lead the way", "I'll go alone", "Not interested")
+        choice = Core.ShowChoice(ActiveStoryNPC.GetDisplayName(), "Quest offer", questPromptText, "Lead the way", "I'll go alone", "Not interested")
     Else
-        choice = SkyMessage.Show(questPromptText, "I'll check it out", "Not interested")
+        choice = Core.ShowChoice(ActiveStoryNPC.GetDisplayName(), "Quest offer", questPromptText, "I'll check it out", "Not interested")
         ; Map "I'll check it out" to the "I'll go alone" path
         If choice == "I'll check it out"
             choice = "I'll go alone"
