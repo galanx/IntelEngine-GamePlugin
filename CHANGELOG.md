@@ -8,11 +8,12 @@
 - **Galanx** reviewed the release and wrote the sections Stuck NPCs and package handling, Meetings and visits, Prompts, dashboard and controller, Wars that end stay ended, Working with SkyrimNet, Assassins and soldiers that turned on the player, and Fixes to 3.8 changes found in review.
 
 ### Director
-- Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "Skip follower" setting still applies).
+- Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "Actions Followers Can Do" setting still applies).
 - Story replacement accepts Director fields and explains refusals; a cancelling story must finish before it is replaced.
 - Generate requires real NPC names and no longer makes another NPC approach you in informant narration; NPC suggestions rank exact names first.
 - When an NPC can't be sent because they aren't loaded (they only exist near their home), the Director now says so instead of "no unique match".
 - The dashboard hotkey is ignored while you type in a text field.
+- "Skip Action for Followers" is now "Actions Followers Can Do" in the MCM, on the dashboard and on SkyrimNet's settings page, with every action on by default. Nothing changes in what followers do: the old list of switches that were off read as if the actions were switched off for followers.
 - Informant stories have their own form: Informant NPC, Subject (an NPC, a faction or you), optional Source and a required one-sentence Rumor. IE writes the informant's line, so there is no Narration field.
 - A rumour is refused, with the reason, when it doesn't name the Subject as a whole word ("Ria" inside "Victoria" doesn't count) or starts with an -ing word.
 - NPC Social gossip has a Subject field; the rumour is stored as "<Subject> <what they did>".
