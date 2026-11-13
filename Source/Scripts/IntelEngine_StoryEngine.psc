@@ -154,6 +154,8 @@ Float Property QUEST_GUIDE_WAIT_DIST = 2000.0 AutoReadOnly
 Float Property QUEST_GUIDE_RESUME_DIST = 800.0 AutoReadOnly
 Float Property QUEST_GUIDE_TIMEOUT_HOURS = 5.0 AutoReadOnly
 Float Property LINGER_TIMEOUT_SECONDS = 180.0 AutoReadOnly
+Float Property LINGER_AFTER_TALK_SECONDS = 60.0 AutoReadOnly
+{A visiting story NPC stays at least this long after their last spoken line (see CheckStoryLingerCleanup).}
 Float Property SOCIAL_HOLD_PAIR_DISTANCE = 600.0 AutoReadOnly
 Float Property ENCOUNTER_RESUME_DISTANCE = 1500.0 AutoReadOnly
 Float Property TELEPORT_OFFSET_INTERIOR = 500.0 AutoReadOnly
@@ -186,6 +188,14 @@ Bool Property FactionAmbushActive = false Auto Hidden
 Float Property FactionAmbushStartTime = 0.0 Auto Hidden
 Float Property FACTION_AMBUSH_CLEANUP_TIMEOUT = 120.0 AutoReadOnly
 Float Property FACTION_AMBUSH_HARD_TIMEOUT = 360.0 AutoReadOnly    ; force cleanup even if still in combat (prevents permanent lockout)
+Bool Property FactionAmbushEnding = false Auto Hidden       ; the fight is over: soldiers and bodies go as the player stops looking
+Float Property FactionAmbushEndingSince = 0.0 Auto Hidden
+Float Property FACTION_AMBUSH_ENDING_MAX = 600.0 AutoReadOnly      ; real seconds after which whatever is left is removed regardless
+
+; === Immersion ===
+Float Property SOCIAL_SCENE_HOLD_SECONDS = 45.0 AutoReadOnly       ; two NPCs stay together this long after their scene was narrated
+Float Property STORY_WALK_DISTANCE = 1200.0 AutoReadOnly           ; a visitor walks the last stretch to the player instead of jogging
+Bool StoryWalkingLastStretch = false                               ; the active story NPC is on the walk package (see ReapplyTravelPackage)
 
 ; === Faction Battle Constants ===
 Float Property BATTLE_DELAY_MIN_DAYS = 0.015 AutoReadOnly       ; ~22s at timescale 20
@@ -232,7 +242,7 @@ Function StartScheduler()
         StorageUtil.UnsetStringValue(Game.GetPlayer(), "Intel_FactionAmbushFaction")
     EndIf
     If IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive
-        RegisterForSingleUpdate(MONITOR_INTERVAL)
+        Core.RequestTick(MONITOR_INTERVAL)
         Core.DebugMsg("Story: StartScheduler - real-time mode (active=" + IsActive + " npcStory=" + IsNPCStoryActive + " quest=" + QuestActive + ")")
     Else
         ; Game-time timer: fires instantly during Wait/Sleep.
@@ -259,13 +269,14 @@ Function StartScheduler()
 
         RegisterForSingleUpdateGameTime(interval)
         ; Real-time backup: ensures tick fires even at low timescales (timescale 2-6).
-        RegisterForSingleUpdate(IDLE_POLL_INTERVAL)
+        Core.RequestTick(IDLE_POLL_INTERVAL)
         Core.DebugMsg("Story: StartScheduler - game-time mode (interval=" + interval + "h = min of story=" + storyInterval + " npc=" + npcInterval + " politics=" + politicsInterval + ")")
     EndIf
 EndFunction
 
 Function StopScheduler()
-    UnregisterForUpdate()
+    ; Only the game-time timer. The real-time one is shared by every script of the quest: unregistering
+    ; it here stopped travel, task and schedule monitoring as well.
     UnregisterForUpdateGameTime()
 EndFunction
 
@@ -351,7 +362,9 @@ Function RestartMonitoring()
             IsActive = false
             Core.DebugMsg("Story: quest guide died/disabled on load, abandoning guide")
         Else
-            Core.RemoveAllPackages(QuestGuideNPC, false)
+            ; Only our own overrides (here and in the branches below): the guide is in the middle of a
+            ; dispatch, and whatever another mod has on them is not ours to strip.
+            Core.RemoveIntelPackages(QuestGuideNPC, false)
             PO3_SKSEFunctions.SetLinkedRef(QuestGuideNPC, QuestLocation, Core.IntelEngine_TravelTarget)
             ActorUtil.AddPackageOverride(QuestGuideNPC, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
             Utility.Wait(0.1)
@@ -359,19 +372,22 @@ Function RestartMonitoring()
             Core.DebugMsg("Story: recovered quest guide jog for " + QuestGuideNPC.GetDisplayName())
         EndIf
     ElseIf IsActive && ActiveStoryNPC != None
+        ; Abandoned on load. The NPC is wherever the trip had taken them: after the cleanup, one with no
+        ; routine of their own is sent home (Core.ReleaseLinger) instead of staying there for good.
+        Actor abandonedNPC = ActiveStoryNPC
         If ActiveStoryNPC.IsDead() || ActiveStoryNPC.IsDisabled()
             Int deadSlot2 = Core.FindSlotByAgent(ActiveStoryNPC)
             If deadSlot2 >= 0
                 Core.ClearSlot(deadSlot2)
             EndIf
-            Core.RemoveAllPackages(ActiveStoryNPC, false)
+            Core.RemoveIntelPackages(ActiveStoryNPC, false)
             CleanupStoryDispatch()
         ElseIf ActiveStoryType == "ambush" || ActiveStoryType == "ambush_charge" || ActiveStoryType == "stalker" || ActiveStoryType == "ambush_combat"
             ; Sneak/combat/charge phase can't be recovered reliably -- abandon, let NPC go home
             ; Motivation memory persists in SkyrimNet so DM can pick them again
             If ActiveStoryType == "ambush_combat"
                 ; Was mid-combat with essential flag -- clean up
-                ActiveStoryNPC.GetActorBase().SetEssential(false)
+                RestoreEssentialAfterAmbush(ActiveStoryNPC)
                 ActiveStoryNPC.StopCombat()
                 ActiveStoryNPC.SetActorValue("Aggression", 0)
                 ActiveStoryNPC.SetActorValue("Confidence", 2)
@@ -383,8 +399,9 @@ Function RestartMonitoring()
             If slot >= 0
                 Core.ClearSlot(slot)
             EndIf
-            Core.RemoveAllPackages(ActiveStoryNPC, false)
+            Core.RemoveIntelPackages(ActiveStoryNPC)
             CleanupStoryDispatch()
+            Core.ReleaseLinger(abandonedNPC)
         Else
             ; Story dispatches are transient ? abandon on load.
             ; Reapplying stale packages causes NPCs to resume old travels even after
@@ -394,9 +411,10 @@ Function RestartMonitoring()
             If storySlot >= 0
                 Core.ClearSlot(storySlot)
             EndIf
-            Core.RemoveAllPackages(ActiveStoryNPC, false)
+            Core.RemoveIntelPackages(ActiveStoryNPC)
             Core.InjectFact(ActiveStoryNPC, "never finished: " + ActiveNarration)
             CleanupStoryDispatch()
+            Core.ReleaseLinger(abandonedNPC)
         EndIf
     EndIf
 
@@ -476,6 +494,7 @@ Function RestartMonitoring()
                 Core.ReleaseLinger(lingerNPC2)
                 StorageUtil.UnsetFloatValue(lingerNPC2, "Intel_StoryLingerStart")
                 StorageUtil.UnsetFloatValue(lingerNPC2, "Intel_StoryLingerElapsed")
+                StorageUtil.UnsetIntValue(lingerNPC2, "Intel_SocSceneHold")
                 ClearSocialHold(lingerNPC2)
             EndIf
             li2 += 1
@@ -500,7 +519,15 @@ Function RestartMonitoring()
                 StorageUtil.UnsetFloatValue(encounterNPC, "Intel_FakeEncounterGreetTime")
                 StorageUtil.UnsetFloatValue(encounterNPC, "Intel_FakeEncounterElapsed")
                 StorageUtil.UnsetFloatValue(encounterNPC, "Intel_FakeEncounterTime")
-                encounterNPC.MoveToMyEditorLocation()
+                ; Sent home at once only when they are not around the player: someone the player had just been
+                ; talking to on the road was gone from the scene after every load. Nearby, they are let go
+                ; and walk (Core.ReleaseLinger sends home those who have no routine of their own).
+                Cell encounterCell = encounterNPC.GetParentCell()
+                If encounterCell != None && encounterCell.IsAttached()
+                    Core.ReleaseLinger(encounterNPC)
+                Else
+                    encounterNPC.MoveToMyEditorLocation()
+                EndIf
             EndIf
             ei += 1
         EndWhile
@@ -524,7 +551,7 @@ Event OnUpdateGameTime()
     CheckRescuedNPCDeaths()
     ; Re-kick real-time monitoring if linger NPCs still exist
     If HasLingerNPCs()
-        RegisterForSingleUpdate(MONITOR_INTERVAL)
+        Core.RequestTick(MONITOR_INTERVAL)
     EndIf
     ; Do NOT set LastStoryTickTime here — it's set inside TickScheduler
     ; only when the Story DM actually runs. Setting it here would reset the
@@ -538,12 +565,13 @@ Event OnUpdate()
     ; (Same pattern as Travel.OnUpdate — timer chain must never break.)
     Bool needsRealTime = IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive
     If needsRealTime
-        RegisterForSingleUpdate(MONITOR_INTERVAL)
+        Core.RequestTick(MONITOR_INTERVAL)
     EndIf
 
     CheckRoadEncounterProximity()
     CheckStoryLingerCleanup()
     CheckFactionAmbushCleanup()
+    Core.SweepIfDue()
 
 
     ; Quest monitoring (runs independently of IsActive)
@@ -566,7 +594,7 @@ Event OnUpdate()
     ; If processing above created new work (e.g. FinishArrivalWithLinger added linger NPCs),
     ; ensure real-time monitoring is running even if we skipped it above.
     If !needsRealTime && (IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive)
-        RegisterForSingleUpdate(MONITOR_INTERVAL)
+        Core.RequestTick(MONITOR_INTERVAL)
     ElseIf !needsRealTime
         StartScheduler()
     EndIf
@@ -651,6 +679,9 @@ Function TickScheduler()
     ; Safety net: return stranded fake encounter NPCs
     CleanupStrandedEncounters()
 
+    ; Enemies and bodies of quests that are over, once the player is no longer there
+    RemoveQuestSpawnsUnseen()
+
     ; Monitor rescued NPCs for death (game-time is sufficient — no urgency)
     CheckRescuedNPCDeaths()
 
@@ -690,21 +721,47 @@ Function TickScheduler()
                 return
             EndIf
             Core.DebugMsg("Story: watchdog reset IsActive (stuck or stale)")
+            Actor staleNPC = ActiveStoryNPC
             If ActiveStoryNPC != None
                 Core.InjectFact(ActiveStoryNPC, "never finished: " + ActiveNarration)
-                ; Same teardown as every other abandon path, or the NPC keeps its travel package.
-                Int watchdogSlot = Core.FindSlotByAgent(ActiveStoryNPC)
-                If watchdogSlot >= 0
-                    Core.ClearSlot(watchdogSlot)
-                EndIf
-                Core.RemoveAllPackages(ActiveStoryNPC, false)
             EndIf
+            ReleaseStaleStoryNPC()
             CleanupStoryDispatch()
+            ; Somewhere on the way: one with no routine of their own is sent home instead of staying there.
+            If staleNPC != None
+                Core.ReleaseLinger(staleNPC)
+            EndIf
             ; Don't fall through to dispatch a new story in the same tick —
             ; let the next scheduled tick handle it after the system settles.
             return
         EndIf
     EndIf
+
+    ; A message or quest courier who has arrived is still being handled: IsActive is switched off for those
+    ; the moment they arrive, and the handler then narrates and waits for the player's answer. A new story
+    ; started in that window replaced the active NPC under the running handler, which then finished its
+    ; work on the wrong NPC and left the courier in the slot.
+    If !IsActive && ArrivalHandling
+        Float arrivalNow = Utility.GetCurrentGameTime()
+        If ArrivalPendingSince <= 0.0 || arrivalNow < ArrivalPendingSince || ArrivalPendingGeneration != DispatchGeneration
+            ArrivalPendingSince = arrivalNow
+            ArrivalPendingGeneration = DispatchGeneration
+        ElseIf arrivalNow - ArrivalPendingSince > 2.0 / 24.0
+            ; No handler takes two game hours: it is gone, and nothing else would end this state.
+            Core.DebugMsg("Story: arrival handling never finished - cleaning up")
+            ArrivalPendingSince = 0.0
+            Actor strandedNPC = ActiveStoryNPC
+            ReleaseStaleStoryNPC()
+            CleanupStoryDispatch()
+            If strandedNPC != None
+                Core.ReleaseLinger(strandedNPC)
+            EndIf
+        Else
+            Core.DebugMsg("Story: TickScheduler - arrival in progress, no new story")
+        EndIf
+        return
+    EndIf
+    ArrivalPendingSince = 0.0
 
     If !IsActive
         Actor player = Game.GetPlayer()
@@ -750,6 +807,25 @@ Function TickScheduler()
             IntelEngine.BeginAsyncStoryDMTick(7, LongAbsenceDaysConfig, excludeList, \
                 Self, "IntelEngine_StoryEngine", "OnStoryDMContextReady")
         EndIf
+    EndIf
+EndFunction
+
+Float ArrivalPendingSince = 0.0
+Int ArrivalPendingGeneration = 0
+
+Function ReleaseStaleStoryNPC()
+    {Give the active story NPC back when the story is reset from outside. Resetting only the story left its
+    "story" slot, its busy flag and its jog-to-the-player override on the NPC for good: nothing else looks
+    after story slots.}
+    If ActiveStoryNPC == None
+        return
+    EndIf
+    Int staleSlot = Core.FindSlotByAgent(ActiveStoryNPC)
+    If staleSlot >= 0 && Core.SlotTaskTypes[staleSlot] == "story"
+        StorageUtil.SetStringValue(ActiveStoryNPC, "Intel_Result", "abandoned")
+        Core.ClearSlot(staleSlot)
+    ElseIf staleSlot < 0
+        Core.RemoveIntelPackages(ActiveStoryNPC)
     EndIf
 EndFunction
 
@@ -995,6 +1071,9 @@ Function OnNPCInteractionResponse(String response, Int success)
         If InNarrationRange(npc1)
             PerformVisibleInteraction(npc1, npc2, narration, storyType)
             CompleteNPCSocialOutcome(npc1, npc2, storyType, fact1, fact2, gossipContent)
+            ; They keep each other company while the scene is spoken, instead of each carrying on with their
+            ; day at once (and with their heads turned toward each other for good).
+            HoldAfterScene(npc1, npc2)
         ElseIf npc1.GetDistance(npc2) > SOCIAL_HOLD_PAIR_DISTANCE && !IsNPCStoryActive && !npc1.IsPlayerTeammate() && !npc2.IsPlayerTeammate()
             ; Same cell but far apart and out of earshot: one walks to the other
             DispatchNPCSocial(npc1, npc2, narration, storyType, npc1, npc2, fact1, fact2, gossipContent)
@@ -1042,6 +1121,13 @@ EndFunction
 Bool Function DispatchNPCSocial(Actor npc, Actor target, String narration, String storyType, Actor socialNPC1, Actor socialNPC2, String fact1, String fact2, String gossipContent, String taskOrigin = "NPC social engine")
     {Lightweight dispatch for NPC-to-NPC travel. Uses slots but does NOT touch IsActive/ActiveStoryNPC.}
     Int slot = Core.FindFreeAgentSlot()
+    ; Not someone who is already in a task (as its agent or as the one being fetched), in another story
+    ; role, with the player, or never sent on errands: they got a second slot and a jog override on top of
+    ; what they were doing. The meeting then counts as having happened off-screen, as with no free slot.
+    If slot >= 0 && (Core.FindSlotByActor(npc) >= 0 || HoldsActor(npc) || Core.IsFollowingPlayer(npc) || Core.IsUnsuitableTaskAgent(npc))
+        Core.DebugMsg("NPC Social: " + npc.GetDisplayName() + " is not free to walk over")
+        slot = -1
+    EndIf
     If slot < 0
         ; No free slot -- complete the simulated off-screen outcome without travel.
         String summary = BuildInteractionSummary(npc, narration, target)
@@ -1079,7 +1165,7 @@ Bool Function DispatchNPCSocial(Actor npc, Actor target, String narration, Strin
     Core.DebugMsg("NPC Social: dispatching " + npc.GetDisplayName() + " to " + target.GetDisplayName())
 
     ; Ensure real-time monitoring is active
-    RegisterForSingleUpdate(MONITOR_INTERVAL)
+    Core.RequestTick(MONITOR_INTERVAL)
     return true
 EndFunction
 
@@ -1116,6 +1202,31 @@ Function CheckNPCSocialArrival()
         CleanupNPCSocialDispatch()
         return
     EndIf
+    ; A slot of another type: the traveler was given a different task meanwhile. This dispatch no longer
+    ; owns them, and must not go on steering them (stuck recovery, the teleports below) or end by clearing
+    ; that other task's slot. Only our own bookkeeping is dropped.
+    If Core.SlotTaskTypes[slot] != "npc_social"
+        Core.DebugMsg("NPC Social: " + NPCSocialTraveler.GetDisplayName() + " has another task now - dispatch dropped")
+        ResetNPCSocialDispatchState()
+        return
+    EndIf
+
+    ; Timeout: 4 game hours (NPC-to-NPC is same location, should be quick). Checked before the off-screen
+    ; branch: that one returns, so a traveler who was never loaded had no time limit at all and kept the slot
+    ; (and every later NPC-to-NPC visit blocked) for as long as the player stayed away.
+    Float taskStart = StorageUtil.GetFloatValue(NPCSocialTraveler, "Intel_TaskStartTime", 0.0)
+    If taskStart > 0.0 && (Utility.GetCurrentGameTime() - taskStart) > (4.0 / 24.0)
+        Core.DebugMsg("NPC Social: timeout for " + NPCSocialTraveler.GetDisplayName())
+        If Core.PlayerCanSee(NPCSocialTraveler) || Core.PlayerCanSee(NPCSocialTarget)
+            ; In front of the player nobody is moved across the room: the visit simply did not happen.
+            StorageUtil.SetStringValue(NPCSocialTraveler, "Intel_Result", "timeout")
+            CleanupNPCSocialDispatch()
+        Else
+            TeleportNPCSocialAndResume(200.0, false)
+            OnNPCSocialArrived()
+        EndIf
+        return
+    EndIf
 
     ; Off-screen: NPC not loaded -- use time-based arrival
     If !NPCSocialTraveler.Is3DLoaded()
@@ -1130,27 +1241,38 @@ Function CheckNPCSocialArrival()
     If stuckStatus == 1
         Core.SoftStuckRecovery(NPCSocialTraveler, slot, NPCSocialTarget as ObjectReference)
     ElseIf stuckStatus >= 3
-        TeleportNPCSocialAndResume(TELEPORT_OFFSET_EXTERIOR)
-    EndIf
-
-    ; Timeout: 4 game hours (NPC-to-NPC is same location, should be quick)
-    Float taskStart = StorageUtil.GetFloatValue(NPCSocialTraveler, "Intel_TaskStartTime", 0.0)
-    If taskStart > 0.0 && (Utility.GetCurrentGameTime() - taskStart) > (4.0 / 24.0)
-        Core.DebugMsg("NPC Social: timeout for " + NPCSocialTraveler.GetDisplayName())
-        TeleportNPCSocialAndResume(200.0)
-        OnNPCSocialArrived()
+        If Core.PlayerCanSee(NPCSocialTraveler)
+            ; No vanishing while the player looks at them: the package is re-planned, the time limit stays.
+            Core.SoftStuckRecovery(NPCSocialTraveler, slot, NPCSocialTarget as ObjectReference)
+        Else
+            TeleportNPCSocialAndResume(TELEPORT_OFFSET_EXTERIOR)
+        EndIf
     EndIf
 EndFunction
 
-Function TeleportNPCSocialAndResume(Float distance)
+Function TeleportNPCSocialAndResume(Float distance, Bool comeIntoView = true)
     {Teleport NPC Social traveler near target and reapply travel package.}
-    Float[] offset = IntelEngine.GetOffsetBehind(NPCSocialTarget, distance)
-    NPCSocialTraveler.MoveTo(NPCSocialTarget, offset[0], offset[1], 0.0, false)
-    Core.RemoveAllPackages(NPCSocialTraveler, false)
-    PO3_SKSEFunctions.SetLinkedRef(NPCSocialTraveler, NPCSocialTarget as ObjectReference, Core.IntelEngine_TravelTarget)
-    ActorUtil.AddPackageOverride(NPCSocialTraveler, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
+    ; With the target near the player, the traveler is put where they can walk into the scene (a door of the
+    ; room, or well behind the player) instead of appearing next to the target.
+    Actor traveler = NPCSocialTraveler
+    Actor target = NPCSocialTarget
+    If traveler == None || target == None
+        return
+    EndIf
+    If !comeIntoView || !Core.PlaceForUnseenArrival(traveler, target as ObjectReference)
+        ; Indoors the outdoor distance (3500 units behind the target) is far outside the building's walls.
+        If distance > 150.0 && target.IsInInterior()
+            distance = 150.0
+        EndIf
+        Float[] offset = IntelEngine.GetOffsetBehind(target, distance)
+        traveler.MoveTo(target, offset[0], offset[1], 0.0, false)
+    EndIf
+    ; Our own overrides only: this is a step inside the running dispatch.
+    Core.RemoveIntelPackages(traveler, false)
+    PO3_SKSEFunctions.SetLinkedRef(traveler, target as ObjectReference, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(traveler, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
-    NPCSocialTraveler.EvaluatePackage()
+    traveler.EvaluatePackage()
 EndFunction
 
 Function OnNPCSocialArrived()
@@ -1202,7 +1324,41 @@ Function OnNPCSocialArrived()
     ; Hold AFTER cleanup: ClearSlot strips packages, which would drop the hold sandbox.
     If !narrate
         HoldSocialScene(traveler, target, socialNPC1, socialNPC2, narration, storyType, fact1, fact2, gossipContent)
+    Else
+        ; The scene has just been narrated and is being spoken: the visitor used to turn round and leave at
+        ; this very moment, with the slot's package gone.
+        HoldAfterScene(traveler, target)
     EndIf
+EndFunction
+
+Function HoldAfterScene(Actor a, Actor b)
+    {A narrated NPC-to-NPC scene has just started: the two stay with each other for its length
+    (SOCIAL_SCENE_HOLD_SECONDS), then the story linger lets them go. That release also ends the look-at
+    PerformVisibleInteraction puts on both, which nothing used to take off again.}
+    HoldForScene(a, b)
+    HoldForScene(b, a)
+    Core.RequestTick(MONITOR_INTERVAL)
+EndFunction
+
+Function HoldForScene(Actor who, Actor partner)
+    If who == None || partner == None || who.IsDead()
+        return
+    EndIf
+    Actor player = Game.GetPlayer()
+    If StorageUtil.FormListFind(player, "Intel_StoryLingerActors", who as Form) >= 0
+        return      ; lingering already (a visitor with the player, a held scene): that release covers them
+    EndIf
+    If HoldsActor(who) || Core.IsFollowingPlayer(who) || Core.FindSlotByActor(who) >= 0
+        ; In a task, another story role or the player's company: their package is not covered by ours.
+        ; Only the glance at the other one ends.
+        who.ClearLookAt()
+        return
+    EndIf
+    HoldSandbox(who, partner)
+    ; Kept for the scene whatever the player's distance (the linger otherwise lets go as soon as the player
+    ; is beyond the release distance, and these scenes are heard from further off).
+    StorageUtil.SetIntValue(who, "Intel_SocSceneHold", 1)
+    StorageUtil.SetFloatValue(who, "Intel_StoryLingerElapsed", LINGER_TIMEOUT_SECONDS - SOCIAL_SCENE_HOLD_SECONDS)
 EndFunction
 
 Bool Function InNarrationRange(Actor originator)
@@ -1239,7 +1395,7 @@ Function HoldSocialScene(Actor orig, Actor other, Actor a, Actor b, String narra
     HoldSandbox(orig, other)
     HoldSandbox(other, orig)
     Core.DebugMsg("NPC Social: holding " + orig.GetDisplayName() + " + " + other.GetDisplayName() + " until the player is in range")
-    RegisterForSingleUpdate(MONITOR_INTERVAL)
+    Core.RequestTick(MONITOR_INTERVAL)
 EndFunction
 
 Function HoldSandbox(Actor who, Actor partner)
@@ -1291,10 +1447,20 @@ Bool Function TickSocialHold(Actor orig, Bool expired)
     String gossip = StorageUtil.GetStringValue(orig, "Intel_SocHoldGossip", "")
     ClearSocialHold(orig)
     FinishSocialScene(orig, other, a, b, narration, storyType, fact1, fact2, gossip, narrate)
-    ; Expire both actors' linger on the next tick (release + sandbox removal)
-    StorageUtil.SetFloatValue(orig, "Intel_StoryLingerElapsed", LINGER_TIMEOUT_SECONDS + 1.0)
+    ; Facts only: expire both actors' linger on the next tick (release + sandbox removal).
+    ; Narrated: the scene is being spoken now, so they stay together for its length first. Releasing them
+    ; on the next tick sent both off three seconds into it.
+    Float elapsedNow = LINGER_TIMEOUT_SECONDS + 1.0
+    If narrate
+        elapsedNow = LINGER_TIMEOUT_SECONDS - SOCIAL_SCENE_HOLD_SECONDS
+        StorageUtil.SetIntValue(orig, "Intel_SocSceneHold", 1)
+        If other != None
+            StorageUtil.SetIntValue(other, "Intel_SocSceneHold", 1)
+        EndIf
+    EndIf
+    StorageUtil.SetFloatValue(orig, "Intel_StoryLingerElapsed", elapsedNow)
     If other != None
-        StorageUtil.SetFloatValue(other, "Intel_StoryLingerElapsed", LINGER_TIMEOUT_SECONDS + 1.0)
+        StorageUtil.SetFloatValue(other, "Intel_StoryLingerElapsed", elapsedNow)
     EndIf
     Return true
 EndFunction
@@ -1319,8 +1485,12 @@ Function CleanupNPCSocialDispatch()
         If slot < 0
             Core.RemoveIntelPackages(NPCSocialTraveler)
             Core.ClearLinkedRefs(NPCSocialTraveler)
+            Core.ClearSlotRestoreFollower(slot, NPCSocialTraveler)
+        ElseIf Core.SlotTaskTypes[slot] == "npc_social"
+            Core.ClearSlotRestoreFollower(slot, NPCSocialTraveler)
         EndIf
-        Core.ClearSlotRestoreFollower(slot, NPCSocialTraveler)
+        ; A slot of another type is a task the traveler was given meanwhile: it used to be cleared here
+        ; along with the visit (FindSlotByAgent returns whatever slot they hold).
     EndIf
     ResetNPCSocialDispatchState()
 EndFunction
@@ -1619,7 +1789,9 @@ Function RejectStory(String typeWithSub, String npcName, String narration, Strin
 EndFunction
 
 Function OnDungeonMasterResponse(String response, Int success)
-    If IsActive
+    ; ArrivalHandling as well: a message or quest courier who has just arrived is still being handled with
+    ; IsActive already off (see TickScheduler). The answer to a request sent before that must not start a story.
+    If IsActive || ArrivalHandling
         return
     EndIf
     Int admittedGeneration = DispatchGeneration
@@ -1830,7 +2002,7 @@ Function OnDungeonMasterResponse(String response, Int success)
         EndIf
     EndIf
 
-    If IsActive || DispatchGeneration != admittedGeneration
+    If IsActive || ArrivalHandling || DispatchGeneration != admittedGeneration
         return
     EndIf
     If npc != None && !ApplyCooldownCheck(npc)
@@ -1937,7 +2109,9 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     ; === Player home knocking prompt ===
     If target == player && !IsNPCToNPCType() && IntelEngine.IsPlayerInOwnHome()
         ObjectReference exteriorDoor = IntelEngine.GetPlayerHomeExteriorDoor()
-        If exteriorDoor != None
+        ; Not for someone who is in the house already (a spouse, a housecarl, a guest): they were announced
+        ; as knocking and then moved out to the front door from the room the player was standing in.
+        If exteriorDoor != None && npc.GetParentCell() != player.GetParentCell()
             String npcName = npc.GetDisplayName()
             String playerName = player.GetDisplayName()
 
@@ -1959,12 +2133,16 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
                 Core.InjectFact(npc, "went to visit " + playerName + " at home but was turned away at the door")
                 Core.SendPersistentMemory(npc, player, npcName + " knocked on " + playerName + "'s door but was told to go away")
                 ActiveStoryType = ""
+                ; They stand at the door with no task behind them. One with a routine walks back on their own;
+                ; one without (sandbox-only AI) stayed on the doorstep for good: those are sent home.
+                Core.ReleaseLinger(npc)
                 return false
             Else ; "Ignore" or "TIMED_OUT"
                 npc.MoveTo(exteriorDoor, 0.0, 0.0, 0.0, false)
                 Core.InjectFact(npc, "went to visit " + playerName + " at home but nobody answered the door")
                 Core.SendPersistentMemory(npc, player, npcName + " knocked on " + playerName + "'s door but got no answer")
                 ActiveStoryType = ""
+                Core.ReleaseLinger(npc)
                 return false
             EndIf
         EndIf
@@ -2005,7 +2183,7 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     StorageUtil.SetIntValue(npc, "Intel_IsStoryDispatch", 1)
     StorageUtil.SetStringValue(npc, "Intel_StoryNarration", narration)
 
-    ReapplyTravelPackage(npc)
+    ReapplyTravelPackage(npc, true)
     If !IsActive || ActiveStoryNPC != npc || DispatchGeneration != claimedGeneration
         ; Already allocated: do not let callers roll back a replacement's payload/quest.
         return true
@@ -2038,7 +2216,7 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     ; that the 3s MONITOR_INTERVAL otherwise creates.
     IntelEngine.ArmProximityArrival(slot, npc as ObjectReference, target as ObjectReference, Self, "IntelEngine_StoryEngine", "OnProximityArrived")
 
-    RegisterForSingleUpdate(MONITOR_INTERVAL)
+    Core.RequestTick(MONITOR_INTERVAL)
     return true
 EndFunction
 
@@ -2133,7 +2311,7 @@ Function PlaceRoadEncounter(Actor npc, String narration, String destination)
     AddRecentStoryEvent("road_encounter: " + npc.GetDisplayName() + " -- " + narration)
 
     ; Ensure real-time monitoring is running for proximity checks
-    RegisterForSingleUpdate(MONITOR_INTERVAL)
+    Core.RequestTick(MONITOR_INTERVAL)
 EndFunction
 
 Function CheckRoadEncounterProximity()
@@ -2154,6 +2332,12 @@ Function CheckRoadEncounterProximity()
             ; Stale entry -- remove
             StorageUtil.IntListRemoveAt(player, "Intel_FakeEncounterNPCs", i)
             i -= 1
+        ElseIf Core.FindSlotByAgent(npc) >= 0 || Core.IsFollowingPlayer(npc)
+            ; Given a new task, or recruited by the player: the encounter is over for them. Resuming would put a
+            ; priority-100 walk override on a follower, and a day later the stranded-encounter pass would strip
+            ; their packages and teleport them to their editor location.
+            ForgetLingerActor(npc)
+            i -= 1
         Else
             ; Check if NPC has reached destination
             ObjectReference destMarker = StorageUtil.GetFormValue(npc, "Intel_FakeEncounterDest") as ObjectReference
@@ -2161,6 +2345,11 @@ Function CheckRoadEncounterProximity()
                 If npc.GetDistance(destMarker) <= Core.ARRIVAL_DISTANCE
                     CleanupRoadEncounterTravel(npc)
                 EndIf
+            ElseIf destMarker != None && npc.GetParentCell() != None && npc.GetParentCell() == destMarker.GetParentCell()
+                ; Away from the player there is no distance to measure, and the player rarely walks along:
+                ; the arrival was never noticed, and the NPC stood at the destination with the walk override
+                ; until the one-day safety net teleported them home. Being in the destination's cell counts.
+                CleanupRoadEncounterTravel(npc)
             EndIf
 
             ; Check proximity to player (only if not already interacted)
@@ -2247,6 +2436,88 @@ Function StartStoryLinger(Actor npc)
     StorageUtil.SetFloatValue(npc, "Intel_StoryLingerGameStart", Utility.GetCurrentGameTime())
 EndFunction
 
+Function ForgetEncounterKeys(Actor npc)
+    StorageUtil.UnsetFormValue(npc, "Intel_FakeEncounterDest")
+    StorageUtil.UnsetStringValue(npc, "Intel_FakeEncounterNarration")
+    StorageUtil.UnsetIntValue(npc, "Intel_FakeEncounterInteracted")
+    StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterGreetTime")
+    StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterTime")
+EndFunction
+
+Function ForgetLingerActor(Actor npc)
+    {The NPC is taking up something else (a new task, or the player recruited them): drop them from the linger
+    and road-encounter bookkeeping without sending them anywhere. Only our own leftover overrides go; whoever
+    took them over supplies the next package.}
+    If npc == None
+        return
+    EndIf
+    Actor player = Game.GetPlayer()
+    Bool hasTask = Core.FindSlotByAgent(npc) >= 0
+    Int at = StorageUtil.FormListFind(player, "Intel_StoryLingerActors", npc as Form)
+    If at >= 0
+        If StorageUtil.GetStringValue(npc, "Intel_SocHoldNarr", "") != ""
+            TickSocialHold(npc, true)           ; a held NPC-to-NPC scene is applied as facts, as on a timeout
+        EndIf
+        ; By value: TickSocialHold calls out, and the list may have changed under the index found above.
+        StorageUtil.FormListRemove(player, "Intel_StoryLingerActors", npc as Form, true)
+        StorageUtil.UnsetIntValue(npc, "Intel_SocSceneHold")
+        StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerStart")
+        StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerElapsed")
+        StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerGameStart")
+        StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerLastPoll")
+        StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerTalkedAt")
+        StorageUtil.UnsetIntValue(npc, "Intel_MeetingLingerApproaching")
+        StorageUtil.UnsetStringValue(npc, "Intel_RescueNarration")
+        ActorUtil.RemovePackageOverride(npc, Core.SandboxNearPlayerPackage)
+        RestoreCombatValues(npc)
+        npc.ClearLookAt()
+        Core.DebugMsg("Story linger dropped for " + npc.GetDisplayName() + " (taken over)")
+    EndIf
+    Int enc = StorageUtil.IntListFind(player, "Intel_FakeEncounterNPCs", npc.GetFormID())
+    If enc >= 0
+        StorageUtil.IntListRemoveAt(player, "Intel_FakeEncounterNPCs", enc)
+        ActorUtil.RemovePackageOverride(npc, Core.SandboxNearPlayerPackage)
+        If !hasTask
+            ; No task of ours behind them: the encounter's walk override and its target are leftovers.
+            ActorUtil.RemovePackageOverride(npc, Core.TravelPackage_Walk)
+            PO3_SKSEFunctions.SetLinkedRef(npc, None, Core.IntelEngine_TravelTarget)
+        EndIf
+        ForgetEncounterKeys(npc)
+        Core.DebugMsg("Road encounter dropped for " + npc.GetDisplayName() + " (taken over)")
+    EndIf
+    If (at >= 0 || enc >= 0) && !hasTask
+        npc.EvaluatePackage()
+    EndIf
+EndFunction
+
+Bool Function HoldsActor(Actor npc)
+    {Does the story engine account for this NPC running one of IntelEngine's packages? Used by Core's sweep of
+    stale overrides: everyone listed here is left alone.}
+    If npc == None
+        return false
+    EndIf
+    If npc == ActiveStoryNPC || npc == ActiveSecondNPC || npc == NPCSocialTraveler || npc == NPCSocialTarget
+        return true
+    EndIf
+    If npc == QuestGuideNPC || npc == QuestVictimNPC || npc == QuestBossNPC
+        return true
+    EndIf
+    If FactionAmbushActors && FactionAmbushActors.Find(npc) >= 0
+        return true
+    EndIf
+    Actor player = Game.GetPlayer()
+    If StorageUtil.FormListFind(player, "Intel_StoryLingerActors", npc as Form) >= 0
+        return true
+    EndIf
+    If StorageUtil.IntListFind(player, "Intel_FakeEncounterNPCs", npc.GetFormID()) >= 0
+        return true
+    EndIf
+    If StorageUtil.FormListFind(player, "Intel_QuestSpawnedNPCs", npc as Form) >= 0
+        return true
+    EndIf
+    return false
+EndFunction
+
 Function FinishArrivalWithLinger(Actor arrivedNPC, ObjectReference lingerTarget)
     {Shared arrival pattern: clear slot, cleanup dispatch, sandbox near target, start linger tracking.
      Caller MUST save arrivedNPC from ActiveStoryNPC BEFORE calling (CleanupStoryDispatch clears it).}
@@ -2254,12 +2525,20 @@ Function FinishArrivalWithLinger(Actor arrivedNPC, ObjectReference lingerTarget)
         return
     EndIf
     Int slot = Core.FindSlotByAgent(arrivedNPC)
-    If slot < 0
+    If slot < 0 || Core.SlotTaskTypes[slot] != "story"
+        ; The slot is gone or belongs to a different task by now. Returning here without cleaning up left
+        ; ArrivalHandling set, which made every later arrival check return early until the 6-hour watchdog.
+        If ActiveStoryNPC == arrivedNPC
+            CleanupStoryDispatch()
+        EndIf
         return
     EndIf
     StorageUtil.SetStringValue(arrivedNPC, "Intel_Result", "arrived")
     Core.ClearSlot(slot)
-    CleanupStoryDispatch()
+    ; Not when another NPC's story is the active one by now: this cleanup would wipe that story's state.
+    If ActiveStoryNPC == arrivedNPC || ActiveStoryNPC == None
+        CleanupStoryDispatch()
+    EndIf
 
     ; For player-targeted stories: sandbox at NPC's current position (linked ref = self).
     ; NOT the player -- linking to the player makes the NPC follow indefinitely
@@ -2277,7 +2556,7 @@ Function FinishArrivalWithLinger(Actor arrivedNPC, ObjectReference lingerTarget)
     StartStoryLinger(arrivedNPC)
     ; OnUpdate registers FIRST (Travel pattern) — will detect HasLingerNPCs() on next tick.
     ; Also OnUpdateGameTime re-kicks real-time monitoring as safety net.
-    RegisterForSingleUpdate(MONITOR_INTERVAL)
+    Core.RequestTick(MONITOR_INTERVAL)
 EndFunction
 
 Function CheckStoryLingerCleanup()
@@ -2345,12 +2624,45 @@ Function CheckStoryLingerCleanup()
             Bool timedOut = lingerStart > 0.0 && elapsed > LINGER_TIMEOUT_SECONDS
             ; Pauses count at most 6 s above, so waiting/sleeping needs a game-time limit too.
             Float lingerGameStart = StorageUtil.GetFloatValue(npc, "Intel_StoryLingerGameStart", 0.0)
-            timedOut = timedOut || (lingerGameStart > 0.0 && Utility.GetCurrentGameTime() - lingerGameStart > 1.0 / 24.0)
+            Float lingerNowGame = Utility.GetCurrentGameTime()
+            timedOut = timedOut || (lingerGameStart > 0.0 && lingerNowGame - lingerGameStart > 1.0 / 24.0)
+            ; A visitor is not sent away in the middle of a conversation. Both limits above are fixed lengths
+            ; (three minutes at the default timescale): the NPC who had come to find the player turned and
+            ; left with the player still talking to them. While they speak, and for a while after their last
+            ; line, the visit goes on. A jump in game time (waiting, sleeping) still ends it.
+            Float lingerLastPoll = StorageUtil.GetFloatValue(npc, "Intel_StoryLingerLastPoll", 0.0)
+            Bool timeJumped = lingerLastPoll > 0.0 && lingerNowGame - lingerLastPoll > 0.5 / 24.0
+            StorageUtil.SetFloatValue(npc, "Intel_StoryLingerLastPoll", lingerNowGame)
+            If StorageUtil.GetIntValue(npc, "Intel_SocSceneHold") != 1
+                ; Only a conversation the player is part of (Core.IsTalkingWithPlayer says why), and never
+                ; beyond the longest visit.
+                Bool visitorTalking = Core.IsTalkingWithPlayer(npc)
+                If visitorTalking
+                    StorageUtil.SetFloatValue(npc, "Intel_StoryLingerTalkedAt", elapsed)
+                EndIf
+                If lingerGameStart > 0.0 && lingerNowGame - lingerGameStart > Core.LINGER_VISIT_MAX_HOURS / 24.0
+                    timeJumped = true
+                EndIf
+                If timedOut && !timeJumped && (visitorTalking || elapsed - StorageUtil.GetFloatValue(npc, "Intel_StoryLingerTalkedAt", -1000.0) < LINGER_AFTER_TALK_SECONDS)
+                    timedOut = false
+                EndIf
+            EndIf
             ; Grace period: don't check distance for the first 30 seconds so
             ; NPCs that start far away (e.g. rescued victims) can pathfind to the player
+            Bool shouldRelease = elapsed > 30.0 && Core.ShouldReleaseLinger(npc)
+            ; Two NPCs kept together for a scene that is being spoken (HoldAfterScene): the player's distance
+            ; does not end it, only its length does, or the NPC being unloaded. The same for a pair still
+            ; waiting for the player to come within hearing: the wait was meant to last until the timeout, but
+            ; the player being farther than the release distance (which is what "waiting" means) ended it
+            ; after the thirty seconds of grace, facts only.
+            If StorageUtil.GetIntValue(npc, "Intel_SocSceneHold") == 1 || StorageUtil.GetStringValue(npc, "Intel_SocHoldNarr", "") != ""
+                shouldRelease = !npc.Is3DLoaded()
+            EndIf
+            ; Taken over: a new IntelEngine task, or the player recruited them (teammate, follower faction,
+            ; SeverActions follow). The linger is over at once; "player far away" never comes true for a follower.
+            Bool takenOver = Core.FindSlotByAgent(npc) >= 0 || Core.IsFollowingPlayer(npc)
 
-            Bool shouldRelease = npc.IsPlayerTeammate() || (elapsed > 30.0 && Core.ShouldReleaseLinger(npc))
-            If timedOut || shouldRelease
+            If timedOut || shouldRelease || takenOver
                 If StorageUtil.GetStringValue(npc, "Intel_SocHoldNarr", "") != ""
                     TickSocialHold(npc, true)
                 EndIf
@@ -2360,10 +2672,17 @@ Function CheckStoryLingerCleanup()
                 ; They persist on Intel_RecentlyRescuedNPCs so CheckRescuedNPCDeaths can detect
                 ; post-linger kills and inject facts to the quest giver.
                 Core.ReleaseLinger(npc)
+                RestoreCombatValues(npc)
                 StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerStart")
                 StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerElapsed")
                 StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerGameStart")
-                StorageUtil.FormListRemoveAt(player, "Intel_StoryLingerActors", i)
+                StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerLastPoll")
+                StorageUtil.UnsetFloatValue(npc, "Intel_StoryLingerTalkedAt")
+                StorageUtil.UnsetIntValue(npc, "Intel_SocSceneHold")
+                ; By value, not by index: the calls above (narration, release) let other threads add to and
+                ; remove from this list, and the index then pointed at somebody else, who was dropped from
+                ; the linger with the sandbox still on them.
+                StorageUtil.FormListRemove(player, "Intel_StoryLingerActors", npc as Form, true)
             EndIf
         EndIf
         i -= 1
@@ -2433,7 +2752,8 @@ Function CheckRescuedNPCDeaths()
             StorageUtil.UnsetFormValue(npc, "Intel_RescueQuestGiver")
             StorageUtil.UnsetStringValue(npc, "Intel_RescuePlayerName")
             StorageUtil.UnsetFloatValue(npc, "Intel_RescueTime")
-            StorageUtil.FormListRemoveAt(player, "Intel_RecentlyRescuedNPCs", i)
+            ; By value: the fact injection above calls out, the list may have changed under the index.
+            StorageUtil.FormListRemove(player, "Intel_RecentlyRescuedNPCs", npc as Form, true)
         Else
             ; Alive — expire tracking after 1 game day (NPC survived long enough)
             Float rescueTime = StorageUtil.GetFloatValue(npc, "Intel_RescueTime", 0.0)
@@ -2503,17 +2823,30 @@ Function CleanupStrandedEncounters()
         Actor npc = Game.GetForm(formId) as Actor
         If npc != None
             Float encounterTime = StorageUtil.GetFloatValue(npc, "Intel_FakeEncounterTime", 0.0)
-            If encounterTime > 0.0 && (currentTime - encounterTime) > 1.0
-                ; Clean up all state before returning home
-                Core.RemoveAllPackages(npc, false)
+            If Core.FindSlotByAgent(npc) >= 0 || Core.IsFollowingPlayer(npc)
+                ; On a task or with the player now: forget the encounter, send nobody home.
+                ForgetLingerActor(npc)
+            ElseIf encounterTime > 0.0 && (currentTime - encounterTime) > 1.0
+                ; Clean up all state before returning home. Only the encounter's own overrides (they are the
+                ; walk and the sandbox, taken off by ClearRoadEncounterTravelState): the full clear that used
+                ; to be here also took away what other mods had put on the NPC in that day.
                 ClearRoadEncounterTravelState(npc)
                 StorageUtil.UnsetStringValue(npc, "Intel_FakeEncounterNarration")
                 StorageUtil.UnsetIntValue(npc, "Intel_FakeEncounterInteracted")
                 StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterGreetTime")
-                npc.MoveToMyEditorLocation()
+                If Core.PlayerCanSee(npc)
+                    ; Not out of the player's sight: they are let go and walk (those without a routine of
+                    ; their own are sent home on foot).
+                    Core.ReleaseLinger(npc)
+                Else
+                    npc.MoveToMyEditorLocation()
+                    npc.EvaluatePackage()
+                EndIf
                 StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterElapsed")
                 StorageUtil.UnsetFloatValue(npc, "Intel_FakeEncounterTime")
-                StorageUtil.IntListRemoveAt(player, "Intel_FakeEncounterNPCs", i)
+                ; By value: the calls above let other threads change the list, and the index then pointed
+                ; at somebody else.
+                StorageUtil.IntListRemove(player, "Intel_FakeEncounterNPCs", formId, true)
                 Debug.Trace("[IntelEngine] StoryEngine: Returned road encounter NPC " + npc.GetDisplayName())
             EndIf
         Else
@@ -2556,11 +2889,17 @@ Function CheckStoryNPCArrival()
         return
     EndIf
     If storyNPC.IsDead() || storyNPC.IsDisabled()
+        ; A guide who died on the way ends the guiding, not the quest: CheckQuestGuide sees to that. From
+        ; here it went through CleanupStoryDispatch, which cancelled the whole quest with them.
+        If storyType == "quest_guide" && QuestGuideActive && QuestGuideNPC == storyNPC
+            CheckQuestGuide()
+            return
+        EndIf
         Int deadSlot = Core.FindSlotByAgent(storyNPC)
         If (deadSlot >= 0) && StillOwns(storyNPC, claimedGeneration, storyType)
             Core.ClearSlot(deadSlot)
         EndIf
-        Core.RemoveAllPackages(storyNPC, false)
+        Core.RemoveIntelPackages(storyNPC, false)
         If StillOwns(storyNPC, claimedGeneration, storyType)
             CleanupStoryDispatch()
         EndIf
@@ -2576,7 +2915,7 @@ Function CheckStoryNPCArrival()
         If (corruptSlot >= 0) && StillOwns(storyNPC, claimedGeneration, storyType)
             Core.ClearSlot(corruptSlot)
         EndIf
-        Core.RemoveAllPackages(storyNPC, false)
+        Core.RemoveIntelPackages(storyNPC)
         If StillOwns(storyNPC, claimedGeneration, storyType)
             CleanupStoryDispatch()
         EndIf
@@ -2585,8 +2924,10 @@ Function CheckStoryNPCArrival()
 
     ; Orphan detection: if NPC is valid but no longer in a slot, dispatch was
     ; externally cleared (console, MCM). Clean up to unblock future ticks.
+    ; A slot of another type means the NPC was given a different task meanwhile: the story no longer owns them
+    ; either, and must not keep steering them back to the player or end by clearing that other task's slot.
     Int activeSlot = Core.FindSlotByAgent(storyNPC)
-    If activeSlot < 0
+    If activeSlot < 0 || Core.SlotTaskTypes[activeSlot] != "story"
         Core.DebugMsg("Story: orphaned dispatch detected for " + storyNPC.GetDisplayName() + " [" + storyType + "] - cleaning up")
         If StillOwns(storyNPC, claimedGeneration, storyType)
             CleanupStoryDispatch()
@@ -2616,9 +2957,11 @@ Function CheckStoryNPCArrival()
             If (slot >= 0) && StillOwns(storyNPC, claimedGeneration, storyType)
                 Core.ClearSlot(slot)
             EndIf
-            Core.RemoveAllPackages(storyNPC, false)
+            Core.RemoveIntelPackages(storyNPC)
             If StillOwns(storyNPC, claimedGeneration, storyType)
                 CleanupStoryDispatch()
+                ; Given up somewhere in the wild: one with no routine of their own is sent home.
+                Core.ReleaseLinger(storyNPC)
             EndIf
             return
         EndIf
@@ -2637,7 +2980,9 @@ Function CheckStoryNPCArrival()
         ; Ambushers enter sneak at approach distance (jog normally until then)
         If storyType == "ambush" && sneakPhase == 0 && sneakDist <= SNEAK_APPROACH_DISTANCE
             If sneakDist > AMBUSH_CONFRONT_DISTANCE
-                storyNPC.StartSneaking()
+                If !storyNPC.IsSneaking()
+                    storyNPC.StartSneaking()
+                EndIf
                 StorageUtil.SetIntValue(storyNPC, "Intel_SneakPhase", 1)
                 sneakPhase = 1
                 Core.DebugMsg("Story [ambush]: " + storyNPC.GetDisplayName() + " entered sneak at " + sneakDist + "u")
@@ -2671,7 +3016,12 @@ Function CheckStoryNPCArrival()
 
                 ; Phase 1 (following): hold position when too close
                 If sneakPhase == 1 && sneakDist <= STALKER_KEEP_DISTANCE
-                    Core.RemoveAllPackages(storyNPC, false)
+                    ; The stalk package stays on and is pointed at the stalker's own position: they stop
+                    ; where they are, still crouched. Taking every package off (without re-evaluating) was
+                    ; no hold at all: the stalker went on until the next evaluation and then fell back on
+                    ; their daily routine, standing up and walking home in plain view.
+                    PO3_SKSEFunctions.SetLinkedRef(storyNPC, storyNPC as ObjectReference, Core.IntelEngine_TravelTarget)
+                    storyNPC.EvaluatePackage()
                     StorageUtil.SetIntValue(storyNPC, "Intel_SneakPhase", 2)
                     Core.DebugMsg("Story [stalker]: " + storyNPC.GetDisplayName() + " holding at " + sneakDist + "u")
                 EndIf
@@ -2751,11 +3101,24 @@ Function CheckStoryNPCArrival()
         EndIf
     EndIf
 
+    ; The last stretch is walked. A visitor used to come jogging right up to the player's face, through an
+    ; inn or a house as well, whatever the story was. (Not the sneaking types, which have their own package,
+    ; and not an attacker's charge.)
+    If !StoryWalkingLastStretch && StoryTypeJogs(storyType) && ShouldWalkLastStretch(storyNPC, arrivalTarget)
+        StoryWalkingLastStretch = true
+        ActorUtil.AddPackageOverride(storyNPC, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+        ActorUtil.RemovePackageOverride(storyNPC, Core.TravelPackage_Jog)
+        storyNPC.EvaluatePackage()
+    EndIf
+
     Float dist = storyNPC.GetDistance(arrivalTarget)
     ; ponytail: clamp pause gaps to 6s; shared-quest polls may run faster than MONITOR_INTERVAL.
     Cell nearCell = storyNPC.GetParentCell()
     Bool nearPlayer = arrivalTarget == player && storyNPC.Is3DLoaded() && player.Is3DLoaded() && dist >= 0.0 && dist <= 350.0
     nearPlayer = nearPlayer && ((nearCell != None && nearCell == player.GetParentCell()) || (storyNPC.GetWorldSpace() != None && storyNPC.GetWorldSpace() == player.GetWorldSpace()))
+    ; On the same floor, as the travel arrival requires too: 350 units is a short distance in plan but spans
+    ; two storeys of an inn, so the visitor "arrived" and said their line from the room below.
+    nearPlayer = nearPlayer && Math.Abs(storyNPC.GetPositionZ() - player.GetPositionZ()) <= 150.0
     If !StillOwns(storyNPC, claimedGeneration, storyType)
         return
     EndIf
@@ -2803,14 +3166,27 @@ Function CheckStoryNPCArrival()
         If LastStretchRetry == 0
             LastStretchRetry = 1
             LastStretchSince = 0.0
-            Core.DebugMsg("Story: re-placing " + storyNPC.GetDisplayName() + " after last-stretch timeout")
-            Float[] closer = IntelEngine.GetOffsetBehind(arrivalTarget, TELEPORT_OFFSET_INTERIOR)
-            storyNPC.MoveTo(arrivalTarget, closer[0], closer[1], 0.0, false)
-            ReapplyTravelPackage(storyNPC)
+            If Core.PlayerCanSee(storyNPC)
+                ; In the player's view they are not moved: the path is planned afresh, and the second
+                ; timeout ends the story as before.
+                Core.DebugMsg("Story: " + storyNPC.GetDisplayName() + " last-stretch timeout in view - re-planning instead of re-placing")
+                Core.SoftStuckRecovery(storyNPC, slot, arrivalTarget as ObjectReference)
+            Else
+                Core.DebugMsg("Story: re-placing " + storyNPC.GetDisplayName() + " after last-stretch timeout")
+                Float[] closer = IntelEngine.GetOffsetBehind(arrivalTarget, TELEPORT_OFFSET_INTERIOR)
+                storyNPC.MoveTo(arrivalTarget, closer[0], closer[1], 0.0, false)
+                ReapplyTravelPackage(storyNPC)
+            EndIf
         Else
             Core.DebugMsg("[diag:fix9] " + storyNPC.GetDisplayName() + " abort last-stretch timeout " + IntelEngine.DescribeDistance(storyNPC, arrivalTarget))
+            ; The notice is for a story the player started from the dashboard. For an automatic one it told
+            ; the player about a visitor they had never seen: the story just ends, as if nobody had set out.
+            Bool lostFromDirector = StorageUtil.GetStringValue(storyNPC, "Intel_TaskOrigin") == "Director"
+            String lostName = storyNPC.GetDisplayName()
             AbortStoryTravel("last-stretch timeout")
-            Core.NotifyPlayer("Story: " + storyNPC.GetDisplayName() + " couldn't reach you - story ended")
+            If lostFromDirector
+                Core.NotifyPlayer("Story: " + lostName + " couldn't reach you - story ended")
+            EndIf
         EndIf
         return
     EndIf
@@ -2876,7 +3252,11 @@ Function CheckStoryNPCArrival()
     If (stuckStatus == 1) && StillOwns(storyNPC, claimedGeneration, storyType)
         Core.SoftStuckRecovery(storyNPC, slot, arrivalTarget as ObjectReference)
     ElseIf stuckStatus >= 3 && StillOwns(storyNPC, claimedGeneration, storyType) && LastStretchSince < 0.0
-        If AllowStuckTeleport
+        If Core.PlayerCanSee(storyNPC)
+            ; This branch is for an NPC who is loaded, so often one the player is looking at: no vanishing
+            ; from the scene. The path is planned afresh; the travel time limit below stays the last resort.
+            Core.SoftStuckRecovery(storyNPC, slot, arrivalTarget as ObjectReference)
+        ElseIf AllowStuckTeleport
             ImmersiveTeleportToTarget(storyNPC, arrivalTarget)
             If !StillOwns(storyNPC, claimedGeneration, storyType)
                 return
@@ -2897,7 +3277,11 @@ Function CheckStoryNPCArrival()
     Float taskStart = StorageUtil.GetFloatValue(storyNPC, "Intel_TaskStartTime", 0.0)
     If taskStart > 0.0 && (Utility.GetCurrentGameTime() - taskStart) > MaxTravelDaysConfig
         Debug.Trace("[IntelEngine] StoryEngine: Travel timeout for " + storyNPC.GetDisplayName() + " - force-arriving")
-        If (AllowStuckTeleport) && StillOwns(storyNPC, claimedGeneration, storyType)
+        If Core.PlayerCanSee(storyNPC) && StillOwns(storyNPC, claimedGeneration, storyType)
+            ; Still on the way, in front of the player, after all this time: the story ends where they
+            ; stand instead of with a teleport the player watches.
+            AbortStoryTravel("travel timeout in view")
+        ElseIf (AllowStuckTeleport) && StillOwns(storyNPC, claimedGeneration, storyType)
             ImmersiveTeleportToTarget(storyNPC, arrivalTarget)
             If !StillOwns(storyNPC, claimedGeneration, storyType)
                 return
@@ -2921,7 +3305,11 @@ Function ImmersiveTeleportToTarget(Actor npc, Actor target)
     Cell targetCell = target.GetParentCell()
 
     If targetCell != None && targetCell.IsInterior()
-        Core.TeleportBehindPlayer(npc, TELEPORT_OFFSET_INTERIOR)
+        ; Indoors with the player: put at a door of the room, to walk in. 500 units "behind the player"
+        ; inside a building is a spot in the room (seen with a turned camera) or inside a wall.
+        If target != Game.GetPlayer() || !Core.PlaceForUnseenArrival(npc, target as ObjectReference)
+            Core.TeleportBehindPlayer(npc, TELEPORT_OFFSET_INTERIOR)
+        EndIf
     Else
         Float[] offset = IntelEngine.GetOffsetBehind(target, TELEPORT_OFFSET_EXTERIOR)
         npc.MoveTo(target, offset[0], offset[1], 0.0, false)
@@ -3055,35 +3443,43 @@ Function HandleMessageDispatch(Actor senderNPC, String narration, String respons
 EndFunction
 
 Function OnMessageArrived()
-    String senderName = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageSender")
-    Actor senderNPC = StorageUtil.GetFormValue(ActiveStoryNPC, "Intel_MessageSenderActor") as Actor
-    String msgContent = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageContent")
-    String msgDest = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageDest")
-    String meetTime = StorageUtil.GetStringValue(ActiveStoryNPC, "Intel_MessageTime")
-    StorageUtil.UnsetFormValue(ActiveStoryNPC, "Intel_MessageSenderActor")
+    ; The messenger is kept in a local. The calls below hand over to other scripts, and ActiveStoryNPC is
+    ; a property anyone can clear or replace meanwhile (IsActive is already off for a message that has
+    ; arrived): the rest of the delivery then ran on None, or on the next story's NPC.
+    Actor messenger = ActiveStoryNPC
+    If messenger == None
+        CleanupStoryDispatch()
+        return
+    EndIf
+    String senderName = StorageUtil.GetStringValue(messenger, "Intel_MessageSender")
+    Actor senderNPC = StorageUtil.GetFormValue(messenger, "Intel_MessageSenderActor") as Actor
+    String msgContent = StorageUtil.GetStringValue(messenger, "Intel_MessageContent")
+    String msgDest = StorageUtil.GetStringValue(messenger, "Intel_MessageDest")
+    String meetTime = StorageUtil.GetStringValue(messenger, "Intel_MessageTime")
+    StorageUtil.UnsetFormValue(messenger, "Intel_MessageSenderActor")
 
     ; Narration
     String fullNarration = ""
-    If senderName != "" && senderName != ActiveStoryNPC.GetDisplayName()
+    If senderName != "" && senderName != messenger.GetDisplayName()
         fullNarration = "delivered a message from " + senderName + ": " + msgContent
     Else
         fullNarration = ActiveNarration
     EndIf
-    Core.SendTaskNarration(ActiveStoryNPC, fullNarration, Game.GetPlayer())
+    Core.SendTaskNarration(messenger, fullNarration, Game.GetPlayer())
     String messageSource = senderName
     If messageSource == ""
-        messageSource = ActiveStoryNPC.GetDisplayName()
+        messageSource = messenger.GetDisplayName()
     EndIf
-    Core.SendStoryEvent("intel_story", ActiveStoryNPC, Game.GetPlayer(), ActiveStoryNPC.GetDisplayName() + " completed delivery of a message from " + messageSource + " to " + Game.GetPlayer().GetDisplayName())
+    Core.SendStoryEvent("intel_story", messenger, Game.GetPlayer(), messenger.GetDisplayName() + " completed delivery of a message from " + messageSource + " to " + Game.GetPlayer().GetDisplayName())
 
     ; The messenger passed the travel-time rejection checks; record the delivery plan.
     String playerName = Game.GetPlayer().GetDisplayName()
-    String messengerName = ActiveStoryNPC.GetDisplayName()
-    If senderNPC != None && senderNPC != ActiveStoryNPC
+    String messengerName = messenger.GetDisplayName()
+    If senderNPC != None && senderNPC != messenger
         Core.InjectFact(senderNPC, "asked " + messengerName + " to deliver a message to " + playerName + ": " + msgContent)
-        Core.InjectFact(ActiveStoryNPC, "was sent by " + senderName + " to deliver a message to " + playerName + ": " + msgContent)
-    ElseIf senderNPC == ActiveStoryNPC
-        Core.InjectFact(ActiveStoryNPC, "set out to deliver a message to " + playerName + ": " + msgContent)
+        Core.InjectFact(messenger, "was sent by " + senderName + " to deliver a message to " + playerName + ": " + msgContent)
+    ElseIf senderNPC == messenger
+        Core.InjectFact(messenger, "set out to deliver a message to " + playerName + ": " + msgContent)
     EndIf
 
     ; Safety net: if msgContent conveys urgency but meetTime is set, the LLM
@@ -3113,9 +3509,9 @@ Function OnMessageArrived()
     EndIf
 
     ; Anti-repetition
-    AddRecentStoryEvent("message: " + ActiveStoryNPC.GetDisplayName() + " -- " + fullNarration)
+    AddRecentStoryEvent("message: " + messengerName + " -- " + fullNarration)
 
-    FinishArrivalWithLinger(ActiveStoryNPC, Game.GetPlayer() as ObjectReference)
+    FinishArrivalWithLinger(messenger, Game.GetPlayer() as ObjectReference)
 EndFunction
 
 ; =============================================================================
@@ -3209,11 +3605,24 @@ Function HandleFactionAmbushDispatch(String narration, String response)
         return
     EndIf
 
+    ; The list the model picks from also names the enemies of the player's friends (it serves the faction
+    ; quests too), and nothing held the model to the rule that only a faction hostile to the player sends
+    ; a patrol after them. A made-up faction id reads as standing 0 and stops here as well.
+    Int ambushStanding = IntelEngine.GetPlayerFactionStanding(factionId)
+    If ambushStanding > -40
+        Core.DebugMsg("Story [faction_ambush]: " + factionId + " is not hostile to the player (standing " + ambushStanding + "), skipping")
+        return
+    EndIf
+
     Int count = countStr as Int
     If count < 3
         count = 3
     ElseIf count > 7
         count = 7
+    EndIf
+    ; Size follows hostility, as the prompt asks: a small party until the feud is deep.
+    If ambushStanding > -60 && count > 4
+        count = 4
     EndIf
 
     ; Guard: don't overlap with active battle, existing faction ambush, or manifestation
@@ -3231,9 +3640,28 @@ Function HandleFactionAmbushDispatch(String narration, String response)
     EndIf
 
     Actor player = Game.GetPlayer()
+    Float playerAngle = player.GetAngleZ()
+
+    ; The soldiers are created at a marker behind the player, not at the player. Created at the player they
+    ; all stood on that spot for a moment before the loop below moved them out of view one by one (the
+    ; battle code spawns at its rally markers for the same reason).
+    ObjectReference spawnAt = player as ObjectReference
+    ObjectReference spawnMarker = None
+    Form xmarkerBase = Game.GetFormFromFile(0x0000003B, "Skyrim.esm")
+    If xmarkerBase
+        spawnMarker = player.PlaceAtMe(xmarkerBase)
+        If spawnMarker
+            spawnMarker.MoveTo(player, Math.Sin(playerAngle + 180.0) * 1000.0, Math.Cos(playerAngle + 180.0) * 1000.0, 0.0)
+            spawnAt = spawnMarker
+        EndIf
+    EndIf
 
     ; Spawn soldiers — C++ handles leveled list resolution + crime faction removal (no bounty)
-    Actor[] soldiers = IntelEngine.SpawnBattleSoldiers(factionId + ":" + count, player)
+    Actor[] soldiers = IntelEngine.SpawnBattleSoldiers(factionId + ":" + count, spawnAt)
+    If spawnMarker
+        spawnMarker.DisableNoWait()
+        spawnMarker.Delete()
+    EndIf
     If soldiers.Length == 0
         Core.DebugMsg("Story [faction_ambush]: no soldiers spawned for " + factionId)
         return
@@ -3243,7 +3671,6 @@ Function HandleFactionAmbushDispatch(String narration, String response)
 
     FactionAmbushActors = new Actor[7]
     FactionAmbushCount = 0
-    Float playerAngle = player.GetAngleZ()
 
     Int i = 0
     While i < soldiers.Length
@@ -3266,6 +3693,15 @@ Function HandleFactionAmbushDispatch(String narration, String response)
         Core.DebugMsg("Story [faction_ambush]: all soldiers None after spawn")
         return
     EndIf
+
+    ; Marked active here, before the waits below. It used to be set at the very end: a second ambush (or a
+    ; political skirmish) admitted in those seconds replaced the list, and the first group was never
+    ; removed. The tick request makes sure the cleanup check runs at all when nothing else is going on.
+    FactionAmbushActive = true
+    FactionAmbushEnding = false
+    FactionAmbushStartTime = Utility.GetCurrentRealTime()
+    StorageUtil.SetStringValue(player, "Intel_FactionAmbushFaction", factionId)
+    Core.RequestTick(MONITOR_INTERVAL)
 
     String factionName = IntelEngine.GetFactionDisplayName(factionId)
 
@@ -3294,15 +3730,16 @@ Function HandleFactionAmbushDispatch(String narration, String response)
 
     AddRecentStoryEvent("faction_ambush: " + factionName + " (" + FactionAmbushCount + " soldiers) -- " + narration)
 
-    FactionAmbushActive = true
-    FactionAmbushStartTime = Utility.GetCurrentRealTime()
-    StorageUtil.SetStringValue(player, "Intel_FactionAmbushFaction", factionId)
     Core.DebugMsg("Story [faction_ambush]: " + FactionAmbushCount + " " + factionName + " soldiers spawned")
 EndFunction
 
 Function CheckFactionAmbushCleanup()
     {Monitor faction ambush actors — cleanup when all dead or timeout elapsed.}
     If !FactionAmbushActive
+        return
+    EndIf
+    If FactionAmbushEnding
+        RemoveFactionAmbushActors()
         return
     EndIf
 
@@ -3340,23 +3777,56 @@ Function CheckFactionAmbushCleanup()
         EndIf
 
         Core.DebugMsg("Story [faction_ambush]: cleanup (" + FactionAmbushCount + " actors, allDead=" + allDead + ", elapsed=" + elapsed as Int + "s)")
-        ; Disable+Delete ALL soldiers (dead and living) — prevents leaking hostile actors
+        ; The living are called off now. Nobody is removed in front of the player any more: all of them,
+        ; dead and living, used to be disabled and deleted on the spot, so the bodies vanished the moment
+        ; the last soldier fell (before they could be searched) and survivors blinked out of the scene.
+        ; RemoveFactionAmbushActors takes each one away once the player is not looking.
         i = 0
         While i < FactionAmbushCount
-            If FactionAmbushActors[i] != None
-                If !FactionAmbushActors[i].IsDead()
-                    ; Reset aggression before disable so they don't attack on re-enable edge cases
-                    FactionAmbushActors[i].SetActorValue("Aggression", 0)
-                    FactionAmbushActors[i].StopCombat()
-                EndIf
-                FactionAmbushActors[i].DisableNoWait()
-                FactionAmbushActors[i].Delete()
-                FactionAmbushActors[i] = None
+            If FactionAmbushActors[i] != None && !FactionAmbushActors[i].IsDead()
+                FactionAmbushActors[i].SetActorValue("Aggression", 0)
+                FactionAmbushActors[i].StopCombat()
             EndIf
             i += 1
         EndWhile
+        FactionAmbushEnding = true
+        FactionAmbushEndingSince = Utility.GetCurrentRealTime()
+        RemoveFactionAmbushActors()
+    EndIf
+EndFunction
+
+Function RemoveFactionAmbushActors()
+    {Second half of the ambush cleanup: Disable+Delete every soldier (dead and living, so no hostile actor
+    and no body is left in the save), each one as soon as it is unloaded, or far from the player and out of
+    view. After FACTION_AMBUSH_ENDING_MAX real seconds whatever is left goes regardless.}
+    Actor player = Game.GetPlayer()
+    Float waited = Utility.GetCurrentRealTime() - FactionAmbushEndingSince
+    If waited < 0.0
+        ; a stamp from an earlier game session (real time starts again at every launch)
+        FactionAmbushEndingSince = Utility.GetCurrentRealTime()
+        waited = 0.0
+    EndIf
+    Bool removeAll = waited >= FACTION_AMBUSH_ENDING_MAX
+    Int left = 0
+    Int i = 0
+    While i < FactionAmbushCount
+        Actor soldier = FactionAmbushActors[i]
+        If soldier != None
+            If removeAll || !soldier.Is3DLoaded() || (soldier.GetDistance(player) > 3000.0 && !Core.PlayerCanSee(soldier))
+                soldier.DisableNoWait()
+                soldier.Delete()
+                FactionAmbushActors[i] = None
+            Else
+                left += 1
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+    If left == 0
         FactionAmbushCount = 0
         FactionAmbushActive = false
+        FactionAmbushEnding = false
+        Core.DebugMsg("Story [faction_ambush]: all actors removed")
     EndIf
 EndFunction
 
@@ -3379,6 +3849,7 @@ Function OnAmbushConfront()
     EndIf
 
     ; Make essential so they bleedout instead of dying -- gives yield a chance to fire
+    RememberCombatValues(ActiveStoryNPC)
     ActiveStoryNPC.GetActorBase().SetEssential(true)
 
     ; Start combat -- NPC commits to the fight
@@ -3401,7 +3872,7 @@ Function CheckAmbushCombat()
     Float combatStart = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_CombatStartTime", 0.0)
     If combatStart > 0.0 && (Utility.GetCurrentRealTime() - combatStart) > SNEAK_TIMEOUT_SECONDS && Core.ShouldReleaseLinger(ActiveStoryNPC)
         Core.DebugMsg("Story [ambush_combat]: " + ActiveStoryNPC.GetDisplayName() + " combat timed out - forcing end")
-        ActiveStoryNPC.GetActorBase().SetEssential(false)
+        RestoreEssentialAfterAmbush(ActiveStoryNPC)
         ActiveStoryNPC.StopCombat()
         ActiveStoryNPC.StopCombatAlarm()
         ActiveStoryNPC.SetActorValue("Aggression", 0)
@@ -3413,7 +3884,7 @@ Function CheckAmbushCombat()
     EndIf
 
     If ActiveStoryNPC.IsDead()
-        ActiveStoryNPC.GetActorBase().SetEssential(false)
+        RestoreEssentialAfterAmbush(ActiveStoryNPC)
         Int slot = Core.FindSlotByAgent(ActiveStoryNPC)
         If slot >= 0
             Core.ClearSlot(slot)
@@ -3430,7 +3901,7 @@ Function CheckAmbushCombat()
 
     If !ActiveStoryNPC.IsInCombat()
         ; Combat ended naturally (player ran away, guards intervened, etc.)
-        ActiveStoryNPC.GetActorBase().SetEssential(false)
+        RestoreEssentialAfterAmbush(ActiveStoryNPC)
         ActiveStoryNPC.SetActorValue("Aggression", 0)
         ActiveStoryNPC.SetActorValue("Confidence", 2)
         Actor endedNPC = ActiveStoryNPC
@@ -3444,7 +3915,7 @@ Function OnAmbushYield()
     String playerName = Game.GetPlayer().GetDisplayName()
 
     ; Remove essential -- player can now kill them if they choose
-    ActiveStoryNPC.GetActorBase().SetEssential(false)
+    RestoreEssentialAfterAmbush(ActiveStoryNPC)
 
     ; Stop fighting
     ActiveStoryNPC.StopCombat()
@@ -3525,6 +3996,7 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     EndIf
     Actor departureNPC = npc
     String departureFact = ""
+    Bool calmCourier = false
     If npc != None && !fromDirector && !IntelEngine.NPCKnowsPlayer(npc)
         departureFact = "has never met " + Game.GetPlayer().GetDisplayName() + " personally - approaching a stranger, should introduce themselves and confirm identity"
     EndIf
@@ -3599,11 +4071,17 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
             Core.DebugMsg("Story DM: quest/" + questSubTypeStr + " rejected -- only loaded " + alliedFaction + " member is the rescue victim")
             return
         EndIf
+        ; Guard: not a member who is in a task or another story role already. The cooldown check that
+        ; catches this for everyone else is skipped for faction couriers: they got a second task slot.
+        If Core.FindSlotByActor(factionMember) >= 0 || HoldsActor(factionMember)
+            Core.DebugMsg("Story DM: quest/" + questSubTypeStr + " rejected -- " + alliedFaction + " member " + factionMember.GetDisplayName() + " is busy")
+            return
+        EndIf
         npc = factionMember
-        ; Make courier non-hostile so NPCs don't attack them on approach (e.g., Volkihar vampires)
-        ; Save original aggression for restoration after task completes
-        StorageUtil.SetFloatValue(npc, "Intel_OrigAggression", npc.GetActorValue("Aggression"))
-        npc.SetActorValue("Aggression", 0)
+        ; Make courier non-hostile so NPCs don't attack them on approach (e.g., Volkihar vampires).
+        ; Done further down, right before the dispatch: done here, every rejection below (unknown location,
+        ; no free slot, battle validation, a substitute courier) left this NPC at aggression 0 for good.
+        calmCourier = true
         ; Skip cooldown for faction couriers — they're generic/interchangeable soldiers.
         ; Rejecting a faction_battle because the nearest guard has a cooldown wastes a valid quest.
         String factionName = IntelEngine.GetFactionDisplayName(alliedFaction)
@@ -3660,6 +4138,11 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
                 Core.DebugMsg("Story DM: quest/" + questSubTypeStr + " rejected -- substitute faction member " + factionSub.GetDisplayName() + " on cooldown")
                 return
             EndIf
+            If Core.FindSlotByActor(factionSub) >= 0 || HoldsActor(factionSub)
+                Core.DebugMsg("Story DM: quest/" + questSubTypeStr + " rejected -- substitute faction member " + factionSub.GetDisplayName() + " is busy")
+                return
+            EndIf
+            calmCourier = true
             Core.DebugMsg("Story DM: quest/" + questSubTypeStr + " -- substituting " + questGiverActor.GetDisplayName() + " with faction member " + factionSub.GetDisplayName())
             questGiverActor = factionSub
             npc = factionSub
@@ -3752,10 +4235,45 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     IntelEngine.NotifyQuestActive(QuestLocationName, QuestSubType, QuestEnemyType, \
         questGiverActor.GetDisplayName(), msgContent, victimName, itemName, alliedFaction)
 
+    ; A faction courier is made non-hostile for the approach; the original value is kept for the cleanup.
+    If calmCourier
+        StorageUtil.SetFloatValue(npc, "Intel_OrigAggression", npc.GetActorValue("Aggression"))
+        npc.SetActorValue("Aggression", 0)
+    EndIf
+
     ActiveStoryType = "quest"
     If !DispatchToTarget(npc, Game.GetPlayer(), narration, "story", taskOrigin)
+        ; Never set out (no slot after all, or turned away at the player's door). CleanupQuest only
+        ; restores a courier who is on the way, so the aggression is put back here.
+        Float calmedFrom = StorageUtil.GetFloatValue(npc, "Intel_OrigAggression", -1.0)
+        If calmedFrom >= 0.0
+            npc.SetActorValue("Aggression", calmedFrom)
+            StorageUtil.UnsetFloatValue(npc, "Intel_OrigAggression")
+        EndIf
         CleanupQuest()
         return
+    EndIf
+EndFunction
+
+Function ReleaseStrandedCourier(Actor npc, Int slot, Int generation)
+    {The arrival handler came back from a wait (the pause before the offer, the offer itself) and found its
+    quest gone: cancelled from the dashboard, expired, replaced. It used to just return. The courier then
+    kept the "story" slot and the sandbox that pins them for the offer, with nothing left that would ever
+    take either away, and the arrival latch stayed set, which blocked every later story.}
+    If npc == None
+        return
+    EndIf
+    Bool sameDispatch = ActiveStoryNPC == npc && DispatchGeneration == generation
+    If slot >= 0 && Core.SlotHolds(slot, npc) && Core.SlotTaskTypes[slot] == "story" && (sameDispatch || ActiveStoryNPC != npc)
+        StorageUtil.SetStringValue(npc, "Intel_Result", "abandoned")
+        Core.ClearSlot(slot)
+    EndIf
+    If sameDispatch
+        CleanupStoryDispatch()
+    EndIf
+    If Core.FindSlotByActor(npc) < 0 && StorageUtil.FormListFind(Game.GetPlayer(), "Intel_StoryLingerActors", npc as Form) < 0
+        ; Free now: one with no routine of their own is sent home from the player's side.
+        Core.ReleaseLinger(npc)
     EndIf
 EndFunction
 
@@ -3793,10 +4311,20 @@ Function OnQuestNPCArrived()
     claimedNPC.EvaluatePackage()
     ; Delay before quest prompt so NPC has time to talk (reduced from 15s)
     Utility.Wait(8.0)
+    ; ...and not in the middle of their sentence: a fixed 8 seconds put the choice on screen while a longer
+    ; plea was still being spoken. Waits for the line to end, 20 seconds more at most.
+    Float spokenFor = 0.0
+    While spokenFor < 20.0 && claimedNPC.Is3DLoaded() && IntelEngine.IsActorTalking(claimedNPC)
+        Utility.Wait(0.5)
+        spokenFor += 0.5
+    EndWhile
     If claimedGeneration != DispatchGeneration || !QuestActive || ActiveStoryType != "quest" || ActiveStoryNPC != claimedNPC
+        ReleaseStrandedCourier(claimedNPC, claimedSlot, claimedGeneration)
         return
     EndIf
-    If claimedSlot < 0 || Core.FindSlotByAgent(claimedNPC) != claimedSlot
+    ; (Also when the slot is no longer this story's: the NPC was given another task during the wait, and
+    ; that task may have been handed the very same slot. The offer is not made on top of it.)
+    If claimedSlot < 0 || Core.FindSlotByAgent(claimedNPC) != claimedSlot || Core.SlotTaskTypes[claimedSlot] != "story"
         CleanupQuest()
         CleanupStoryDispatch()
         return
@@ -3805,7 +4333,7 @@ Function OnQuestNPCArrived()
     ; Bail out if NPC became invalid during the wait
     If claimedNPC.IsDead() || claimedNPC.IsInCombat()
         Core.ClearSlot(claimedSlot)
-        Core.RemoveAllPackages(claimedNPC, false)
+        Core.RemoveIntelPackages(claimedNPC)
         CleanupQuest()
         CleanupStoryDispatch()
         return
@@ -3861,9 +4389,12 @@ Function OnQuestNPCArrived()
         EndIf
     EndIf
     If claimedGeneration != DispatchGeneration || !QuestActive || ActiveStoryType != "quest" || ActiveStoryNPC != claimedNPC
+        ReleaseStrandedCourier(claimedNPC, claimedSlot, claimedGeneration)
         return
     EndIf
-    If claimedSlot < 0 || Core.FindSlotByAgent(claimedNPC) != claimedSlot
+    ; (Also when the slot is no longer this story's: the NPC was given another task during the wait, and
+    ; that task may have been handed the very same slot. The offer is not made on top of it.)
+    If claimedSlot < 0 || Core.FindSlotByAgent(claimedNPC) != claimedSlot || Core.SlotTaskTypes[claimedSlot] != "story"
         CleanupQuest()
         CleanupStoryDispatch()
         return
@@ -3940,12 +4471,32 @@ Function BeginQuestGuide(Actor guideNPC)
         guideDist = guideNPC.GetDistance(QuestLocation)
     EndIf
     Core.DebugMsg("Story [quest_guide]: " + guideNPC.GetDisplayName() + " guiding player to " + QuestLocationName + " (dist=" + guideDist + ", loaded=" + QuestLocation.Is3DLoaded() + ")")
-    RegisterForSingleUpdate(MONITOR_INTERVAL)
+    Core.RequestTick(MONITOR_INTERVAL)
 EndFunction
 
 Function CheckQuestGuide()
     {Monitor guide NPC: wait if player falls behind, resume when close, trigger spawn on arrival.}
     If !QuestGuideActive || QuestGuideNPC == None
+        return
+    EndIf
+
+    ; The guide was killed (or switched off) on the way. Only the guiding ends: the quest goes on, the map
+    ; marker shows the way. This used to be noticed by the story arrival check instead, which ended the
+    ; dispatch as a failed one and cancelled the whole quest with it.
+    If QuestGuideNPC.IsDead() || QuestGuideNPC.IsDisabled()
+        Core.DebugMsg("Story [quest_guide]: guide lost on the way - guiding ends, quest stays")
+        Int lostSlot = Core.FindSlotByAgent(QuestGuideNPC)
+        If lostSlot >= 0 && Core.SlotTaskTypes[lostSlot] == "story"
+            Core.ClearSlot(lostSlot)
+        EndIf
+        Core.NotifyPlayer(QuestGuideNPC.GetDisplayName() + " can no longer lead the way. The map marker shows where to go.")
+        QuestGuideActive = false
+        QuestGuideWaiting = false
+        ActiveStoryType = ""
+        ActiveStoryNPC = None
+        IsActive = false
+        ArrivalHandling = false
+        IntelEngine.ClearSystemPending("storyDM")
         return
     EndIf
 
@@ -3956,7 +4507,7 @@ Function CheckQuestGuide()
     Float guideElapsed = (Utility.GetCurrentGameTime() - QuestGuideStartTime) * 24.0
     If guideElapsed > QUEST_GUIDE_TIMEOUT_HOURS
         Core.DebugMsg("Story [quest_guide]: guide timed out after " + guideElapsed + " hours")
-        Core.RemoveAllPackages(QuestGuideNPC, false)
+        Core.RemoveIntelPackages(QuestGuideNPC, false)
         Int slot = Core.FindSlotByAgent(QuestGuideNPC)
         If slot >= 0
             Core.ClearSlot(slot)
@@ -3978,7 +4529,7 @@ Function CheckQuestGuide()
             ; Off-screen arrival: teleport near quest location
             Float[] offset = IntelEngine.GetOffsetBehind(QuestLocation, TELEPORT_OFFSET_INTERIOR)
             QuestGuideNPC.MoveTo(QuestLocation, offset[0], offset[1], 0.0, false)
-            Core.RemoveAllPackages(QuestGuideNPC, false)
+            Core.RemoveIntelPackages(QuestGuideNPC, false)
             PO3_SKSEFunctions.SetLinkedRef(QuestGuideNPC, QuestLocation, Core.IntelEngine_TravelTarget)
             ActorUtil.AddPackageOverride(QuestGuideNPC, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
             QuestGuideNPC.EvaluatePackage()
@@ -4024,14 +4575,21 @@ Function CheckQuestGuide()
         If stuckStatus == 1
             Core.SoftStuckRecovery(QuestGuideNPC, slot, QuestLocation)
         ElseIf stuckStatus >= 3
-            ; Hard stuck: teleport near quest location
-            Float[] offset = IntelEngine.GetOffsetBehind(QuestLocation, TELEPORT_OFFSET_INTERIOR)
-            QuestGuideNPC.MoveTo(QuestLocation, offset[0], offset[1], 0.0, false)
-            Core.RemoveAllPackages(QuestGuideNPC, false)
-            PO3_SKSEFunctions.SetLinkedRef(QuestGuideNPC, QuestLocation, Core.IntelEngine_TravelTarget)
-            ActorUtil.AddPackageOverride(QuestGuideNPC, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
-            QuestGuideNPC.EvaluatePackage()
-            Core.DebugMsg("Story [quest_guide]: hard stuck - teleported near " + QuestLocationName)
+            If Core.PlayerCanSee(QuestGuideNPC)
+                ; The guide is leading the player, so usually right in front of them: no vanishing to the
+                ; destination and leaving the player behind. The path is planned afresh; the guide's time
+                ; limit ends it if that never helps.
+                Core.SoftStuckRecovery(QuestGuideNPC, slot, QuestLocation)
+            Else
+                ; Hard stuck: teleport near quest location
+                Float[] offset = IntelEngine.GetOffsetBehind(QuestLocation, TELEPORT_OFFSET_INTERIOR)
+                QuestGuideNPC.MoveTo(QuestLocation, offset[0], offset[1], 0.0, false)
+                Core.RemoveIntelPackages(QuestGuideNPC, false)
+                PO3_SKSEFunctions.SetLinkedRef(QuestGuideNPC, QuestLocation, Core.IntelEngine_TravelTarget)
+                ActorUtil.AddPackageOverride(QuestGuideNPC, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
+                QuestGuideNPC.EvaluatePackage()
+                Core.DebugMsg("Story [quest_guide]: hard stuck - teleported near " + QuestLocationName)
+            EndIf
         EndIf
     EndIf
 
@@ -4083,12 +4641,21 @@ Function OnQuestGuideArrived()
     ; Ensure building access: if guide is inside an interior, unlock for player
     Core.EnsureBuildingAccess(QuestGuideNPC)
     StartStoryLinger(QuestGuideNPC)
-    RegisterForSingleUpdate(MONITOR_INTERVAL)
+    Core.RequestTick(MONITOR_INTERVAL)
 EndFunction
 
 ; =============================================================================
 ; QUEST PRE-PLACEMENT (vanilla-style: place targets at boss room before player enters)
 ; =============================================================================
+
+Function RememberVictimEssential(Actor victim)
+    {Before the captive is made essential (so a hit puts them into bleedout instead of killing them): note
+    what they were, once. The placement runs again when the enemy spawn is retried, and the second time it
+    recorded our own "essential" as the original state, which left the NPC unkillable after the quest.}
+    If victim != None && StorageUtil.GetIntValue(victim, "Intel_WasEssential", -1) < 0
+        StorageUtil.SetIntValue(victim, "Intel_WasEssential", victim.IsEssential() as Int)
+    EndIf
+EndFunction
 
 Function PrePlaceQuestTargets()
     {Pre-place victim/chest/boss at dungeon boss room when DungeonIndex has data.
@@ -4124,7 +4691,7 @@ Function PrePlaceQuestTargets()
         ; them home while the cell is unloaded.
         PO3_SKSEFunctions.SetLinkedRef(QuestVictimNPC, bossAnchor, Core.IntelEngine_TravelTarget)
         ActorUtil.AddPackageOverride(QuestVictimNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
-        StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
+        RememberVictimEssential(QuestVictimNPC)
         QuestVictimNPC.GetActorBase().SetEssential(true)
         QuestVictimNPC.SetNoBleedoutRecovery(true)
         ; DamageActorValue past current HP + EvaluatePackage is the pattern that
@@ -4479,7 +5046,7 @@ Function CheckQuestProximity()
                         QuestVictimNPC.MoveTo(aheadAnchor, 0.0, 0.0, 0.0)
                         PO3_SKSEFunctions.SetLinkedRef(QuestVictimNPC, aheadAnchor, Core.IntelEngine_TravelTarget)
                         ActorUtil.AddPackageOverride(QuestVictimNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
-                        StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
+                        RememberVictimEssential(QuestVictimNPC)
                         QuestVictimNPC.GetActorBase().SetEssential(true)
                         QuestVictimNPC.SetNoBleedoutRecovery(true)
                         ; DamageActorValue + EvaluatePackage reliably triggers bleedout
@@ -4724,7 +5291,7 @@ Function SpawnQuestEnemies()
         PO3_SKSEFunctions.SetLinkedRef(QuestVictimNPC, victimAnchor, Core.IntelEngine_TravelTarget)
         ActorUtil.AddPackageOverride(QuestVictimNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_TRAVEL, 1)
         ; Protect victim from death — always make essential for bleedout
-        StorageUtil.SetIntValue(QuestVictimNPC, "Intel_WasEssential", QuestVictimNPC.IsEssential() as Int)
+        RememberVictimEssential(QuestVictimNPC)
         QuestVictimNPC.GetActorBase().SetEssential(true)
         ; DamageActorValue + EvaluatePackage triggers bleedout state + kneel anim on essentials.
         QuestVictimNPC.SetNoBleedoutRecovery(true)
@@ -4744,7 +5311,9 @@ Function SpawnQuestEnemies()
     EndIf
 
     ; === Find item sub-type: spawn chest with item ===
-    If QuestSubType == "find_item" && QuestItemName != ""
+    ; (Once: this function runs again when the enemy spawn below fails, and every run used to add another
+    ; chest with the quest item and another boss, the earlier ones left behind for good.)
+    If QuestSubType == "find_item" && QuestItemName != "" && QuestItemChest == None
         ObjectReference chest = IntelEngine.SpawnQuestChest(victimAnchor, QuestItemName)
         If chest != None
             QuestItemChest = chest
@@ -4963,7 +5532,8 @@ Function OnQuestComplete()
             ; within LINGER_APPROACH_DISTANCE. Handled by CheckStoryLingerCleanup, same
             ; approach flag Travel uses so the behavior matches "wait for player" arrivals.
             ; Narration fires on proximity (~400 units) regardless of which package is active.
-            Core.RemoveAllPackages(QuestVictimNPC, false)
+            ; (Our own overrides only: this is a step inside the running quest.)
+            Core.RemoveIntelPackages(QuestVictimNPC, false)
             PO3_SKSEFunctions.SetLinkedRef(QuestVictimNPC, Game.GetPlayer() as ObjectReference, Core.IntelEngine_TravelTarget)
             ActorUtil.AddPackageOverride(QuestVictimNPC, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
             StorageUtil.SetIntValue(QuestVictimNPC, "Intel_MeetingLingerApproaching", 1)
@@ -5114,13 +5684,53 @@ Function CheckQuestExpiry()
     EndIf
 EndFunction
 
+Function QueueQuestSpawnsForRemoval()
+    {The quest is over. The enemies and the boss it spawned used to be simply forgotten (the list was
+    cleared): they stayed in the world and in the save for good, and after a quest that expired or was
+    called off they stood at the place alive and hostile. They go on a removal list instead.}
+    Actor player = Game.GetPlayer()
+    Int count = StorageUtil.FormListCount(player, "Intel_QuestSpawnedNPCs")
+    Int i = 0
+    While i < count
+        Form spawned = StorageUtil.FormListGet(player, "Intel_QuestSpawnedNPCs", i)
+        If spawned != None
+            StorageUtil.FormListAdd(player, "Intel_QuestDespawnNPCs", spawned, false)
+        EndIf
+        i += 1
+    EndWhile
+    StorageUtil.FormListClear(player, "Intel_QuestSpawnedNPCs")
+    RemoveQuestSpawnsUnseen()
+EndFunction
+
+Function RemoveQuestSpawnsUnseen()
+    {Disable+Delete what ended quests left behind, never in front of the player: anything that is not
+    loaded goes at once; the living also when they are far off and out of view. A body near the player
+    stays (it can still be searched) until the player has left. Called when a quest ends and with every
+    scheduler tick.}
+    Actor player = Game.GetPlayer()
+    Int i = StorageUtil.FormListCount(player, "Intel_QuestDespawnNPCs") - 1
+    While i >= 0
+        Actor spawned = StorageUtil.FormListGet(player, "Intel_QuestDespawnNPCs", i) as Actor
+        If spawned == None
+            StorageUtil.FormListRemoveAt(player, "Intel_QuestDespawnNPCs", i)
+        ElseIf spawned.IsDeleted()
+            StorageUtil.FormListRemove(player, "Intel_QuestDespawnNPCs", spawned as Form, true)
+        ElseIf !spawned.Is3DLoaded() || (!spawned.IsDead() && spawned.GetDistance(player) > 4000.0 && !Core.PlayerCanSee(spawned))
+            spawned.DisableNoWait()
+            spawned.Delete()
+            StorageUtil.FormListRemove(player, "Intel_QuestDespawnNPCs", spawned as Form, true)
+        EndIf
+        i -= 1
+    EndWhile
+EndFunction
+
 Function CleanupQuest()
     Bool courierWasPending = QuestCourierPending
     ; Always remove the map marker/objective (idempotent — safe if never placed)
     RemoveQuestMarker()
 
     String eventText = "quest/" + QuestSubType + ": " + QuestEnemyType + " at " + QuestLocationName
-    StorageUtil.FormListClear(Game.GetPlayer(), "Intel_QuestSpawnedNPCs")
+    QueueQuestSpawnsForRemoval()
 
     ; === Courier/quest giver dispatch cleanup ===
     ; If the courier is still traveling to the player (IsActive + ActiveStoryType == "quest"),
@@ -5130,7 +5740,7 @@ Function CleanupQuest()
         If courierSlot >= 0
             Core.ClearSlot(courierSlot)
         EndIf
-        Core.RemoveAllPackages(ActiveStoryNPC, false)
+        Core.RemoveIntelPackages(ActiveStoryNPC)
         ; Don't call CleanupStoryDispatch here — it would recurse back into CleanupQuest.
         ; Instead, manually clear the dispatch state.
         ; Restore courier aggression if it was modified
@@ -5160,36 +5770,61 @@ Function CleanupQuest()
 
     If QuestGuideNPC != None
         Int slot = Core.FindSlotByAgent(QuestGuideNPC)
-        If slot >= 0
+        ; (Only while they are guiding, and only that "story" slot: a guide who arrived earlier may hold a
+        ; different task by now, or be the NPC of the next story.)
+        If slot >= 0 && QuestGuideActive && Core.SlotTaskTypes[slot] == "story"
             Core.ClearSlot(slot)
         EndIf
-        Core.RemoveAllPackages(QuestGuideNPC, false)
+        ; A guide who has arrived waits in the story linger, which releases them, and may be long gone
+        ; about their day by the time the quest ends: nothing of theirs is touched (every override they
+        ; had by then used to be stripped here). One still on the way had the overrides taken off with no
+        ; re-evaluation and was left where they stood: they are let go properly now (one with no routine
+        ; of their own is sent home).
+        If QuestGuideActive && !QuestGuideNPC.IsDead() && Core.FindSlotByActor(QuestGuideNPC) < 0 && StorageUtil.FormListFind(Game.GetPlayer(), "Intel_StoryLingerActors", QuestGuideNPC as Form) < 0
+            Core.RemoveIntelPackages(QuestGuideNPC, false)
+            Core.ReleaseLinger(QuestGuideNPC)
+        EndIf
     EndIf
 
     ; === Rescue victim cleanup ===
     If QuestVictimNPC != None && !QuestCourierPending
-        If QuestVictimInFurniture
-            QuestVictimNPC.MoveTo(QuestVictimNPC)  ; exit furniture idle
-        EndIf
-        QuestVictimNPC.SetRestrained(false)
-        QuestVictimNPC.SetDontMove(false)
-        QuestVictimNPC.SetNoBleedoutRecovery(false)
-        QuestVictimNPC.RestoreActorValue("Health", 500.0)
+        ; The key is set when the victim is taken to the place and bound. Without it they were never
+        ; touched (the quest was refused, or ended before the player set out): there is nothing to undo.
+        ; That case used to be treated like the other, so an NPC going about their day lost every package
+        ; override and was snapped to their editor location, in front of the player if they were near.
+        Bool victimWasTaken = StorageUtil.GetIntValue(QuestVictimNPC, "Intel_WasEssential", -1) >= 0
         StorageUtil.UnsetStringValue(QuestVictimNPC, "Intel_RescueNarration")
-        Core.RemoveAllPackages(QuestVictimNPC, false)
-        ; Restore original essential state
-        Int wasEssential = StorageUtil.GetIntValue(QuestVictimNPC, "Intel_WasEssential", -1)
-        If wasEssential >= 0
-            QuestVictimNPC.GetActorBase().SetEssential(wasEssential as Bool)
-            StorageUtil.UnsetIntValue(QuestVictimNPC, "Intel_WasEssential")
+        If victimWasTaken
+            If QuestVictimInFurniture
+                QuestVictimNPC.MoveTo(QuestVictimNPC)  ; exit furniture idle
+            EndIf
+            QuestVictimNPC.SetRestrained(false)
+            QuestVictimNPC.SetDontMove(false)
+            QuestVictimNPC.SetNoBleedoutRecovery(false)
+            QuestVictimNPC.RestoreActorValue("Health", 500.0)
+            Core.RemoveIntelPackages(QuestVictimNPC, false)
+            ; Restore original essential state
+            Int wasEssential = StorageUtil.GetIntValue(QuestVictimNPC, "Intel_WasEssential", -1)
+            If wasEssential >= 0
+                QuestVictimNPC.GetActorBase().SetEssential(wasEssential as Bool)
+                StorageUtil.UnsetIntValue(QuestVictimNPC, "Intel_WasEssential")
+            EndIf
         EndIf
         ; If victim was NOT freed by the player, they "escaped"
         If !QuestVictimFreed
             Core.InjectFact(QuestVictimNPC, "managed to escape " + QuestEnemyType + " captivity at " + QuestLocationName + " on my own")
         EndIf
-        QuestVictimNPC.MoveToMyEditorLocation()
-        ; Force AI re-evaluation so NPCs re-engage furniture (e.g., Jarl sits on throne)
-        QuestVictimNPC.EvaluatePackage()
+        If victimWasTaken
+            If Core.PlayerCanSee(QuestVictimNPC)
+                ; With the player looking at them they do not vanish: they are free and go home on foot
+                ; (Core.ReleaseLinger walks those home who have no routine of their own).
+                Core.ReleaseLinger(QuestVictimNPC)
+            Else
+                QuestVictimNPC.MoveToMyEditorLocation()
+                ; Force AI re-evaluation so NPCs re-engage furniture (e.g., Jarl sits on throne)
+                QuestVictimNPC.EvaluatePackage()
+            EndIf
+        EndIf
         QuestVictimNPC = None
     EndIf
     If QuestCourierPending
@@ -5396,7 +6031,8 @@ Bool Function ShouldAbortForHoldRestriction(Actor npc, Actor player, String stor
         Core.DebugMsg("Story: aborting " + storyType + " for " + npc.GetDisplayName() + " -- hold restriction" + logSuffix)
         Core.SendTaskNarration(npc, "decided the journey to find " + player.GetDisplayName() + " was too far and turned back", player)
         If StillOwns(npc, claimedGeneration, storyType)
-            Core.NotifyPlayer("Story: " + npc.GetDisplayName() + " turned back - hold restriction" + logSuffix)
+            ; No on-screen notice: this only happens to automatic stories, and "X turned back - hold restriction"
+            ; told the player about someone they never saw setting out. The log line above has it.
             AbortStoryTravel("hold restriction" + logSuffix)
         EndIf
         return true
@@ -5407,12 +6043,80 @@ EndFunction
 Function AbortStoryTravel(String reason)
     {Abort active story travel: clear slot, remove packages, full cleanup.}
     Core.DebugMsg("[diag:abort] " + ActiveStoryNPC.GetDisplayName() + " " + reason + " " + IntelEngine.DescribeDistance(ActiveStoryNPC, Game.GetPlayer()))
+    Actor abortedNPC = ActiveStoryNPC
     Int abortSlot = Core.FindSlotByAgent(ActiveStoryNPC)
     If abortSlot >= 0
         Core.ClearSlot(abortSlot)
     EndIf
-    Core.RemoveAllPackages(ActiveStoryNPC, false)
+    ; Our own overrides only (the story is over; what another mod put on the NPC stays), and evaluated:
+    ; without a slot nothing else makes them drop the package they are running.
+    Core.RemoveIntelPackages(ActiveStoryNPC)
     CleanupStoryDispatch()
+    ; They turn back from wherever they got to. One with a routine of their own does that by themselves;
+    ; one without (sandbox-only AI) stood at that spot for good: those are sent home.
+    If abortedNPC != None
+        Core.ReleaseLinger(abortedNPC)
+    EndIf
+EndFunction
+
+Function RememberCombatValues(Actor npc)
+    {Before an ambush makes the attacker essential and fearless: remember what they were, once.}
+    If npc == None || StorageUtil.GetIntValue(npc, "Intel_AmbushWasEssential", -1) >= 0
+        return
+    EndIf
+    StorageUtil.SetIntValue(npc, "Intel_AmbushWasEssential", npc.GetActorBase().IsEssential() as Int)
+    StorageUtil.SetFloatValue(npc, "Intel_AmbushAggression", npc.GetBaseActorValue("Aggression"))
+    StorageUtil.SetFloatValue(npc, "Intel_AmbushConfidence", npc.GetBaseActorValue("Confidence"))
+EndFunction
+
+Function RestoreEssentialAfterAmbush(Actor npc)
+    {The fight is over: the attacker is essential again only if they were before. The ambush used to end with
+    SetEssential(false) for everyone, which made a quest-essential NPC killable for the rest of the game.
+    Without a remembered value (an ambush started by an older version) the old behaviour stands.}
+    If npc == None
+        return
+    EndIf
+    Int was = StorageUtil.GetIntValue(npc, "Intel_AmbushWasEssential", -1)
+    If was < 0
+        was = 0
+    EndIf
+    npc.GetActorBase().SetEssential(was as Bool)
+    StorageUtil.UnsetIntValue(npc, "Intel_AmbushWasEssential")
+EndFunction
+
+Function RestoreCombatValues(Actor npc)
+    {When the visit is over the attacker gets their own aggression and confidence back. They stay calmed down
+    (0 and 2, or 1 after yielding) while they linger and talk, as before.}
+    If npc == None
+        return
+    EndIf
+    Float aggression = StorageUtil.GetFloatValue(npc, "Intel_AmbushAggression", -1.0)
+    If aggression >= 0.0
+        npc.SetActorValue("Aggression", aggression)
+        npc.SetActorValue("Confidence", StorageUtil.GetFloatValue(npc, "Intel_AmbushConfidence", 2.0))
+    EndIf
+    StorageUtil.UnsetFloatValue(npc, "Intel_AmbushAggression")
+    StorageUtil.UnsetFloatValue(npc, "Intel_AmbushConfidence")
+EndFunction
+
+Function EndAmbushState(Actor npc)
+    {Every way out of a story dispatch comes through CleanupStoryDispatch, also the ones that bypass the ambush
+    and stalker handlers: a dashboard cancel, the NPC being given another task, an abort because the player
+    went indoors, the watchdog, a reload. Those left the NPC sneaking, or essential, fearless and still attacking.}
+    If npc == None
+        return
+    EndIf
+    If StorageUtil.GetIntValue(npc, "Intel_SneakPhase") >= 1 && npc.IsSneaking()
+        npc.StartSneaking()
+        Debug.SendAnimationEvent(npc, "sneakStop")
+    EndIf
+    If StorageUtil.GetIntValue(npc, "Intel_AmbushWasEssential", -1) >= 0
+        ; Torn down in the middle of the fight: the handlers that end it normally have not run.
+        npc.StopCombat()
+        npc.StopCombatAlarm()
+        RestoreEssentialAfterAmbush(npc)
+        RestoreCombatValues(npc)
+    EndIf
 EndFunction
 
 Function CleanupStoryDispatch()
@@ -5428,6 +6132,7 @@ Function CleanupStoryDispatch()
     EndIf
 
     If ActiveStoryNPC != None
+        EndAmbushState(ActiveStoryNPC)
         ; Restore original aggression if it was lowered for courier approach
         Float origAggr = StorageUtil.GetFloatValue(ActiveStoryNPC, "Intel_OrigAggression", -1.0)
         If origAggr >= 0.0
@@ -5479,7 +6184,28 @@ EndFunction
 ; TRAVEL PACKAGE
 ; =============================================================================
 
-Function ReapplyTravelPackage(Actor npc)
+Bool Function StoryTypeJogs(String storyType)
+    {The story types whose NPC travels on the jog package (the sneaking ones use the stalk package, and an
+    attacker's charge is meant to be fast all the way).}
+    return storyType != "stalker" && storyType != "ambush" && storyType != "ambush_charge" && storyType != "ambush_combat" && storyType != "quest_guide"
+EndFunction
+
+Bool Function ShouldWalkLastStretch(Actor npc, Actor target)
+    {In front of the one they are coming to see: in the same room, or within STORY_WALK_DISTANCE outdoors.}
+    If npc == None || target == None || !npc.Is3DLoaded() || !target.Is3DLoaded()
+        return false
+    EndIf
+    If npc.IsInInterior()
+        return npc.GetParentCell() == target.GetParentCell()
+    EndIf
+    Float stretch = npc.GetDistance(target)
+    return stretch > 0.0 && stretch <= STORY_WALK_DISTANCE
+EndFunction
+
+Function ReapplyTravelPackage(Actor npc, Bool starting = false)
+    {starting = true when the dispatch begins: only then is every override on the NPC cleared (a follow
+    package from elsewhere would win over the trip). Later calls are steps inside the running dispatch
+    and take off IntelEngine's own overrides only.}
     ; Determine travel target: NPC target or player
     Actor target = Game.GetPlayer()
     If IsNPCToNPCType() && ActiveSecondNPC != None
@@ -5497,7 +6223,18 @@ Function ReapplyTravelPackage(Actor npc)
         EndIf
     EndIf
 
-    Core.RemoveAllPackages(npc, false)
+    ; Already in front of the one they are coming to see: walk (see CheckStoryNPCArrival).
+    StoryWalkingLastStretch = false
+    If travelPkg == Core.TravelPackage_Jog && StoryTypeJogs(ActiveStoryType) && ShouldWalkLastStretch(npc, target)
+        travelPkg = Core.TravelPackage_Walk
+        StoryWalkingLastStretch = true
+    EndIf
+
+    If starting
+        Core.RemoveAllPackages(npc, false)
+    Else
+        Core.RemoveIntelPackages(npc, false)
+    EndIf
     PO3_SKSEFunctions.SetLinkedRef(npc, target as ObjectReference, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(npc, travelPkg, Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)

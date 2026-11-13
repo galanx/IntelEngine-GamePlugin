@@ -134,7 +134,7 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 Int Property DEPARTURE_CHECK_CYCLES = 5 AutoReadOnly
 {Update cycles before checking if NPC actually departed (~15s at 3s interval)}
 
-Float Property LINGER_RELEASE_DISTANCE = 500.0 Auto Hidden
+Float Property LINGER_RELEASE_DISTANCE = 800.0 Auto Hidden
 {Distance (game units) the player must walk away before a lingering NPC loses interest.
 Configurable via MCM. Shared between Travel, NPCTasks, and StoryEngine linger systems.}
 
@@ -207,6 +207,10 @@ Function Maintenance(Bool isFirstLoad = false)
         return
     EndIf
     LastMaintenanceRealTime = now
+    ; Real time restarts with the game: forget the pending tick, the popup request and the last sweep.
+    _tickDueRealTime = 0.0
+    _mlRequest = ""
+    _lastSweepGameTime = 0.0
     ; Register once per load after the duplicate-bootstrap guard.
     RegisterStoryEventSchemas()
     DebugMsg("IntelEngine Maintenance (firstLoad=" + isFirstLoad + ")")
@@ -529,7 +533,9 @@ Int Function FindFreeAgentSlot()
     While i < MAX_SLOTS
         If SlotStates[i] != 0
             activeCount += 1
-        ElseIf firstFree < 0
+        ElseIf firstFree < 0 && SlotIsVacant(i)
+            ; State 0 with the agent still in the alias is a task being finished (the handlers mark the slot
+            ; and then wait while a line is narrated). Handing that slot out let the old handler wipe the new task.
             firstFree = i
         EndIf
         i += 1
@@ -539,6 +545,56 @@ Int Function FindFreeAgentSlot()
         Return firstFree
     EndIf
     Return -1
+EndFunction
+
+Bool Function SlotIsVacant(Int slot)
+    ReferenceAlias slotAlias = GetAgentAlias(slot)
+    Return slotAlias == None || slotAlias.GetActorReference() == None
+EndFunction
+
+Bool Function SlotHolds(Int slot, Actor npc)
+    {Is this NPC (still) the agent in this slot? For code that comes back from a wait.}
+    If slot < 0 || slot >= MAX_SLOTS || npc == None
+        Return false
+    EndIf
+    ReferenceAlias slotAlias = GetAgentAlias(slot)
+    Return slotAlias != None && slotAlias.GetActorReference() == npc
+EndFunction
+
+Actor[] _limboAgents
+
+Function ValidateSlots()
+    {Slots that nothing looks after any more: an active one whose agent is gone or dead, and one left in the
+    "being finished" state (0 with the agent still in it) on two passes in a row. Called with the hourly sweep.}
+    If !_limboAgents
+        _limboAgents = new Actor[5]
+    EndIf
+    Int i = 0
+    While i < MAX_SLOTS && i < 5
+        ReferenceAlias slotAlias = GetAgentAlias(i)
+        Actor agent = None
+        If slotAlias
+            agent = slotAlias.GetActorReference()
+        EndIf
+        If SlotStates[i] != 0
+            _limboAgents[i] = None
+            If agent == None || agent.IsDead()
+                DebugMsg("Slot " + i + " was active without a living agent -> cleared")
+                ClearSlot(i)
+            EndIf
+        ElseIf agent != None
+            If _limboAgents[i] == agent
+                DebugMsg("Slot " + i + " was left half finished with " + agent.GetDisplayName() + " in it -> cleared")
+                _limboAgents[i] = None
+                ClearSlot(i)
+            Else
+                _limboAgents[i] = agent
+            EndIf
+        Else
+            _limboAgents[i] = None
+        EndIf
+        i += 1
+    EndWhile
 EndFunction
 
 Int Function FindSlotByAgent(Actor akAgent)
@@ -616,6 +672,164 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
     PushDashboardState()
 EndFunction
 
+Function ReleaseAgent(Actor agent, Int slot)
+    {Everything IntelEngine put on an NPC for a task comes off again: its packages, the linked refs, the task
+    faction, the task keys, a courier's lowered aggression, the look-at; and a follower gets the teammate flag
+    back. That last part used to happen on the success paths only, so a follower whose errand failed, timed
+    out, was cancelled or was replaced by another task stopped being a teammate for good.
+    slot is the slot they hold, or -1 when they hold none any more (the sweep, or a slot that changed hands
+    while a handler was waiting): then there is no history entry and no per-slot tracker to reset.}
+    If agent == None
+        Return
+    EndIf
+    Bool wasFollower = StorageUtil.GetIntValue(agent, "Intel_WasFollower") as Bool
+    If slot >= 0
+        ; Save to task history before clearing
+        String histType = SlotTaskTypes[slot]
+        String histTarget = SlotTargetNames[slot]
+        String histResult = StorageUtil.GetStringValue(agent, "Intel_Result")
+        DebugMsg("Clearing slot " + slot + ": " + agent.GetDisplayName() + " [result='" + histResult + "']")
+        String histMessage = StorageUtil.GetStringValue(agent, "Intel_Message")
+        String histMeetLoc = StorageUtil.GetStringValue(agent, "Intel_DeliveryMeetLocation")
+        If histType != ""
+            SaveTaskToHistory(agent, histType, histTarget, histResult, histMessage, histMeetLoc)
+        EndIf
+    EndIf
+
+    ; The task is over: only IntelEngine's own packages go. Wiping every mod's overrides here took a follow
+    ; framework's wait or follow package and SkyrimNet's with it, and nothing put them back.
+    RemoveIntelPackages(agent, false)
+    agent.ClearLookAt()
+
+    ; Clear linked refs
+    ClearLinkedRefs(agent)
+
+    ; Remove from task faction
+    agent.RemoveFromFaction(IntelEngine_TaskFaction)
+
+    ; Clear StorageUtil data
+    StorageUtil.UnsetStringValue(agent, "Intel_TaskType")
+    StorageUtil.UnsetStringValue(agent, "Intel_Target")
+    StorageUtil.UnsetIntValue(agent, "Intel_Slot")
+    StorageUtil.UnsetIntValue(agent, "Intel_State")
+    StorageUtil.UnsetStringValue(agent, "Intel_TaskOrigin")
+    StorageUtil.UnsetStringValue(agent, "Intel_TaskReason")
+    StorageUtil.UnsetIntValue(agent, "Intel_Speed")
+    StorageUtil.UnsetFormValue(agent, "Intel_TargetNPC")
+    StorageUtil.UnsetStringValue(agent, "Intel_Message")
+    StorageUtil.UnsetFloatValue(agent, "Intel_ScheduledTime")
+
+    ; Clear travel/navigation data
+    StorageUtil.UnsetFormValue(agent, "Intel_DestMarker")
+    StorageUtil.UnsetFormValue(agent, "Intel_ReturnMarker")
+    StorageUtil.UnsetFormValue(agent, "Intel_CurrentWaypoint")
+    StorageUtil.UnsetFloatValue(agent, "Intel_TaskStartTime")
+    StorageUtil.UnsetFloatValue(agent, "Intel_CapCheckX")
+    StorageUtil.UnsetFloatValue(agent, "Intel_CapCheckY")
+    StorageUtil.UnsetFloatValue(agent, "Intel_SettingOffUntil")
+    StorageUtil.UnsetFloatValue(agent, "Intel_TargetWaitSince")
+    StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenSince")
+    StorageUtil.UnsetFloatValue(agent, "Intel_TaskAllocatedAt")
+    StorageUtil.UnsetFloatValue(agent, "Intel_TravelArrivalTime")
+    StorageUtil.UnsetFloatValue(agent, "Intel_WaitHours")
+    StorageUtil.UnsetIntValue(agent, "Intel_WaitForPlayer")
+    StorageUtil.UnsetFloatValue(agent, "Intel_Deadline")
+    StorageUtil.UnsetIntValue(agent, "Intel_WasFollower")
+
+    ; Clear fetch/deliver/escort task data
+    StorageUtil.UnsetIntValue(agent, "Intel_InteractCyclesRemaining")
+    StorageUtil.UnsetIntValue(agent, "Intel_ShouldFail")
+    StorageUtil.UnsetStringValue(agent, "Intel_FailReason")
+    StorageUtil.UnsetStringValue(agent, "Intel_Result")
+    StorageUtil.UnsetStringValue(agent, "Intel_EscortDestName")
+    StorageUtil.UnsetIntValue(agent, "Intel_EscortShouldWait")
+    StorageUtil.UnsetIntValue(agent, "Intel_TargetWaitCycles")
+    StorageUtil.UnsetFloatValue(agent, "Intel_TargetLastDist")
+    StorageUtil.UnsetIntValue(agent, "Intel_ReturnCycles")
+
+    ; Clear delivery meeting data
+    StorageUtil.UnsetStringValue(agent, "Intel_DeliveryMeetLocation")
+    StorageUtil.UnsetStringValue(agent, "Intel_DeliveryMeetTime")
+
+    ; Reset C++ departure detector, off-screen tracker, and proximity monitor for this slot
+    If slot >= 0
+        IntelEngine.ResetDepartureSlot(slot, None)
+        IntelEngine.ResetOffScreenSlot(slot)
+        IntelEngine.DisarmProximityArrival(slot)
+    EndIf
+    StorageUtil.UnsetFloatValue(agent, "Intel_OffscreenArrival")
+
+    ; Clear current meeting flag (always — this task is done)
+    StorageUtil.UnsetIntValue(agent, "Intel_IsScheduledMeeting")
+
+    ; Only clear schedule arrays + keys if the NPC has no FUTURE schedule.
+    ; A new schedule (e.g., "meet me tomorrow" during linger) must survive.
+    Bool hasFutureSchedule = false
+    If Schedule
+        hasFutureSchedule = Schedule.HasFutureScheduleForAgent(agent)
+        If !hasFutureSchedule
+            Schedule.ClearScheduleSlotByAgent(agent)
+        EndIf
+    EndIf
+    If !hasFutureSchedule
+        StorageUtil.UnsetIntValue(agent, "Intel_ScheduledState")
+        StorageUtil.UnsetFloatValue(agent, "Intel_ScheduledDepartureHours")
+    EndIf
+
+    ; Clear meeting tracking data (NOT outcome data — that persists for prompts)
+    ; Intel_MeetingPlayerName is kept — outcome prompt (0199) needs it after slot cleanup
+    StorageUtil.UnsetFloatValue(agent, "Intel_MeetingTime")
+    StorageUtil.UnsetStringValue(agent, "Intel_MeetingDest")
+    StorageUtil.UnsetFloatValue(agent, "Intel_MeetingNpcArrivalTime")
+    StorageUtil.UnsetIntValue(agent, "Intel_MeetingLingering")
+    StorageUtil.UnsetIntValue(agent, "Intel_MeetingLingerApproaching")
+    StorageUtil.UnsetFloatValue(agent, "Intel_MeetingLingerDeadline")
+    StorageUtil.UnsetIntValue(agent, "Intel_MeetingApproaching")
+    StorageUtil.UnsetIntValue(agent, "Intel_LingerFarTicks")
+    StorageUtil.UnsetFloatValue(agent, "Intel_LingerLastDist")
+    StorageUtil.UnsetIntValue(agent, "Intel_SocSceneHold")
+    StorageUtil.UnsetFloatValue(agent, "Intel_MeetingLingerCap")
+    StorageUtil.UnsetFloatValue(agent, "Intel_ApproachStartX")
+    StorageUtil.UnsetFloatValue(agent, "Intel_ApproachStartY")
+    StorageUtil.UnsetIntValue(agent, "Intel_ApproachTick")
+    StorageUtil.UnsetIntValue(agent, "Intel_ApproachStuckNarrated")
+    StorageUtil.UnsetIntValue(agent, "Intel_TaskStuckNarrated")
+    StorageUtil.UnsetIntValue(agent, "Intel_SelfMotivatedLogged")
+
+    ; Clear travel linger flags
+    StorageUtil.UnsetIntValue(agent, "Intel_TravelLingering")
+    StorageUtil.UnsetIntValue(agent, "Intel_StayAtDest")
+
+    ; Clear off-screen return tracking
+    StorageUtil.UnsetIntValue(agent, "Intel_OffScreenCycles")
+    StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenLastDist")
+    StorageUtil.UnsetFloatValue(agent, "Intel_OffscreenDiagAt")
+
+    ; Clean up unlock tracking key (vanilla handles re-locking)
+    StorageUtil.UnsetIntValue(agent, "Intel_UnlockedHomeCellId")
+
+    ; Clear task cooldown
+    StorageUtil.UnsetFloatValue(agent, "Intel_TaskCooldown")
+
+    ; Clear story engine dispatch keys
+    StorageUtil.UnsetIntValue(agent, "Intel_IsStoryDispatch")
+    StorageUtil.UnsetStringValue(agent, "Intel_StoryNarration")
+
+    ; Restore courier aggression if it was modified
+    Float origAggr = StorageUtil.GetFloatValue(agent, "Intel_OrigAggression", -1.0)
+    If origAggr >= 0.0
+        agent.SetActorValue("Aggression", origAggr)
+        StorageUtil.UnsetFloatValue(agent, "Intel_OrigAggression")
+    EndIf
+
+    If wasFollower
+        agent.SetPlayerTeammate(true)
+    EndIf
+
+    ; Re-evaluate AI
+    agent.EvaluatePackage()
+EndFunction
+
 Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = false)
     If slot < 0 || slot >= MAX_SLOTS
         Return
@@ -628,138 +842,14 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
     If agentAlias
         Actor agent = agentAlias.GetActorReference()
         If agent
-            ; Save to task history before clearing
-            String histType = SlotTaskTypes[slot]
-            String histTarget = SlotTargetNames[slot]
-            String histResult = StorageUtil.GetStringValue(agent, "Intel_Result")
-            DebugMsg("Clearing slot " + slot + ": " + agent.GetDisplayName() + " [result='" + histResult + "']")
-            String histMessage = StorageUtil.GetStringValue(agent, "Intel_Message")
-            String histMeetLoc = StorageUtil.GetStringValue(agent, "Intel_DeliveryMeetLocation")
-            If histType != ""
-                SaveTaskToHistory(agent, histType, histTarget, histResult, histMessage, histMeetLoc)
-            EndIf
-
-            ; Remove packages — for followers, only remove IntelEngine packages
-            ; to preserve NFF/SkyrimNet follow packages
-            If intelPackagesOnly
-                RemoveIntelPackages(agent)
+            ; A handler that comes back late may clear a slot whose NPC has meanwhile been given a new task in
+            ; another slot. That task's packages and keys are on the NPC now: leave them.
+            Int otherSlot = FindSlotByAgent(agent)
+            If otherSlot >= 0 && otherSlot != slot
+                DebugMsg("Clearing slot " + slot + ": " + agent.GetDisplayName() + " already has a new task in slot " + otherSlot + " -> NPC left as is")
             Else
-                RemoveAllPackages(agent)
+                ReleaseAgent(agent, slot)
             EndIf
-
-            ; Clear linked refs
-            ClearLinkedRefs(agent)
-
-            ; Remove from task faction
-            agent.RemoveFromFaction(IntelEngine_TaskFaction)
-
-            ; Clear StorageUtil data
-            StorageUtil.UnsetStringValue(agent, "Intel_TaskType")
-            StorageUtil.UnsetStringValue(agent, "Intel_Target")
-            StorageUtil.UnsetIntValue(agent, "Intel_Slot")
-            StorageUtil.UnsetIntValue(agent, "Intel_State")
-            StorageUtil.UnsetStringValue(agent, "Intel_TaskOrigin")
-            StorageUtil.UnsetStringValue(agent, "Intel_TaskReason")
-            StorageUtil.UnsetIntValue(agent, "Intel_Speed")
-            StorageUtil.UnsetFormValue(agent, "Intel_TargetNPC")
-            StorageUtil.UnsetStringValue(agent, "Intel_Message")
-            StorageUtil.UnsetFloatValue(agent, "Intel_ScheduledTime")
-
-            ; Clear travel/navigation data
-            StorageUtil.UnsetFormValue(agent, "Intel_DestMarker")
-            StorageUtil.UnsetFormValue(agent, "Intel_ReturnMarker")
-            StorageUtil.UnsetFormValue(agent, "Intel_CurrentWaypoint")
-            StorageUtil.UnsetFloatValue(agent, "Intel_TaskStartTime")
-            StorageUtil.UnsetFloatValue(agent, "Intel_TaskAllocatedAt")
-            StorageUtil.UnsetFloatValue(agent, "Intel_TravelArrivalTime")
-            StorageUtil.UnsetFloatValue(agent, "Intel_WaitHours")
-            StorageUtil.UnsetIntValue(agent, "Intel_WaitForPlayer")
-            StorageUtil.UnsetFloatValue(agent, "Intel_Deadline")
-            StorageUtil.UnsetIntValue(agent, "Intel_WasFollower")
-
-            ; Clear fetch/deliver/escort task data
-            StorageUtil.UnsetIntValue(agent, "Intel_InteractCyclesRemaining")
-            StorageUtil.UnsetIntValue(agent, "Intel_ShouldFail")
-            StorageUtil.UnsetStringValue(agent, "Intel_FailReason")
-            StorageUtil.UnsetStringValue(agent, "Intel_Result")
-            StorageUtil.UnsetStringValue(agent, "Intel_EscortDestName")
-            StorageUtil.UnsetIntValue(agent, "Intel_EscortShouldWait")
-            StorageUtil.UnsetIntValue(agent, "Intel_TargetWaitCycles")
-            StorageUtil.UnsetFloatValue(agent, "Intel_TargetLastDist")
-            StorageUtil.UnsetIntValue(agent, "Intel_ReturnCycles")
-
-            ; Clear delivery meeting data
-            StorageUtil.UnsetStringValue(agent, "Intel_DeliveryMeetLocation")
-            StorageUtil.UnsetStringValue(agent, "Intel_DeliveryMeetTime")
-
-            ; Reset C++ departure detector, off-screen tracker, and proximity monitor for this slot
-            IntelEngine.ResetDepartureSlot(slot, None)
-            IntelEngine.ResetOffScreenSlot(slot)
-            IntelEngine.DisarmProximityArrival(slot)
-            StorageUtil.UnsetFloatValue(agent, "Intel_OffscreenArrival")
-
-            ; Clear current meeting flag (always — this task is done)
-            StorageUtil.UnsetIntValue(agent, "Intel_IsScheduledMeeting")
-
-            ; Only clear schedule arrays + keys if the NPC has no FUTURE schedule.
-            ; A new schedule (e.g., "meet me tomorrow" during linger) must survive.
-            Bool hasFutureSchedule = false
-            If Schedule
-                hasFutureSchedule = Schedule.HasFutureScheduleForAgent(agent)
-                If !hasFutureSchedule
-                    Schedule.ClearScheduleSlotByAgent(agent)
-                EndIf
-            EndIf
-            If !hasFutureSchedule
-                StorageUtil.UnsetIntValue(agent, "Intel_ScheduledState")
-                StorageUtil.UnsetFloatValue(agent, "Intel_ScheduledDepartureHours")
-            EndIf
-
-            ; Clear meeting tracking data (NOT outcome data — that persists for prompts)
-            ; Intel_MeetingPlayerName is kept — outcome prompt (0199) needs it after slot cleanup
-            StorageUtil.UnsetFloatValue(agent, "Intel_MeetingTime")
-            StorageUtil.UnsetStringValue(agent, "Intel_MeetingDest")
-            StorageUtil.UnsetFloatValue(agent, "Intel_MeetingNpcArrivalTime")
-            StorageUtil.UnsetIntValue(agent, "Intel_MeetingLingering")
-            StorageUtil.UnsetIntValue(agent, "Intel_MeetingLingerApproaching")
-            StorageUtil.UnsetFloatValue(agent, "Intel_MeetingLingerDeadline")
-            StorageUtil.UnsetIntValue(agent, "Intel_MeetingApproaching")
-            StorageUtil.UnsetIntValue(agent, "Intel_LingerFarTicks")
-            StorageUtil.UnsetFloatValue(agent, "Intel_LingerLastDist")
-            StorageUtil.UnsetFloatValue(agent, "Intel_ApproachStartX")
-            StorageUtil.UnsetFloatValue(agent, "Intel_ApproachStartY")
-            StorageUtil.UnsetIntValue(agent, "Intel_ApproachTick")
-            StorageUtil.UnsetIntValue(agent, "Intel_ApproachStuckNarrated")
-            StorageUtil.UnsetIntValue(agent, "Intel_TaskStuckNarrated")
-            StorageUtil.UnsetIntValue(agent, "Intel_SelfMotivatedLogged")
-
-            ; Clear travel linger flags
-            StorageUtil.UnsetIntValue(agent, "Intel_TravelLingering")
-            StorageUtil.UnsetIntValue(agent, "Intel_StayAtDest")
-
-            ; Clear off-screen return tracking
-            StorageUtil.UnsetIntValue(agent, "Intel_OffScreenCycles")
-            StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenLastDist")
-
-            ; Clean up unlock tracking key (vanilla handles re-locking)
-            StorageUtil.UnsetIntValue(agent, "Intel_UnlockedHomeCellId")
-
-            ; Clear task cooldown
-            StorageUtil.UnsetFloatValue(agent, "Intel_TaskCooldown")
-
-            ; Clear story engine dispatch keys
-            StorageUtil.UnsetIntValue(agent, "Intel_IsStoryDispatch")
-            StorageUtil.UnsetStringValue(agent, "Intel_StoryNarration")
-
-            ; Restore courier aggression if it was modified
-            Float origAggr = StorageUtil.GetFloatValue(agent, "Intel_OrigAggression", -1.0)
-            If origAggr >= 0.0
-                agent.SetActorValue("Aggression", origAggr)
-                StorageUtil.UnsetFloatValue(agent, "Intel_OrigAggression")
-            EndIf
-
-            ; Re-evaluate AI
-            agent.EvaluatePackage()
         EndIf
         agentAlias.Clear()
     EndIf
@@ -770,6 +860,7 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
         If target
             RemoveIntelPackages(target)
             ClearLinkedRefs(target)
+            target.ClearLookAt()
             StorageUtil.UnsetIntValue(target, "Intel_WasAccompanying")
             target.EvaluatePackage()
         EndIf
@@ -807,6 +898,15 @@ Bool Function CancelCurrentTask(Actor akNPC, Bool force = false)
     ; The linger release mechanism will clean up when the player walks away.
     If !force && !ShouldReleaseLinger(akNPC)
         DebugMsg(akNPC.GetDisplayName() + " cancel blocked: player nearby")
+        Return false
+    EndIf
+
+    ; A meeting the player agreed to is not the NPC's to drop on a whim. The trip is narrated when it starts,
+    ; the NPC gets a turn, and the LLM readily answers with CancelCurrentTask ("stop travelling, she has
+    ; arrived"). That used to cancel the trip and delete the meeting from the schedule without a word, so the
+    ; NPC never showed up. Only the player (dashboard, MCM, Director: force) ends a scheduled meeting early.
+    If !force && StorageUtil.GetIntValue(akNPC, "Intel_IsScheduledMeeting") == 1
+        DebugMsg(akNPC.GetDisplayName() + " cancel blocked: on a scheduled meeting")
         Return false
     EndIf
 
@@ -869,6 +969,12 @@ Function SetSlotState(Int slot, Actor akAgent, Int newState)
     If slot < 0 || slot >= MAX_SLOTS
         Return
     EndIf
+    If akAgent != None && !SlotHolds(slot, akAgent)
+        ; A handler coming back from a wait after the slot was cleared or re-used: it produced an active
+        ; slot without agent, or changed another NPC's task.
+        DebugMsg("SetSlotState ignored: slot " + slot + " does not hold " + akAgent.GetDisplayName())
+        Return
+    EndIf
     SlotStates[slot] = newState
     String taskOrigin = ""
     String taskReason = ""
@@ -916,12 +1022,20 @@ Function ClearSlotRestoreFollower(Int slot, Actor akAgent)
     Reads Intel_WasFollower BEFORE ClearSlot wipes it, then restores teammate.
     For followers: only removes IntelEngine packages, preserving NFF/SkyrimNet
     follow packages so the NPC resumes following without needing a re-kick.}
-    Bool wasFollower = StorageUtil.GetIntValue(akAgent, "Intel_WasFollower") as Bool
-    ClearSlot(slot, true, wasFollower)
-    If wasFollower
-        akAgent.SetPlayerTeammate(true)
-        akAgent.EvaluatePackage()
+    If akAgent != None && !SlotHolds(slot, akAgent)
+        ; The slot was cleared or changed hands while this handler was waiting. A task in it now is somebody
+        ; else's: clean up our own agent (unless they hold a new task themselves) and leave that slot alone.
+        DebugMsg("Slot " + slot + " no longer holds " + akAgent.GetDisplayName() + " -> releasing the NPC only")
+        If FindSlotByAgent(akAgent) < 0
+            ReleaseAgent(akAgent, -1)
+        EndIf
+        If SlotIsVacant(slot)
+            ClearSlot(slot)
+        EndIf
+        Return
     EndIf
+    ; ReleaseAgent (in ClearSlot) gives a follower the teammate flag back.
+    ClearSlot(slot)
 EndFunction
 
 Function MarkSlotProcessing(Int slot, Actor akAgent)
@@ -942,6 +1056,24 @@ EndFunction
 ;
 ; Single source of truth for linger release. Uses LINGER_RELEASE_DISTANCE.
 ; =============================================================================
+
+Float Property LINGER_VISIT_MAX_HOURS = 6.0 AutoReadOnly
+{No visit at the player's side lasts longer than this many game hours, whatever is being said.}
+
+Bool Function IsTalkingWithPlayer(Actor npc)
+    {Is this NPC in a conversation the player is part of: in dialogue with the player, or speaking with nobody
+    in particular (a remark, a reaction)? A chat with somebody else does not count. The visits that are not
+    to end "in the middle of a conversation" never ended in a busy inn, where the visitor always had someone
+    to talk to (seen in game on 2026-11-13: a meeting NPC talked with the bard and stayed for hours).}
+    If npc == None || !npc.Is3DLoaded()
+        Return false
+    EndIf
+    Actor partner = npc.GetDialogueTarget()
+    If partner != None
+        Return partner == Game.GetPlayer()
+    EndIf
+    Return IntelEngine.IsActorTalking(npc)
+EndFunction
 
 Bool Function ShouldReleaseLinger(Actor npc)
     {Single source of truth: should a lingering NPC be released?
@@ -973,8 +1105,24 @@ Function ReleaseLinger(Actor npc)
     StorageUtil.UnsetStringValue(npc, "Intel_ArrivalPurpose")
     StorageUtil.UnsetStringValue(npc, "Intel_ArrivalTopic")
     DebugMsg("Linger release START: " + npc.GetDisplayName() + " [formID=" + npc.GetFormID() + ", 3Dloaded=" + npc.Is3DLoaded() + ", isTeammate=" + npc.IsPlayerTeammate() + "]")
+    If FindSlotByActor(npc) >= 0
+        ; A new IntelEngine task holds them, as its agent or as the person being fetched or escorted. Its
+        ; packages and its travel target are in place; the sandbox of that task may be this same package.
+        ; Nothing of theirs is touched: only the old linger is forgotten.
+        DebugMsg("Linger release: " + npc.GetDisplayName() + " has a new task -> left to it")
+        StorageUtil.UnsetIntValue(npc, "Intel_MeetingLingerApproaching")
+        StorageUtil.UnsetIntValue(npc, "Intel_LingerFarTicks")
+        Return
+    EndIf
     ActorUtil.RemovePackageOverride(npc, SandboxNearPlayerPackage)
     DebugMsg("Linger release: removed sandbox from " + npc.GetDisplayName())
+    ; Released while still on the approach (a rescued victim walking up to the player): the approach's walk
+    ; override would stay behind with nothing to walk to.
+    If StorageUtil.GetIntValue(npc, "Intel_MeetingLingerApproaching") == 1
+        ActorUtil.RemovePackageOverride(npc, TravelPackage_Walk)
+        StorageUtil.UnsetIntValue(npc, "Intel_MeetingLingerApproaching")
+    EndIf
+    npc.ClearLookAt()
     ; NPCs with schedule-based AI (eat, sleep, patrol, travel) can handle
     ; returning to their routine on their own. NPCs with ONLY sandbox AI
     ; (common for modded followers) will just sandbox wherever they are,
@@ -982,6 +1130,12 @@ Function ReleaseLinger(Actor npc)
     If npc.IsPlayerTeammate()
         PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
         DebugMsg("Linger release: " + npc.GetDisplayName() + " is teammate -> cleared linked ref")
+    ElseIf IsFollowingPlayer(npc)
+        ; Recruited through a follow system that does not set the teammate flag (SeverActions' casual follow,
+        ; a follower framework). Sending them home here put a priority-100 walk override on top of the follow
+        ; package: they walked off instead of following, and nothing ever took that override away again.
+        PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+        DebugMsg("Linger release: " + npc.GetDisplayName() + " is following the player -> cleared linked ref")
     ElseIf IntelEngine.HasNonSandboxAI(npc)
         PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
         DebugMsg("Linger release: " + npc.GetDisplayName() + " has schedule AI -> relying on base packages")
@@ -1002,6 +1156,9 @@ Function ReleaseLinger(Actor npc)
                 ; Player can see: walk naturally
                 PO3_SKSEFunctions.SetLinkedRef(npc, destRef, IntelEngine_TravelTarget)
                 ActorUtil.AddPackageOverride(npc, TravelPackage_Walk, PRIORITY_TRAVEL, 1)
+                ; This override belongs to no task slot, so remember it: SweepStalePackages takes it off again
+                ; once they are home, out of sight, recruited, or WALK_HOME_MAX_HOURS have passed.
+                TrackWalkHome(npc)
                 DebugMsg("Linger release: " + npc.GetDisplayName() + " sandbox-only AI, 3D loaded -> walking home")
             EndIf
         Else
@@ -1034,6 +1191,14 @@ Bool Function IsDuplicateTask(Actor npc, String taskType, String target)
     If !npc.IsInFaction(IntelEngine_TaskFaction)
         Return false
     EndIf
+    ; On the way to a meeting the player agreed to: no other task replaces that trip. The model starts one as
+    ; easily as it cancels (it reacts to the "departed for ..." line); the meeting then never happened and its
+    ; entry stayed in the schedule as "dispatched". The schedule's own dispatch clears the old slot first, and
+    ; the Director has its own check, so neither comes through here with the meeting flag set.
+    If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1 && FindSlotByAgent(npc) >= 0
+        DebugMsg("New " + taskType + " task ignored: " + npc.GetDisplayName() + " is on a scheduled meeting")
+        Return true
+    EndIf
     String currentTask = StorageUtil.GetStringValue(npc, "Intel_TaskType")
     String currentTarget = StorageUtil.GetStringValue(npc, "Intel_Target")
     If currentTask == taskType && currentTarget == target
@@ -1052,6 +1217,292 @@ Function OverrideExistingTask(Actor npc)
             ClearSlot(existingSlot, true)
         EndIf
     EndIf
+    ReleaseStoryClaims(npc)
+    ; The same for a fetched or escorted NPC who still lingers and is now given a task of their own: the
+    ; linger kept handling them and took the new task's walk package off again (see NPCTasks.ForgetLinger).
+    ; Their packages stay until they set off (the task start clears them then).
+    If NPCTasks
+        NPCTasks.ForgetLinger(npc, false)
+    EndIf
+EndFunction
+
+Function ReleaseStoryClaims(Actor npc)
+    {The NPC is starting something else: let go of whatever the story engine still holds on them.
+    Clearing the slot alone left a dispatched story marked active (it kept steering the NPC back to the player
+    and blocked new stories until the 6-hour watchdog), and left a lingering visitor's sandbox on top of the
+    new task.}
+    If npc == None || StoryEngine == None
+        Return
+    EndIf
+    If StoryEngine.IsActive && StoryEngine.ActiveStoryNPC == npc
+        DebugMsg(npc.GetDisplayName() + " leaves the active story for a new task")
+        StoryEngine.CleanupStoryDispatch()
+    EndIf
+    ; The same for an NPC-to-NPC visit they were walking to. Its bookkeeping went on naming them as the
+    ; traveler: the visit's monitoring then worked on the new task's slot (stuck recovery, the teleport to
+    ; the other NPC, and at the end clearing that slot), and no other visit could start meanwhile.
+    If StoryEngine.IsNPCStoryActive && StoryEngine.NPCSocialTraveler == npc
+        DebugMsg(npc.GetDisplayName() + " leaves the NPC-to-NPC visit for a new task")
+        StoryEngine.ResetNPCSocialDispatchState()
+    EndIf
+    StoryEngine.ForgetLingerActor(npc)
+EndFunction
+
+; =============================================================================
+; WHO MAY BE SENT, WHO IS FOLLOWING, AND THE STALE-OVERRIDE SWEEP
+; =============================================================================
+
+Float Property WALK_HOME_MAX_HOURS = 3.0 AutoReadOnly
+; How long the "X wants to ..." choice waits before it counts as Deny (Silent) (real seconds, Magelight page only).
+Float Property PROMPT_SECONDS_TASK = 20.0 AutoReadOnly
+Faction _carriageSystemFaction
+Faction _currentFollowerFaction
+Faction _severFollowingFaction
+Bool _softFormsResolved = false
+
+Function ResolveSoftForms()
+    {Forms of the base game and of other mods, looked up once per load. None when the mod is not installed.}
+    _carriageSystemFaction = Game.GetFormFromFile(0x00017F04, "Skyrim.esm") as Faction      ; CarriageSystemFaction
+    _currentFollowerFaction = Game.GetFormFromFile(0x0005C84E, "Skyrim.esm") as Faction     ; CurrentFollowerFaction
+    _severFollowingFaction = None
+    If Game.IsPluginInstalled("SeverActions.esp")
+        _severFollowingFaction = Game.GetFormFromFile(0x000F0809, "SeverActions.esp") as Faction   ; SeverActions_ActivelyFollowing
+    EndIf
+    _softFormsResolved = true
+EndFunction
+
+Bool Function IsFollowingPlayer(Actor npc)
+    {True when some follow system has this NPC with the player right now: the vanilla teammate flag, the vanilla
+    follower faction, or SeverActions' follow (which sets neither).}
+    If npc == None
+        Return false
+    EndIf
+    If !_softFormsResolved
+        ResolveSoftForms()
+    EndIf
+    If npc.IsPlayerTeammate()
+        Return true
+    EndIf
+    If _currentFollowerFaction && npc.GetFactionRank(_currentFollowerFaction) >= 0
+        Return true
+    EndIf
+    ; Rank -1 is what RemoveFromFaction leaves behind, so test the rank, not membership.
+    If _severFollowingFaction && npc.GetFactionRank(_severFollowingFaction) >= 0
+        Return true
+    EndIf
+    Return false
+EndFunction
+
+Bool Function IsUnsuitableTaskAgent(Actor npc)
+    {NPCs that must never be given a travel, fetch, escort, search or delivery task.
+    Carriage drivers: the LLM hears "let's go" in their own lines and fires a travel action; the travel override
+    pulls them off the cart, the carriage service is broken from then on, and face to face the task could not
+    even be cancelled. They carry CarriageSystemFaction in the base game and in Hearthfire and Dawnguard.}
+    If npc == None
+        Return true
+    EndIf
+    If !_softFormsResolved
+        ResolveSoftForms()
+    EndIf
+    If _carriageSystemFaction && npc.IsInFaction(_carriageSystemFaction)
+        Return true
+    EndIf
+    If npc.IsChild()
+        Return true
+    EndIf
+    Return false
+EndFunction
+
+Float Property SPEECH_GRACE_SECONDS = 7.0 AutoReadOnly
+
+Function LetFinishSpeaking(Actor npc)
+    {A task that starts in conversation fires while the NPC is still answering ("Alright, I'll head to the
+    Bannered Mare"). Putting the travel package on at that instant made them turn and walk off in the middle
+    of the sentence. This waits until the line is over, SPEECH_GRACE_SECONDS at most. Nothing happens for an
+    NPC who is not loaded (nobody would hear them). Latent: the caller re-checks its slot afterwards.}
+    If npc == None || !npc.Is3DLoaded()
+        Return
+    EndIf
+    ; The spoken reply usually begins a moment after the action has fired.
+    Utility.Wait(0.7)
+    Float waited = 0.7
+    While waited < SPEECH_GRACE_SECONDS && npc.Is3DLoaded() && IntelEngine.IsActorTalking(npc)
+        Utility.Wait(0.4)
+        waited += 0.4
+    EndWhile
+EndFunction
+
+Function TrackWalkHome(Actor npc)
+    StorageUtil.SetFloatValue(npc, "Intel_WalkHomeUntil", Utility.GetCurrentGameTime() + WALK_HOME_MAX_HOURS / 24.0)
+    ; Remember where home is: the linked ref can later belong to something else that took the NPC over.
+    StorageUtil.SetFormValue(npc, "Intel_WalkHomeRef", npc.GetLinkedRef(IntelEngine_TravelTarget))
+    StorageUtil.FormListAdd(self, "Intel_WalkHomeActors", npc as Form, false)
+EndFunction
+
+Function EndWalkHome(Actor npc, Bool removeOverride)
+    If removeOverride
+        ActorUtil.RemovePackageOverride(npc, TravelPackage_Walk)
+        PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+        npc.EvaluatePackage()
+    EndIf
+    StorageUtil.UnsetFloatValue(npc, "Intel_WalkHomeUntil")
+    StorageUtil.UnsetFormValue(npc, "Intel_WalkHomeRef")
+    StorageUtil.FormListRemove(self, "Intel_WalkHomeActors", npc as Form, true)
+EndFunction
+
+Function CheckWalkHomeActors()
+    {Take the walk-home override off again: at home, out of sight, recruited, on a new task, or after the limit.}
+    Int i = StorageUtil.FormListCount(self, "Intel_WalkHomeActors") - 1
+    Float now = Utility.GetCurrentGameTime()
+    While i >= 0
+        Actor npc = StorageUtil.FormListGet(self, "Intel_WalkHomeActors", i) as Actor
+        If npc == None || npc.IsDead() || npc.IsDisabled()
+            StorageUtil.FormListRemoveAt(self, "Intel_WalkHomeActors", i)
+        ElseIf FindSlotByActor(npc) >= 0 || TakenOverElsewhere(npc)
+            ; A task (as agent or target), a story or a linger owns them now: its own package and linked ref
+            ; are in place, leave both alone.
+            EndWalkHome(npc, false)
+        Else
+            ObjectReference home = StorageUtil.GetFormValue(npc, "Intel_WalkHomeRef") as ObjectReference
+            If home == None
+                home = npc.GetLinkedRef(IntelEngine_TravelTarget)       ; tracked by an earlier version
+            EndIf
+            Bool done = home == None || !npc.Is3DLoaded() || IsFollowingPlayer(npc)
+            If !done && now >= StorageUtil.GetFloatValue(npc, "Intel_WalkHomeUntil", 0.0)
+                done = true
+            EndIf
+            If !done && npc.GetParentCell() == home.GetParentCell() && npc.GetDistance(home) < 400.0
+                done = true
+            EndIf
+            If done
+                If !npc.Is3DLoaded() && !IsFollowingPlayer(npc)
+                    ; Nobody is watching: finish the walk where they belong. "Home" can be a location's map
+                    ; marker when nothing better was known; their own editor spot is the real place.
+                    npc.MoveToMyEditorLocation()
+                EndIf
+                DebugMsg("Walk home finished: " + npc.GetDisplayName())
+                EndWalkHome(npc, true)
+            EndIf
+        EndIf
+        i -= 1
+    EndWhile
+EndFunction
+
+Bool Function TakenOverElsewhere(Actor npc)
+    {Held by the story engine or by a lingering fetch or escort: things that hand out packages without a slot.}
+    If StoryEngine && StoryEngine.HoldsActor(npc)
+        Return true
+    EndIf
+    If NPCTasks && NPCTasks.HoldsActor(npc)
+        Return true
+    EndIf
+    Return false
+EndFunction
+
+Bool Function OwnsPackagesOf(Actor npc)
+    {Does any live IntelEngine state account for this NPC running one of our packages?}
+    If FindSlotByActor(npc) >= 0
+        Return true
+    EndIf
+    If StorageUtil.FormListFind(self, "Intel_WalkHomeActors", npc as Form) >= 0
+        Return true
+    EndIf
+    If StoryEngine && StoryEngine.HoldsActor(npc)
+        Return true
+    EndIf
+    If NPCTasks && NPCTasks.HoldsActor(npc)
+        Return true
+    EndIf
+    Return false
+EndFunction
+
+Float _lastSweepGameTime = 0.0
+
+Float _tickDueRealTime = 0.0
+
+Function RequestTick(Float seconds)
+    {Ask for the next monitoring tick. Every script of this quest shares ONE real-time update registration (it
+    belongs to the quest, not to the script), and every OnUpdate fires in all of them. Each script used to call
+    RegisterForSingleUpdate itself, so the last caller won: the story engine's 30-second idle poll, registered
+    at the end of its handler, kept replacing the 3-second travel poll and the half-second return poll. Travelling
+    NPCs were looked at every half minute. Here a request only re-registers when it is sooner than what is pending.}
+    Float now = Utility.GetCurrentRealTime()
+    If _tickDueRealTime > now + 0.25 && _tickDueRealTime <= now + seconds + 0.01 && _tickDueRealTime < now + 120.0
+        Return
+    EndIf
+    _tickDueRealTime = now + seconds
+    RegisterForSingleUpdate(seconds)
+EndFunction
+
+Function SweepIfDue()
+    {Run the sweep once per game hour, whoever asks: the real-time monitoring loops and the game-time event.}
+    Float now = Utility.GetCurrentGameTime()
+    If now < _lastSweepGameTime || now - _lastSweepGameTime >= 1.0 / 24.0
+        _lastSweepGameTime = now
+        SweepStalePackages()
+    EndIf
+EndFunction
+
+Function SweepStalePackages(Bool atOnce = false)
+    {The dashboard lists NPCs who run an IntelEngine package without a task ("Other IE packages") and offers a
+    Remove button. This does the same on its own, once per game hour and on load, for every such NPC that nothing
+    in the mod accounts for any more. An NPC has to be found unaccounted for on two sweeps in a row, so a package
+    that was just handed out between two bookkeeping steps is never taken away. atOnce (the manual reset)
+    releases them on the first sighting.}
+    CheckWalkHomeActors()
+    ValidateSlots()
+    Float nowGame = Utility.GetCurrentGameTime()
+    Int[] ids = new Int[6]
+    ids[0] = TravelPackage_Walk.GetFormID()
+    ids[1] = TravelPackage_Jog.GetFormID()
+    ids[2] = TravelPackage_Run.GetFormID()
+    If TravelPackage_Stalk
+        ids[3] = TravelPackage_Stalk.GetFormID()
+    EndIf
+    If SandboxPackage
+        ids[4] = SandboxPackage.GetFormID()
+    EndIf
+    If SandboxNearPlayerPackage
+        ids[5] = SandboxNearPlayerPackage.GetFormID()
+    EndIf
+    Actor[] holders = IntelEngine.GetActorsWithPackages(ids)
+    If holders.Length > 0
+        DebugMsg("Sweep: " + holders.Length + " NPC(s) currently run an IntelEngine package")
+    EndIf
+    Int i = 0
+    While i < holders.Length
+        Actor npc = holders[i]
+        If npc != None
+            Float seenAt = StorageUtil.GetFloatValue(npc, "Intel_StaleSeenAt", 0.0)
+            If OwnsPackagesOf(npc)
+                StorageUtil.UnsetFloatValue(npc, "Intel_StaleSeenAt")
+            ElseIf !atOnce && (seenAt <= 0.0 || nowGame < seenAt || nowGame - seenAt > 0.25)
+                ; First sighting, or the last one is more than six game hours old and counts no longer.
+                StorageUtil.SetFloatValue(npc, "Intel_StaleSeenAt", nowGame)
+            Else
+                DebugMsg("Sweep: " + npc.GetDisplayName() + " still ran an IntelEngine package with no task behind it -> released")
+                StorageUtil.UnsetFloatValue(npc, "Intel_StaleSeenAt")
+                ; The whole release, not the packages alone: the task faction and the task keys kept the NPC
+                ; "busy" for every later request.
+                ReleaseAgent(npc, -1)
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+EndFunction
+
+Bool Function IsCarriageDriver(Actor npc)
+    {A carriage driver must not be made the target of a fetch or an escort, or be moved to the player by a
+    search, either: a travel package or a teleport takes them off the cart just like a task of their own
+    would (see IsUnsuitableTaskAgent). Children, whom that function also refuses as agents, may be fetched
+    and escorted.}
+    If npc == None
+        Return false
+    EndIf
+    If !_softFormsResolved
+        ResolveSoftForms()
+    EndIf
+    Return _carriageSystemFaction != None && npc.IsInFaction(_carriageSystemFaction)
 EndFunction
 
 Function DismissFollowerForTask(Actor npc)
@@ -1122,6 +1573,13 @@ Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String 
         EndIf
     EndIf
 
+    ; A scheduled fetch or delivery was agreed to when it was scheduled; asking again when it starts meant
+    ; that not answering in time dropped it without a word.
+    If StorageUtil.GetIntValue(npc, "Intel_ScheduledExecution") == 1
+        StorageUtil.UnsetIntValue(npc, "Intel_ScheduledExecution")
+        Return 0
+    EndIf
+
     If taskOrigin == "Director"
         Return 0  ; Director-dispatched actions skip the confirmation prompt
     EndIf
@@ -1165,7 +1623,8 @@ Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String 
     EndIf
 
     ; mode 1 (follower matched) or mode 2 (everyone) — show prompt
-    String result = ShowChoice(npc.GetDisplayName(), "Task permission", promptText, "Allow", "Deny", "Deny (Silent)")
+    ; Unanswered, the request counts as Deny (Silent) once the time is up, so it never holds up the game.
+    String result = ShowChoice(npc.GetDisplayName(), "Task permission", promptText, "Allow", "Deny", "Deny (Silent)", PROMPT_SECONDS_TASK)
     If result == "Deny"
         Return 1
     ElseIf result == "Allow"
@@ -1261,6 +1720,13 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
     EndIf
     If status == 1
         DebugMsg("[diag:arrival] " + npc.GetDisplayName() + " off-screen arrival " + IntelEngine.DescribeDistance(npc, dest))
+        If PlaceForUnseenArrival(npc, dest)
+            ; The destination is where the player is standing: the NPC was put at the way in and walks the
+            ; rest with the package they already have. Arrival is noticed like any other.
+            InitOffScreenTracking(slot, npc, dest)
+            npc.EvaluatePackage()
+            Return false
+        EndIf
         npc.MoveTo(dest)
         Utility.Wait(0.3)
         npc.EvaluatePackage()
@@ -1269,17 +1735,106 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
     Return false
 EndFunction
 
+Bool Function PlaceForUnseenArrival(Actor npc, ObjectReference dest)
+    {An NPC who travelled unseen has "arrived", but the destination is in front of the player (they are waiting
+    at the meeting spot, or are the destination themselves). Appearing on the spot is a pop-in. Indoors the NPC is
+    put at a door of the player's cell, as if they had just come in; outdoors a good way behind the player.
+    False when the destination is not near the player: then it is simply the place to be.}
+    Actor player = Game.GetPlayer()
+    If dest == None || npc == None
+        Return false
+    EndIf
+    Cell playerCell = player.GetParentCell()
+    If playerCell != None && playerCell.IsInterior()
+        If dest.GetParentCell() != playerCell
+            Return false
+        EndIf
+        ObjectReference wayIn = WayIntoPlayerCell()
+        If wayIn == None
+            Return false
+        EndIf
+        npc.MoveTo(wayIn)
+        DebugMsg(npc.GetDisplayName() + " placed at the door of the player's cell to walk in")
+        Return true
+    EndIf
+    If !dest.Is3DLoaded() && dest != (player as ObjectReference)
+        Return false
+    EndIf
+    If dest != (player as ObjectReference) && player.GetDistance(dest) > 3000.0
+        Return false
+    EndIf
+    TeleportBehindPlayer(npc, 2500.0)
+    Return true
+EndFunction
+
+Bool Function PlayerCanSee(Actor npc)
+    {Would the player notice this NPC being moved? Loaded, not far off, and on screen (for the player, HasLOS
+    is true only for what is in view). Used to keep recovery moves out of sight.}
+    If npc == None || !npc.Is3DLoaded()
+        Return false
+    EndIf
+    Actor player = Game.GetPlayer()
+    If npc.GetDistance(player) > 6000.0
+        Return false
+    EndIf
+    Return player.HasLOS(npc)
+EndFunction
+
+Package Function TravelPackageOn(Actor npc, Package fallback)
+    {The travel package this NPC is running right now, else the one given. Recovery used to put the slot's
+    nominal speed back on top of whatever was really applied (a walk for the return leg, the stalk package of
+    a stalker), which left two travel overrides at the same priority: a walking NPC broke into a jog after one
+    recovery, a stalker stood up.}
+    Package running = npc.GetCurrentPackage()
+    If running != None && (running == TravelPackage_Walk || running == TravelPackage_Jog || running == TravelPackage_Run || running == TravelPackage_Stalk)
+        Return running
+    EndIf
+    Return fallback
+EndFunction
+
 Function SoftStuckRecovery(Actor npc, Int slot, ObjectReference dest)
     {Soft stuck recovery: random displacement + re-apply travel package.
-    Shared by Travel and NPCTasks stuck handlers.}
+    Shared by Travel and NPCTasks stuck handlers.
+    While the player is looking at the NPC there is no displacement (it showed as a hop of a pace or two with
+    a drop from knee height); the package is taken off and put back instead, which makes the AI plan a new path.}
+    ; Standing still to talk is not being stuck (SkyrimNet conversations do not set a dialogue target).
+    If IntelEngine.IsActorTalking(npc)
+        IntelEngine.ResetStuckSlot(slot, npc)
+        Return
+    EndIf
+    Package travelPkg = TravelPackageOn(npc, GetTravelPackage(SlotSpeeds[slot]))
+    ; Not moving because a package from elsewhere is running on top of ours (told to follow or to stay by
+    ; another mod in the middle of the trip). Nudging does nothing against that: the NPC stood there until
+    ; the time limit. The other overrides are taken off, as they are when a task starts, and ours is put back.
+    Package running = npc.GetCurrentPackage()
+    If travelPkg && running != None && running != travelPkg && ActorUtil.CountPackageOverride(npc) > 1 \
+        && npc.GetDialogueTarget() == None && !npc.IsInCombat()
+        If running != TravelPackage_Walk && running != TravelPackage_Jog && running != TravelPackage_Run \
+            && running != TravelPackage_Stalk && running != SandboxPackage && running != SandboxNearPlayerPackage
+            DebugMsg(npc.GetDisplayName() + " is held by a package that is not ours -> other overrides cleared, travel package put back")
+            ActorUtil.ClearPackageOverride(npc)
+            ActorUtil.AddPackageOverride(npc, travelPkg, PRIORITY_TRAVEL, 1)
+            npc.EvaluatePackage()
+            Return
+        EndIf
+    EndIf
+    If PlayerCanSee(npc)
+        If travelPkg
+            ActorUtil.RemovePackageOverride(npc, travelPkg)
+            ActorUtil.AddPackageOverride(npc, travelPkg, PRIORITY_TRAVEL, 1)
+        EndIf
+        npc.EvaluatePackage()
+        Return
+    EndIf
     Float nudge = 100.0
     If !npc.Is3DLoaded()
         nudge = 200.0
     EndIf
     npc.MoveTo(npc, Utility.RandomFloat(-nudge, nudge), Utility.RandomFloat(-nudge, nudge), 50.0, false)
+    If slot >= 0 && !SlotHolds(slot, npc)
+        Return                    ; cancelled or replaced while the move was made: nothing of ours to put back
+    EndIf
 
-    Int speed = SlotSpeeds[slot]
-    Package travelPkg = GetTravelPackage(speed)
     If travelPkg
         ActorUtil.AddPackageOverride(npc, travelPkg, PRIORITY_TRAVEL, 1)
     EndIf
@@ -1344,9 +1899,36 @@ Function TeleportBehindPlayer(Actor npc, Float distance = 2000.0)
     Used by stuck recovery fallbacks in Travel and NPCTasks.
     Distance can be reduced on retry if the NPC lands behind a wall.}
     Actor player = Game.GetPlayer()
+    ; Indoors, "a good way behind the player" is on the far side of a wall or outside the building's shell:
+    ; the NPC dropped through the void or stood sealed in, with the task still running. Anything farther
+    ; than a few steps puts them at a door of the cell instead, as if they had just come in.
+    If distance > 500.0 && player.IsInInterior()
+        ObjectReference wayIn = WayIntoPlayerCell()
+        If wayIn != None
+            npc.MoveTo(wayIn)
+            DebugMsg(npc.GetDisplayName() + " placed at a door of the player's cell (indoors, instead of " + distance + " units behind)")
+            Return
+        EndIf
+        distance = 300.0
+    EndIf
     Float[] offset = IntelEngine.GetOffsetBehind(player, distance)
     npc.MoveTo(player, offset[0], offset[1], 0.0, false)
     DebugMsg(npc.GetDisplayName() + " teleported behind player at " + distance + " units")
+EndFunction
+
+ObjectReference Function WayIntoPlayerCell()
+    {A door of the interior the player is in, to make an NPC appear as if they had walked in: the door to
+    the outside if there is one, else any door.}
+    ObjectReference[] doors = IntelEngine.GetCellDoors(Game.GetPlayer())
+    ObjectReference wayIn = None
+    Int d = 0
+    While d < doors.Length
+        If doors[d] != None && (wayIn == None || IntelEngine.IsDoorExterior(doors[d]))
+            wayIn = doors[d]
+        EndIf
+        d += 1
+    EndWhile
+    Return wayIn
 EndFunction
 
 
@@ -1371,13 +1953,9 @@ Int Function CheckDepartureProgress(Int slot, Actor agent, Float threshold)
         DebugMsg(agent.GetDisplayName() + " hasn't departed - nudging package evaluation")
         agent.EvaluatePackage()
 
-        ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
-        If dest != None
-            DebugMsg("[diag:path] start " + agent.GetDisplayName() + " slot=" + slot + " site=CheckDepartureProgress")
-            agent.PathToReference(dest, 1.0)
-            DebugMsg("[diag:path] end " + agent.GetDisplayName() + " slot=" + slot + " site=CheckDepartureProgress")
-            agent.EvaluatePackage()
-        EndIf
+        ; No PathToReference here any more: it is a forced run at full speed whatever the task's pace, it
+        ; held this monitoring pass (and every other slot in it) until the NPC got there, and it kept the NPC
+        ; running after the task had been called off.
     EndIf
 
     Return status
@@ -1779,7 +2357,9 @@ Function SetStoryEnabled(Bool val)
             StoryEngine.StartScheduler()
         Else
             StoryEngine.IntelEngine_StoryEngineEnabled.SetValue(0.0)
-            StoryEngine.StopScheduler()
+            ; Keep the timers: linger release, quest expiry and the other systems run on them. Only the
+            ; story DM is gated by the switch.
+            StoryEngine.StartScheduler()
         EndIf
     EndIf
 EndFunction
@@ -1908,6 +2488,11 @@ Bool Function TryWaypointNavigation(Int slot, Actor npc, ObjectReference dest)
     If !npc.Is3DLoaded()
         Return false
     EndIf
+    ; Location markers are outdoor points: for an NPC held up inside a building the search compared interior
+    ; coordinates with exterior markers and could pick, and then teleport to, an unrelated place.
+    If npc.IsInInterior()
+        Return false
+    EndIf
 
     ObjectReference waypoint = IntelEngine.FindNearestWaypointToward(npc, dest, 5000.0)
     If waypoint == None
@@ -1917,7 +2502,12 @@ Bool Function TryWaypointNavigation(Int slot, Actor npc, ObjectReference dest)
     ObjectReference currentWP = StorageUtil.GetFormValue(npc, \
         "Intel_CurrentWaypoint") as ObjectReference
 
-    If currentWP == waypoint
+    If currentWP == waypoint && PlayerCanSee(npc)
+        ; Still stuck on the way to the waypoint, with the player looking: no teleport now. The package is
+        ; refreshed and the hop waits until they look away.
+        SoftStuckRecovery(npc, slot, dest)
+        Return true
+    ElseIf currentWP == waypoint
         ; Already tried walking to this waypoint and still stuck —
         ; teleport to it (short hop to known-good navmesh position)
         DebugMsg(npc.GetDisplayName() + " stuck at waypoint - teleporting to it")
@@ -1933,13 +2523,14 @@ Bool Function TryWaypointNavigation(Int slot, Actor npc, ObjectReference dest)
         IntelEngine.ResetStuckSlot(slot, npc)
     EndIf
 
-    Int speed = SlotSpeeds[slot]
-    Package travelPkg = GetTravelPackage(speed)
+    If !SlotHolds(slot, npc)
+        Return true               ; cancelled or replaced during the move
+    EndIf
+    Package travelPkg = TravelPackageOn(npc, GetTravelPackage(SlotSpeeds[slot]))
     If travelPkg
         ActorUtil.AddPackageOverride(npc, travelPkg, PRIORITY_TRAVEL, 1)
     EndIf
     npc.EvaluatePackage()
-    NotifyPlayer(npc.GetDisplayName() + " finding alternate route")
     Return true
 EndFunction
 
@@ -1975,6 +2566,11 @@ Function ForceResetAllSlots()
         i += 1
     EndWhile
 
+    ; This is what a player reaches for when an NPC is stuck, and clearing the task slots did nothing for an
+    ; NPC that no slot knew about any more. Every IntelEngine package that nothing accounts for comes off
+    ; now, without the hourly sweep's two-sightings rule. (A running story keeps its NPCs: it has its own cancel.)
+    SweepStalePackages(true)
+
     NotifyPlayer("IntelEngine: All tasks reset")
 EndFunction
 
@@ -2001,7 +2597,9 @@ String Function ShowChoice(String asTitle, String asKind, String asBody, String 
     String path = "magelight"
     If code == ""
         path = "fallback"
-        r = SkyMessage.Show(asBody, asB1, asB2, asB3, "", "", "", "", "", "", "", false, 0.1, afTimeoutSecs)
+        ; No time limit on the classic box: it cannot take itself off the screen, so after a timeout it stayed
+        ; up with buttons that no longer did anything. It waits for the player instead.
+        r = SkyMessage.Show(asBody, asB1, asB2, asB3)
     ElseIf code == "t"
         r = "TIMED_OUT"
     ElseIf code == "0"
@@ -2023,13 +2621,25 @@ String Function ShowMagelightChoice(String asTitle, String asKind, String asBody
     String token = "r" + Utility.RandomInt(1, 2147483647)
     ; Wait our turn instead of falling back: another IE choice is open, or any Magelight window
     ; (e.g. the IE dashboard) holds UI mode. No external call between the check and the claim.
-    While _mlRequest != ""
+    ; Both waits are bounded: a request left behind by an interrupted popup, or a window somebody keeps open,
+    ; must not hold every later prompt (and the task behind it) for ever. After two minutes the message box is used.
+    Float waitedForTurn = 0.0
+    While _mlRequest != "" && waitedForTurn < 120.0
         Utility.WaitMenuMode(0.25)
+        waitedForTurn += 0.25
     EndWhile
+    If _mlRequest != ""
+        DebugMsg("ShowChoice: an earlier popup is still open -> message box")
+        Return ""
+    EndIf
     _mlRequest = token
-    While Magelight.IsReady() && Magelight.IsUIModeActive()
+    While Magelight.IsReady() && Magelight.IsUIModeActive() && waitedForTurn < 120.0
         Utility.WaitMenuMode(0.25)
+        waitedForTurn += 0.25
     EndWhile
+    If Magelight.IsReady() && Magelight.IsUIModeActive()
+        Return EndML(token, "")
+    EndIf
     If !Magelight.IsReady()
         Return EndML(token, "")
     EndIf
@@ -2042,6 +2652,9 @@ String Function ShowMagelightChoice(String asTitle, String asKind, String asBody
     RegisterForModEvent("Magelight_UIModeEntered", "OnMLEntered")
     RegisterForModEvent("Magelight_JS_ieChoice", "OnMLChoice")
     RegisterForModEvent("Magelight_UIModeExited", "OnMLFailure")
+    ; RequestUIMode only queues the entry; a lost race is reported with this event. Without it the popup
+    ; sat on screen, dead, for the five seconds of the wait below before the message box came.
+    RegisterForModEvent("Magelight_UIModeRefused", "OnMLFailure")
     RegisterForModEvent("Magelight_ViewLoadFailed", "OnMLFailure")
     RegisterForModEvent("Magelight_ViewDestroyed", "OnMLFailure")
     RegisterForModEvent("Magelight_RenderDead", "OnMLFailure")
@@ -2060,11 +2673,20 @@ String Function ShowMagelightChoice(String asTitle, String asKind, String asBody
             Utility.WaitMenuMode(0.1)
         EndWhile
         If !_mlDomReady || _mlResult == "F"
+            ; The page did not load (file missing or broken). The view is thrown away: kept, the next prompt
+            ; found it, skipped this check and paused the game on a blank page.
+            Magelight.DestroyView(_mlView)
+            _mlView = 0
             Return EndML(token, "")
         EndIf
     EndIf
     If !Magelight.RegisterListener(_mlView, "ieChoice")
         Return EndML(token, "")
+    EndIf
+    ; The page answers to keys; with this a pad answers too (kept by the host across reloads, harmless to repeat).
+    Int padKeys = IntelEngine.EnableMagelightGamepadKeys(_mlView)
+    If padKeys != 1
+        DebugMsg("ShowChoice: no pad for the popup (" + padKeys + ": 0 = no gamepad layer, -1 = refused)")
     EndIf
 
     String buttons = "\"" + EscapeJson(asB1) + "\",\"" + EscapeJson(asB2) + "\""
@@ -2125,6 +2747,11 @@ Event OnMLEntered(String eventName, String strArg, Float numArg, Form sender)
     ; strArg may be "IntelEngineChoice|switched"
     If _mlRequest != "" && numArg as Int == _mlView && StringUtil.Substring(strArg, 0, 17) == "IntelEngineChoice"
         _mlEntered = True
+    ElseIf _mlRequest == "" && _mlView != 0 && numArg as Int == _mlView && StringUtil.Substring(strArg, 0, 17) == "IntelEngineChoice"
+        ; The entry was queued but came after we stopped waiting for it (the message box has been used
+        ; instead). Nobody would release it: the game stayed paused on a hidden page until Page Up.
+        Magelight.ReleaseUIMode("IntelEngineChoice")
+        Magelight.ShowView(_mlView, False)
     EndIf
 EndEvent
 
@@ -2517,7 +3144,9 @@ Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false, Actor r
         EndIf
         slot += 1
     EndWhile
-    If storyDispatch && StoryEngine && StoryEngine.IsActive && (!replacing || StoryEngine.ActiveStoryNPC != replacing)
+    ; Also while an arrival is being handled (IsActive is already false then, the NPC still held): a dispatch
+    ; from the dashboard in that moment started a second story on top of the one being finished.
+    If storyDispatch && StoryEngine && (StoryEngine.IsActive || StoryEngine.ArrivalHandling) && (!replacing || StoryEngine.ActiveStoryNPC != replacing)
         Actor activeNPC = StoryEngine.ActiveStoryNPC
         String activeName = "an unknown NPC"
         If activeNPC
@@ -2569,7 +3198,9 @@ String Function InformantRumor(String subject, String rumor, String gossip)
     If rumor != "" || gossip == ""
         Return rumor
     EndIf
-    If ReplaceText(gossip, UntagName(subject), "") == gossip ; fix96: whole-word, "Ria" is not in "Victoria" (live 17:27)
+    ; Not without a subject: the gossip then began with a blank ("told X a rumor:  heard ..."), in the line
+    ; and in what both NPCs remember (the repository's own typed-event check has failed on this since fix 84).
+    If subject != "" && ReplaceText(gossip, UntagName(subject), "") == gossip ; fix96: whole-word, "Ria" is not in "Victoria" (live 17:27)
         gossip = subject + " " + gossip
     EndIf
     Return gossip
@@ -2634,7 +3265,10 @@ String Function InformantRejection(String subject, String rumor)
         sp += 1
     EndWhile
     String first = StringUtil.Substring(rumor, 0, sp)
-    If sp > 3 && StringUtil.Substring(first, sp - 3) == "ing" && StringUtil.Find(name, first) != 0
+    ; Ordinary openings that happen to end in "ing" pass (same list as the C++ check): the rule is for
+    ; "Hearing that ...", and it also refused "During the feast, Nazeem ..." and "King Torygg ...".
+    If sp > 3 && StringUtil.Substring(first, sp - 3) == "ing" && StringUtil.Find(name, first) != 0 \
+        && StringUtil.Find("|during|something|nothing|anything|everything|king|morning|evening|spring|", "|" + first + "|") < 0
         Return "rumor starts with an -ing word"
     EndIf
     Return ""
@@ -2911,6 +3545,10 @@ Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg,
                 eventLabel = IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "event_type"))
             EndIf
             NotifyPlayer("Political event: " + eventLabel + " between " + IntelEngine.StoryResponseGetField(strArg, "faction_a_label") + " and " + IntelEngine.StoryResponseGetField(strArg, "faction_b_label") + ".")
+        Else
+            ; A refusal (a war the war_allowed setting does not permit, a surrender without a war, a repeat)
+            ; showed nothing at all: the dashboard said "Sent" and cleared the form.
+            NotifyPlayer("Political event refused: " + IntelEngine.FriendlyKey(IntelEngine.StoryResponseGetField(strArg, "event_type")) + " between " + IntelEngine.StoryResponseGetField(strArg, "faction_a_label") + " and " + IntelEngine.StoryResponseGetField(strArg, "faction_b_label") + ". The reason is in the IntelEngine log.")
         EndIf
         DebugMsg("Director: Politics.OnPoliticalDMResponse returned")
     Else
@@ -3133,6 +3771,8 @@ String Function BuildDashboardStateJson()
                     EndIf
                 EndIf
                 json += ",\"schedState\":" + Schedule.GetScheduleSlotState(i)
+                ; The list skips empty slots, so the page needs the real slot number to cancel the right one.
+                json += ",\"slot\":" + i
                 json += "}"
             EndIf
             i += 1
