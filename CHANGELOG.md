@@ -2,6 +2,11 @@
 
 ## 3.8.0 — unreleased
 
+### Contributors
+- **Gerkinfeltser** developed 3.8: the sections Director, Story travel and arrival, Stories and NPC scenes, Off-screen placement and fetch, Politics and Other below, with the Magelight prompts, the Political Engine bridge and the faction fragments.
+- **Lanosity** wrote the natural-language time parser.
+- **Galanx** reviewed the release and wrote the sections Stuck NPCs and package handling, Meetings and visits, Prompts, dashboard and controller, Wars that end stay ended, Assassins and soldiers that turned on the player, and Fixes to 3.8 changes found in review.
+
 ### Director
 - Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "Skip follower" setting still applies).
 - Story replacement accepts Director fields and explains refusals; a cancelling story must finish before it is replaced.
