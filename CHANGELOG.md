@@ -15,6 +15,7 @@
 - Generated interaction narration describes the scene instead of copying a fact; generated gossip says how and where it was told.
 - A social scene for two NPCs already standing together near you plays right there (it used to be applied off-screen).
 - With Magelight UI installed, the Allow/Deny, door-knock and quest-offer prompts open as a Magelight page in the dashboard's style (keys 1-3, Esc = the do-nothing answer, timer bar on the knock). A prompt waits while the dashboard or another Magelight window is open. Without Magelight, the Papyrus MessageBox is used as before; it is now only needed without Magelight.
+- Director quests need a Plea for help (and a Victim for rescue, an Item description for find_item) before Dispatch; Generate no longer picks the current location or a player home as the quest location.
 
 ### Story travel and arrival
 - A story NPC counts as arrived after 15 seconds within talking range.
