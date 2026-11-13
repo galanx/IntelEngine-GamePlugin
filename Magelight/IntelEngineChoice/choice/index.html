@@ -38,7 +38,7 @@
   .timer i { display: block; height: 100%; width: 100%; background: var(--blue-400); transform-origin: left; }
   .timer-label { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--gray-500); }
   .btns { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
-  .btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 12px; font: inherit; font-size: 12px;
+  .btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 36px; padding: 8px 12px; font: inherit; font-size: 13px;
          font-weight: 500; border: 1px solid transparent; border-radius: 4px; cursor: pointer; transition: background .15s; }
   .btn kbd { font: 10px ui-monospace, Consolas, monospace; color: var(--gray-500); border: 1px solid var(--border-color); border-radius: 3px; padding: 0 5px; }
   .btn.primary { background: rgba(var(--blue-500), .2); color: var(--blue-400); }
@@ -47,8 +47,9 @@
   .btn.neutral:hover { background: rgba(255,255,255,.1); color: var(--gray-200); }
   .btn.danger { background: rgba(var(--red-900), .4); color: var(--red-300); border-color: rgba(var(--red-700), .3); }
   .btn.danger:hover { background: rgba(var(--red-900), .6); }
-  .btn:focus { outline: 2px solid rgba(var(--blue-500), .8); outline-offset: 1px; }
-  .foot { margin-top: 10px; font-size: 10px; color: var(--gray-600); text-align: right; }
+  .btn:focus { outline: 2px solid #fbbf24; outline-offset: 1px; }    /* what a pad or the arrow keys have selected */
+  .btn.picked { filter: brightness(1.5); }
+  .foot { margin-top: 10px; font-size: 10px; color: var(--gray-500); text-align: right; }
 </style>
 </head>
 <body>
@@ -69,7 +70,16 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var panel = $('panel'), btnsEl = $('btns'), bar = $('bar');
-  var token = '', buttons = [], timerHandle = null, tickHandle = null;
+  var token = '', buttons = [], timerHandle = null, tickHandle = null, heldKey = null, heldTimer = null;
+
+  // The panel is laid out for 1080p and scaled with the screen, by height on a wide screen and by width on a
+  // square or upright surface (a headset panel), so it reads the same from a desk, a sofa and in VR.
+  function fit() {
+    var k = Math.min((window.innerHeight || 1080) / 1080, (window.innerWidth || 1920) / 1920);
+    panel.style.zoom = String(Math.min(Math.max(k, 0.6), 2.6) * 1.25);
+  }
+  fit();
+  window.addEventListener('resize', fit);
 
   function stopTimer() {
     if (timerHandle !== null) { clearTimeout(timerHandle); timerHandle = null; }
@@ -82,6 +92,8 @@
     var msg = token + '|' + answer;
     token = '';
     stopTimer();
+    heldKey = null;
+    if (heldTimer !== null) { clearTimeout(heldTimer); heldTimer = null; }
     panel.classList.remove('visible');
     var tryCall = function () {
       if (typeof window.ieChoice !== 'function') return false;
@@ -106,7 +118,9 @@
     $('title').textContent = String(payload.title || '');
     $('kind').textContent = String(payload.kind || '');
     $('text').textContent = String(payload.body || '');
-    $('foot').textContent = '1-' + buttons.length + ' choose · Esc = no answer';
+    // Esc sends the last button (the caller's do-nothing answer). The footer said "no answer", but on a quest
+    // offer that answer is "Not interested", which turns the quest down.
+    $('foot').textContent = '1-' + buttons.length + ' or arrows + Enter · Esc = ' + buttons[buttons.length - 1];
     btnsEl.textContent = '';
     buttons.forEach(function (label, i) {
       var b = document.createElement('button');
@@ -144,18 +158,33 @@
   };
   captureEscape();
 
+  // An answer given with a key is sent when that key comes up again (or after half a second): the popup closes
+  // on the answer, and a key still held then reaches the game. Enter would open a chat box, and a pad's A,
+  // which Magelight types as Enter, would activate whatever is in front of the player.
+  function pick(index, key) {
+    if (!token || heldKey !== null) return;
+    var el = btnsEl.children[index];
+    if (el) el.classList.add('picked');
+    heldTimer = setTimeout(function () { heldTimer = null; send(index); }, 500);
+    heldKey = { key: key, index: index };
+  }
+  document.addEventListener('keyup', function (e) {
+    if (token && heldKey && e.key === heldKey.key) send(heldKey.index);
+  });
+
   document.addEventListener('keydown', function (e) {
     if (!token) return;
     var k = e.key, n = parseInt(k, 10);
+    if (heldKey) { e.preventDefault(); return; }
     if (k === 'Escape') { e.preventDefault(); send(buttons.length - 1); return; }
-    if (n >= 1 && n <= buttons.length && k.length === 1) { e.preventDefault(); send(n - 1); return; }
+    if (n >= 1 && n <= buttons.length && k.length === 1) { e.preventDefault(); pick(n - 1, k); return; }
     var els = btnsEl.children, idx = Array.prototype.indexOf.call(els, document.activeElement);
-    if (k === 'Enter' || k === ' ') {
-      // Ultralight does not click a focused button on Enter by itself.
-      if (idx >= 0) { e.preventDefault(); els[idx].click(); }
-    } else if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Tab') {
+    if (k === 'Enter' || k === ' ' || k === 'e' || k === 'E') {
+      // Ultralight does not click a focused button on Enter by itself. E is the game's Activate key.
+      if (idx >= 0) { e.preventDefault(); pick(idx, k); }
+    } else if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Tab') {
       e.preventDefault();
-      var step = (k === 'ArrowUp' || (k === 'Tab' && e.shiftKey)) ? -1 : 1;
+      var step = (k === 'ArrowUp' || k === 'ArrowLeft' || (k === 'Tab' && e.shiftKey)) ? -1 : 1;
       els[idx < 0 ? 0 : (idx + step + els.length) % els.length].focus();
     }
   });
