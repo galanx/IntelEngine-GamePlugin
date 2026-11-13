@@ -55,9 +55,9 @@ Adjust Check Interval (default 3 hours, range 0.5–168). Lower = more frequent.
 
 **Q: The same NPC keeps getting picked.**
 
-Increase ~~NPC Cooldown~~ (default 24 hours, range 6–72).
+Raise Long Absence (MCM → Settings → Story Tuning; default 3 days, range 1–14): an NPC who has just come to you is left alone for at least that long. For NPC-to-NPC activity, adjust NPC Social Cooldown instead.
 
-> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Story NPC Cooldown (hours): default 24, range 6–72. For NPC-to-NPC activity, adjust NPC Social Cooldown instead.
+> **Updated for 3.8.0:** the Story NPC Cooldown slider is gone. The game used the longer of it and Long Absence, so with the default of three days its 6 to 72 hours changed nothing.
 
 **Q: I don't want hostile encounters (ambushes, stalkers).**
 

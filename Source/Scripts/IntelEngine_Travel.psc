@@ -655,7 +655,29 @@ Function CheckForArrival(Int slot, Actor npc)
 
     ; NPC is off-screen — check estimated travel time and teleport if stationary
     If Core.HandleOffScreenTravel(slot, npc, dest)
+        StepInside(slot, npc, dest)
         OnArrival(slot, npc)
+    EndIf
+EndFunction
+
+Function StepInside(Int slot, Actor npc, ObjectReference dest)
+    {A named building resolves to its outside door. Someone who walks there in view goes in through it (see
+    CheckForArrival above); someone who got there unseen was left standing outside it, at Dragonsreach on the
+    doorstep above the pond. Puts them on the far side of that door and makes it the place they wait at, the
+    same bookkeeping as walking through. Nothing happens when the destination is not a door.}
+    ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(dest)
+    If doorDest == None
+        Return
+    EndIf
+    npc.MoveTo(doorDest)
+    PO3_SKSEFunctions.SetLinkedRef(npc, doorDest, Core.IntelEngine_TravelTarget)
+    StorageUtil.SetFormValue(npc, "Intel_DestMarker", doorDest)
+    Core.DebugMsg(npc.GetDisplayName() + " arrived unseen -> through the door, as on foot")
+    If !IntelEngine.IsDoorExterior(dest)
+        String targetName = Core.SlotTargetNames[slot]
+        If IntelEngine.StringContains(IntelEngine.StringToLower(targetName), "outside")
+            TeleportToExterior(npc)
+        EndIf
     EndIf
 EndFunction
 
@@ -1410,12 +1432,14 @@ Function HandleMeetingDepartureFailure(Int slot, Actor npc)
     Actor player = Game.GetPlayer()
 
     ; Off-screen teleport / On-screen narrate failure
-    If !npc.Is3DLoaded()
+    ; (Unseen by the player, not merely unloaded: see Core.OutOfPlayersSight.)
+    If Core.OutOfPlayersSight(npc)
         ; Player isn't looking — teleport silently to destination
         ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
         If dest != None
             Core.DebugMsg(npcName + " failed to depart for meeting (off-screen) - teleporting to destination")
             npc.MoveTo(dest, 0.0, 0.0, 50.0)
+            StepInside(slot, npc, dest)
             npc.EvaluatePackage()
             OnArrival(slot, npc)
             Return

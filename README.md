@@ -123,7 +123,7 @@ NPCs understand natural time expressions:
 
 **Early departure** — NPCs calculate travel time based on distance and depart early enough to arrive before the scheduled hour. A meeting at the Western Watchtower means leaving Whiterun well before sunset — the system estimates the walk and builds in a buffer.
 
-**Natural arrival** — The NPC waits at the meeting point, idling naturally — sitting, leaning, looking around. When you arrive, the meeting is live. Walk away, and it ends. No arbitrary timer. No "press E to end meeting." Just proximity.
+**Natural arrival** — The NPC waits at the meeting point, idling naturally — sitting, leaning, looking around. When you arrive, the meeting is live. Walk away, and it ends. No "press E to end meeting." Just proximity, and a visit clock in the background: a visit that goes on for six game hours ends by itself.
 
 **No-shows are remembered.** If you never arrive, the NPC waits until their patience runs out (configurable, default 5 game hours), then leaves. They remember you didn't show — and it colors future interactions differently than a meeting that went well.
 
@@ -134,7 +134,7 @@ NPCs understand natural time expressions:
 > *"Go get Ysolda after sunset."*
 > *"Bring me Nazeem tomorrow morning."*
 
-The NPC stays where they are now. When the departure window arrives, they travel to the target, escort them back to you on foot, and the fetched person lingers nearby until you walk away.
+The NPC stays where they are now. When the departure window arrives, they travel to the target, escort them back to you on foot, and the fetched person lingers nearby until you walk away, or until the visit has run its time (about two game hours, never in the middle of a conversation).
 
 ### Schedule Delivery
 
@@ -172,7 +172,7 @@ Three travel speeds — **walk**, **jog**, or **run** — chosen based on urgenc
 
 The NPC walks to the target — **anywhere in Skyrim** — has a brief exchange, and escorts them back on foot. Ask someone in Whiterun to fetch an NPC living in Riverwood, and they'll walk the road, find them, and walk back together. The target doesn't need to be nearby, loaded, or even in the same hold. IntelEngine's C++ NPC index locates actors across the entire game world, including unloaded cells.
 
-When they arrive, the fetched person **lingers naturally** — sitting on furniture, leaning against walls, idling in place. They behave like someone who was asked to come over, not a mannequin planted in front of you. They stay as long as you're nearby. Walk away, and they return to their routine.
+When they arrive, the fetched person **lingers naturally** — sitting on furniture, leaning against walls, idling in place. They behave like someone who was asked to come over, not a mannequin planted in front of you. They stay as long as you're nearby, for about two game hours (longer while you are talking, six at the most). Walk away, and they return to their routine.
 
 NPC names are matched with **typo tolerance** — Levenshtein distance matching means *"Adiranne"* still finds Adrianne. Failed searches return suggestions.
 
@@ -311,22 +311,22 @@ View all pending scheduled tasks with times and targets. Cancel individually or 
 | Debug Mode | Off | On/Off | Shows IE debug messages as in-game notifications (always logged to Papyrus.0.log). |
 | Max Concurrent Tasks | 5 | 1-5 | How many NPCs can be active at once |
 | Default Wait Hours | 48 | 6-168 | How long NPCs wait at destinations |
-| Action Confirmation Prompts | Followers Only (Schedule Meeting: Everyone) | Disabled / Followers Only / Everyone | Set per action. With Magelight the prompt is a Magelight popup. Director actions never prompt |
+| Action Confirmation Prompts | Followers Only (Schedule Meeting: Everyone) | Disabled / Followers Only / Everyone | Set per action. With Magelight the prompt is a Magelight popup. It closes after 20 seconds, and no answer counts as a silent deny. Director actions never prompt |
 | Report Back After Delivery | On | On/Off | Messengers narrate delivery completion |
 | Meeting Timeout | 5 hrs | 1-12 | How long NPCs wait at meeting spots |
 
 ### Hold Restrictions
-Per story type (Seek Player, Informant, Road Encounter, Ambush, Stalker, Message, Quest), choose which NPCs may travel from other places: No restriction, Same hold (civilians / except followers / everyone), or Same town (civilians / except followers / everyone). Default: Same hold (civilians).
+Per story type (Seek Player, Informant, Road Encounter, Ambush, Stalker, Message, Quest), choose which NPCs may travel from other places: No restriction, Same hold (civilians / except followers / everyone), or Same town (civilians / except followers / everyone). The defaults differ by type: Seek Player, Ambush and Stalker: same hold (civilians); Informant: same town (everyone); Message: same hold (except followers); Road Encounter and Quest: no restriction.
 
 ### Story Tuning
 
 | Setting | Default | Description |
 |---|---|---|
-| Danger Zone Policy | Allow All | Who can be dispatched to dangerous areas (Allow All / Block Civilians / Followers Only / Block All) |
+| Danger Zone Policy | Block Civilians | Who can be dispatched to dangerous areas (Allow All / Block Civilians / Followers Only / Block All) |
 | Player Home Visit Policy | Allow All | Who can visit when you're at home (same 4 levels) |
-| Story Tick Interval | 3 hrs | How often the Dungeon Master evaluates the world |
-| Max Travel Time | 1 day | 0.25–3 days | Max travel time before a story NPC gives up |
-| Quest Sub-Types | All On | Toggle rescue, find item, and combat quests individually |
+| Story Check Interval | 3 hrs | How often the Dungeon Master evaluates the world (0.5–168 hours) |
+| Max Travel Time | 1 day | How long a story NPC stays on the road before being brought to the end of the journey (0.25–3 days) |
+| Quest Sub-Types | All On | One switch each: combat (clear out enemies), rescue (save a captive), find item, faction combat, faction rescue, faction battle |
 
 ---
 
