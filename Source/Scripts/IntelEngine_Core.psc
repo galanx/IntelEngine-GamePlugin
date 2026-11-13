@@ -1165,7 +1165,7 @@ Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String 
     EndIf
 
     ; mode 1 (follower matched) or mode 2 (everyone) — show prompt
-    String result = SkyMessage.Show(promptText, "Allow", "Deny", "Deny (Silent)")
+    String result = ShowChoice(npc.GetDisplayName(), "Task permission", promptText, "Allow", "Deny", "Deny (Silent)")
     If result == "Deny"
         Return 1
     ElseIf result == "Allow"
@@ -1977,6 +1977,175 @@ Function ForceResetAllSlots()
 
     NotifyPlayer("IntelEngine: All tasks reset")
 EndFunction
+
+; ===== CHOICE POPUP (Magelight page, SkyMessage fallback) =====
+; Page: Data/Magelight/IntelEngineChoice/choice/. Not modId "IntelEngine": the C++ dashboard owns it and Magelight refuses a script RegisterMod of it.
+
+String _mlRequest = ""
+String _mlResult = ""
+Int _mlView = 0
+Int _mlCount = 0
+Bool _mlTimed = False
+Bool _mlDomReady = False
+Bool _mlEntered = False
+
+; Returns the clicked button label (like SkyMessage.Show), or "TIMED_OUT".
+; Magelight page when available; otherwise (or if it fails before the player saw it) SkyMessage with the same buttons.
+String Function ShowChoice(String asTitle, String asKind, String asBody, String asB1, String asB2, String asB3 = "", Float afTimeoutSecs = 0.0)
+    Int n = 2
+    If asB3 != ""
+        n = 3
+    EndIf
+    String code = ShowMagelightChoice(asTitle, asKind, asBody, asB1, asB2, asB3, n, afTimeoutSecs)
+    String r = ""
+    String path = "magelight"
+    If code == ""
+        path = "fallback"
+        r = SkyMessage.Show(asBody, asB1, asB2, asB3, "", "", "", "", "", "", "", false, 0.1, afTimeoutSecs)
+    ElseIf code == "t"
+        r = "TIMED_OUT"
+    ElseIf code == "0"
+        r = asB1
+    ElseIf code == "1"
+        r = asB2
+    Else
+        r = asB3
+    EndIf
+    DebugMsg("ShowChoice (" + path + "): '" + asKind + "' -> " + r)
+    Return r
+EndFunction
+
+; Returns "0".."2" (button index), "t" (timer ran out) or "" (Magelight unusable before the player saw it).
+String Function ShowMagelightChoice(String asTitle, String asKind, String asBody, String asB1, String asB2, String asB3, Int aiCount, Float afTimeoutSecs)
+    If SKSE.GetPluginVersion("Magelight") <= 0 || _mlRequest != ""
+        Return ""
+    EndIf
+    If Magelight.GetVersion() == 0 || !Magelight.IsReady() || Magelight.IsUIModeActive()
+        Return ""                                     ; never steal focus (also: dashboard open)
+    EndIf
+    String token = "r" + Utility.RandomInt(1, 2147483647)
+    _mlRequest = token
+    _mlResult = ""
+    _mlCount = aiCount
+    _mlTimed = afTimeoutSecs > 0.0
+    _mlDomReady = False
+    _mlEntered = False
+    RegisterForModEvent("Magelight_ViewDomReady", "OnMLDomReady")
+    RegisterForModEvent("Magelight_UIModeEntered", "OnMLEntered")
+    RegisterForModEvent("Magelight_JS_ieChoice", "OnMLChoice")
+    RegisterForModEvent("Magelight_UIModeExited", "OnMLFailure")
+    RegisterForModEvent("Magelight_ViewLoadFailed", "OnMLFailure")
+    RegisterForModEvent("Magelight_ViewDestroyed", "OnMLFailure")
+    RegisterForModEvent("Magelight_RenderDead", "OnMLFailure")
+
+    If !Magelight.RegisterMod("IntelEngineChoice", "IntelEngine")
+        Return EndML(token, "")
+    EndIf
+    _mlView = Magelight.FindView("IntelEngineChoice", "choice")
+    If _mlView == 0
+        _mlView = Magelight.CreateView("IntelEngineChoice", "choice", "choice/index.html", 0, 0, 0, 0, "popup")
+        If _mlView == 0
+            Return EndML(token, "")
+        EndIf
+        Float domDeadline = Utility.GetCurrentRealTime() + 10.0
+        While _mlRequest == token && _mlResult == "" && !_mlDomReady && Utility.GetCurrentRealTime() < domDeadline
+            Utility.WaitMenuMode(0.1)
+        EndWhile
+        If !_mlDomReady || _mlResult == "F"
+            Return EndML(token, "")
+        EndIf
+    EndIf
+    If !Magelight.RegisterListener(_mlView, "ieChoice")
+        Return EndML(token, "")
+    EndIf
+
+    String buttons = "\"" + EscapeJson(asB1) + "\",\"" + EscapeJson(asB2) + "\""
+    If aiCount > 2
+        buttons += ",\"" + EscapeJson(asB3) + "\""
+    EndIf
+    Int timeoutMs = (afTimeoutSecs * 1000.0) as Int
+    Magelight.Call(_mlView, "ieChoiceShow", "{\"token\":\"" + token + "\",\"title\":\"" + EscapeJson(asTitle) + "\",\"kind\":\"" + EscapeJson(asKind) + "\",\"body\":\"" + EscapeJson(asBody) + "\",\"buttons\":[" + buttons + "],\"timeoutMs\":" + timeoutMs + "}")
+    Magelight.ShowView(_mlView, True)
+    If !Magelight.RequestUIMode(_mlView, True)          ; True = pause the game, like the message box
+        Return EndML(token, "")
+    EndIf
+    Float enterDeadline = Utility.GetCurrentRealTime() + 5.0
+    While _mlRequest == token && _mlResult == "" && !_mlEntered && Utility.GetCurrentRealTime() < enterDeadline
+        Utility.WaitMenuMode(0.1)
+    EndWhile
+    If _mlResult == "F" || (!_mlEntered && _mlResult == "")
+        Return EndML(token, "")
+    EndIf
+
+    ; The page owns the timer; this only fires if the page dies silently.
+    Float hardDeadline = 0.0
+    If _mlTimed
+        hardDeadline = Utility.GetCurrentRealTime() + afTimeoutSecs + 3.0
+    EndIf
+    While _mlRequest == token && _mlResult == ""
+        Utility.WaitMenuMode(0.1)
+        If _mlResult == "" && (!Magelight.IsReady() || !Magelight.IsUIModeActive() || Magelight.GetUIModeView() != _mlView)
+            _mlResult = (aiCount - 1) as String           ; closed (PageUp, host loss): the caller's do-nothing answer
+        ElseIf _mlResult == "" && hardDeadline > 0.0 && Utility.GetCurrentRealTime() > hardDeadline
+            _mlResult = "t"
+        EndIf
+    EndWhile
+    Return EndML(token, _mlResult)
+EndFunction
+
+String Function EndML(String token, String result)
+    If _mlRequest != token
+        Return result
+    EndIf
+    If _mlView != 0
+        If Magelight.IsUIModeActive() && Magelight.GetUIModeView() == _mlView
+            Magelight.ReleaseUIMode("IntelEngineChoice")
+        EndIf
+        Magelight.ShowView(_mlView, False)
+    EndIf
+    _mlRequest = ""
+    Return result
+EndFunction
+
+Event OnMLDomReady(String eventName, String strArg, Float numArg, Form sender)
+    If _mlRequest != "" && strArg == "IntelEngineChoice" && numArg as Int == _mlView
+        _mlDomReady = True
+    EndIf
+EndEvent
+
+Event OnMLEntered(String eventName, String strArg, Float numArg, Form sender)
+    ; strArg may be "IntelEngineChoice|switched"
+    If _mlRequest != "" && numArg as Int == _mlView && StringUtil.Substring(strArg, 0, 17) == "IntelEngineChoice"
+        _mlEntered = True
+    EndIf
+EndEvent
+
+Event OnMLChoice(String eventName, String strArg, Float numArg, Form sender)
+    If _mlRequest == "" || _mlResult != "" || numArg as Int != _mlView
+        Return
+    EndIf
+    String prefix = _mlRequest + "|"
+    If StringUtil.Substring(strArg, 0, StringUtil.GetLength(prefix)) != prefix
+        Return
+    EndIf
+    String tail = StringUtil.Substring(strArg, StringUtil.GetLength(prefix))
+    If tail == "t" && _mlTimed
+        _mlResult = "t"
+    ElseIf (tail == "0" || tail == "1" || tail == "2") && (tail as Int) < _mlCount
+        _mlResult = tail
+    EndIf
+EndEvent
+
+Event OnMLFailure(String eventName, String strArg, Float numArg, Form sender)
+    If _mlRequest == "" || _mlResult != "" || (numArg as Int != _mlView && eventName != "Magelight_RenderDead")
+        Return
+    EndIf
+    If _mlEntered
+        _mlResult = (_mlCount - 1) as String   ; seen and closed: the caller's do-nothing answer
+    ElseIf eventName != "Magelight_UIModeExited"   ; an exit before entry may be the previous holder's
+        _mlResult = "F"                            ; failed before the player saw it: fall back
+    EndIf
+EndEvent
 
 ; =============================================================================
 ; DASHBOARD STATE & EVENTS
