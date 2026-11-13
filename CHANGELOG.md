@@ -108,6 +108,7 @@
 - Soldiers spawned for a brawl or a skirmish fight each other and their factions' enemies, not bystanders. Several soldier types, and the stand-in used for Political Engine realms, attacked any neutral on sight.
 - Spawned fighters who survive their event put their weapons away, and are removed at once where nobody is looking.
 - A faction ambush only comes from a faction that is hostile to you (standing -40 or lower), and stays small until the feud is deep. The model could pick any enemy of one of your friends, or a faction that does not exist.
+- The people who remember an assassination attempt are those who stood around the victim. They were counted around you, so someone two rooms from the attack remembered having witnessed it, and the victim remembered having "witnessed an attempt on" a person with their own name; the victim now remembers being attacked.
 
 ### Fixes to 3.8 changes found in review
 - NPC gossip without a subject no longer starts with a blank.
