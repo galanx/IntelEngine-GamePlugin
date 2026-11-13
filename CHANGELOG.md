@@ -61,6 +61,7 @@
 - Soft stuck recovery no longer waits on latent calls; stuck detection samples at most every three seconds.
 - Informant gossip keeps the subject's name.
 - Notifications and Papyrus log lines use plain dashes (em dashes showed as "â€”").
+- Political Engine integration is off by default and marked experimental. It needs the mod Political Engine and does nothing without it (the dashboard greys the switches out then). Switch it on in the MCM (Faction Politics), on the dashboard's Settings tab or on SkyrimNet's plugin settings page; a `settings.yaml` that already says `pe_integration: true` keeps it on. Its realms join the factions on the next load.
 - Optional Political Engine API v3 bridge: public campaign news reaches the Political DM as faction-less rumors, with one organization reaction per development and a persisted MCM/dashboard toggle for reaction relation changes. IE's own wars and battles are unaffected.
 - Faction fragments: extra `factions.d/*.yaml` files add or replace factions and relations; a Political Engine fragment adds the nine vanilla realms as factions, with live rulers and the player's realm passed to the Political DM, when Political Engine is active.
 - Action and scheduling prompts ask for exact in-game place names in the game's language.

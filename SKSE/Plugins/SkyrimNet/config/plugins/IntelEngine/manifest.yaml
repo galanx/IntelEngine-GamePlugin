@@ -645,6 +645,13 @@ schema:
       max: 5
       category: "Politics"
 
+    - name: "Political Engine integration (experimental)"
+      path: "politics.pe_integration"
+      type: "bool"
+      description: "Off by default. When on, and the mod Political Engine is installed, its realms, rulers and campaign news feed IntelEngine's politics. Realms are added on the next load of a save."
+      defaultValue: false
+      category: "Politics"
+
     # ── LLM Overrides (leave empty to use base OpenRouter config) ──
     - name: "API Endpoint"
       path: "llm.endpoint"
