@@ -59,6 +59,37 @@ String Function FriendlyKey(String key) Global Native
 ```
 Replaces underscores with spaces and uppercases an ASCII lowercase letter at each word start; preserves other characters and existing case. Empty input stays empty. Example: `war_declaration` → `War Declaration`. Director notice fallback only; supplied event labels remain unchanged.
 
+### SkyrimNet speech state
+
+```papyrus
+Bool Function IsNPCSpeechPending(Actor akActor) Global Native
+Float Function GetSecondsSinceNPCSpoke(Actor akActor) Global Native
+```
+
+`IsNPCSpeechPending` is true while SkyrimNet has a generated line of this NPC queued, being synthesized or audible. The DLL listens to SkyrimNet's outbound mod events (`SkyrimNet_SpeechStarted`, `SkyrimNet_AudioStarted`, `SkyrimNet_AudioEnded`), so it is also true in the seconds before the voice starts, which `IsActorTalking` cannot see. Narration segments are ignored. A queued segment that never becomes audible stops counting after 20 seconds, an audible one whose end notice never comes after 60. `GetSecondsSinceNPCSpoke` returns the real seconds since the NPC's last generated line stopped, or -1 when none was heard since the load. The state is per session and is cleared on load and on a new game. When SkyrimNet sends no such events (outbound mod events switched off, or an older version) both stay at "nothing pending" and -1, so callers use `IsActorTalking` beside them; `Core.LetFinishSpeaking` does. Offline check: `python SKSE/tests/RunSpeechTrackerCheck.py <vcpkg-triplet-dir>`.
+
+### SkyrimNet package contract
+
+```papyrus
+Int Function GetSkyrimNetPackageApiVersion() Global Native
+```
+
+Returns the version of SkyrimNet's package contract (`PublicGetPackageApiVersion`), 0 when the installed SkyrimNet has none. `SkyrimNetApi.ListPackage`, `HoldPackages`, `ReleaseHeldPackages` and `UnregisterPackageEx` may only be called when this is 1 or more. Core lists each running task on SkyrimNet's package page under the owner `IntelEngine` and cancels the task when the row is removed there.
+
+### Settings shared with SkyrimNet's settings page
+
+```papyrus
+Int Function SyncPluginSettings(String configJson) Global Native
+Int Function ApplyPluginSettings(String configJson) Global Native
+```
+
+The gameplay settings of the MCM and the dashboard are also offered on SkyrimNet's plugin settings page. The fields come from `config/plugins/IntelEngine/manifest.yaml`, the values live in `config/plugins/IntelEngine/settings.yaml`, and one table (`SKSE/src/SettingsBridge.cpp`) names every shared setting with its range, default and the setting event that changes it. `configJson` is `Core.BuildConfigJson()`.
+
+- `SyncPluginSettings`: the game wins. Every table value that differs from the file is written to it. Returns the number written. Called after a change in the MCM or on the dashboard, and once for a save from before the settings were shared.
+- `ApplyPluginSettings`: the file wins. For every value that differs, the DLL sends the existing setting event (`IntelEngine_DashboardSetting` with the same key, or `IntelEngine_DashboardToggleStory` for a story type), then reloads the politics settings. A value the file lacks is filled in from the game; one that cannot be read (unknown choice, not a number) leaves the game as it is. Returns the number of settings that change. Called after a save on SkyrimNet's page (`SkyrimNet_OnPluginConfigSaved`) and on every load, so a new game starts with what the player set.
+
+The block of fields in `manifest.yaml` between the `>>> settings shared with the game` markers is generated from the table: `python SKSE/tests/RunSettingsBridgeCheck.py <vcpkg-triplet-dir> --write` rewrites it, and the same script without `--write` fails when the file and the table differ. Offline evidence only: the round trip through the game's script VM is not covered by it.
+
 ---
 
 ## NPC Search Functions
