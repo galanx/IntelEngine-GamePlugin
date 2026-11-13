@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IntelEngine choice</title>
+<!--
+  IntelEngine choice popup (Papyrus IntelEngine_Core.ShowChoice).
+  IN  -- Magelight.Call(view, "ieChoiceShow", '{"token":"r1","title":"..","kind":"..","body":"..","buttons":["a","b"],"timeoutMs":0}')
+  OUT -- window.ieChoice("r1|<index>")  index 0..N-1 (Esc = last), or "r1|t" when the timer ran out.
+  Look: web/choice/preview.html's design (dashboard tokens). Text is set with textContent only.
+-->
+<style>
+  :root {
+    --bg-panel: rgba(15, 15, 20, 0.92);
+    --bg-slot: rgba(30, 30, 40, 0.9);
+    --border-color: rgba(100, 100, 120, 0.3);
+    --gray-200: #e5e7eb; --gray-400: #9ca3af; --gray-500: #6b7280; --gray-600: #4b5563;
+    --blue-400: #60a5fa; --blue-500: 59, 130, 246;
+    --red-300: #fca5a5; --red-700: 185, 28, 28; --red-900: 127, 29, 29;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent !important;
+               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: var(--gray-200); pointer-events: none; }
+  body { display: flex; align-items: center; justify-content: center; }
+
+  .panel { display: none; pointer-events: auto; width: 380px; max-width: 100%; max-height: 100%; overflow: auto; background: var(--bg-panel);
+           border: 1px solid var(--border-color); backdrop-filter: blur(12px); border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+  .panel.visible { display: block; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .head h1 { margin: 0; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; overflow-wrap: anywhere; }
+  .head .tag { font-size: 12px; color: var(--gray-500); }
+  .body { padding: 12px 16px 14px; }
+  .kind { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .prompt { background: var(--bg-slot); border: 1px solid var(--border-color); border-radius: 4px; padding: 8px 12px;
+            font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+  .timer { height: 4px; margin-top: 10px; border-radius: 2px; background: rgba(100,100,120,.25); overflow: hidden; }
+  .timer i { display: block; height: 100%; width: 100%; background: var(--blue-400); transform-origin: left; }
+  .timer-label { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--gray-500); }
+  .btns { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 12px; font: inherit; font-size: 12px;
+         font-weight: 500; border: 1px solid transparent; border-radius: 4px; cursor: pointer; transition: background .15s; }
+  .btn kbd { font: 10px ui-monospace, Consolas, monospace; color: var(--gray-500); border: 1px solid var(--border-color); border-radius: 3px; padding: 0 5px; }
+  .btn.primary { background: rgba(var(--blue-500), .2); color: var(--blue-400); }
+  .btn.primary:hover { background: rgba(var(--blue-500), .3); }
+  .btn.neutral { background: rgba(255,255,255,.05); color: var(--gray-400); border-color: var(--border-color); }
+  .btn.neutral:hover { background: rgba(255,255,255,.1); color: var(--gray-200); }
+  .btn.danger { background: rgba(var(--red-900), .4); color: var(--red-300); border-color: rgba(var(--red-700), .3); }
+  .btn.danger:hover { background: rgba(var(--red-900), .6); }
+  .btn:focus { outline: 2px solid rgba(var(--blue-500), .8); outline-offset: 1px; }
+  .foot { margin-top: 10px; font-size: 10px; color: var(--gray-600); text-align: right; }
+</style>
+</head>
+<body>
+<div id="panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="title">
+  <div class="head"><h1 id="title"></h1><span class="tag">IntelEngine</span></div>
+  <div class="body">
+    <div class="kind" id="kind"></div>
+    <div class="prompt" id="text"></div>
+    <div id="timer" hidden>
+      <div class="timer"><i id="bar"></i></div>
+      <div class="timer-label"><span id="timeoutLabel"></span><span id="secs"></span></div>
+    </div>
+    <div class="btns" id="btns"></div>
+    <div class="foot" id="foot"></div>
+  </div>
+</div>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var panel = $('panel'), btnsEl = $('btns'), bar = $('bar');
+  var token = '', buttons = [], timerHandle = null, tickHandle = null;
+
+  function stopTimer() {
+    if (timerHandle !== null) { clearTimeout(timerHandle); timerHandle = null; }
+    if (tickHandle !== null) { clearInterval(tickHandle); tickHandle = null; }
+  }
+
+  // Reply once, then forget the token. `answer` is a button index or 't' (timer ran out).
+  function send(answer) {
+    if (!token) return;
+    var msg = token + '|' + answer;
+    token = '';
+    stopTimer();
+    panel.classList.remove('visible');
+    var tryCall = function () {
+      if (typeof window.ieChoice !== 'function') return false;
+      try { window.ieChoice(msg); return true; } catch (e) { console.warn('[IntelEngine] choice send failed:', e); return false; }
+    };
+    if (!tryCall()) setTimeout(function () { if (!tryCall()) console.error('[IntelEngine] ieChoice is not bound'); }, 200);
+  }
+
+  function captureEscape() {
+    try { if (window.magelight && typeof window.magelight.send === 'function') window.magelight.send('__escapecapture', '1'); } catch (e) {}
+  }
+
+  // IN: a JSON string from Magelight.Call (or an object from the browser preview).
+  window.ieChoiceShow = function (payload) {
+    if (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch (e) { console.error('[IntelEngine] bad payload', e); return; }
+    }
+    payload = payload || {};
+    stopTimer();
+    token = String(payload.token || '');
+    buttons = Array.isArray(payload.buttons) ? payload.buttons.slice(0, 3) : [];
+    $('title').textContent = String(payload.title || '');
+    $('kind').textContent = String(payload.kind || '');
+    $('text').textContent = String(payload.body || '');
+    $('foot').textContent = '1-' + buttons.length + ' choose · Esc = no answer';
+    btnsEl.textContent = '';
+    buttons.forEach(function (label, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn ' + (i === 0 ? 'primary' : i === buttons.length - 1 ? 'danger' : 'neutral');
+      b.setAttribute('data-index', String(i));
+      var s = document.createElement('span'); s.textContent = String(label);
+      var k = document.createElement('kbd'); k.textContent = String(i + 1);
+      b.appendChild(s); b.appendChild(k);
+      b.addEventListener('click', function () { send(i); });
+      btnsEl.appendChild(b);
+    });
+
+    var ms = parseInt(payload.timeoutMs, 10) || 0;
+    $('timer').hidden = ms <= 0;
+    if (ms > 0) {
+      if (ms < 1000) ms = 1000;
+      $('timeoutLabel').textContent = 'No answer = ' + (buttons[buttons.length - 1] || '');
+      var clone = bar.cloneNode(true);                  // restart the drain
+      bar.parentNode.replaceChild(clone, bar); bar = clone;
+      var t0 = Date.now();
+      var tick = function () {
+        var left = Math.max(0, ms - (Date.now() - t0));
+        bar.style.transform = 'scaleX(' + (left / ms) + ')';
+        $('secs').textContent = Math.ceil(left / 1000) + ' s';
+      };
+      tick();
+      tickHandle = setInterval(tick, 100);
+      timerHandle = setTimeout(function () { timerHandle = null; send('t'); }, ms);
+    }
+
+    panel.classList.add('visible');
+    captureEscape();
+    if (btnsEl.firstChild) btnsEl.firstChild.focus();
+  };
+  captureEscape();
+
+  document.addEventListener('keydown', function (e) {
+    if (!token) return;
+    var k = e.key, n = parseInt(k, 10);
+    if (k === 'Escape') { e.preventDefault(); send(buttons.length - 1); return; }
+    if (n >= 1 && n <= buttons.length && k.length === 1) { e.preventDefault(); send(n - 1); return; }
+    var els = btnsEl.children, idx = Array.prototype.indexOf.call(els, document.activeElement);
+    if (k === 'Enter' || k === ' ') {
+      // Ultralight does not click a focused button on Enter by itself.
+      if (idx >= 0) { e.preventDefault(); els[idx].click(); }
+    } else if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Tab') {
+      e.preventDefault();
+      var step = (k === 'ArrowUp' || (k === 'Tab' && e.shiftKey)) ? -1 : 1;
+      els[idx < 0 ? 0 : (idx + step + els.length) % els.length].focus();
+    }
+  });
+})();
+</script>
+<!-- Magelight UI sounds (same hook as the other pages); does nothing in a browser. -->
+<script>
+(function () {
+  var last = null;
+  function api() { var m = window.magelight; return (m && typeof m.sound === 'function') ? m : null; }
+  document.addEventListener('click', function (ev) {
+    var m = api(), el = ev.target.closest && ev.target.closest('button');
+    if (m && el) m.sound('click');
+  }, true);
+  document.addEventListener('mouseover', function (ev) {
+    var m = api(), el = ev.target.closest && ev.target.closest('button');
+    if (el === last) return; last = el;
+    if (m && el) m.sound('hover:focus');
+  }, true);
+})();
+</script>
+</body>
+</html>
