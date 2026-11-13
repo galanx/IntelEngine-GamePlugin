@@ -101,6 +101,8 @@
 - The task-permission prompt has a 20-second limit; no answer is a silent deny.
 - The dashboard has a larger layout and can be driven with a gamepad or the arrow keys.
 - A Director political event that is refused now says so (it showed "Sent" and did nothing).
+- The middle answer of a prompt reads "Deny" (it showed as "deny").
+- The MCM offered 500 as the default of the linger release distance; the default is 800. Default Wait Hours moves in steps of one hour on the dashboard, as it does in the MCM.
 
 ### Wars that end stay ended
 - A war that ends leaves the two factions at an uneasy truce instead of still being at each other's throats, so the same pair no longer declares war again after every cooldown, a little worse off each time.
