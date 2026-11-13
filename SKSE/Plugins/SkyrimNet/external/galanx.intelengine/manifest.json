@@ -1,9 +1,9 @@
 {
   "author": "galanx",
-  "description": "Adds intelligent NPC task execution, scheduling, and story automation. Requires SkyrimNet 0.25.0 or newer and the IntelEngine native plugin.",
+  "description": "Adds intelligent NPC task execution, scheduling, and story automation. Requires SkyrimNet 0.27.0 (Beta 27) or newer and the IntelEngine native plugin.",
   "icon": "sparkles",
   "id": "galanx.intelengine",
-  "min_skyrimnet_version": "0.25.0",
+  "min_skyrimnet_version": "0.27.0",
   "mods": [
     {
       "file": "IntelEngine.esp",

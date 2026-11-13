@@ -49,6 +49,7 @@
 - Political Engine: realm rulers (including puppet realms) are shown as faction leaders; a realm without a ruler clears its leader; a ruler change becomes news; IE resyncs when Political Engine (re)loads; realm allies and rivals follow live sides; factions can set `pe_side` (the Thalmor map to the Aldmeri Dominion).
 - The dashboard colours faction names by Political Engine side and labels your own puppet and vassal realms.
 - The Politics Enabled toggle comes first in the Faction Politics MCM page.
+- Director Politics: a surrender names the Surrendering faction and the Victor, and is refused unless the two are at war; Generate never drafts war declarations, surrenders or peace offers.
 
 ### Other
 - Battles no longer stop the story and quest timers when they reset.
