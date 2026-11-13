@@ -134,7 +134,7 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 Int Property DEPARTURE_CHECK_CYCLES = 5 AutoReadOnly
 {Update cycles before checking if NPC actually departed (~15s at 3s interval)}
 
-Float Property LINGER_RELEASE_DISTANCE = 500.0 Auto Hidden
+Float Property LINGER_RELEASE_DISTANCE = 800.0 Auto Hidden
 {Distance (game units) the player must walk away before a lingering NPC loses interest.
 Configurable via MCM. Shared between Travel, NPCTasks, and StoryEngine linger systems.}
 
