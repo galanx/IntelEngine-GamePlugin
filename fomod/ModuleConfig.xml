@@ -28,11 +28,12 @@ Features:
 - Player-directed NPC tasks (GoToLocation, FetchPerson, DeliverMessage, SearchForActor, ScheduleMeeting, EscortTarget)
 - LLM Dungeon Master story events (seek_player, informant, road_encounter, ambush, stalker, message, quest)
 - Autonomous NPC social interactions (npc_interaction, npc_gossip)
+- Faction politics, wars and battles
 - All features configurable via MCM
 
 Requirements:
 - SKSE
-- SkyrimNet Beta 25 minimum (tested with official Beta 28)
+- SkyrimNet Beta 27 minimum (tested with official Beta 28)
 - PapyrusExtender (po3)
 - PapyrusUtil
 - SkyUI (MCM)

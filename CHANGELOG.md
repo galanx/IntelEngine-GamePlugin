@@ -15,6 +15,7 @@
 - Generated interaction narration describes the scene instead of copying a fact; generated gossip says how and where it was told.
 - A social scene for two NPCs already standing together near you plays right there (it used to be applied off-screen).
 - With Magelight UI installed, the Allow/Deny, door-knock and quest-offer prompts open as a Magelight page in the dashboard's style (keys 1-3, Esc = the do-nothing answer, timer bar on the knock). A prompt waits while the dashboard or another Magelight window is open. Without Magelight, the Papyrus MessageBox is used as before; it is now only needed without Magelight.
+- Director quests need a Plea for help (and a Victim for rescue, an Item description for find_item) before Dispatch; Generate no longer picks the current location or a player home as the quest location.
 
 ### Story travel and arrival
 - A story NPC counts as arrived after 15 seconds within talking range.
@@ -48,6 +49,7 @@
 - Political Engine: realm rulers (including puppet realms) are shown as faction leaders; a realm without a ruler clears its leader; a ruler change becomes news; IE resyncs when Political Engine (re)loads; realm allies and rivals follow live sides; factions can set `pe_side` (the Thalmor map to the Aldmeri Dominion).
 - The dashboard colours faction names by Political Engine side and labels your own puppet and vassal realms.
 - The Politics Enabled toggle comes first in the Faction Politics MCM page.
+- Director Politics: a surrender names the Surrendering faction and the Victor, and is refused unless the two are at war; Generate never drafts war declarations, surrenders or peace offers.
 
 ### Other
 - Battles no longer stop the story and quest timers when they reset.
