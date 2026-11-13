@@ -40,6 +40,7 @@
 - When the Political DM ignores the "declare war" rule for the most hostile allowed pair, IE declares the war itself (skipping factions whose leaders are all dead); war declarations for pairs that aren't allowed are refused.
 - The Empire and the Aldmeri Dominion are neutral to each other: the Legion and the Thalmor are no longer allies, and their starting relation is 15 (was 50).
 - A battle result for two factions that aren't at war is recorded as a border skirmish, and no soldiers spawn.
+- Fighters left standing after a brawl or skirmish are removed shortly after it ends (they used to stay in the world forever).
 - Loading a save resyncs the "at war" flags with the save's actual wars.
 - Major political news (wars, battles, treaties, Political Engine developments) reaches every NPC; smaller events reach the factions involved and, for political factions, people in their hold. Repeated events show once with "(reported N times)".
 - The Political DM no longer repeats one war's battle, counts a scheduled battle as that war's battle for one game day, and is told which wars can't have a battle yet.
