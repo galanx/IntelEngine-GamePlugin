@@ -10,7 +10,7 @@ factions:
     skyrim_faction_id: "CWImperialFaction"
     leader_names: ["General Tullius", "Legate Rikke"]
     rivals: ["StormcloakFaction"]
-    allies: ["ThalmorFaction"]
+    allies: []
     base_army_strength: 30
     war_threshold: -50
     soldier_template: "LCharSoldierImperial"
@@ -36,7 +36,7 @@ factions:
     skyrim_faction_id: "ThalmorFaction"
     leader_names: ["Elenwen", "Ondolemar"]
     rivals: ["StormcloakFaction"]
-    allies: ["ImperialFaction"]
+    allies: []
     base_army_strength: 20
     war_threshold: -50
     soldier_template: "LCharThalmorMelee1H"
@@ -123,7 +123,7 @@ factions:
 default_relations:
   - faction_a: "ImperialFaction"
     faction_b: "ThalmorFaction"
-    relation: 50
+    relation: 15
   - faction_a: "ImperialFaction"
     faction_b: "StormcloakFaction"
     relation: -30
@@ -133,3 +133,11 @@ default_relations:
   - faction_a: "BlackBriarFamily"
     faction_b: "ThievesGuildFaction"
     relation: 60
+
+# Which factions may go to war with each other. One side listing the other is enough.
+# Entries: "*" (any faction), a faction id or name, or a type (military, guild, political).
+# A war still starts only when the pair's relation is Critical. Political Engine realms never go to war here.
+# Examples:  CompanionsFaction: ["*"]    ThalmorFaction: ["StormcloakFaction", "guild"]
+# If this section is missing, any two factions of type "military" may go to war (armies fight armies).
+war_allowed:
+  military: ["military"]

@@ -37,6 +37,13 @@ Float Property MAX_WAIT_HOURS = 168.0 AutoReadOnly
 Float Property DEFAULT_WAIT_HOURS = 48.0 AutoReadOnly
 Float Property SELF_MOTIVATED_LINGER_HOURS = 3.0 AutoReadOnly
 
+Float Property LINGER_AFTER_TALK_HOURS = 0.5 AutoReadOnly
+{A lingering NPC stays at least this long (game hours) after their last spoken line, so a visit is never
+ended in the middle of a conversation. Half a game hour is a minute and a half at the default timescale.}
+
+Float Property STAY_AT_DEST_LINGER_HOURS = 2.0 AutoReadOnly
+{How long (game hours) an NPC who was sent to wait in a room keeps the player company there.}
+
 ; LINGER_RELEASE_DISTANCE defined on Core (single source of truth).
 
 Float Property MEETING_PLAYER_PROXIMITY = 2000.0 AutoReadOnly
@@ -69,7 +76,7 @@ Function EnsureMonitoringAlive()
     Int i = 0
     While i < Core.MAX_SLOTS
         If Core.SlotStates[i] != 0 && (Core.SlotTaskTypes[i] == "travel" || Core.SlotTaskTypes[i] == "assassination")
-            RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+            Core.RequestTick(Core.UPDATE_INTERVAL)
             Return
         EndIf
         i += 1
@@ -91,7 +98,7 @@ Function RestartMonitoring()
         i += 1
     EndWhile
     If hasActive
-        RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+        Core.RequestTick(Core.UPDATE_INTERVAL)
         Core.DebugMsg("Travel monitoring restarted")
     EndIf
 EndFunction
@@ -109,9 +116,14 @@ Function RecoverTravelPackage(Int slot)
     EndIf
 
     Int taskState = Core.SlotStates[slot]
+    If taskState == 2
+        ; Arrived: waiting or lingering. The package overrides survive a save, the linked ref they work
+        ; around does not. Without it the sandbox has no place (the NPC drifted off toward home while the
+        ; slot still said "waiting at the destination") and a walk toward the player had nothing to walk to.
+        RelinkAfterLoad(npc)
+        Return
+    EndIf
     If taskState != 1
-        ; Only state 1 (traveling) needs a package. State 2 (arrived) uses sandbox
-        ; which is handled by the arrival logic on the next update tick.
         Return
     EndIf
 
@@ -130,8 +142,13 @@ Function RecoverTravelPackage(Int slot)
     ActorUtil.AddPackageOverride(npc, travelPkg, Core.PRIORITY_TRAVEL, 1)
     npc.EvaluatePackage()
 
-    ; Re-initialize stuck tracking so detection starts fresh
+    ; Re-initialize stuck tracking so detection starts fresh. The trip's own start time is kept: it was
+    ; reset here, so every load gave the trip another full MAX_TASK_HOURS before the time limit applied.
+    Float startedAt = StorageUtil.GetFloatValue(npc, "Intel_TaskStartTime", 0.0)
     Core.InitializeStuckTrackingForSlot(slot, npc)
+    If startedAt > 0.0
+        StorageUtil.SetFloatValue(npc, "Intel_TaskStartTime", startedAt)
+    EndIf
 
     ; Re-init off-screen tracking from persisted data (only on legacy path;
     ; co-save path already initialized this in SyncArraysFromSlotTracker)
@@ -143,6 +160,26 @@ Function RecoverTravelPackage(Int slot)
     EndIf
 
     Core.DebugMsg("Recovered travel package for " + npc.GetDisplayName())
+EndFunction
+
+Function RelinkAfterLoad(Actor npc)
+    {Give an arrived NPC the linked ref back that their package works around: the player while they approach
+    or keep the player company, otherwise the place they are waiting at.}
+    ObjectReference anchor = None
+    Bool lingering = StorageUtil.GetIntValue(npc, "Intel_MeetingLingering") == 1 || StorageUtil.GetIntValue(npc, "Intel_TravelLingering") == 1
+    Bool staysPut = StorageUtil.GetIntValue(npc, "Intel_StayAtDest") == 1 && StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") != 1
+    If (lingering && !staysPut) || StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
+        anchor = Game.GetPlayer()
+    Else
+        anchor = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+        ; Same rule as on arrival: a sandbox around a marker that is not loaded crashes the engine.
+        If anchor == None || !npc.Is3DLoaded() || !anchor.Is3DLoaded()
+            anchor = npc
+        EndIf
+    EndIf
+    PO3_SKSEFunctions.SetLinkedRef(npc, anchor, Core.IntelEngine_TravelTarget)
+    npc.EvaluatePackage()
+    Core.DebugMsg("Re-linked " + npc.GetDisplayName() + " after load (waiting at the destination)")
 EndFunction
 
 ; =============================================================================
@@ -174,6 +211,12 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
         Return false
     EndIf
 
+    ; Carriage drivers and children are never sent travelling (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akNPC)
+        Core.DebugMsg("GoToLocation: " + akNPC.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        Return false
+    EndIf
+
     If destination == ""
         Core.DebugMsg("GoToLocation: Empty destination")
         Return false
@@ -189,14 +232,34 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     If !isScheduled
         String currentTaskType = Core.GetNPCTaskType(akNPC)
         If currentTaskType == "fetch_npc" || currentTaskType == "escort_target" || currentTaskType == "search_for_actor"
-            Core.DebugMsg("GoToLocation: Blocked — " + akNPC.GetDisplayName() + " is busy with " + currentTaskType)
+            Core.DebugMsg("GoToLocation: Blocked - " + akNPC.GetDisplayName() + " is busy with " + currentTaskType)
             Return false
         EndIf
     EndIf
 
+    ; Everything that can make the trip impossible is checked before the player is asked and before the
+    ; task the NPC already has is called off. It used to come after: an unknown place name, or no free
+    ; slot, cancelled the running task, announced "departed for ..." and then did nothing.
+    ; Resolve destination - try semantic first, then named
+    ObjectReference destMarker = ResolveDestination(akNPC, destination)
+    If destMarker == None
+        ; Couldn't resolve - describe the situation factually
+        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " was asked to travel to '" + destination + "' but a route could not be determined.")
+        Return false
+    EndIf
+    ; Read at once: the next resolution (for any NPC) replaces it, and the prompt below can take a while.
+    Int homeCellId = IntelEngine.GetLastResolvedHomeCellId()
+
+    ; A slot has to be there: a free one, or the one this NPC's current task gives up.
+    If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akNPC) < 0
+        Core.DebugMsg("GoToLocation: No free slots")
+        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
+        Return false
+    EndIf
+
     ; MCM task confirmation prompt (skip for scheduled meetings - player already agreed)
     If !isScheduled
-        Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, akNPC.GetDisplayName() + " wants to travel to " + destination + ".", "GoToLocation")
+        Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, akNPC.GetDisplayName() + " wants to travel to " + destination + ".", "GoToLocation", taskOrigin)
         If confirmResult == 1
             Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + akNPC.GetDisplayName() + " they cannot go to " + destination + ".")
             Return false
@@ -219,26 +282,12 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
         Return false
     EndIf
 
-    ; Resolve destination - try semantic first, then named
-    ObjectReference destMarker = ResolveDestination(akNPC, destination)
-    If destMarker == None
-        ; Couldn't resolve - describe the situation factually
-        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " was asked to travel to '" + destination + "' but a route could not be determined.")
-        Return false
-    EndIf
-
     ; Anti-trespass: unlock home door if destination is a home
-    Int homeCellId = IntelEngine.GetLastResolvedHomeCellId()
     If homeCellId != 0
         IntelEngine.SetHomeDoorAccessForCell(homeCellId, true)
         StorageUtil.SetIntValue(akNPC, "Intel_UnlockedHomeCellId", homeCellId)
         Core.DebugMsg("Unlocked home door for " + destination)
     EndIf
-
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " headed off to " + destination)
-
-    ; Stop following — traveling implies leaving the player
-    Core.DismissFollowerForTask(akNPC)
 
     ; Calculate wait deadline from MCM setting
     Float waitHours = Core.GetDefaultWaitHours()
@@ -255,6 +304,36 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
 
     ; Store destination marker
     StorageUtil.SetFormValue(akNPC, "Intel_DestMarker", destMarker)
+
+    ; Asked in conversation: let them finish the sentence before they turn and go. A scheduled trip starts
+    ; on the clock, not on a spoken line, so it sets off at once.
+    If !isScheduled
+        ; The monitoring loop already sees this slot: give it fresh trackers, or it reads the previous
+        ; occupant's and counts the pause as standing still.
+        Core.InitializeStuckTrackingForSlot(slot, akNPC)
+        Core.InitOffScreenTracking(slot, akNPC, destMarker)
+        Core.LetFinishSpeaking(akNPC)
+        ; Back from the wait. The trip may have been cancelled or replaced, or the monitoring loop may have
+        ; found them at the destination already (state 2): putting the travel package on then walked an
+        ; "arrived" NPC back out to the door.
+        If Core.FindSlotByAgent(akNPC) != slot || Core.SlotTaskTypes[slot] != "travel" || Core.SlotStates[slot] != 1 \
+            || StorageUtil.GetFormValue(akNPC, "Intel_DestMarker") != destMarker
+            Core.DebugMsg(akNPC.GetDisplayName() + ": trip replaced, cancelled or already over before setting off")
+            Return true
+        EndIf
+    EndIf
+
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " headed off to " + destination)
+
+    ; Stop following — traveling implies leaving the player. Only now, after the wait: done before it, a
+    ; follower stood there for the length of the sentence with every package taken away.
+    Core.DismissFollowerForTask(akNPC)
+
+    ; Already inside the place they are asked to go to: arrived, without a false start toward its outside door.
+    If ArrivedByBeingInside(slot, akNPC)
+        Core.RequestTick(Core.UPDATE_INTERVAL)
+        Return true
+    EndIf
 
     ; Set up linked ref for travel package
     PO3_SKSEFunctions.SetLinkedRef(akNPC, destMarker, Core.IntelEngine_TravelTarget)
@@ -286,7 +365,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     IntelEngine.ArmProximityArrival(slot, akNPC as ObjectReference, destMarker, Self, "IntelEngine_Travel", "OnProximityArrived")
 
     ; Start monitoring
-    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+    Core.RequestTick(Core.UPDATE_INTERVAL)
 
     Core.DebugMsg(akNPC.GetDisplayName() + " traveling to " + destination)
     Return true
@@ -327,7 +406,7 @@ Event OnUpdate()
     EndWhile
 
     If hasActiveTravelers
-        RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+        Core.RequestTick(Core.UPDATE_INTERVAL)
     EndIf
 
     ; Now process slots — if this errors out, the next update is already scheduled
@@ -354,6 +433,26 @@ Function CheckTravelSlot(Int slot)
         Return
     EndIf
 
+    If npc.IsDisabled()
+        ; Switched off by a quest or another mod: no package runs, they would "travel" until the time limit
+        ; and then be moved to the destination while still disabled.
+        Core.DebugMsg("Slot " + slot + ": " + npc.GetDisplayName() + " is disabled -> trip ended")
+        If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
+            String offDest = StorageUtil.GetStringValue(npc, "Intel_MeetingDest")
+            If offDest == ""
+                offDest = Core.SlotTargetNames[slot]
+            EndIf
+            Core.NotifyPlayer(npc.GetDisplayName() + " could not come to the meeting at " + offDest + ". It is off.")
+            Core.ClearSlot(slot)
+            If Core.Schedule
+                Core.Schedule.ClearScheduleSlotByAgent(npc)
+            EndIf
+        Else
+            Core.ClearSlot(slot)
+        EndIf
+        Return
+    EndIf
+
     Int taskState = Core.SlotStates[slot]
 
     ; Game-time timeout — if traveling too long, force-arrive.
@@ -372,30 +471,62 @@ Function CheckTravelSlot(Int slot)
                         If hoursLate > 6.0
                             String npcName2 = npc.GetDisplayName()
                             String meetDest = StorageUtil.GetStringValue(npc, "Intel_MeetingDest")
-                            Core.DebugMsg(npcName2 + " is " + hoursLate + "h late for meeting — cancelling")
+                            Core.DebugMsg(npcName2 + " is " + hoursLate + "h late for meeting - cancelling")
                             Core.StoreMeetingOutcome(npc, "npc_late", meetDest)
                             Core.NotifyPlayer(npcName2 + " never made it to the meeting at " + meetDest)
                             Core.ClearSlotRestoreFollower(slot, npc)
                             If Core.Schedule
                                 Core.Schedule.ClearScheduleSlotByAgent(npc)
                             EndIf
+                            ; Somewhere on the road: one with no routine of their own is sent home.
+                            Core.ReleaseLinger(npc)
                             Return
                         EndIf
                     EndIf
                 EndIf
-                Core.DebugMsg("Travel timeout (" + elapsedHours + "h) for " + npc.GetDisplayName() + " — force-arriving")
-                Core.NotifyPlayer(npc.GetDisplayName() + " took too long — teleporting to destination")
-                ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
-                If dest != None
-                    npc.MoveTo(dest)
+                If !Core.PlayerCanSee(npc)
+                    Core.DebugMsg("Travel timeout (" + elapsedHours + "h) for " + npc.GetDisplayName() + " - force-arriving")
+                    ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+                    If dest != None
+                        npc.MoveTo(dest)
+                    EndIf
+                    OnArrival(slot, npc)
+                    Return
                 EndIf
-                OnArrival(slot, npc)
-                Return
+                ; In plain view after all this time. Vanishing in front of the player is worse than not arriving.
+                ; If they are still covering ground (a long road, walked together with the player) the trip
+                ; simply goes on and is looked at again in an hour; the limit is for those who got nowhere.
+                Float capX = StorageUtil.GetFloatValue(npc, "Intel_CapCheckX", 0.0)
+                Float capY = StorageUtil.GetFloatValue(npc, "Intel_CapCheckY", 0.0)
+                Float capDX = npc.GetPositionX() - capX
+                Float capDY = npc.GetPositionY() - capY
+                If (capX == 0.0 && capY == 0.0) || capDX * capDX + capDY * capDY > 1000000.0
+                    StorageUtil.SetFloatValue(npc, "Intel_CapCheckX", npc.GetPositionX())
+                    StorageUtil.SetFloatValue(npc, "Intel_CapCheckY", npc.GetPositionY())
+                    StorageUtil.SetFloatValue(npc, "Intel_TaskStartTime", startTime + 1.0 / 24.0)
+                    Core.DebugMsg("Travel time limit for " + npc.GetDisplayName() + " in view and still moving - another hour")
+                Else
+                    ; No further in an hour: the trip ends in character and the NPC goes back to their own day.
+                    Core.DebugMsg("Travel timeout (" + elapsedHours + "h) for " + npc.GetDisplayName() + " in view - giving up instead of teleporting")
+                    If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
+                        HandleMeetingDepartureFailure(slot, npc)
+                    Else
+                        Core.SendTaskNarration(npc, npc.GetDisplayName() + " " + IntelEngine.BuildStuckNarration("travel"), Game.GetPlayer())
+                        StorageUtil.SetStringValue(npc, "Intel_Result", "gave_up")
+                        Core.ClearSlotRestoreFollower(slot, npc)
+                        Core.ReleaseLinger(npc)
+                    EndIf
+                    Return
+                EndIf
             EndIf
         EndIf
     EndIf
 
     If taskState == 1
+        ; Already inside the place they are headed for: nothing to walk, and nothing to "fail to depart" from.
+        If ArrivedByBeingInside(slot, npc)
+            Return
+        EndIf
         ; For scheduled meetings, check departure first (did NPC actually start moving?)
         If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1
             If CheckMeetingDeparture(slot, npc)
@@ -408,6 +539,31 @@ Function CheckTravelSlot(Int slot)
         ; At destination - check for player arrival or timeout
         CheckWaiting(slot, npc)
     EndIf
+EndFunction
+
+Bool Function ArrivedByBeingInside(Int slot, Actor npc)
+    {A named interior ("The Bannered Mare") resolves to its outside door. An NPC who is inside that very place
+    when the trip starts (they live or work there, or the meeting was arranged on the spot) has arrived.
+    Without this they were sent to the outside door, usually never left, and a scheduled meeting was then
+    called off as a failed departure, so the NPC "never showed up" at the place both were standing in.}
+    ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+    If dest == None
+        Return false
+    EndIf
+    Cell npcCell = npc.GetParentCell()
+    If npcCell == None || !npcCell.IsInterior()
+        Return false
+    EndIf
+    ObjectReference inside = IntelEngine.GetDoorDestinationRef(dest)
+    If inside == None || inside.GetParentCell() != npcCell
+        Return false
+    EndIf
+    Core.DebugMsg(npc.GetDisplayName() + " is already inside the destination -> arrived")
+    ; Same bookkeeping as walking through the door: the anchor for waiting is the door on this side.
+    PO3_SKSEFunctions.SetLinkedRef(npc, inside, Core.IntelEngine_TravelTarget)
+    StorageUtil.SetFormValue(npc, "Intel_DestMarker", inside)
+    OnArrival(slot, npc)
+    Return true
 EndFunction
 
 Function CheckForArrival(Int slot, Actor npc)
@@ -524,6 +680,24 @@ Function TeleportToExterior(Actor npc)
     Core.DebugMsg(npc.GetDisplayName() + " multi-hop: no exterior door found in cell")
 EndFunction
 
+Bool Function LeaveInteriorUnseen(Actor npc)
+    {Put the NPC outside this building's door, as if they had walked out. The trip's destination and its
+    linked ref are left alone (TeleportToExterior makes the door the destination).}
+    ObjectReference[] doors = IntelEngine.GetCellDoors(npc)
+    Int d = 0
+    While d < doors.Length
+        If IntelEngine.IsDoorExterior(doors[d])
+            ObjectReference outside = IntelEngine.GetDoorDestinationRef(doors[d])
+            If outside != None
+                npc.MoveTo(outside)
+                Return true
+            EndIf
+        EndIf
+        d += 1
+    EndWhile
+    Return false
+EndFunction
+
 ; Callback invoked by the C++ ProximityMonitor the instant the NPC enters
 ; arrival range. Routes through the normal CheckForArrival path so door
 ; teleporting, floor-Z verification, and state transitions all behave
@@ -557,6 +731,13 @@ Function OnArrival(Int slot, Actor npc)
         Core.DebugMsg(npc.GetDisplayName() + " OnArrival skipped (state=" + Core.SlotStates[slot] + ")")
         Return
     EndIf
+    ; Several callers get here after a wait or a teleport. If the slot changed hands meanwhile, state 1 is
+    ; the new task's: running the arrival then gave this NPC a sandbox nothing would ever take away again
+    ; and marked the other NPC's trip as arrived.
+    If !Core.SlotHolds(slot, npc)
+        Core.DebugMsg(npc.GetDisplayName() + " OnArrival skipped (slot " + slot + " is no longer theirs)")
+        Return
+    EndIf
 
     ; Proximity watch is no longer needed once we are past state 1.
     IntelEngine.DisarmProximityArrival(slot)
@@ -584,7 +765,7 @@ Function OnArrival(Int slot, Actor npc)
 
     ; Remove travel package — don't evaluate yet (sandbox applied immediately after,
     ; avoids a brief gap where NPC reverts to default AI)
-    Core.RemoveAllPackages(npc, false)
+    Core.RemoveIntelPackages(npc, false)
 
     ; Keep travel linked ref — points to the destination marker (or doorDest
     ; after door teleportation, updated in CheckForArrival/TeleportToExterior).
@@ -661,10 +842,7 @@ Function OnArrival(Int slot, Actor npc)
                 IntelEngine.SetHomeDoorAccessForCell(playerCell.GetFormID(), true)
                 StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", playerCell.GetFormID())
                 ; Redirect sandbox/travel anchor to player — NPC will pathfind through the door
-                PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
-                Core.RemoveAllPackages(npc, false)
-                ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-                npc.EvaluatePackage()
+                ComeThroughDoor(npc)
                 Core.DebugMsg(npc.GetDisplayName() + " redirected through door into " + destination + " (player is inside)")
             EndIf
         EndIf
@@ -694,6 +872,48 @@ Function OnArrival(Int slot, Actor npc)
     EndIf
 EndFunction
 
+Function ComeThroughDoor(Actor npc)
+    {The NPC stands at the outside door of the building the player is in: walk to the player, through the
+    door. Applied once. It used to be applied again on every monitoring pass (packages cleared, walk package
+    added, re-evaluated every three seconds), so the walk was restarted before it got anywhere.}
+    If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
+        Return
+    EndIf
+    PO3_SKSEFunctions.SetLinkedRef(npc, Game.GetPlayer() as ObjectReference, Core.IntelEngine_TravelTarget)
+    Core.RemoveIntelPackages(npc, false)
+    ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    npc.EvaluatePackage()
+    ; Same bookkeeping as the approach inside one cell, so the same code ends it.
+    StorageUtil.SetIntValue(npc, "Intel_MeetingApproaching", 1)
+    StorageUtil.SetFloatValue(npc, "Intel_ApproachStartX", npc.GetPositionX())
+    StorageUtil.SetFloatValue(npc, "Intel_ApproachStartY", npc.GetPositionY())
+    StorageUtil.SetIntValue(npc, "Intel_ApproachTick", 0)
+EndFunction
+
+Bool Function LingerTimeIsUp(Actor npc, Float currentTime)
+    {The linger's own clock. It ends the visit after a wait or sleep, and when the player stays around
+    without another word. It never ends it in the middle of a conversation: the NPC used to walk off one
+    game hour after the meeting began (three minutes at the default timescale), whatever was being said.}
+    Float lingerDeadline = StorageUtil.GetFloatValue(npc, "Intel_MeetingLingerDeadline", 999999.0)
+    ; The longest a visit lasts, whatever is being said (set on the first look, so every kind of linger has it).
+    Float lingerCap = StorageUtil.GetFloatValue(npc, "Intel_MeetingLingerCap", 0.0)
+    If lingerCap <= 0.0
+        lingerCap = currentTime + Core.LINGER_VISIT_MAX_HOURS / 24.0
+        StorageUtil.SetFloatValue(npc, "Intel_MeetingLingerCap", lingerCap)
+    ElseIf currentTime > lingerCap
+        Return true
+    EndIf
+    ; Only a conversation the player is part of keeps them (Core.IsTalkingWithPlayer says why).
+    If Core.IsTalkingWithPlayer(npc)
+        Float stayUntil = currentTime + LINGER_AFTER_TALK_HOURS / 24.0
+        If lingerDeadline < stayUntil
+            StorageUtil.SetFloatValue(npc, "Intel_MeetingLingerDeadline", stayUntil)
+        EndIf
+        Return false
+    EndIf
+    Return currentTime > lingerDeadline
+EndFunction
+
 Function CheckWaiting(Int slot, Actor npc)
     Actor player = Game.GetPlayer()
     Float currentTime = Utility.GetCurrentGameTime()
@@ -702,13 +922,15 @@ Function CheckWaiting(Int slot, Actor npc)
     If StorageUtil.GetIntValue(npc, "Intel_MeetingLingering") == 1
         If ProcessLingerProximity(slot, npc)
             CompleteMeeting(slot, npc)
+        ElseIf LingerTimeIsUp(npc, currentTime)
+            CompleteMeeting(slot, npc, false)
         EndIf
         Return
     EndIf
 
     ; Phase: Travel linger (GoToLocation — NPC arrived, player nearby, sandboxing near player)
     If StorageUtil.GetIntValue(npc, "Intel_TravelLingering") == 1
-        If ProcessLingerProximity(slot, npc)
+        If ProcessLingerProximity(slot, npc) || LingerTimeIsUp(npc, currentTime)
             CompleteTravelLinger(slot, npc)
         EndIf
         Return
@@ -743,12 +965,13 @@ Function CheckWaiting(Int slot, Actor npc)
         ; Log once per NPC so we know if waitForPlayer=0 is the reason approach/narration doesn't fire
         If StorageUtil.GetIntValue(npc, "Intel_SelfMotivatedLogged") != 1
             StorageUtil.SetIntValue(npc, "Intel_SelfMotivatedLogged", 1)
-            Core.DebugMsg(npc.GetDisplayName() + " at destination (self-motivated, waitForPlayer=0) — no approach/narration")
+            Core.DebugMsg(npc.GetDisplayName() + " at destination (self-motivated, waitForPlayer=0) - no approach/narration")
         EndIf
     EndIf
     If isWaitingForPlayer
         ObjectReference destMarker = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
         Bool playerNearDest = false
+        Bool comingThroughDoor = false
 
         If destMarker != None
             If player.GetParentCell() == destMarker.GetParentCell()
@@ -766,17 +989,19 @@ Function CheckWaiting(Int slot, Actor npc)
                 ; NPC is outside at the exterior door, player is inside.
                 ; Unlock door and redirect NPC to walk through naturally.
                 Cell pCell = player.GetParentCell()
-                If pCell != None && pCell.IsInterior() && npc.GetParentCell() != pCell
+                If pCell != None && pCell.IsInterior()
                     ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destMarker)
                     If doorDest != None && doorDest.GetParentCell() == pCell
-                        IntelEngine.SetHomeDoorAccessForCell(pCell.GetFormID(), true)
-                        StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", pCell.GetFormID())
-                        ; Redirect toward player — NPC will pathfind through unlocked door
-                        PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
-                        Core.RemoveAllPackages(npc, false)
-                        ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-                        npc.EvaluatePackage()
-                        Core.DebugMsg(npc.GetDisplayName() + " redirected through door into " + Core.SlotTargetNames[slot] + " (player entered building)")
+                        If npc.GetParentCell() != pCell && StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
+                            IntelEngine.SetHomeDoorAccessForCell(pCell.GetFormID(), true)
+                            StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", pCell.GetFormID())
+                            ; Redirect toward player — NPC will pathfind through unlocked door
+                            ComeThroughDoor(npc)
+                            Core.DebugMsg(npc.GetDisplayName() + " redirected through door into " + Core.SlotTargetNames[slot] + " (player entered building)")
+                        EndIf
+                        ; Still outside and on the way in, or already through the door and walking up to the
+                        ; player: either way the walk goes on (the branch below would call it off).
+                        comingThroughDoor = true
                         ; Don't set playerNearDest — NPC is still outside walking through door.
                         ; CheckWaiting will detect proximity once NPC enters the cell.
                     EndIf
@@ -801,15 +1026,17 @@ Function CheckWaiting(Int slot, Actor npc)
                 EndIf
             EndIf
             Return  ; Don't timeout while player is nearby
-        Else
+        ElseIf !comingThroughDoor
             ; Player left the area — stop approaching and return to destination sandbox
             If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
                 StopApproachingPlayer(npc)
                 ; Restore sandbox at destination (not player)
                 ObjectReference destMarker2 = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
-                If destMarker2 != None
-                    PO3_SKSEFunctions.SetLinkedRef(npc, destMarker2, Core.IntelEngine_TravelTarget)
+                ; A sandbox around a marker that is not loaded crashes the engine (see OnArrival).
+                If destMarker2 == None || !npc.Is3DLoaded() || !destMarker2.Is3DLoaded()
+                    destMarker2 = npc
                 EndIf
+                PO3_SKSEFunctions.SetLinkedRef(npc, destMarker2, Core.IntelEngine_TravelTarget)
                 ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
                 npc.EvaluatePackage()
             EndIf
@@ -973,6 +1200,8 @@ Function OnWaitTimeout(Int slot, Actor npc)
     ; Clear slot but don't restore follower (they gave up)
     ; ClearSlot handles schedule cleanup (preserving future schedules)
     Core.ClearSlot(slot, false)
+    ; See CompleteMeeting: one with no routine of their own is walked home instead of staying for good.
+    Core.ReleaseLinger(npc)
 EndFunction
 
 ; =============================================================================
@@ -1016,7 +1245,9 @@ Function HandleSoftStuckRecovery(Int slot, Actor npc, ObjectReference dest)
     Int attempts = IntelEngine.GetStuckRecoveryAttempts(slot)
     Core.DebugMsg("Soft recovery " + attempts + " for " + npc.GetDisplayName())
 
-    If attempts == 1
+    ; Not while they are standing there talking: that is a conversation, not a stumble, and the line about
+    ; their feet went into the middle of it.
+    If attempts == 1 && !IntelEngine.IsActorTalking(npc)
         Core.SendTaskNarration(npc, npc.GetDisplayName() + " felt their feet catch on something and couldn't move for a moment, stumbling on the path.")
     EndIf
 
@@ -1030,6 +1261,34 @@ Function HandleLeapfrogRecovery(Int slot, Actor npc, ObjectReference dest)
 
     ; Layer B: Try location marker navigation (on-screen only).
     If Core.TryWaypointNavigation(slot, npc, dest)
+        Return
+    EndIf
+
+    ; Layer C moves the NPC by a teleport. Not while the player is looking: the hop waits until they look
+    ; away (this recovery step is not used up), and the travel time limit stays the last resort.
+    If Core.PlayerCanSee(npc)
+        Core.SoftStuckRecovery(npc, slot, dest)
+        Return
+    EndIf
+
+    ; Indoors a leap of up to 2000 units in a straight line, two metres up, ends inside a wall or outside
+    ; the building's shell. Out of sight, the NPC is put at the destination if it is in this cell, else
+    ; outside the building's door, from where the road is open.
+    If npc.IsInInterior()
+        If dest.GetParentCell() == npc.GetParentCell()
+            Core.DebugMsg(npc.GetDisplayName() + " stuck indoors, out of sight - placed at the destination")
+            npc.MoveTo(dest)
+        ElseIf LeaveInteriorUnseen(npc)
+            Core.DebugMsg(npc.GetDisplayName() + " stuck indoors, out of sight - placed outside the door")
+        EndIf
+        If Core.SlotHolds(slot, npc)
+            Package indoorPkg = Core.TravelPackageOn(npc, Core.GetTravelPackage(Core.SlotSpeeds[slot]))
+            If indoorPkg
+                ActorUtil.AddPackageOverride(npc, indoorPkg, Core.PRIORITY_TRAVEL, 1)
+            EndIf
+            npc.EvaluatePackage()
+            IntelEngine.ResetStuckSlot(slot, npc)
+        EndIf
         Return
     EndIf
 
@@ -1068,8 +1327,8 @@ Function HandleLeapfrogRecovery(Int slot, Actor npc, ObjectReference dest)
 
     If totalDist <= leapDist + Core.ARRIVAL_DISTANCE
         ; Close enough — teleport directly and arrive
-        Core.DebugMsg("Stuck recovery: " + npc.GetDisplayName() + " close enough (" + totalDist + "u) — teleporting to dest")
-        Core.NotifyPlayer(npc.GetDisplayName() + " arrived (teleported)")
+        Core.DebugMsg("Stuck recovery: " + npc.GetDisplayName() + " close enough (" + totalDist + "u) - teleporting to dest")
+        Core.DebugMsg(npc.GetDisplayName() + " arrived (placed at the destination by stuck recovery)")
         npc.MoveTo(dest, 0.0, 0.0, 50.0)
         npc.EvaluatePackage()
         OnArrival(slot, npc)
@@ -1101,7 +1360,6 @@ Function HandleLeapfrogRecovery(Int slot, Actor npc, ObjectReference dest)
         npc.EvaluatePackage()
 
         Core.DebugMsg(npc.GetDisplayName() + " leapfrogged " + leapDist + "u at " + angle + "° toward dest (" + (totalDist - leapDist) + "u remaining)")
-        Core.NotifyPlayer(npc.GetDisplayName() + " making progress toward destination")
     EndIf
 EndFunction
 
@@ -1116,6 +1374,19 @@ EndFunction
 Bool Function CheckMeetingDeparture(Int slot, Actor npc)
     {Returns true if departure failed and slot was handled (caller should return).
     Uses Core.CheckDepartureProgress for shared tick/position logic.}
+    ; Not leaving because they are fighting, being spoken to or in the middle of a sentence is not a failed
+    ; departure: the count starts again when they are free. It used to call the meeting off ("could not set
+    ; out") fifteen seconds into a conversation that was going on when the hour came.
+    If npc.IsInCombat() || npc.GetDialogueTarget() != None || IntelEngine.IsActorTalking(npc)
+        Core.InitializeDepartureTracking(slot, npc)
+        Return false
+    EndIf
+    ; Away from the player the position is only updated now and then. Their progress is the business of
+    ; the off-screen estimate (HandleOffScreenTravel), which lets them arrive when the walk would be over,
+    ; not fifteen seconds after they were sent.
+    If !npc.Is3DLoaded()
+        Return false
+    EndIf
     Int status = Core.CheckDepartureProgress(slot, npc, Core.STUCK_DISTANCE_THRESHOLD)
 
     If status <= 2
@@ -1139,7 +1410,7 @@ Function HandleMeetingDepartureFailure(Int slot, Actor npc)
         ; Player isn't looking — teleport silently to destination
         ObjectReference dest = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
         If dest != None
-            Core.DebugMsg(npcName + " failed to depart for meeting (off-screen) — teleporting to destination")
+            Core.DebugMsg(npcName + " failed to depart for meeting (off-screen) - teleporting to destination")
             npc.MoveTo(dest, 0.0, 0.0, 50.0)
             npc.EvaluatePackage()
             OnArrival(slot, npc)
@@ -1148,7 +1419,7 @@ Function HandleMeetingDepartureFailure(Int slot, Actor npc)
     EndIf
 
     ; Player is watching — narrate failure in past tense
-    Core.DebugMsg(npcName + " failed to depart for meeting (visible) — narrating failure")
+    Core.DebugMsg(npcName + " failed to depart for meeting (visible) - narrating failure")
     String meetDest = StorageUtil.GetStringValue(npc, "Intel_MeetingDest")
     If meetDest == ""
         meetDest = Core.SlotTargetNames[slot]
@@ -1163,8 +1434,10 @@ Function HandleMeetingDepartureFailure(Int slot, Actor npc)
     ; No outcome stored — NPC never reached the meeting spot, so "player_no_show"
     ; would be factually wrong. The narration already covers what happened.
 
-    Core.RemoveAllPackages(npc)
+    Core.RemoveIntelPackages(npc)
     Core.ClearSlot(slot, true)
+    ; Never drop a meeting the player agreed to without telling them.
+    Core.NotifyPlayer(npcName + " could not set out for the meeting at " + meetDest + ". It is off.")
 
     ; Clear schedule slot — departure failed
     If Core.Schedule
@@ -1187,8 +1460,9 @@ Function StartApproachingPlayer(Int slot, Actor npc)
 
     Core.DebugMsg(npc.GetDisplayName() + " starting to approach player at meeting spot")
 
-    ; Switch from sandbox to travel-toward-player
-    Core.RemoveAllPackages(npc)
+    ; Switch from sandbox to travel-toward-player (no evaluation in between: with nothing of ours on them
+    ; for a moment, they turned toward their everyday routine first)
+    Core.RemoveIntelPackages(npc, false)
     PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
     Package travelPkg = Core.GetTravelPackage(0)  ; walk
     ActorUtil.AddPackageOverride(npc, travelPkg, Core.PRIORITY_TRAVEL, 1)
@@ -1237,13 +1511,13 @@ Function CheckMeetingApproach(Int slot, Actor npc)
     ; Stuck while approaching player
     If !npc.Is3DLoaded()
         ; Not visible — teleport behind player
-        Core.DebugMsg(npc.GetDisplayName() + " stuck approaching player (off-screen) — teleporting behind")
+        Core.DebugMsg(npc.GetDisplayName() + " stuck approaching player (off-screen) - teleporting behind")
         Core.TeleportBehindPlayer(npc)
         StopApproachingPlayer(npc)
         OnPlayerArrived(slot, npc)
     Else
         ; Visible — soft recovery: nudge + PathToReference
-        Core.DebugMsg(npc.GetDisplayName() + " stuck approaching player (visible) — nudging")
+        Core.DebugMsg(npc.GetDisplayName() + " stuck approaching player (visible) - nudging")
 
         ; Narrate once so NPC can react to being stuck near the player
         If StorageUtil.GetIntValue(npc, "Intel_ApproachStuckNarrated") != 1
@@ -1251,8 +1525,11 @@ Function CheckMeetingApproach(Int slot, Actor npc)
             Core.SendTaskNarration(npc, npc.GetDisplayName() + " tried to reach " + player.GetDisplayName() + " but seemed unable to get past something.", player)
         EndIf
 
-        npc.EvaluatePackage()
-        npc.PathToReference(player as ObjectReference, 1.0)
+        ; The walk package is taken off and put back, which makes the AI plan the path afresh. No
+        ; PathToReference: it is a forced run at full speed, and it held this monitoring pass (and every
+        ; other slot in it) until the NPC got there or gave up.
+        ActorUtil.RemovePackageOverride(npc, Core.TravelPackage_Walk)
+        ActorUtil.AddPackageOverride(npc, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
         npc.EvaluatePackage()
 
         ; Reset tracking for another round
@@ -1270,7 +1547,7 @@ Function StopApproachingPlayer(Actor npc)
     EndIf
 
     Core.DebugMsg(npc.GetDisplayName() + " stopping approach")
-    Core.RemoveAllPackages(npc, false)
+    Core.RemoveIntelPackages(npc, false)
 
     StorageUtil.UnsetIntValue(npc, "Intel_MeetingApproaching")
     StorageUtil.UnsetFloatValue(npc, "Intel_ApproachStartX")
@@ -1296,8 +1573,9 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
     If StorageUtil.GetIntValue(npc, "Intel_MeetingLingerApproaching") == 1
         Bool closeEnough = false
         Bool stillFar = true
+        Float dist = -1.0
         If npc.Is3DLoaded() && player.Is3DLoaded()
-            Float dist = npc.GetDistance(player)
+            dist = npc.GetDistance(player)
             closeEnough = dist <= Core.LINGER_APPROACH_DISTANCE
             stillFar = dist > Core.LINGER_RELEASE_DISTANCE
         ElseIf npc.GetParentCell() == player.GetParentCell()
@@ -1320,7 +1598,11 @@ Bool Function ProcessLingerProximity(Int slot, Actor npc)
         ElseIf stillFar
             ; Player still far during approach — increment far ticks
             Int farTicks = StorageUtil.GetIntValue(npc, "Intel_LingerFarTicks", 0) + 1
+            If dist >= 0.0 && dist < StorageUtil.GetFloatValue(npc, "Intel_LingerLastDist", -1.0) - 50.0
+                farTicks = 0
+            EndIf
             StorageUtil.SetIntValue(npc, "Intel_LingerFarTicks", farTicks)
+            StorageUtil.SetFloatValue(npc, "Intel_LingerLastDist", dist)
             If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
                 Return true
             EndIf
@@ -1347,7 +1629,7 @@ Function StartMeetingLinger(Int slot, Actor npc)
     Core.DebugMsg(npc.GetDisplayName() + " starting meeting linger (approach first)")
 
     ; Clear overrides WITHOUT evaluating — prevents NPC briefly reverting to base AI
-    Core.RemoveAllPackages(npc, false)
+    Core.RemoveIntelPackages(npc, false)
     PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
 
     ; Phase 1: Walk toward player first — sandbox kicks in at 100 units
@@ -1356,24 +1638,35 @@ Function StartMeetingLinger(Int slot, Actor npc)
 
     StorageUtil.SetIntValue(npc, "Intel_MeetingLingering", 1)
     StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
+    ; Waiting/sleeping ends the linger after 1 game hour.
+    StorageUtil.SetFloatValue(npc, "Intel_MeetingLingerDeadline", Utility.GetCurrentGameTime() + 1.0 / 24.0)
 
     ; Update schedule slot to meeting_active
     If Core.Schedule
         Int schedSlot = Core.Schedule.FindScheduleSlotByAgent(npc)
-        If schedSlot >= 0
+        ; Only the row of this meeting: a travel row that has been dispatched. The first row found for the
+        ; NPC can be a later appointment that is still pending; marked "meeting active" it was never started.
+        If schedSlot >= 0 && Core.Schedule.GetScheduleTaskType(schedSlot) == "travel" && Core.Schedule.GetScheduleSlotState(schedSlot) == 1
             Core.Schedule.SetScheduleState(schedSlot, 2)
         EndIf
     EndIf
 EndFunction
 
-Function CompleteMeeting(Int slot, Actor npc)
-    {Player walked away — meeting complete, release the NPC.}
+Function CompleteMeeting(Int slot, Actor npc, Bool playerLeft = true)
+    {Meeting complete, release the NPC: the player walked away, or (playerLeft = false) the visit ran its
+    time with the player still around.}
     String npcName = npc.GetDisplayName()
-    Core.DebugMsg(npcName + " meeting complete (player left)")
 
-    ; Narrate player departure — past tense, factual only (no emotion, no future intent)
+    ; Narrate what happened — past tense, factual only (no emotion, no future intent)
     String playerName = Game.GetPlayer().GetDisplayName()
-    Core.SendTaskNarration(npc, playerName + " walked away.", Game.GetPlayer())
+    If playerLeft
+        Core.DebugMsg(npcName + " meeting complete (player left)")
+        Core.SendTaskNarration(npc, playerName + " walked away.", Game.GetPlayer())
+    Else
+        ; "walked away" was sent here too, with the player standing next to them.
+        Core.DebugMsg(npcName + " meeting complete (visit over)")
+        Core.SendTaskNarration(npc, npcName + " had stayed a while after meeting " + playerName + " and went back to their own business.", Game.GetPlayer())
+    EndIf
     Core.NotifyPlayer(npcName + " headed off after the meeting")
 
     ; Mark as complete
@@ -1382,6 +1675,9 @@ Function CompleteMeeting(Int slot, Actor npc)
     ; Clear the slot and restore follower status
     ; ClearSlot handles schedule cleanup (preserving future schedules)
     Core.ClearSlotRestoreFollower(slot, npc)
+    ; Someone with a routine of their own goes back to it. Someone without one (many mod-added NPCs only
+    ; have a sandbox package) stayed at the meeting place for good: they are walked home.
+    Core.ReleaseLinger(npc)
 EndFunction
 
 ; =============================================================================
@@ -1397,7 +1693,7 @@ Function StartTravelLinger(Int slot, Actor npc)
     Core.DebugMsg(npc.GetDisplayName() + " starting travel linger (approach first)")
 
     ; Clear overrides WITHOUT evaluating — prevents NPC briefly reverting to base AI
-    Core.RemoveAllPackages(npc, false)
+    Core.RemoveIntelPackages(npc, false)
     PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
 
     ; Phase 1: Walk toward player first — sandbox kicks in at LINGER_APPROACH_DISTANCE
@@ -1406,6 +1702,8 @@ Function StartTravelLinger(Int slot, Actor npc)
 
     StorageUtil.SetIntValue(npc, "Intel_TravelLingering", 1)
     StorageUtil.SetIntValue(npc, "Intel_MeetingLingerApproaching", 1)
+    ; Waiting/sleeping ends the linger after 1 game hour.
+    StorageUtil.SetFloatValue(npc, "Intel_MeetingLingerDeadline", Utility.GetCurrentGameTime() + 1.0 / 24.0)
     StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
 EndFunction
 
@@ -1416,11 +1714,32 @@ Function StartStayAtDestLinger(Int slot, Actor npc)
     Actor player = Game.GetPlayer()
     Core.DebugMsg(npc.GetDisplayName() + " starting stay-at-dest linger (sandbox only)")
 
-    PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
+    ; This used to assume the sandbox was on. An NPC who was on the way to the player (through the door, or
+    ; the approach inside) carries the walk package instead: with it left on they walked into the player,
+    ; radius 0, for as long as the player stayed. The sandbox goes on first, so there is no gap.
+    ActorUtil.AddPackageOverride(npc, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+    ActorUtil.RemovePackageOverride(npc, Core.TravelPackage_Walk)
+    ActorUtil.RemovePackageOverride(npc, Core.TravelPackage_Jog)
+    ActorUtil.RemovePackageOverride(npc, Core.TravelPackage_Run)
+    StorageUtil.UnsetIntValue(npc, "Intel_MeetingApproaching")
+    If StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") == 1
+        ; Sent here to wait for the player: drifts over to them.
+        PO3_SKSEFunctions.SetLinkedRef(npc, player as ObjectReference, Core.IntelEngine_TravelTarget)
+    Else
+        ; Here on their own business: stays where they went ("sandbox quietly"), not at the player's side.
+        ; (A sandbox around a marker that is not loaded crashes the engine, see OnArrival.)
+        ObjectReference place = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
+        If place == None || !npc.Is3DLoaded() || !place.Is3DLoaded()
+            place = npc
+        EndIf
+        PO3_SKSEFunctions.SetLinkedRef(npc, place, Core.IntelEngine_TravelTarget)
+    EndIf
     npc.EvaluatePackage()
 
     StorageUtil.SetIntValue(npc, "Intel_TravelLingering", 1)
     StorageUtil.SetIntValue(npc, "Intel_StayAtDest", 1)
+    ; It had no clock at all: a player who waited or slept next to them kept them there.
+    StorageUtil.SetFloatValue(npc, "Intel_MeetingLingerDeadline", Utility.GetCurrentGameTime() + STAY_AT_DEST_LINGER_HOURS / 24.0)
     StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
 EndFunction
 
@@ -1430,6 +1749,8 @@ Function CompleteTravelLinger(Int slot, Actor npc)
     Core.DebugMsg(npcName + " travel linger complete (player left)")
     StorageUtil.SetStringValue(npc, "Intel_Result", "arrived")
     Core.ClearSlotRestoreFollower(slot, npc)
+    ; See CompleteMeeting: one with no routine of their own is walked home instead of staying for good.
+    Core.ReleaseLinger(npc)
 EndFunction
 
 Bool Function IsStayAtDestination(String destination)

@@ -62,6 +62,32 @@ within ~50 units of drift instead of ~300 at the normal 3s interval.}
 Int Property MAX_LINGER_SLOTS = 5 AutoReadOnly
 {Maximum concurrent lingering targets — matches MAX_SLOTS.}
 
+Float Property TARGET_WAIT_SECONDS = 45.0 AutoReadOnly
+{Real seconds the agent waits at the player for a fetched NPC who is getting no closer. Was counted in
+monitoring passes (MAX_TARGET_WAIT_CYCLES, "~45s"), but while anyone is returning the passes come every
+half second: the wait was over after seven seconds.}
+
+Float Property TARGET_NUDGE_SECONDS = 9.0 AutoReadOnly
+{Real seconds between the nudges given to a fetched NPC who is getting no closer (three at most).}
+
+Float Property LINGER_APPROACH_MAX_HOURS = 0.25 AutoReadOnly
+{Game hours a fetched NPC keeps walking toward a player they cannot reach before settling where they are.}
+
+Float Property LINGER_VISIT_HOURS = 2.0 AutoReadOnly
+{Game hours a fetched NPC stays at the player's side when the player does not walk away.}
+
+Float Property LINGER_AFTER_TALK_HOURS = 0.5 AutoReadOnly
+{A fetched NPC stays at least this long (game hours) after their last spoken line: never sent off mid-conversation.}
+
+Float Property ESCORT_HOLD_HOURS = 0.5 AutoReadOnly
+{Game hours an escorted NPC is held at the destination when nobody asked them to wait there for the player.}
+
+Float Property SEARCH_WAIT_MAX_HOURS = 2.0 AutoReadOnly
+{Game hours a searching NPC waits for a player who has fallen behind before giving the search up.}
+
+Float Property SEARCH_MAX_HOURS = 24.0 AutoReadOnly
+{Game hours after which a search is ended whatever state it is in (a search had no time limit at all).}
+
 ; =============================================================================
 ; INITIALIZATION
 ; =============================================================================
@@ -73,11 +99,15 @@ Function EnsureMonitoringAlive()
     While i < Core.MAX_SLOTS
         String taskType = Core.SlotTaskTypes[i]
         If Core.SlotStates[i] != 0 && IsNPCTaskType(taskType)
-            RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+            Core.RequestTick(Core.UPDATE_INTERVAL)
             Return
         EndIf
         i += 1
     EndWhile
+    ; Lingering targets hold no slot, but only this loop ever releases them.
+    If HasLingeringTargets()
+        Core.RequestTick(Core.UPDATE_INTERVAL)
+    EndIf
 EndFunction
 
 Function RestartMonitoring()
@@ -96,9 +126,38 @@ Function RestartMonitoring()
         i += 1
     EndWhile
     If hasActive
-        RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+        Core.RequestTick(Core.UPDATE_INTERVAL)
         Core.DebugMsg("NPCTasks monitoring restarted")
     EndIf
+    ; A fetched or escorted NPC who lingers holds no slot. With no task running nobody asked for a tick
+    ; after a load: they kept their sandbox (or their walk toward the player) with nothing left to end it.
+    If HasLingeringTargets()
+        RelinkLingeringTargets()
+        Core.RequestTick(Core.UPDATE_INTERVAL)
+    EndIf
+EndFunction
+
+Function RelinkLingeringTargets()
+    {The package overrides of a lingering target survive a save, the linked ref they work around does not.}
+    Actor player = Game.GetPlayer()
+    Int i = StorageUtil.FormListCount(self, "Intel_LingeringTargets") - 1
+    While i >= 0
+        Actor target = StorageUtil.FormListGet(self, "Intel_LingeringTargets", i) as Actor
+        If target != None && !target.IsDead() && !target.IsDisabled()
+            ObjectReference anchor = player
+            If StorageUtil.GetIntValue(target, "Intel_LingerPhase", 0) == 3
+                ; Waiting at the escort destination. (A sandbox around a marker that is not loaded crashes
+                ; the engine, see Travel.OnArrival: then the place is where they stand.)
+                anchor = StorageUtil.GetFormValue(target, "Intel_LingerDestRef") as ObjectReference
+                If anchor == None || !target.Is3DLoaded()
+                    anchor = target
+                EndIf
+            EndIf
+            PO3_SKSEFunctions.SetLinkedRef(target, anchor, Core.IntelEngine_TravelTarget)
+            target.EvaluatePackage()
+        EndIf
+        i -= 1
+    EndWhile
 EndFunction
 
 Function RecoverSlotPackages(Int slot)
@@ -123,6 +182,8 @@ Function RecoverSlotPackages(Int slot)
         ; Traveling to target — re-apply travel package
         ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
         If dest != None
+            ; The linked ref is back on the real destination: a waypoint detour from before the load is void.
+            StorageUtil.UnsetFormValue(agent, "Intel_CurrentWaypoint")
             PO3_SKSEFunctions.SetLinkedRef(agent, dest, Core.IntelEngine_TravelTarget)
             ActorUtil.AddPackageOverride(agent, travelPkg, Core.PRIORITY_TRAVEL, 1)
             agent.EvaluatePackage()
@@ -136,7 +197,8 @@ Function RecoverSlotPackages(Int slot)
             returnMarker = Game.GetPlayer()
         EndIf
         PO3_SKSEFunctions.SetLinkedRef(agent, returnMarker, Core.IntelEngine_TravelTarget)
-        ActorUtil.AddPackageOverride(agent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+        ; The slot's speed is the package that was applied (walk, or jog for a delivery return).
+        ActorUtil.AddPackageOverride(agent, travelPkg, Core.PRIORITY_TRAVEL, 1)
         agent.EvaluatePackage()
 
         ; Also recover target's travel package for fetch/escort returns
@@ -152,7 +214,9 @@ Function RecoverSlotPackages(Int slot)
         Core.DebugMsg("Recovered return package for " + agent.GetDisplayName())
 
     ElseIf taskState == 5 && taskType == "search_for_actor"
-        ; Waiting for player to catch up — re-apply sandbox so agent stays put
+        ; Waiting for player to catch up — re-apply sandbox so agent stays put (around themselves: with no
+        ; linked ref the sandbox has no place and they head for home, see HandleSearchState)
+        PO3_SKSEFunctions.SetLinkedRef(agent, agent as ObjectReference, Core.IntelEngine_TravelTarget)
         ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
         agent.EvaluatePackage()
         Core.DebugMsg("Recovered sandbox package for " + agent.GetDisplayName() + " (search wait)")
@@ -181,10 +245,12 @@ Function StartTargetLinger(Actor target, Actor agent)
     TravelPackage_Walk. Phase 2: sandbox within 200 units once close (100 units).
     Released when the player leaves Core.LINGER_RELEASE_DISTANCE (800 units).}
 
-    ; Dedup — don't add the same target twice
+    ; Already lingering (fetched a second time while still at the player's side): the visit starts over.
+    ; This used to return here, with the walk package of the new fetch still on them and nothing left
+    ; that would take it off: they kept walking into the player after the linger had ended.
     If StorageUtil.GetIntValue(target, "Intel_LingerPhase", 0) > 0
-        Core.DebugMsg(target.GetDisplayName() + " already lingering, skipping")
-        Return
+        Core.DebugMsg(target.GetDisplayName() + " already lingering, starting over")
+        ClearLingerSlot(target)
     EndIf
 
     Actor player = Game.GetPlayer()
@@ -201,10 +267,12 @@ Function StartTargetLinger(Actor target, Actor agent)
     ; Store linger state — phase 1 = approaching player
     StorageUtil.SetIntValue(target, "Intel_LingerPhase", 1)
     StorageUtil.SetFormValue(target, "Intel_LingerAgent", agent)
+    ; The approach has its own clock (see CheckLingeringTargets).
+    StorageUtil.SetFloatValue(target, "Intel_LingerUntil", Utility.GetCurrentGameTime() + LINGER_APPROACH_MAX_HOURS / 24.0)
     StorageUtil.FormListAdd(self, "Intel_LingeringTargets", target, false)
 
     Core.DebugMsg(target.GetDisplayName() + " approaching player (linger phase 1)")
-    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+    Core.RequestTick(Core.UPDATE_INTERVAL)
 EndFunction
 
 Function ClearLingerSlot(Actor target)
@@ -212,10 +280,64 @@ Function ClearLingerSlot(Actor target)
     StorageUtil.UnsetIntValue(target, "Intel_LingerPhase")
     StorageUtil.UnsetFormValue(target, "Intel_LingerAgent")
     StorageUtil.UnsetIntValue(target, "Intel_LingerFarTicks")
+    StorageUtil.UnsetFloatValue(target, "Intel_LingerLastDist")
+    StorageUtil.UnsetFloatValue(target, "Intel_LingerUntil")
+    StorageUtil.UnsetFloatValue(target, "Intel_LingerCap")
     ; Escort-wait keys (safe to unset even if not present)
     StorageUtil.UnsetStringValue(target, "Intel_LingerDestName")
     StorageUtil.UnsetFloatValue(target, "Intel_LingerStart")
+    StorageUtil.UnsetFormValue(target, "Intel_LingerDestRef")
+    StorageUtil.UnsetIntValue(target, "Intel_LingerNoGreet")
     StorageUtil.FormListRemove(self, "Intel_LingeringTargets", target, true)
+EndFunction
+
+Function ForgetLinger(Actor npc, Bool removePackages = true)
+    {The NPC is taken into a new task, as its agent or as the one being fetched or escorted: the old visit is
+    over. Without this the linger went on handling them. On its next pass it took the new task's walk
+    package off and pointed their travel target at the player ("reached player, sandboxing"), or, when an
+    escort wait ran out, removed every package the new task had put on them.
+    removePackages = false for an agent: the task start clears their packages itself, when they set off.}
+    If npc == None
+        Return
+    EndIf
+    If StorageUtil.GetIntValue(npc, "Intel_LingerPhase", 0) <= 0 && StorageUtil.FormListFind(self, "Intel_LingeringTargets", npc as Form) < 0
+        Return
+    EndIf
+    Core.DebugMsg(npc.GetDisplayName() + " leaves the linger for a new task")
+    If removePackages
+        Core.RemoveIntelPackages(npc, false)
+    EndIf
+    ClearLingerSlot(npc)
+EndFunction
+
+Bool Function LingerVisitIsOver(Actor target)
+    {The clock of a visit at the player's side. A fetched NPC used to stay for as long as the player did not
+    walk away: for good, when the player was at home. The visit ends after LINGER_VISIT_HOURS, but never in
+    the middle of a conversation: while they speak or are spoken to, it runs at least LINGER_AFTER_TALK_HOURS
+    past the last line.}
+    Float now = Utility.GetCurrentGameTime()
+    Float until = StorageUtil.GetFloatValue(target, "Intel_LingerUntil", 0.0)
+    If until <= 0.0
+        ; A linger that began before this clock existed: it starts now.
+        StorageUtil.SetFloatValue(target, "Intel_LingerUntil", now + LINGER_VISIT_HOURS / 24.0)
+        Return false
+    EndIf
+    ; The longest a visit lasts, whatever is being said (set on the first look).
+    Float visitCap = StorageUtil.GetFloatValue(target, "Intel_LingerCap", 0.0)
+    If visitCap <= 0.0
+        StorageUtil.SetFloatValue(target, "Intel_LingerCap", now + Core.LINGER_VISIT_MAX_HOURS / 24.0)
+    ElseIf now > visitCap
+        Return true
+    EndIf
+    ; Only a conversation the player is part of keeps them (Core.IsTalkingWithPlayer says why).
+    If Core.IsTalkingWithPlayer(target)
+        Float stayUntil = now + LINGER_AFTER_TALK_HOURS / 24.0
+        If until < stayUntil
+            StorageUtil.SetFloatValue(target, "Intel_LingerUntil", stayUntil)
+        EndIf
+        Return false
+    EndIf
+    Return now > until
 EndFunction
 
 Function CheckLingeringTargets()
@@ -235,6 +357,11 @@ Function CheckLingeringTargets()
             Else
                 StorageUtil.FormListRemoveAt(self, "Intel_LingeringTargets", i)
             EndIf
+        ElseIf Core.FindSlotByAgent(target) >= 0
+            ; They run a task of their own now, started by something that did not come through ForgetLinger.
+            ; Its packages are theirs: only the linger is dropped.
+            Core.DebugMsg(target.GetDisplayName() + " has a task of their own, linger dropped")
+            ClearLingerSlot(target)
         Else
             Actor agent = StorageUtil.GetFormValue(target, "Intel_LingerAgent") as Actor
             Int phase = StorageUtil.GetIntValue(target, "Intel_LingerPhase", 0)
@@ -244,8 +371,9 @@ Function CheckLingeringTargets()
                 ; Switch to sandbox when within 100 units.
                 Bool closeEnough = false
                 Bool stillFar = true
+                Float targetDist = -1.0
                 If target.Is3DLoaded() && player.Is3DLoaded()
-                    Float targetDist = target.GetDistance(player)
+                    targetDist = target.GetDistance(player)
                     closeEnough = targetDist <= Core.LINGER_APPROACH_DISTANCE
                     stillFar = targetDist > Core.LINGER_RELEASE_DISTANCE
                 ElseIf target.GetParentCell() == player.GetParentCell()
@@ -257,6 +385,14 @@ Function CheckLingeringTargets()
                     EndIf
                 EndIf
 
+                ; Near the player but getting no closer (a ledge, a locked gate, a crowd): they kept walking
+                ; at whatever was in the way for as long as the player stayed around. After
+                ; LINGER_APPROACH_MAX_HOURS they settle where they are.
+                If !closeEnough && !stillFar && Utility.GetCurrentGameTime() > StorageUtil.GetFloatValue(target, "Intel_LingerUntil", 999999.0)
+                    Core.DebugMsg(target.GetDisplayName() + " cannot get closer to the player, settling here")
+                    closeEnough = true
+                EndIf
+
                 If closeEnough
                     ; Add sandbox BEFORE removing travel — no gap for default AI to kick in
                     PO3_SKSEFunctions.SetLinkedRef(target, player as ObjectReference, Core.IntelEngine_TravelTarget)
@@ -265,15 +401,27 @@ Function CheckLingeringTargets()
                     Utility.Wait(0.1)
                     target.EvaluatePackage()
                     StorageUtil.SetIntValue(target, "Intel_LingerPhase", 2)
+                    StorageUtil.SetFloatValue(target, "Intel_LingerUntil", Utility.GetCurrentGameTime() + LINGER_VISIT_HOURS / 24.0)
                     Core.DebugMsg(target.GetDisplayName() + " reached player, sandboxing (phase 2)")
                 ElseIf stillFar
                     ; Player still far during approach — keep incrementing far ticks
                     Int farTicks = StorageUtil.GetIntValue(target, "Intel_LingerFarTicks", 0) + 1
+                    Float lastDist = StorageUtil.GetFloatValue(target, "Intel_LingerLastDist", -1.0)
+                    ; The distance to beat is the one at the last step forward, not the one of the last pass:
+                    ; while a task is returning the passes come every half second, a walking NPC covers
+                    ; less than 50 units in that time, and was sent "heading back" after three of them.
+                    If targetDist >= 0.0 && targetDist < lastDist - 50.0
+                        farTicks = 0
+                    EndIf
                     StorageUtil.SetIntValue(target, "Intel_LingerFarTicks", farTicks)
+                    If farTicks == 0 || lastDist < 0.0
+                        StorageUtil.SetFloatValue(target, "Intel_LingerLastDist", targetDist)
+                    EndIf
                     If farTicks >= Core.LINGER_FAR_TICKS_LIMIT
+                        ; Through the shared release (it only took the walk package off): the look-at and the
+                        ; linked ref are cleared, and one with no routine of their own is walked home.
                         ActorUtil.RemovePackageOverride(target, Core.TravelPackage_Walk)
-                        Utility.Wait(0.1)
-                        target.EvaluatePackage()
+                        Core.ReleaseLinger(target)
                         Core.SendTransientEvent(target, agent, target.GetDisplayName() + " is heading back.")
                         Core.DebugMsg(target.GetDisplayName() + " player left during approach, heading home")
                         ClearLingerSlot(target)
@@ -282,25 +430,35 @@ Function CheckLingeringTargets()
 
             ElseIf phase == 2
                 ; Phase 2: NPC sandboxing near player.
-                ; Release when player leaves proximity (same as Travel/StoryEngine).
-                If Core.ShouldReleaseLinger(target)
+                ; Release when player leaves proximity (same as Travel/StoryEngine), or when the visit has
+                ; run its time (see LingerVisitIsOver).
+                If Core.ShouldReleaseLinger(target) || LingerVisitIsOver(target)
                     Core.ReleaseLinger(target)
                     Core.SendTransientEvent(target, agent, target.GetDisplayName() + " is heading back.")
-                    Core.DebugMsg(target.GetDisplayName() + " player left proximity, heading home")
+                    Core.DebugMsg(target.GetDisplayName() + " visit over, heading home")
                     ClearLingerSlot(target)
                 EndIf
 
             ElseIf phase == 3
                 ; Phase 3: Escort target waiting at destination for player
-                ; Timeout after 6 game hours, otherwise check player proximity
+                ; Timeout after 6 game hours, otherwise check player proximity.
+                ; Escorted without being asked to wait for the player: a short hold only (it keeps them from
+                ; being pulled straight back by their routine), and no greeting when the player comes by.
+                ; They used to get the full wait as well: six hours, and a walk over to a player they were
+                ; never told to expect.
+                Bool waitsForPlayer = StorageUtil.GetIntValue(target, "Intel_LingerNoGreet") != 1
+                Float holdHours = 6.0
+                If !waitsForPlayer
+                    holdHours = ESCORT_HOLD_HOURS
+                EndIf
                 Float lingerStart = StorageUtil.GetFloatValue(target, "Intel_LingerStart")
-                If lingerStart > 0.0 && (Utility.GetCurrentGameTime() - lingerStart) * 24.0 > 6.0
+                If lingerStart > 0.0 && (Utility.GetCurrentGameTime() - lingerStart) * 24.0 > holdHours
                     Core.DebugMsg(target.GetDisplayName() + " escort wait timed out")
                     Core.RemoveIntelPackages(target)
                     PO3_SKSEFunctions.SetLinkedRef(target, None, Core.IntelEngine_TravelTarget)
                     target.EvaluatePackage()
                     ClearLingerSlot(target)
-                Else
+                ElseIf waitsForPlayer
                     ; Check if player arrived at the destination
                     Bool playerArrived = false
                     If target.Is3DLoaded() && player.Is3DLoaded()
@@ -343,6 +501,14 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         true if fetch task started successfully
     }
 
+    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akAgent)
+        If akAgent != None
+            Core.DebugMsg("FetchNPC: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        EndIf
+        Return false
+    EndIf
+
     ; Validate agent
     If akAgent == None
         Core.DebugMsg("FetchNPC: None agent")
@@ -360,7 +526,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to go fetch " + targetName + ".", "FetchPerson")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to go fetch " + targetName + ".", "FetchPerson", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to go fetch " + targetName + ".")
         Return false
@@ -368,11 +534,8 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         Return false
     EndIf
 
-    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
-    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to fetch " + targetName + " (task in progress)", akAgent, None)
-
-    ; Override existing task if any
-    Core.OverrideExistingTask(akAgent)
+    ; (The departure event and the override of the agent's current task come further down, once the task
+    ; is known to be possible.)
 
     ; Cooldown — prevents narration-triggered re-selection loops.
     ; After a fetch completes, the completion narration can trigger a dialogue
@@ -420,16 +583,40 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     ; Don't interrupt if the target is actively doing their own task
     Int existingSlot = Core.FindSlotByAgent(targetNPC)
     If existingSlot >= 0
-        Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " — cannot fetch")
+        Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " - cannot fetch")
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " tried to fetch " + targetNPC.GetDisplayName() + " but they are busy with another task.")
         Return false
     EndIf
+
+    ; A carriage driver is not walked away from the cart: the return package pulls them off it like a task
+    ; of their own would, and the carriage service is broken from then on (see Core.IsUnsuitableTaskAgent).
+    If Core.IsCarriageDriver(targetNPC)
+        Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " is a carriage driver - not fetched")
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to fetch " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
+        Return false
+    EndIf
+
+    ; A slot has to be there: a free one, or the one this agent's current task gives up.
+    If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Return false
+    EndIf
+
+    ; Only now, with everything checked that can make the task impossible, is the departure announced and
+    ; the task the agent already has called off. Both used to come right after the confirmation: an unknown
+    ; name, a dead or busy target or the cooldown cancelled the running task, announced "left to fetch ..."
+    ; and then did nothing.
+    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to fetch " + targetName + " (task in progress)", akAgent, None)
+
+    ; Override existing task if any
+    Core.OverrideExistingTask(akAgent)
 
     ; Also cancel any pending schedule for the target
     If Core.Schedule
         Int schedSlot = Core.Schedule.FindScheduleSlotByAgent(targetNPC)
         If schedSlot >= 0
-            Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " has scheduled task — cancelling")
+            Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " has scheduled task - cancelling")
             Core.Schedule.ClearScheduleSlot(schedSlot)
         EndIf
     EndIf
@@ -447,11 +634,16 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     ; Destination is always the target actor directly
     ObjectReference destMarker = targetNPC
 
-    ; Stop following if agent is follower
-    Core.DismissFollowerForTask(akAgent)
+    ; Walk when player can see them, jog when off-screen. Decided here so that the slot records the speed
+    ; that is really applied: it said "jog" for an agent who walked, and stuck recovery and a speed change
+    ; then worked on the wrong package (a second travel override on top of the first).
+    Int speed = 1
+    If akAgent.GetParentCell() == Game.GetPlayer().GetParentCell()
+        speed = 0
+    EndIf
 
     ; Allocate slot (defaults to state 1)
-    Core.AllocateSlot(slot, akAgent, "fetch_npc", targetNPC.GetDisplayName(), 1, taskOrigin)  ; Jog by default
+    Core.AllocateSlot(slot, akAgent, "fetch_npc", targetNPC.GetDisplayName(), speed, taskOrigin)
 
     ; Store fetch-specific data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
@@ -472,17 +664,20 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         targetAlias.ForceRefTo(targetNPC)
     EndIf
 
+    ; Asked in conversation: let them finish the sentence before they turn and go.
+    If !WaitToSetOff(slot, akAgent, "fetch_npc", targetNPC)
+        Return true
+    EndIf
+
+    ; Stop following if agent is follower. Only now, after the wait: done before it, a follower stood
+    ; there for the length of the sentence with every package taken away.
+    Core.DismissFollowerForTask(akAgent)
+
     ; Set up travel — agent pathfinds toward the target naturally.
     ; Works same-cell (player sees them walk) and cross-cell (engine AI handles it).
     ; Teleport is only a last-resort fallback via stuck recovery / game-time timeout.
     PO3_SKSEFunctions.SetLinkedRef(akAgent, destMarker, Core.IntelEngine_TravelTarget)
-    ; Walk when player can see them, jog when off-screen
-    Bool sameCell = (akAgent.GetParentCell() == Game.GetPlayer().GetParentCell())
-    If sameCell
-        ActorUtil.AddPackageOverride(akAgent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-    Else
-        ActorUtil.AddPackageOverride(akAgent, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
-    EndIf
+    ActorUtil.AddPackageOverride(akAgent, Core.GetTravelPackage(speed), Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
     akAgent.EvaluatePackage()
 
@@ -502,7 +697,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     IntelEngine.ArmProximityArrival(slot, akAgent as ObjectReference, targetNPC as ObjectReference, Self, "IntelEngine_NPCTasks", "OnProximityArrived")
 
     ; Start monitoring
-    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+    SetOffDone(akAgent)
 
     Return true
 EndFunction
@@ -528,6 +723,14 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         true if delivery task started
     }
 
+    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akAgent)
+        If akAgent != None
+            Core.DebugMsg("DeliverMessage: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        EndIf
+        Return false
+    EndIf
+
     ; Validate
     If akAgent == None || akAgent.IsDead() || akAgent.IsInCombat()
         Return false
@@ -544,7 +747,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to deliver a message to " + targetName + ".", "DeliverMessage")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to deliver a message to " + targetName + ".", "DeliverMessage", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to deliver the message.")
         Return false
@@ -593,6 +796,13 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         Return false
     EndIf
 
+    ; A slot has to be there: a free one, or the one this agent's current task gives up. Checked before
+    ; that task is called off: with no slot to be had it was cancelled for nothing.
+    If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Return false
+    EndIf
+
     ; Only replace an existing task once the requested recipient is valid.
     Core.OverrideExistingTask(akAgent)
 
@@ -610,11 +820,15 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     ; Skyrim's AI pathfinding handles cross-cell Actor targets natively.
     ObjectReference destMarker = targetNPC
 
-    ; Stop following
-    Core.DismissFollowerForTask(akAgent)
+    ; Walk when player can see them, jog when off-screen. Decided here so that the slot records the speed
+    ; that is really applied (see FetchNPC).
+    Int speed = 1
+    If akAgent.GetParentCell() == Game.GetPlayer().GetParentCell()
+        speed = 0
+    EndIf
 
     ; Allocate
-    Core.AllocateSlot(slot, akAgent, "deliver_message", targetNPC.GetDisplayName(), 1, taskOrigin)
+    Core.AllocateSlot(slot, akAgent, "deliver_message", targetNPC.GetDisplayName(), speed, taskOrigin)
     SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to deliver a message to " + targetName + " (task in progress)", akAgent, None)
 
     ; Store message data
@@ -632,15 +846,17 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         targetAlias.ForceRefTo(targetNPC)
     EndIf
 
+    ; Asked in conversation: let them finish the sentence before they turn and go.
+    If !WaitToSetOff(slot, akAgent, "deliver_message", targetNPC)
+        Return true
+    EndIf
+
+    ; Stop following. Only now, after the wait (see FetchNPC).
+    Core.DismissFollowerForTask(akAgent)
+
     ; Set up travel — agent pathfinds toward the target naturally.
     PO3_SKSEFunctions.SetLinkedRef(akAgent, destMarker, Core.IntelEngine_TravelTarget)
-    ; Walk when player can see them, jog when off-screen
-    Bool sameCell = (akAgent.GetParentCell() == Game.GetPlayer().GetParentCell())
-    If sameCell
-        ActorUtil.AddPackageOverride(akAgent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-    Else
-        ActorUtil.AddPackageOverride(akAgent, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
-    EndIf
+    ActorUtil.AddPackageOverride(akAgent, Core.GetTravelPackage(speed), Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
     akAgent.EvaluatePackage()
 
@@ -659,7 +875,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     ; Fast-path proximity arrival at the message recipient.
     IntelEngine.ArmProximityArrival(slot, akAgent as ObjectReference, targetNPC as ObjectReference, Self, "IntelEngine_NPCTasks", "OnProximityArrived")
 
-    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+    SetOffDone(akAgent)
 
     Return true
 EndFunction
@@ -684,6 +900,14 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
         true if search task started successfully
     }
 
+    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akAgent)
+        If akAgent != None
+            Core.DebugMsg("SearchForActor: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        EndIf
+        Return false
+    EndIf
+
     ; Validate agent
     If akAgent == None
         Core.DebugMsg("SearchForActor: None agent")
@@ -701,7 +925,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to help search for " + targetName + ".", "SearchForActor")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to help search for " + targetName + ".", "SearchForActor", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to search for " + targetName + ".")
         Return false
@@ -709,11 +933,8 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
         Return false
     EndIf
 
-    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
-    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " is searching for " + targetName, akAgent, None)
-
-    ; Override existing task if any
-    Core.OverrideExistingTask(akAgent)
+    ; (The event and the override of the agent's current task come further down, once the task is known to
+    ; be possible: see FetchNPC.)
 
     ; Cooldown — prevents narration-triggered re-selection loops
     Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
@@ -754,6 +975,18 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
         Return false
     EndIf
 
+    ; A slot has to be there: a free one, or the one this agent's current task gives up.
+    If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Return false
+    EndIf
+
+    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " is searching for " + targetName, akAgent, None)
+
+    ; Override existing task if any
+    Core.OverrideExistingTask(akAgent)
+
     ; Find free slot
     Int slot = Core.FindFreeAgentSlot()
     If slot < 0
@@ -768,11 +1001,12 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     ; Skyrim's AI pathfinding handles cross-cell Actor targets natively.
     ObjectReference destMarker = targetNPC
 
-    ; Stop following if agent is follower
-    Core.DismissFollowerForTask(akAgent)
-
     ; Allocate slot
     Core.AllocateSlot(slot, akAgent, "search_for_actor", targetNPC.GetDisplayName(), speed, taskOrigin)
+
+    ; A search had no time limit at all (the distance-based deadline is not used: the pace is the
+    ; player's). This one is only the last resort for a search that nothing else brings to an end.
+    Core.SetSlotDeadline(slot, Utility.GetCurrentGameTime() + SEARCH_MAX_HOURS / 24.0)
 
     ; Store search-specific data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
@@ -783,6 +1017,14 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     If targetAlias
         targetAlias.ForceRefTo(targetNPC)
     EndIf
+
+    ; Asked in conversation: let them finish the sentence before they turn and go.
+    If !WaitToSetOff(slot, akAgent, "search_for_actor", targetNPC)
+        Return true
+    EndIf
+
+    ; Stop following if agent is follower. Only now, after the wait (see FetchNPC).
+    Core.DismissFollowerForTask(akAgent)
 
     ; Set up travel
     PO3_SKSEFunctions.SetLinkedRef(akAgent, destMarker, Core.IntelEngine_TravelTarget)
@@ -802,7 +1044,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     IntelEngine.ArmProximityArrival(slot, akAgent as ObjectReference, targetNPC as ObjectReference, Self, "IntelEngine_NPCTasks", "OnProximityArrived")
 
     ; Start monitoring
-    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+    SetOffDone(akAgent)
 
     Return true
 EndFunction
@@ -824,6 +1066,14 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     Returns:
         true if escort task started successfully
     }
+
+    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akAgent)
+        If akAgent != None
+            Core.DebugMsg("EscortTarget: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        EndIf
+        Return false
+    EndIf
 
     ; Normalize destination
     If destination == ""
@@ -848,7 +1098,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     EndIf
 
     ; MCM task confirmation prompt
-    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to escort " + targetName + " to " + destLabel + ".", "EscortTarget")
+    Int confirmResult = Core.ShowTaskConfirmationForAction(akAgent, akAgent.GetDisplayName() + " wants to escort " + targetName + " to " + destLabel + ".", "EscortTarget", taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akAgent, Game.GetPlayer().GetDisplayName() + " told " + akAgent.GetDisplayName() + " not to escort " + targetName + ".")
         Return false
@@ -856,11 +1106,8 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
         Return false
     EndIf
 
-    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
-    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to escort " + targetName + " to " + destLabel + " (task in progress)", akAgent, None)
-
-    ; Override existing task if any
-    Core.OverrideExistingTask(akAgent)
+    ; (The departure event and the override of the agent's current task come further down, once the task
+    ; is known to be possible: see FetchNPC.)
 
     ; Cooldown
     Float cooldown = StorageUtil.GetFloatValue(akAgent, "Intel_TaskCooldown")
@@ -908,18 +1155,16 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     Int existingSlot = Core.FindSlotByAgent(targetNPC)
     If existingSlot >= 0
         ; Target is actively doing a task — don't interrupt, reject this escort instead
-        Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " — cannot escort")
+        Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is busy in slot " + existingSlot + " - cannot escort")
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " tried to escort " + targetNPC.GetDisplayName() + " but they are busy with another task.")
         Return false
     EndIf
 
-    ; Cancel pending schedule for the target
-    If Core.Schedule
-        Int schedSlot = Core.Schedule.FindScheduleSlotByAgent(targetNPC)
-        If schedSlot >= 0
-            Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " has scheduled task -- cancelling")
-            Core.Schedule.ClearScheduleSlot(schedSlot)
-        EndIf
+    ; A carriage driver is not walked away from the cart (see FetchNPC).
+    If Core.IsCarriageDriver(targetNPC)
+        Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is a carriage driver - not escorted")
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
+        Return false
     EndIf
 
     ; Resolve destination
@@ -946,6 +1191,29 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
         EndIf
     EndIf
 
+    ; A slot has to be there: a free one, or the one this agent's current task gives up.
+    If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
+        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Return false
+    EndIf
+
+    ; Only now is the departure announced, the agent's current task called off and the target's schedule
+    ; cancelled (see FetchNPC). An unknown destination used to leave all three done and no escort.
+    ; Register event AFTER confirmation (not in YAML — prevents event on deny silent)
+    SkyrimNetApi.RegisterEvent("intel_task_event", akAgent.GetDisplayName() + " left to escort " + targetName + " to " + destLabel + " (task in progress)", akAgent, None)
+
+    ; Override existing task if any
+    Core.OverrideExistingTask(akAgent)
+
+    ; Cancel pending schedule for the target
+    If Core.Schedule
+        Int schedSlot = Core.Schedule.FindScheduleSlotByAgent(targetNPC)
+        If schedSlot >= 0
+            Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " has scheduled task -- cancelling")
+            Core.Schedule.ClearScheduleSlot(schedSlot)
+        EndIf
+    EndIf
+
     ; Find free slot
     Int slot = Core.FindFreeAgentSlot()
     If slot < 0
@@ -958,11 +1226,15 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
         Core.UnlockHomeForTask(akAgent, targetNPC)
     EndIf
 
-    ; Stop following if agent is follower
-    Core.DismissFollowerForTask(akAgent)
+    ; Walk when player can see them, jog when off-screen. Decided here so that the slot records the speed
+    ; that is really applied (see FetchNPC).
+    Int speed = 1
+    If akAgent.GetParentCell() == Game.GetPlayer().GetParentCell()
+        speed = 0
+    EndIf
 
     ; Allocate slot
-    Core.AllocateSlot(slot, akAgent, "escort_target", targetNPC.GetDisplayName(), 1, taskOrigin)
+    Core.AllocateSlot(slot, akAgent, "escort_target", targetNPC.GetDisplayName(), speed, taskOrigin)
 
     ; Store escort-specific data
     StorageUtil.SetFormValue(akAgent, "Intel_TargetNPC", targetNPC)
@@ -979,14 +1251,17 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
         targetAlias.ForceRefTo(targetNPC)
     EndIf
 
+    ; Asked in conversation: let them finish the sentence before they turn and go.
+    If !WaitToSetOff(slot, akAgent, "escort_target", targetNPC)
+        Return true
+    EndIf
+
+    ; Stop following if agent is follower. Only now, after the wait (see FetchNPC).
+    Core.DismissFollowerForTask(akAgent)
+
     ; Set up travel to the target NPC (may be nearby, may be across town)
     PO3_SKSEFunctions.SetLinkedRef(akAgent, targetNPC as ObjectReference, Core.IntelEngine_TravelTarget)
-    Bool sameCell = (akAgent.GetParentCell() == Game.GetPlayer().GetParentCell())
-    If sameCell
-        ActorUtil.AddPackageOverride(akAgent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-    Else
-        ActorUtil.AddPackageOverride(akAgent, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
-    EndIf
+    ActorUtil.AddPackageOverride(akAgent, Core.GetTravelPackage(speed), Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
     akAgent.EvaluatePackage()
 
@@ -1005,9 +1280,36 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     IntelEngine.ArmProximityArrival(slot, akAgent as ObjectReference, targetNPC as ObjectReference, Self, "IntelEngine_NPCTasks", "OnProximityArrived")
 
     ; Start monitoring
-    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+    SetOffDone(akAgent)
 
     Return true
+EndFunction
+
+Bool Function WaitToSetOff(Int slot, Actor akAgent, String taskType, Actor targetNPC)
+    {A task given in conversation: let the agent finish the sentence before they turn and go (latent, see
+    Core.LetFinishSpeaking). False when the task is no longer theirs afterwards: cancelled, replaced, or
+    its slot handed to another task.
+    The monitoring loop leaves the slot alone for the length of the wait (CheckNPCTaskSlot). It used to run
+    on it: with the trackers of the slot's previous task still in place it could call the departure a
+    failure, or find the agent already at the target and move the task on, after which the travel package
+    put on here walked them away from it again. The mark is a real-time stamp, so one that is left behind
+    (the game closed during the wait) runs out by itself. The caller takes it off (SetOffDone) once the
+    package is on and the trackers are fresh.}
+    StorageUtil.SetFloatValue(akAgent, "Intel_SettingOffUntil", Utility.GetCurrentRealTime() + Core.SPEECH_GRACE_SECONDS + 5.0)
+    Core.LetFinishSpeaking(akAgent)
+    If Core.FindSlotByAgent(akAgent) != slot || Core.SlotTaskTypes[slot] != taskType || Core.SlotStates[slot] != 1 \
+        || StorageUtil.GetFormValue(akAgent, "Intel_TargetNPC") != (targetNPC as Form)
+        ; The mark is left as it is: it may be the one of the task that replaced this one.
+        Core.DebugMsg(akAgent.GetDisplayName() + ": task replaced or cancelled before setting off")
+        Return false
+    EndIf
+    Return true
+EndFunction
+
+Function SetOffDone(Actor akAgent)
+    {The agent is on the way: monitoring takes over (see WaitToSetOff).}
+    StorageUtil.UnsetFloatValue(akAgent, "Intel_SettingOffUntil")
+    Core.RequestTick(Core.UPDATE_INTERVAL)
 EndFunction
 
 ; =============================================================================
@@ -1037,9 +1339,9 @@ Event OnUpdate()
         ; Fast poll when NPCs are returning — catches arrival within ~50 units
         ; of drift instead of ~300 at normal 3s interval.
         If hasReturning
-            RegisterForSingleUpdate(RETURN_POLL_INTERVAL)
+            Core.RequestTick(RETURN_POLL_INTERVAL)
         Else
-            RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+            Core.RequestTick(Core.UPDATE_INTERVAL)
         EndIf
     EndIf
 
@@ -1092,17 +1394,27 @@ Function CheckNPCTaskSlot(Int slot)
     String taskType = Core.SlotTaskTypes[slot]
     Int taskState = Core.SlotStates[slot]
 
-    ; Game-time timeout — distance-based deadline set at task start.
-    ; Catches off-screen stuck NPCs that position-based detection can't reach.
-    If taskType != "search_for_actor"
-        Float deadline = Core.SlotDeadlines[slot]
-        If deadline > 0.0 && Utility.GetCurrentGameTime() > deadline
-            Float startTime = StorageUtil.GetFloatValue(agent, "Intel_TaskStartTime")
-            Float elapsedHours = (Utility.GetCurrentGameTime() - startTime) * 24.0
-            Core.DebugMsg("Task deadline reached (" + elapsedHours + "h) for " + agent.GetDisplayName() + " — force-completing")
-            HandleTaskTimeout(slot, agent, taskType, taskState)
+    ; Still finishing the sentence the task was given in (WaitToSetOff): nothing to monitor yet.
+    Float settingOffUntil = StorageUtil.GetFloatValue(agent, "Intel_SettingOffUntil", 0.0)
+    If settingOffUntil > 0.0
+        Float nowReal = Utility.GetCurrentRealTime()
+        If nowReal < settingOffUntil && settingOffUntil - nowReal < 30.0
             Return
         EndIf
+        ; Run out, or from before the game was restarted (the real-time clock starts again at zero).
+        StorageUtil.UnsetFloatValue(agent, "Intel_SettingOffUntil")
+    EndIf
+
+    ; Game-time timeout — distance-based deadline set at task start.
+    ; Catches off-screen stuck NPCs that position-based detection can't reach.
+    ; (A search has one too now: its overall limit, or the limit of a wait for the player.)
+    Float deadline = Core.SlotDeadlines[slot]
+    If deadline > 0.0 && Utility.GetCurrentGameTime() > deadline
+        Float startTime = StorageUtil.GetFloatValue(agent, "Intel_TaskStartTime")
+        Float elapsedHours = (Utility.GetCurrentGameTime() - startTime) * 24.0
+        Core.DebugMsg("Task deadline reached (" + elapsedHours + "h) for " + agent.GetDisplayName() + " - force-completing")
+        HandleTaskTimeout(slot, agent, taskType, taskState)
+        Return
     EndIf
 
     If taskType == "fetch_npc"
@@ -1128,6 +1440,13 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
     ; (e.g. OnArrivedAtTarget → state 8 interaction cycles).
     Core.SetSlotDeadline(slot, 0.0)
 
+    ; A search that ran out of time (overall, or waiting for a player who never caught up) ends where the
+    ; agent stands: there is nobody to be teleported to.
+    If taskType == "search_for_actor"
+        GiveUpSearch(slot, agent)
+        Return
+    EndIf
+
     ; Get destination and target based on task type + state
     ObjectReference dest
     Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
@@ -1146,7 +1465,7 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
         ; State 8: agent found the target but interaction cycles are stuck.
         ; Force-complete by zeroing cycles and calling the task handler directly.
         If taskState == Core.STATE_AT_TARGET && target != None && !target.IsDead()
-            Core.DebugMsg(agent.GetDisplayName() + " interaction timed out while visible — force-completing")
+            Core.DebugMsg(agent.GetDisplayName() + " interaction timed out while visible - force-completing")
             StorageUtil.SetIntValue(agent, "Intel_InteractCyclesRemaining", 0)
             If taskType == "fetch_npc"
                 HandleAtTarget(slot, agent, target)
@@ -1155,32 +1474,37 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
             ElseIf taskType == "escort_target"
                 HandleAtTarget_Escort(slot, agent, target)
             EndIf
+            ; The handler moved the task on to its next leg. This return used to skip the re-arming at the
+            ; end of the function, so the rest of the task ran with no time limit at all.
+            RearmDeadlineAfterTimeout(slot, agent)
             Return
         EndIf
         ; State 3: task nearly done — complete instead of canceling
         If taskState == 3 && target != None && !target.IsDead()
             If taskType == "fetch_npc"
-                Core.DebugMsg(agent.GetDisplayName() + " fetch timed out while returning — completing")
+                Core.DebugMsg(agent.GetDisplayName() + " fetch timed out while returning - completing")
                 OnReturnedWithTarget(slot, agent, target)
                 Return
             ElseIf taskType == "escort_target"
-                Core.DebugMsg(agent.GetDisplayName() + " escort timed out while walking — completing")
+                Core.DebugMsg(agent.GetDisplayName() + " escort timed out while walking - completing")
                 OnEscortComplete(slot, agent, target, false)
                 Return
             EndIf
         EndIf
-        Core.DebugMsg(agent.GetDisplayName() + " timed out while visible — narrating cancel")
+        Core.DebugMsg(agent.GetDisplayName() + " timed out while visible - narrating cancel")
         Actor player = Game.GetPlayer()
         Core.SendTaskNarration(agent, agent.GetDisplayName() + " " + IntelEngine.BuildStuckNarration(taskType), player)
-        Core.RemoveAllPackages(agent)
+        Core.RemoveIntelPackages(agent)
         Core.ClearSlot(slot, true)
+        ; Wherever the errand had taken them: one with no routine of their own is walked home.
+        Core.ReleaseLinger(agent)
         Return
     EndIf
 
     ; Off-screen — teleport silently to destination
     Bool isReturning = (taskState == 3 && (taskType == "fetch_npc" || taskType == "deliver_message"))
     If isReturning
-        Core.TeleportBehindPlayer(agent)
+        PlaceNearPlayerUnseen(agent)
     ElseIf taskType == "escort_target" && taskState == 3 && dest != None
         ; Escort: teleport both to destination (not to player)
         agent.MoveTo(dest)
@@ -1238,15 +1562,54 @@ Function HandleTaskTimeout(Int slot, Actor agent, String taskType, Int taskState
         Core.ClearSlot(slot, true)
     EndIf
 
-    ; If the handler transitioned to a non-terminal state (e.g. state 1 → 8
-    ; or state 1 → 3), set a new deadline for the remaining work. The original
-    ; deadline was cleared above to prevent re-triggering during interaction
-    ; cycles, but the return trip still needs a safety net.
-    If Core.SlotStates[slot] != 0 && Core.SlotDeadlines[slot] == 0.0
+    RearmDeadlineAfterTimeout(slot, agent)
+EndFunction
+
+Function RearmDeadlineAfterTimeout(Int slot, Actor agent)
+    {If the handler transitioned to a non-terminal state (e.g. state 1 → 8
+    or state 1 → 3), set a new deadline for the remaining work. The original
+    deadline was cleared in HandleTaskTimeout to prevent re-triggering during
+    interaction cycles, but the return trip still needs a safety net.}
+    If Core.SlotStates[slot] != 0 && Core.SlotDeadlines[slot] == 0.0 && Core.SlotHolds(slot, agent)
         Float returnDeadline = Utility.GetCurrentGameTime() + (MAX_TASK_HOURS / 2.0 / 24.0)
         Core.SetSlotDeadline(slot, returnDeadline)
         Core.DebugMsg("Set return deadline for " + agent.GetDisplayName() + " (" + (MAX_TASK_HOURS / 2.0) + "h)")
     EndIf
+EndFunction
+
+Function PlaceNearPlayerUnseen(Actor npc, Float distance = 2000.0, Bool evenIfInside = false)
+    {Last-resort placement of an NPC who is on the way to the player and is not getting there.
+    Outdoors: behind the player, as before. Indoors a point behind the player is on the far side of a wall
+    (at 2000 units, outside the building's shell, where the NPC stayed): they are put at the door of the
+    player's cell instead, as if they had just come in. One who is in that cell already is left to walk the
+    rest, unless evenIfInside says they are stuck in there.}
+    Actor player = Game.GetPlayer()
+    Cell playerCell = player.GetParentCell()
+    If playerCell != None && playerCell.IsInterior()
+        If evenIfInside || npc.GetParentCell() != playerCell
+            Core.PlaceForUnseenArrival(npc, player as ObjectReference)
+        EndIf
+        Return
+    EndIf
+    Core.TeleportBehindPlayer(npc, distance)
+EndFunction
+
+Function GiveUpSearch(Int slot, Actor agent)
+    {The search is over without the target: in character, and without moving anybody.}
+    String agentName = agent.GetDisplayName()
+    String targetName = Core.SlotTargetNames[slot]
+    Actor player = Game.GetPlayer()
+    Core.DebugMsg(agentName + " gave up the search for " + targetName)
+    If agent.Is3DLoaded() && agent.GetParentCell() == player.GetParentCell()
+        Core.SendTaskNarration(agent, agentName + " gave up the search for " + targetName + ".", player)
+    Else
+        Core.SendTransientEvent(agent, player, agentName + " gave up the search for " + targetName + ".")
+    EndIf
+    Core.NotifyPlayer(agentName + " gave up the search for " + targetName)
+    StorageUtil.SetStringValue(agent, "Intel_Result", "gave_up")
+    Core.ClearSlotRestoreFollower(slot, agent)
+    ; Out on the road somewhere: one with no routine of their own is walked home.
+    Core.ReleaseLinger(agent)
 EndFunction
 
 ; =============================================================================
@@ -1256,9 +1619,12 @@ EndFunction
 Function HandleFetchState(Int slot, Actor agent, Int taskState)
     Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
 
-    If target == None || target.IsDead()
+    ; (Disabled counts as gone: a target switched off by a quest was "reached", given travel packages and,
+    ; when it did not come, moved to the player while still disabled.)
+    If target == None || target.IsDead() || target.IsDisabled()
         Core.NotifyPlayer(agent.GetDisplayName() + " could not find their target")
         Core.ClearSlot(slot, true)
+        Core.ReleaseLinger(agent)
         Return
     EndIf
 
@@ -1313,7 +1679,7 @@ Function CheckArrivalAtTarget(Int slot, Actor agent, Actor target)
     ; cell can be 4000+ units apart. Let HandleOffScreenTravel estimate arrival.
     Cell agentCell = agent.GetParentCell()
     If agentCell != None && agentCell.IsInterior() && agentCell == target.GetParentCell()
-        Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName() + "'s cell (off-screen)")
+        Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " reached target cell " + IntelEngine.DescribeDistance(agent, target))
         OnArrivedAtTarget(slot, agent, target)
         Return
     EndIf
@@ -1330,17 +1696,23 @@ Function OnArrivedAtTarget(Int slot, Actor agent, Actor target)
     ; state 9 (presenting) if a duplicate task fires mid-completion.
     Int currentState = Core.SlotStates[slot]
     If currentState != 1 && currentState != Core.STATE_AT_TARGET
-        Core.DebugMsg(agent.GetDisplayName() + " OnArrivedAtTarget ignored — state " + currentState + " (expected 1 or 8)")
+        Core.DebugMsg(agent.GetDisplayName() + " OnArrivedAtTarget ignored - state " + currentState + " (expected 1 or 8)")
         Return
     EndIf
 
-    Core.DebugMsg(agent.GetDisplayName() + " reached " + target.GetDisplayName())
+    Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " reached " + target.GetDisplayName() + " " + IntelEngine.DescribeDistance(agent, target))
 
     ; Remove travel package, apply sandbox near target to hold agent in place
     ; during interaction. Without this, NPCs with schedule AI (innkeepers, etc.)
     ; revert to default packages and walk home before interaction completes.
-    Core.RemoveAllPackages(agent, false)
-    PO3_SKSEFunctions.SetLinkedRef(agent, target as ObjectReference, Core.IntelEngine_TravelTarget)
+    Core.RemoveIntelPackages(agent, false)
+    ; Arrived unseen: the sandbox is anchored on the agent themselves. A sandbox around a ref that is not
+    ; loaded can crash the engine (see Travel.OnArrival, same package), and they are at the target anyway.
+    If agent.Is3DLoaded() && target.Is3DLoaded()
+        PO3_SKSEFunctions.SetLinkedRef(agent, target as ObjectReference, Core.IntelEngine_TravelTarget)
+    Else
+        PO3_SKSEFunctions.SetLinkedRef(agent, agent as ObjectReference, Core.IntelEngine_TravelTarget)
+    EndIf
     ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
     agent.EvaluatePackage()
 
@@ -1363,7 +1735,7 @@ EndFunction
 
 Function TeleportAgentToTarget(Int slot, Actor agent, Actor target)
     ; Remove packages before teleport
-    Core.RemoveAllPackages(agent)
+    Core.RemoveIntelPackages(agent)
     PO3_SKSEFunctions.SetLinkedRef(agent, None, Core.IntelEngine_TravelTarget)
 
     ; Teleport (debug-only log, player never notified)
@@ -1379,6 +1751,19 @@ EndFunction
 ; AT TARGET STATE (converged: both same-cell and off-screen arrive here)
 ; -----------------------------------------------------------------------------
 
+Bool Function LetLineFinish(Int slot, Actor agent, Actor speaker)
+    {At the target, with the player looking on, after a line has been narrated: wait until it has been said
+    before the next step puts the travel packages on. The step used to follow at once, and both turned and
+    walked off in the middle of the sentence. Latent: the interaction counter is set high for the wait, so
+    the monitoring pass that comes meanwhile does not run the same step a second time. False when the task
+    ended or moved on during the wait.}
+    StorageUtil.SetIntValue(agent, "Intel_InteractCyclesRemaining", 1000)
+    ; A narrated line starts a moment after it was asked for.
+    Utility.Wait(1.5)
+    Core.LetFinishSpeaking(speaker)
+    Return Core.SlotHolds(slot, agent) && Core.SlotStates[slot] == Core.STATE_AT_TARGET
+EndFunction
+
 Function HandleAtTarget(Int slot, Actor agent, Actor target)
     Int remaining = StorageUtil.GetIntValue(agent, "Intel_InteractCyclesRemaining")
     remaining -= 1
@@ -1388,6 +1773,10 @@ Function HandleAtTarget(Int slot, Actor agent, Actor target)
         ; Still "conversing" — wait
         Return
     EndIf
+    ; From here to the change of state there are waits. The counter is set high so that a monitoring pass
+    ; arriving in one of them (they come every half second while another task is returning) does not run
+    ; this step a second time.
+    StorageUtil.SetIntValue(agent, "Intel_InteractCyclesRemaining", 1000)
 
     ; Interaction complete — narrate and decide success/failure
     Actor player = Game.GetPlayer()
@@ -1402,6 +1791,10 @@ Function HandleAtTarget(Int slot, Actor agent, Actor target)
         ; Agent is in IntelEngine_TaskFaction so the action LLM can't re-select
         ; FetchPerson during this cycle. Safe to use narration here.
         Core.SendTaskNarration(agent, agentName + " told " + targetName + " that " + playerName + " needs to speak with them and asked them to come along.", target)
+        ; Let the line be said before the two of them turn and go.
+        If !LetLineFinish(slot, agent, agent)
+            Return
+        EndIf
     Else
         ; Off-screen — silent transient event, no dialogue evaluation needed
         Core.SendTransientEvent(agent, target, agentName + " told " + targetName + " that they are needed by " + playerName + ".")
@@ -1435,6 +1828,10 @@ Function HandleFetchFailure(Int slot, Actor agent, Actor target)
     ; Narrate the refusal
     If playerPresent
         Core.SendTaskNarration(target, targetName + " tells " + agentName + ": \"" + failReason + "\"", agent)
+        ; Let the refusal be said before the agent turns and leaves.
+        If !LetLineFinish(slot, agent, target)
+            Return
+        EndIf
     Else
         Core.SendTransientEvent(target, agent, targetName + " refused when " + agentName + " asked them to come: " + failReason)
     EndIf
@@ -1450,13 +1847,14 @@ Function HandleFetchFailure(Int slot, Actor agent, Actor target)
     ; Natural pathfinding back to player. No teleporting.
 
     ; Remove sandbox from OnArrivedAtTarget before adding travel
-    Core.RemoveAllPackages(agent, false)
+    Core.RemoveIntelPackages(agent, false)
 
     ; Set up walk back to player
     ObjectReference returnMarker = player
     StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", returnMarker)
     PO3_SKSEFunctions.SetLinkedRef(agent, returnMarker, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(agent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    Core.SetSlotSpeed(slot, agent, 0)   ; the slot's speed is the package that is on them (walk)
     Utility.Wait(0.1)
     agent.EvaluatePackage()
 
@@ -1486,7 +1884,10 @@ Function BeginReturn(Int slot, Actor agent, Actor target, Actor player)
     EndIf
 
     ; Remove sandbox from OnArrivedAtTarget before adding travel packages
-    Core.RemoveAllPackages(agent, false)
+    Core.RemoveIntelPackages(agent, false)
+
+    ; A target who is still lingering from an earlier fetch or escort: that visit ends here (see ForgetLinger).
+    ForgetLinger(target)
 
     ; Target pathfinds to player independently — same priority as agent.
     ; Must use PRIORITY_TRAVEL to override sandbox and other ambient packages.
@@ -1506,6 +1907,7 @@ Function BeginReturn(Int slot, Actor agent, Actor target, Actor player)
     StorageUtil.SetFormValue(agent, "Intel_ReturnMarker", returnMarker)
     PO3_SKSEFunctions.SetLinkedRef(agent, returnMarker, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(agent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    Core.SetSlotSpeed(slot, agent, 0)   ; the slot's speed is the package that is on them (walk)
     Utility.Wait(0.1)
     agent.EvaluatePackage()
 
@@ -1553,7 +1955,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
         EndIf
 
         If targetAtPlayer
-            Core.DebugMsg(target.GetDisplayName() + " reached player — completing fetch")
+            Core.DebugMsg("[diag:arrival] " + target.GetDisplayName() + " reached player -- completing fetch " + IntelEngine.DescribeDistance(target, player))
             OnReturnedWithTarget(slot, agent, target)
             Return
         EndIf
@@ -1563,6 +1965,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
         ; Agent is on-screen — clear off-screen tracking
         StorageUtil.UnsetIntValue(agent, "Intel_OffScreenCycles")
         StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenLastDist")
+        StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenSince")
 
         Float agentDist = agent.GetDistance(returnMarker)
         If agentDist <= IntelEngine.GetArrivalThreshold(agent, returnMarker)
@@ -1577,53 +1980,66 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
                 EndIf
 
                 If !targetArrived
-                    ; Target still walking to player — count wait cycles
-                    Int waitCycles = StorageUtil.GetIntValue(agent, "Intel_TargetWaitCycles") + 1
-                    StorageUtil.SetIntValue(agent, "Intel_TargetWaitCycles", waitCycles)
+                    ; Target still walking to player. The wait is measured in real seconds since the target
+                    ; last got closer. It was counted in monitoring passes ("15 cycles, ~45s"), but while
+                    ; anyone is returning the passes come every half second: the wait was over after seven
+                    ; seconds, and a walking target, who covers less than 50 units in half a second, never
+                    ; counted as getting closer. Intel_TargetWaitCycles is 0 before the wait and, during
+                    ; it, 1 + the number of nudges given.
+                    Int waitCycles = StorageUtil.GetIntValue(agent, "Intel_TargetWaitCycles")
+                    Float waitNow = Utility.GetCurrentRealTime()
+                    Float waitSince = StorageUtil.GetFloatValue(agent, "Intel_TargetWaitSince", 0.0)
+                    Float targetDist = target.GetDistance(returnMarker)
 
                     ; First cycle: agent just arrived — sandbox near player while waiting, notify player
-                    If waitCycles == 1
-                        Core.RemoveAllPackages(agent, false)
+                    If waitCycles == 0
+                        Core.RemoveIntelPackages(agent, false)
                         PO3_SKSEFunctions.SetLinkedRef(agent, Game.GetPlayer() as ObjectReference, Core.IntelEngine_TravelTarget)
                         ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
                         agent.EvaluatePackage()
-                        Core.NotifyPlayer(agent.GetDisplayName() + " arrived — " + target.GetDisplayName() + " is still on the way")
+                        Core.NotifyPlayer(agent.GetDisplayName() + " arrived - " + target.GetDisplayName() + " is still on the way")
                         Core.SendTransientEvent(agent, target, agent.GetDisplayName() + " arrived but " + target.GetDisplayName() + " is still making their way here.")
                     EndIf
 
-                    ; Track progress — if target is getting closer, reset stuck counter
-                    Float targetDist = target.GetDistance(returnMarker)
+                    ; Track progress — the clock starts with the wait, starts again when the target has
+                    ; come more than 50 units closer than at the last mark, and after a restart of the
+                    ; game (the real-time clock begins at zero again).
                     Float lastTargetDist = StorageUtil.GetFloatValue(agent, "Intel_TargetLastDist", 0.0)
-                    If lastTargetDist > 0.0 && targetDist < lastTargetDist - 50.0
-                        ; Making progress (moved >50 units closer) — reset wait counter
-                        Core.DebugMsg(target.GetDisplayName() + " making progress (" + targetDist + " from player)")
-                        StorageUtil.SetIntValue(agent, "Intel_TargetWaitCycles", 1)
+                    Bool closer = lastTargetDist > 0.0 && targetDist < lastTargetDist - 50.0
+                    If waitCycles == 0 || closer || waitSince <= 0.0 || waitSince > waitNow
+                        If closer && waitCycles > 0
+                            Core.DebugMsg(target.GetDisplayName() + " making progress (" + targetDist + " from player)")
+                        EndIf
                         waitCycles = 1
-                    EndIf
-                    StorageUtil.SetFloatValue(agent, "Intel_TargetLastDist", targetDist)
-
-                    ; Soft recovery every 3 cycles — nudge the target's AI
-                    If waitCycles == 3 || waitCycles == 6 || waitCycles == 9
-                        Core.DebugMsg("Target soft recovery (cycle " + waitCycles + ")")
-                        target.EvaluatePackage()
-                        ObjectReference playerRef = returnMarker
-                        target.PathToReference(playerRef, 1.0)
-                        target.EvaluatePackage()
+                        waitSince = waitNow
+                        StorageUtil.SetIntValue(agent, "Intel_TargetWaitCycles", 1)
+                        StorageUtil.SetFloatValue(agent, "Intel_TargetWaitSince", waitNow)
+                        StorageUtil.SetFloatValue(agent, "Intel_TargetLastDist", targetDist)
                     EndIf
 
-                    If waitCycles < MAX_TARGET_WAIT_CYCLES
+                    ; Soft recovery — nudge the target's AI, three times at most
+                    If waitCycles <= 3 && waitNow - waitSince >= TARGET_NUDGE_SECONDS * waitCycles
+                        Core.DebugMsg("Target soft recovery (" + waitCycles + ")")
+                        ; The travel package is taken off and put back, which makes the AI plan the path
+                        ; afresh. No PathToReference: it is a forced run at full speed, and it held this
+                        ; monitoring pass (and every other slot in it) until the target got there or gave up.
+                        Package targetPkg = Core.TravelPackageOn(target, Core.TravelPackage_Walk)
+                        ActorUtil.RemovePackageOverride(target, Core.TravelPackage_Walk)
+                        ActorUtil.RemovePackageOverride(target, Core.TravelPackage_Jog)
+                        ActorUtil.AddPackageOverride(target, targetPkg, Core.PRIORITY_TRAVEL, 1)
+                        target.EvaluatePackage()
+                        waitCycles += 1
+                        StorageUtil.SetIntValue(agent, "Intel_TargetWaitCycles", waitCycles)
+                    EndIf
+
+                    If waitNow - waitSince < TARGET_WAIT_SECONDS
                         Return  ; Keep waiting
                     EndIf
 
-                    ; Exhausted — teleport target now
-                    Core.DebugMsg("Target wait exhausted (" + waitCycles + " cycles, dist=" + targetDist + ")")
-                    If !target.Is3DLoaded()
-                        ; Off-screen — teleport silently behind camera
-                        Core.TeleportBehindPlayer(target)
-                    Else
-                        ; On-screen — place near agent (who is near player)
-                        target.MoveTo(agent, 100.0, 0.0, 0.0, false)
-                    EndIf
+                    ; Exhausted. OnReturnedWithTarget places a target who is out of sight. One the player
+                    ; is looking at is left to walk the rest: they used to be set down next to the agent,
+                    ; in plain view.
+                    Core.DebugMsg("Target wait exhausted (" + (waitNow - waitSince) + "s, dist=" + targetDist + ")")
                 EndIf
             EndIf
             OnReturnedWithTarget(slot, agent, target)
@@ -1643,7 +2059,7 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
 
     ; Same cell off-screen — failure returns can complete immediately
     If !waitForTarget || target == None
-        Core.DebugMsg(agent.GetDisplayName() + " returned to destination cell (off-screen)")
+        Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " returned to destination cell " + IntelEngine.DescribeDistance(agent, returnMarker))
         OnReturnedWithTarget(slot, agent, target)
         Return
     EndIf
@@ -1653,41 +2069,43 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
 
     ; Close enough off-screen? Complete.
     If dist <= IntelEngine.GetArrivalThreshold(agent, returnMarker)
-        Core.DebugMsg(agent.GetDisplayName() + " arrived off-screen (dist=" + dist + ")")
+        Core.DebugMsg("[diag:arrival] " + agent.GetDisplayName() + " arrived off-screen " + IntelEngine.DescribeDistance(agent, returnMarker))
         OnReturnedWithTarget(slot, agent, target)
         Return
     EndIf
 
-    ; Track off-screen return progress
-    Int cycles = StorageUtil.GetIntValue(agent, "Intel_OffScreenCycles") + 1
+    ; Track off-screen return progress, in real seconds since the agent last got more than 100 units
+    ; closer. It was counted in monitoring passes of an assumed three seconds, but while anyone is
+    ; returning the passes come every half second: the time allowed was a sixth of what was meant, steady
+    ; walking never counted as progress, and both were set down behind the player after a few seconds.
+    Float offNow = Utility.GetCurrentRealTime()
+    Float offSince = StorageUtil.GetFloatValue(agent, "Intel_OffScreenSince", 0.0)
     Float lastDist = StorageUtil.GetFloatValue(agent, "Intel_OffScreenLastDist")
-
-    ; If agent is making progress (distance decreased by >100 units), reset timer
-    If lastDist > 0.0 && dist < lastDist - 100.0
-        cycles = 1
-    EndIf
-    StorageUtil.SetIntValue(agent, "Intel_OffScreenCycles", cycles)
-    StorageUtil.SetFloatValue(agent, "Intel_OffScreenLastDist", dist)
-
-    ; Estimate max cycles: NPC walks ~100 units/sec, UPDATE_INTERVAL=3s → ~300 units/cycle
-    ; Use 150 units/cycle (conservative, accounts for pathfinding detours)
-    ; 2x safety margin on top
-    Float maxCycles = (dist / 150.0) * 2.0
-    If maxCycles < 5.0
-        maxCycles = 5.0  ; minimum ~15 seconds
+    If offSince <= 0.0 || offSince > offNow || lastDist <= 0.0 || dist < lastDist - 100.0
+        offSince = offNow
+        StorageUtil.SetFloatValue(agent, "Intel_OffScreenSince", offNow)
+        StorageUtil.SetFloatValue(agent, "Intel_OffScreenLastDist", dist)
     EndIf
 
-    If cycles as Float >= maxCycles
+    ; Time allowed: NPC walks ~100 units/sec; 50 units/sec is assumed (conservative, accounts for
+    ; pathfinding detours), with a 2x safety margin on top. The same allowance as before, in seconds.
+    Float maxSeconds = (dist / 50.0) * 2.0
+    If maxSeconds < 15.0
+        maxSeconds = 15.0
+    EndIf
+
+    If offNow - offSince >= maxSeconds
         ; Time's up — agent is stuck off-screen. Teleport both behind player.
-        Core.DebugMsg(agent.GetDisplayName() + " off-screen return timed out (" + cycles + " cycles, dist=" + dist + "). Teleporting both.")
-        Core.TeleportBehindPlayer(agent, 300.0)
+        Core.DebugMsg(agent.GetDisplayName() + " off-screen return timed out (" + ((offNow - offSince) as Int) + "s, dist=" + dist + "). Teleporting both.")
+        ; No more passes on this slot from here on: the moves and the wait below are latent, and the
+        ; pass that came meanwhile ran the completion a second time.
+        Core.MarkSlotProcessing(slot, agent)
+        PlaceNearPlayerUnseen(agent, 300.0)
         If target != None && !target.IsDead()
-            Core.TeleportBehindPlayer(target, 250.0)
+            PlaceNearPlayerUnseen(target, 250.0)
         EndIf
         Utility.Wait(0.5)
         OnReturnedWithTarget(slot, agent, target)
-    Else
-        Core.DebugMsg(agent.GetDisplayName() + " off-screen return: cycle " + cycles + "/" + (maxCycles as Int) + " dist=" + (dist as Int))
     EndIf
 EndFunction
 
@@ -1707,15 +2125,18 @@ Function OnReturnedWithTarget(Int slot, Actor agent, Actor target)
     String targetName = target.GetDisplayName()
     Core.DebugMsg(agentName + " returned with " + targetName)
 
-    ; Ensure target is at least in the same cell as the player.
-    ; If not loaded or in a different cell, teleport behind the camera as a
-    ; last resort. Otherwise let the NPC stand where they are — TalkToPlayer
-    ; (priority 1) will naturally pathfind them to the player for conversation.
+    ; Ensure target is near the player.
+    ; If not loaded or loaded but far, teleport behind the camera as a last resort.
+    ; Loaded means same space as the player, so adjacent exterior cells are not
+    ; "elsewhere". Otherwise TalkToPlayer (priority 1) pathfinds them in.
+    ; Not indoors, where "behind the camera" at 2000 units is outside the building (the target stayed out
+    ; there): see PlaceNearPlayerUnseen. And not a target the player is looking at: they were taken out of
+    ; view and put further away than they had been. Such a target walks the rest (linger phase 1).
     If !target.Is3DLoaded()
-        Core.DebugMsg(targetName + " not loaded — teleporting behind camera")
-        Core.TeleportBehindPlayer(target)
-    ElseIf target.GetParentCell() != player.GetParentCell()
-        Core.DebugMsg(targetName + " different cell — teleporting behind camera")
+        Core.DebugMsg(targetName + " not loaded - placing out of sight near the player")
+        PlaceNearPlayerUnseen(target)
+    ElseIf target.GetDistance(player) > Core.LINGER_RELEASE_DISTANCE && !player.IsInInterior() && !Core.PlayerCanSee(target)
+        Core.DebugMsg(targetName + " far (" + target.GetDistance(player) + ") - teleporting behind camera")
         Core.TeleportBehindPlayer(target)
     EndIf
 
@@ -1751,6 +2172,9 @@ Function OnReturnedWithTarget(Int slot, Actor agent, Actor target)
 
     ; Free the agent — target is lingering (sandbox near player).
     Core.ClearSlotRestoreFollower(slot, agent)
+    ; The errand is done at the player's side, not at home: an agent with no routine of their own (many
+    ; mod-added NPCs only have a sandbox package) stayed there for good. They are walked home.
+    Core.ReleaseLinger(agent)
     StorageUtil.SetFloatValue(agent, "Intel_TaskCooldown", Utility.GetCurrentRealTime())
 EndFunction
 
@@ -1773,9 +2197,10 @@ Function OnReturnedAfterFailure(Int slot, Actor agent)
         Core.SendTransientEvent(agent, player, agentName + " returned to report that " + targetName + " refused: " + failReason)
     EndIf
 
-    Core.NotifyPlayer(agentName + ": " + targetName + " refused — " + failReason)
+    Core.NotifyPlayer(agentName + ": " + targetName + " refused - " + failReason)
 
     Core.ClearSlotRestoreFollower(slot, agent)
+    Core.ReleaseLinger(agent)   ; see OnReturnedWithTarget: one with no routine of their own is walked home
     ; Cooldown prevents narration-triggered re-selection
     StorageUtil.SetFloatValue(agent, "Intel_TaskCooldown", Utility.GetCurrentRealTime())
 EndFunction
@@ -1791,9 +2216,11 @@ EndFunction
 Function HandleEscortTargetState(Int slot, Actor agent, Int taskState)
     Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
 
-    If target == None || target.IsDead()
+    ; (Disabled counts as gone, see HandleFetchState.)
+    If target == None || target.IsDead() || target.IsDisabled()
         Core.NotifyPlayer(agent.GetDisplayName() + " lost their escort target")
         Core.ClearSlot(slot, true)
+        Core.ReleaseLinger(agent)
         Return
     EndIf
 
@@ -1822,6 +2249,9 @@ Function HandleAtTarget_Escort(Int slot, Actor agent, Actor target)
     If remaining > 0
         Return
     EndIf
+    ; From here to the change of state there are waits (waking a sleeper takes a full second): the counter
+    ; is set high so that a monitoring pass arriving in one of them does not start the escort a second time.
+    StorageUtil.SetIntValue(agent, "Intel_InteractCyclesRemaining", 1000)
 
     ; Interaction complete — check success/failure
     Actor player = Game.GetPlayer()
@@ -1835,6 +2265,10 @@ Function HandleAtTarget_Escort(Int slot, Actor agent, Actor target)
 
     If playerPresent
         Core.SendTaskNarration(agent, agentName + " offered to walk " + targetName + " to " + destName + " safely.", target)
+        ; Let the offer be said before the two of them turn and go.
+        If !LetLineFinish(slot, agent, agent)
+            Return
+        EndIf
     Else
         Core.SendTransientEvent(agent, target, agentName + " offered to walk " + targetName + " to " + destName + ".")
     EndIf
@@ -1874,7 +2308,10 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
     EndIf
 
     ; Remove sandbox from OnArrivedAtTarget before adding travel packages
-    Core.RemoveAllPackages(agent, false)
+    Core.RemoveIntelPackages(agent, false)
+
+    ; A target who is still lingering from an earlier fetch or escort: that visit ends here (see ForgetLinger).
+    ForgetLinger(target)
 
     ; Both NPCs walk to destination together
     PO3_SKSEFunctions.SetLinkedRef(target, destMarkerRef, Core.IntelEngine_TravelTarget)
@@ -1884,6 +2321,7 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
 
     PO3_SKSEFunctions.SetLinkedRef(agent, destMarkerRef, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(agent, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    Core.SetSlotSpeed(slot, agent, 0)   ; the slot's speed is the package that is on them (walk)
     Utility.Wait(0.1)
     agent.EvaluatePackage()
 
@@ -1909,6 +2347,10 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
         If target.GetDistance(destMarkerRef) <= Core.ARRIVAL_DISTANCE
             ; Check if destination is a door — teleport both NPCs through (same as GoToLocation)
             ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destMarkerRef)
+            ; No more passes on this slot from here on. The moves and the wait below are latent: the pass
+            ; that came meanwhile (every half second in this state) found the target at the door again and
+            ; ran the completion a second time.
+            Core.MarkSlotProcessing(slot, agent)
             If doorDest != None
                 Core.DebugMsg("Escort: door reached, teleporting both through")
                 agent.MoveTo(doorDest)
@@ -1928,6 +2370,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
         If targetCell != None && destCell != None && targetCell == destCell
             ; Off-screen arrival — teleport through door if destination is a door
             ObjectReference doorDest2 = IntelEngine.GetDoorDestinationRef(destMarkerRef)
+            Core.MarkSlotProcessing(slot, agent)   ; as above: the moves are latent
             If doorDest2 != None
                 agent.MoveTo(doorDest2)
                 target.MoveTo(doorDest2)
@@ -1945,9 +2388,15 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
         Int stuckStatus = IntelEngine.CheckStuckStatus(agent, slot, Core.STUCK_DISTANCE_THRESHOLD)
         If stuckStatus == 1
             Core.SoftStuckRecovery(agent, slot, destMarkerRef)
+        ElseIf stuckStatus >= 3 && (Core.PlayerCanSee(agent) || Core.PlayerCanSee(target))
+            ; Not while the player is looking at either of them: both used to vanish from view to the
+            ; destination. The package is refreshed instead; the move waits until they are out of sight,
+            ; and the task's time limit stays the last resort.
+            Core.SoftStuckRecovery(agent, slot, destMarkerRef)
         ElseIf stuckStatus >= 3
             ; Teleport both to destination — through door if applicable
             ObjectReference doorDest3 = IntelEngine.GetDoorDestinationRef(destMarkerRef)
+            Core.MarkSlotProcessing(slot, agent)   ; as above: the moves are latent
             If doorDest3 != None
                 agent.MoveTo(doorDest3)
                 target.MoveTo(doorDest3)
@@ -1966,6 +2415,7 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
     ; Off-screen: estimated travel time
     If !agent.Is3DLoaded()
         If Core.HandleOffScreenTravel(slot, agent, destMarkerRef)
+            Core.MarkSlotProcessing(slot, agent)   ; as above: the moves are latent
             agent.MoveTo(destMarkerRef)
             target.MoveTo(destMarkerRef)
             OnEscortComplete(slot, agent, target, true)
@@ -1973,8 +2423,10 @@ Function CheckEscortArrival(Int slot, Actor agent, Actor target)
     EndIf
 EndFunction
 
-Function StartEscortTargetWait(Actor target, ObjectReference destRef, String destName)
-    {Target sandboxes at destination after escort. Waits for player arrival, times out after 6h.}
+Function StartEscortTargetWait(Actor target, ObjectReference destRef, String destName, Bool waitsForPlayer = true)
+    {Target sandboxes at destination after escort. Waits for player arrival, times out after 6h.
+    waitsForPlayer = false: nobody asked them to wait. A short hold only, and no greeting (see phase 3 in
+    CheckLingeringTargets).}
 
     ; Dedup — if already lingering, just release
     If StorageUtil.GetIntValue(target, "Intel_LingerPhase", 0) > 0
@@ -1985,9 +2437,14 @@ Function StartEscortTargetWait(Actor target, ObjectReference destRef, String des
 
     ; Sandbox at destination
     Core.RemoveIntelPackages(target, false)
-    If destRef != None
-        PO3_SKSEFunctions.SetLinkedRef(target, destRef, Core.IntelEngine_TravelTarget)
+    ; Arrived unseen (both are moved to the destination when the walk was not watched): the sandbox is
+    ; anchored on the target themselves. A sandbox around a marker that is not loaded can crash the engine
+    ; (see Travel.OnArrival, same package), and with no linked ref at all it has no place.
+    ObjectReference anchor = destRef
+    If anchor == None || !target.Is3DLoaded()
+        anchor = target
     EndIf
+    PO3_SKSEFunctions.SetLinkedRef(target, anchor, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(target, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
     Utility.Wait(0.1)
     target.EvaluatePackage()
@@ -1996,10 +2453,15 @@ Function StartEscortTargetWait(Actor target, ObjectReference destRef, String des
     StorageUtil.SetIntValue(target, "Intel_LingerPhase", 3)
     StorageUtil.SetStringValue(target, "Intel_LingerDestName", destName)
     StorageUtil.SetFloatValue(target, "Intel_LingerStart", Utility.GetCurrentGameTime())
+    ; For the re-link after a load (RelinkLingeringTargets).
+    StorageUtil.SetFormValue(target, "Intel_LingerDestRef", destRef)
+    If !waitsForPlayer
+        StorageUtil.SetIntValue(target, "Intel_LingerNoGreet", 1)
+    EndIf
     StorageUtil.FormListAdd(self, "Intel_LingeringTargets", target, false)
 
     Core.DebugMsg(target.GetDisplayName() + " waiting at " + destName + " for player (escort linger phase 3)")
-    RegisterForSingleUpdate(Core.UPDATE_INTERVAL)
+    Core.RequestTick(Core.UPDATE_INTERVAL)
 EndFunction
 
 Function OnPlayerArrivedAtEscortTarget(Actor target)
@@ -2010,9 +2472,17 @@ Function OnPlayerArrivedAtEscortTarget(Actor target)
         destName = "their destination"
     EndIf
 
+    ; The phase is changed first. It used to change last, after the narration and a wait of a second: the
+    ; monitoring pass that came in that second still found "waiting, player arrived" and greeted again.
+    StorageUtil.SetIntValue(target, "Intel_LingerPhase", 1)
+    StorageUtil.SetFloatValue(target, "Intel_LingerUntil", Utility.GetCurrentGameTime() + LINGER_APPROACH_MAX_HOURS / 24.0)
+    ; Clean up escort-specific keys (phase 1/2 don't need them)
+    StorageUtil.UnsetStringValue(target, "Intel_LingerDestName")
+    StorageUtil.UnsetFloatValue(target, "Intel_LingerStart")
+    StorageUtil.UnsetFormValue(target, "Intel_LingerDestRef")
+
     ; Narrate so SkyrimNet generates a greeting
     Core.SendTaskNarration(target, targetName + " noticed " + Game.GetPlayer().GetDisplayName() + " arrived at " + destName + ".", Game.GetPlayer())
-    Utility.Wait(1.0)
 
     ; Transition to standard linger phase 1 (approach player → sandbox → release)
     Actor player = Game.GetPlayer()
@@ -2021,11 +2491,6 @@ Function OnPlayerArrivedAtEscortTarget(Actor target)
     ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
     target.EvaluatePackage()
-
-    StorageUtil.SetIntValue(target, "Intel_LingerPhase", 1)
-    ; Clean up escort-specific keys (phase 1/2 don't need them)
-    StorageUtil.UnsetStringValue(target, "Intel_LingerDestName")
-    StorageUtil.UnsetFloatValue(target, "Intel_LingerStart")
 
     Core.DebugMsg(targetName + " noticed player at " + destName + " -- switching to normal linger")
 EndFunction
@@ -2069,7 +2534,9 @@ Function OnEscortComplete(Int slot, Actor agent, Actor target, Bool reachedDesti
         If destRef == None
             destRef = target  ; sandbox where they are
         EndIf
-        StartEscortTargetWait(target, destRef, destName)
+        ; No wait requested: the brief hold this comment speaks of, not the six-hour wait with a greeting
+        ; for the player that everyone got.
+        StartEscortTargetWait(target, destRef, destName, shouldWaitVal == 1)
     EndIf
 
     ; Narrate
@@ -2083,6 +2550,9 @@ Function OnEscortComplete(Int slot, Actor agent, Actor target, Bool reachedDesti
 
     ; Clean up agent — resumes normal AI (no return to player needed)
     Core.ClearSlotRestoreFollower(slot, agent)
+    ; "Normal AI" brings home whoever has a routine. One who has none (see OnReturnedWithTarget) stayed at
+    ; the escort's destination for good: they are walked home.
+    Core.ReleaseLinger(agent)
     StorageUtil.SetFloatValue(agent, "Intel_TaskCooldown", Utility.GetCurrentRealTime())
 EndFunction
 
@@ -2093,9 +2563,12 @@ EndFunction
 Function HandleMessageState(Int slot, Actor agent, Int taskState)
     Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
 
-    If target == None || target.IsDead()
+    ; (Disabled counts as gone, see HandleFetchState. Not on the way back: the message has been delivered,
+    ; and the return only needs the agent.)
+    If target == None || target.IsDead() || (target.IsDisabled() && taskState != 3)
         Core.NotifyPlayer(agent.GetDisplayName() + " could not find the recipient")
         Core.ClearSlot(slot, true)
+        Core.ReleaseLinger(agent)
         Return
     EndIf
 
@@ -2140,7 +2613,7 @@ Function OnArrivedToDeliver(Int slot, Actor agent, Actor target)
     Core.DebugMsg(agent.GetDisplayName() + " delivering message to " + target.GetDisplayName())
 
     ; Remove travel packages (done traveling to target)
-    Core.RemoveAllPackages(agent)
+    Core.RemoveIntelPackages(agent)
     PO3_SKSEFunctions.SetLinkedRef(agent, None, Core.IntelEngine_TravelTarget)
 
     ; Store message on recipient so they remember it
@@ -2199,6 +2672,7 @@ Function OnArrivedToDeliver(Int slot, Actor agent, Actor target)
         ; to play out before clearing so the narration isn't cut short.
         Utility.Wait(3.0)
         Core.ClearSlotRestoreFollower(slot, agent)
+        Core.ReleaseLinger(agent)   ; see OnReturnedWithTarget: one with no routine of their own is walked home
         StorageUtil.SetFloatValue(agent, "Intel_TaskCooldown", Utility.GetCurrentRealTime())
     Else
         ; Player absent — follower must walk back naturally.
@@ -2219,6 +2693,7 @@ Function BeginDeliveryReturn(Int slot, Actor agent)
 
     PO3_SKSEFunctions.SetLinkedRef(agent, returnMarker, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(agent, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
+    Core.SetSlotSpeed(slot, agent, 1)   ; the slot's speed is the package that is on them (jog)
     Utility.Wait(0.1)
     agent.EvaluatePackage()
 
@@ -2227,6 +2702,11 @@ Function BeginDeliveryReturn(Int slot, Actor agent)
 
     ; Re-arm proximity on agent→player for the delivery return trip.
     IntelEngine.ArmProximityArrival(slot, agent as ObjectReference, player as ObjectReference, Self, "IntelEngine_NPCTasks", "OnProximityArrived")
+
+    ; The slot was marked "being processed" during the delivery. If this was the only task, the update loop
+    ; saw nothing active meanwhile and did not ask for another tick: the way back was never monitored, and
+    ; the agent stood at the player with the task still open.
+    Core.RequestTick(Core.UPDATE_INTERVAL)
 
     Core.DebugMsg(agent.GetDisplayName() + " returning to player after delivery")
 EndFunction
@@ -2262,7 +2742,7 @@ Function OnReturnedFromDelivery(Int slot, Actor agent)
 
     If playerPresent && StorageUtil.GetIntValue(player, "Intel_DeliveryReportBack") == 1
         ; Stop travel and sandbox near player so agent doesn't walk away
-        Core.RemoveAllPackages(agent, false)
+        Core.RemoveIntelPackages(agent, false)
         PO3_SKSEFunctions.SetLinkedRef(agent, player as ObjectReference, Core.IntelEngine_TravelTarget)
         ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
         agent.EvaluatePackage()
@@ -2277,6 +2757,7 @@ Function OnReturnedFromDelivery(Int slot, Actor agent)
     Core.NotifyPlayer(agentName + " returned from delivering message to " + targetName)
 
     Core.ClearSlotRestoreFollower(slot, agent)
+    Core.ReleaseLinger(agent)   ; see OnReturnedWithTarget: one with no routine of their own is walked home
     StorageUtil.SetFloatValue(agent, "Intel_TaskCooldown", Utility.GetCurrentRealTime())
 EndFunction
 
@@ -2287,9 +2768,11 @@ EndFunction
 Function HandleSearchState(Int slot, Actor agent, Int taskState)
     Actor target = StorageUtil.GetFormValue(agent, "Intel_TargetNPC") as Actor
 
-    If target == None || target.IsDead()
+    ; (Disabled counts as gone, see HandleFetchState.)
+    If target == None || target.IsDead() || target.IsDisabled()
         Core.NotifyPlayer(agent.GetDisplayName() + " could not find their target")
         Core.ClearSlot(slot, true)
+        Core.ReleaseLinger(agent)
         Return
     EndIf
 
@@ -2304,6 +2787,12 @@ Function HandleSearchState(Int slot, Actor agent, Int taskState)
     If taskState == 1
         ; Searching - check departure, arrival, and player distance
         If CheckDeparture(slot, agent)
+            Return
+        EndIf
+        ; Reached a waypoint the stuck recovery sent them to (Layer B): on to the target again. The other
+        ; tasks check this in CheckArrivalAtTarget; a search did not, and the agent stood at the waypoint,
+        ; for good when the player was watching (no teleport in view).
+        If Core.CheckWaypointArrival(slot, agent, target as ObjectReference)
             Return
         EndIf
         If target.Is3DLoaded()
@@ -2325,12 +2814,18 @@ Function HandleSearchState(Int slot, Actor agent, Int taskState)
             If distToPlayer > LEAD_PAUSE_DISTANCE
                 ; Player fell behind - pause and wait
                 Core.DebugMsg(agent.GetDisplayName() + " pausing to wait for player (dist=" + distToPlayer + ")")
-                Core.RemoveAllPackages(agent)
-                PO3_SKSEFunctions.SetLinkedRef(agent, None, Core.IntelEngine_TravelTarget)
+                Core.RemoveIntelPackages(agent, false)
+                ; The sandbox is anchored where they stand. With the linked ref cleared, as it was, the
+                ; package has no place and they head for home instead of waiting (see Travel.OnArrival).
+                PO3_SKSEFunctions.SetLinkedRef(agent, agent as ObjectReference, Core.IntelEngine_TravelTarget)
+                StorageUtil.UnsetFormValue(agent, "Intel_CurrentWaypoint")
                 ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
                 agent.EvaluatePackage()
 
                 Core.SetSlotState(slot, agent, 5)  ; waiting for player
+                ; The wait had no end: with the player busy elsewhere in the same area the agent stood
+                ; there for good. After SEARCH_WAIT_MAX_HOURS the search is given up (HandleTaskTimeout).
+                Core.SetSlotDeadline(slot, Utility.GetCurrentGameTime() + SEARCH_WAIT_MAX_HOURS / 24.0)
             EndIf
         EndIf
 
@@ -2348,6 +2843,18 @@ Function HandleSearchState(Int slot, Actor agent, Int taskState)
                 ActorUtil.AddPackageOverride(agent, travelPkg, Core.PRIORITY_TRAVEL, 1)
                 agent.EvaluatePackage()
                 Core.SetSlotState(slot, agent, 1)  ; back to searching
+                ; Standing still was the wait, not being stuck: the stuck counter starts afresh. And the
+                ; search gets its overall time limit back in place of the limit of the wait.
+                IntelEngine.ResetStuckSlot(slot, agent)
+                Float searchBegan = StorageUtil.GetFloatValue(agent, "Intel_TaskAllocatedAt", 0.0)
+                If searchBegan <= 0.0
+                    searchBegan = Utility.GetCurrentGameTime()
+                EndIf
+                Float searchLimit = searchBegan + SEARCH_MAX_HOURS / 24.0
+                If searchLimit < Utility.GetCurrentGameTime() + SEARCH_WAIT_MAX_HOURS / 24.0
+                    searchLimit = Utility.GetCurrentGameTime() + SEARCH_WAIT_MAX_HOURS / 24.0
+                EndIf
+                Core.SetSlotDeadline(slot, searchLimit)
             EndIf
         EndIf
     EndIf
@@ -2358,13 +2865,14 @@ Function OnArrivedAtSearchTarget(Int slot, Actor agent, Actor target)
     Core.NotifyPlayer(agent.GetDisplayName() + " found " + target.GetDisplayName())
 
     ; Remove packages
-    Core.RemoveAllPackages(agent)
+    Core.RemoveIntelPackages(agent)
     PO3_SKSEFunctions.SetLinkedRef(agent, None, Core.IntelEngine_TravelTarget)
 
     ; Mark success
     StorageUtil.SetStringValue(agent, "Intel_Result", "success")
 
     Core.ClearSlotRestoreFollower(slot, agent)
+    Core.ReleaseLinger(agent)   ; see OnReturnedWithTarget: one with no routine of their own is walked home
 
     ; Narration — player should be here (they were being led), but check anyway
     Actor player = Game.GetPlayer()
@@ -2388,6 +2896,13 @@ EndFunction
 Bool Function CheckDeparture(Int slot, Actor agent)
     {Check if NPC departed. Uses Core.CheckDepartureProgress for shared logic.
     Returns true if departure failed and slot was handled (caller should return).}
+    ; Not leaving because they are fighting, being spoken to or in the middle of a sentence is not a failed
+    ; departure: the count starts again when they are free. The task used to be called off ("was unable
+    ; to carry out the task") fifteen seconds into a conversation that held them where they stood.
+    If agent.IsInCombat() || agent.GetDialogueTarget() != None || IntelEngine.IsActorTalking(agent)
+        Core.InitializeDepartureTracking(slot, agent)
+        Return false
+    EndIf
     Int status = Core.CheckDepartureProgress(slot, agent, Core.STUCK_DISTANCE_THRESHOLD)
 
     If status <= 2
@@ -2408,15 +2923,18 @@ Function HandleDepartureFailure(Int slot, Actor agent)
         ; Player isn't looking — teleport silently to destination instead of cancelling
         ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
         If dest != None
-            Core.DebugMsg(agentName + " failed to depart (off-screen) — teleporting to destination")
-            agent.MoveTo(dest, 0.0, 0.0, 50.0)
+            Core.DebugMsg(agentName + " failed to depart (off-screen) - teleporting to destination")
+            ; (Not onto a spot in front of the player, see CheckIfStuck.)
+            If !Core.PlaceForUnseenArrival(agent, dest)
+                agent.MoveTo(dest, 0.0, 0.0, 50.0)
+            EndIf
             agent.EvaluatePackage()
             Return
         EndIf
     EndIf
 
     ; Player is watching — narrate and cancel
-    Core.DebugMsg(agentName + " failed to depart (visible) — narrating cancel")
+    Core.DebugMsg(agentName + " failed to depart (visible) - narrating cancel")
 
     If agent.GetParentCell() == player.GetParentCell()
         Core.SendTaskNarration(agent, agentName + " " + IntelEngine.BuildStuckNarration(Core.SlotTaskTypes[slot]), player)
@@ -2424,7 +2942,7 @@ Function HandleDepartureFailure(Int slot, Actor agent)
         Core.SendTransientEvent(agent, player, agentName + " was unable to carry out the task and stayed behind.")
     EndIf
 
-    Core.RemoveAllPackages(agent)
+    Core.RemoveIntelPackages(agent)
     Core.ClearSlot(slot, true)
 EndFunction
 
@@ -2437,8 +2955,10 @@ EndFunction
 ; =============================================================================
 
 Function CheckIfStuck(Int slot, Actor npc)
-    ; Skip stuck detection while NPC is in dialogue or combat — stationary by design
-    If npc.GetDialogueTarget() != None || npc.IsInCombat()
+    ; Skip stuck detection while NPC is in dialogue or combat — stationary by design.
+    ; The same while they are speaking: a SkyrimNet conversation sets no dialogue target, so an agent
+    ; who stopped to answer was "stuck", narrated as stumbling and, further on, teleported.
+    If npc.GetDialogueTarget() != None || npc.IsInCombat() || IntelEngine.IsActorTalking(npc)
         IntelEngine.ResetStuckSlot(slot, npc)
         Return
     EndIf
@@ -2505,13 +3025,23 @@ Function CheckIfStuck(Int slot, Actor npc)
             If descDist <= 250.0
                 Actor searchTarget = StorageUtil.GetFormValue(npc, \
                     "Intel_TargetNPC") as Actor
-                If searchTarget != None
-                    Core.DebugMsg("Search exhausted — bringing " + \
+                ; Not one the player is looking at, and not a carriage driver (moved off the cart, the
+                ; carriage service is broken, see Core.IsUnsuitableTaskAgent).
+                If searchTarget != None && !Core.PlayerCanSee(searchTarget) && !Core.IsCarriageDriver(searchTarget)
+                    Core.DebugMsg("Search exhausted - bringing " + \
                         searchTarget.GetDisplayName() + " to player area")
-                    Core.TeleportBehindPlayer(searchTarget, 500.0)
+                    PlaceNearPlayerUnseen(searchTarget, 500.0)
                     IntelEngine.ResetStuckSlot(slot, npc)
                 EndIf
             EndIf
+            Return
+        EndIf
+
+        ; What follows moves the agent by a teleport. Not while the player is looking at them: they
+        ; vanished in plain view. The package is refreshed instead, the move waits until they are out of
+        ; sight, and the task's time limit stays the last resort.
+        If Core.PlayerCanSee(npc)
+            Core.SoftStuckRecovery(npc, slot, dest)
             Return
         EndIf
 
@@ -2519,17 +3049,25 @@ Function CheckIfStuck(Int slot, Actor npc)
             ; Progressive distance from C++ StuckDetector
             Float distance = IntelEngine.GetTeleportDistance(slot)
             Core.DebugMsg("Teleport behind player at " + distance + " units for " + npc.GetDisplayName())
-            Core.TeleportBehindPlayer(npc, distance)
-            ; Re-apply travel package — may have been dropped by engine
+            PlaceNearPlayerUnseen(npc, distance, true)
+            If !Core.SlotHolds(slot, npc)
+                Return                    ; cancelled or replaced while the move was made
+            EndIf
+            ; Re-apply travel package — may have been dropped by engine. The one that is on them, not
+            ; the slot's nominal speed on top of it.
             Int speed = Core.SlotSpeeds[slot]
-            Package travelPkg = Core.GetTravelPackage(speed)
+            Package travelPkg = Core.TravelPackageOn(npc, Core.GetTravelPackage(speed))
             If travelPkg
                 ActorUtil.AddPackageOverride(npc, travelPkg, Core.PRIORITY_TRAVEL, 1)
             EndIf
             npc.EvaluatePackage()
         ElseIf dest != None
-            Core.DebugMsg("Task stuck recovery exhausted — teleporting " + npc.GetDisplayName())
-            npc.MoveTo(dest, 0.0, 0.0, 50.0)
+            Core.DebugMsg("Task stuck recovery exhausted - teleporting " + npc.GetDisplayName())
+            ; Not onto a spot in front of the player when the one they are going to stands there: then
+            ; they are put at the way in (indoors) or well behind the player, and walk the rest.
+            If !Core.PlaceForUnseenArrival(npc, dest)
+                npc.MoveTo(dest, 0.0, 0.0, 50.0)
+            EndIf
             npc.EvaluatePackage()
         EndIf
     EndIf
@@ -2599,3 +3137,7 @@ Bool Function IsNPCTaskType(String taskType)
     Return taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor" || taskType == "escort_target"
 EndFunction
 
+Bool Function HoldsActor(Actor npc)
+    {Used by Core's sweep of stale overrides: a fetched or escorted NPC who still lingers is accounted for.}
+    Return npc != None && StorageUtil.FormListFind(self, "Intel_LingeringTargets", npc as Form) >= 0
+EndFunction
