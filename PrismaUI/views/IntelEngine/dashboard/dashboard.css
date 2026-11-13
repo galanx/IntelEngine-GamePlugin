@@ -1057,6 +1057,9 @@ video {
 .leading-tight {
   line-height: 1.25;
 }
+.tracking-normal {
+  letter-spacing: 0em;
+}
 .tracking-wider {
   letter-spacing: 0.05em;
 }

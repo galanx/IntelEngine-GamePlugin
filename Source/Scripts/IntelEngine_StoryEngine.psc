@@ -4525,15 +4525,21 @@ Function CheckQuestGuide()
 
     ; Off-screen handling: if guide is unloaded, use off-screen travel logic
     If !QuestGuideNPC.Is3DLoaded()
-        If slot >= 0 && Core.HandleOffScreenTravel(slot, QuestGuideNPC, QuestLocation)
-            ; Off-screen arrival: teleport near quest location
+        ; The guiding ends when the guide gets there unseen, and at once when the player is there already
+        ; (went ahead, or travelled fast): there is nothing left to guide to, and the quest's enemies, captive
+        ; or chest wait for the guiding to end (CheckQuestProximity). It used to end only with the guide loaded
+        ; and near the place: for a player inside the dungeon the guide was "placed near" it again on every
+        ; check, a teleport every three seconds, and the dungeon held nothing of the quest.
+        Bool playerThere = PlayerAtQuestSite()
+        If playerThere || (slot >= 0 && Core.HandleOffScreenTravel(slot, QuestGuideNPC, QuestLocation))
             Float[] offset = IntelEngine.GetOffsetBehind(QuestLocation, TELEPORT_OFFSET_INTERIOR)
             QuestGuideNPC.MoveTo(QuestLocation, offset[0], offset[1], 0.0, false)
-            Core.RemoveIntelPackages(QuestGuideNPC, false)
-            PO3_SKSEFunctions.SetLinkedRef(QuestGuideNPC, QuestLocation, Core.IntelEngine_TravelTarget)
-            ActorUtil.AddPackageOverride(QuestGuideNPC, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
-            QuestGuideNPC.EvaluatePackage()
-            Core.DebugMsg("Story [quest_guide]: off-screen arrival near " + QuestLocationName)
+            If playerThere
+                Core.DebugMsg("Story [quest_guide]: the player is at " + QuestLocationName + " already - guiding ends")
+            Else
+                Core.DebugMsg("Story [quest_guide]: off-screen arrival near " + QuestLocationName)
+            EndIf
+            OnQuestGuideArrived()
         EndIf
         return
     EndIf
@@ -4613,6 +4619,15 @@ Function CheckQuestGuide()
     EndIf
 EndFunction
 
+Bool Function PlayerAtQuestSite()
+    {Is the player inside the quest's location (the dungeon itself, or a place within it)?}
+    If QuestLocation == None
+        return false
+    EndIf
+    Location questLoc = QuestLocation.GetCurrentLocation()
+    return questLoc != None && Game.GetPlayer().IsInLocation(questLoc)
+EndFunction
+
 Function OnQuestGuideArrived()
     Core.DebugMsg("Story [quest_guide]: arrived at " + QuestLocationName)
 
@@ -4636,7 +4651,10 @@ Function OnQuestGuideArrived()
     PO3_SKSEFunctions.SetLinkedRef(QuestGuideNPC, QuestGuideNPC as ObjectReference, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(QuestGuideNPC, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
     Utility.Wait(0.1)
-    QuestGuideNPC.EvaluatePackage()
+    ; Only someone who is loaded is evaluated: unseen, an evaluation sends them to their own routine at once.
+    If QuestGuideNPC.Is3DLoaded()
+        QuestGuideNPC.EvaluatePackage()
+    EndIf
 
     ; Ensure building access: if guide is inside an interior, unlock for player
     Core.EnsureBuildingAccess(QuestGuideNPC)
