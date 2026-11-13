@@ -809,6 +809,15 @@ Bool Function CancelCurrentTask(Actor akNPC, Bool force = false)
         Return false
     EndIf
 
+    ; A meeting the player agreed to is not the NPC's to drop on a whim. The trip is narrated when it starts,
+    ; the NPC gets a turn, and the LLM readily answers with CancelCurrentTask ("stop travelling, she has
+    ; arrived"). That used to cancel the trip and delete the meeting from the schedule without a word, so the
+    ; NPC never showed up. Only the player (dashboard, MCM, Director: force) ends a scheduled meeting early.
+    If !force && StorageUtil.GetIntValue(akNPC, "Intel_IsScheduledMeeting") == 1
+        DebugMsg(akNPC.GetDisplayName() + " cancel blocked: on a scheduled meeting")
+        Return false
+    EndIf
+
     StorageUtil.SetStringValue(akNPC, "Intel_Result", "cancelled")
     ClearSlotRestoreFollower(slot, akNPC)
     If StoryEngine && StoryEngine.IsActive && StoryEngine.ActiveStoryNPC == akNPC
@@ -976,9 +985,19 @@ Function ReleaseLinger(Actor npc)
     ; returning to their routine on their own. NPCs with ONLY sandbox AI
     ; (common for modded followers) will just sandbox wherever they are,
     ; which looks broken if they're displaced. Walk those home instead.
-    If npc.IsPlayerTeammate()
+    If FindSlotByAgent(npc) >= 0
+        ; A new IntelEngine task took them over while they lingered: its package and its travel target are
+        ; in place already. Touching the linked ref here would take the new task's destination away.
+        DebugMsg("Linger release: " + npc.GetDisplayName() + " has a new task -> left to it")
+    ElseIf npc.IsPlayerTeammate()
         PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
         DebugMsg("Linger release: " + npc.GetDisplayName() + " is teammate -> cleared linked ref")
+    ElseIf IsFollowingPlayer(npc)
+        ; Recruited through a follow system that does not set the teammate flag (SeverActions' casual follow,
+        ; a follower framework). Sending them home here put a priority-100 walk override on top of the follow
+        ; package: they walked off instead of following, and nothing ever took that override away again.
+        PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+        DebugMsg("Linger release: " + npc.GetDisplayName() + " is following the player -> cleared linked ref")
     ElseIf IntelEngine.HasNonSandboxAI(npc)
         PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
         DebugMsg("Linger release: " + npc.GetDisplayName() + " has schedule AI -> relying on base packages")
@@ -999,6 +1018,9 @@ Function ReleaseLinger(Actor npc)
                 ; Player can see: walk naturally
                 PO3_SKSEFunctions.SetLinkedRef(npc, destRef, IntelEngine_TravelTarget)
                 ActorUtil.AddPackageOverride(npc, TravelPackage_Walk, PRIORITY_TRAVEL, 1)
+                ; This override belongs to no task slot, so remember it: SweepStalePackages takes it off again
+                ; once they are home, out of sight, recruited, or WALK_HOME_MAX_HOURS have passed.
+                TrackWalkHome(npc)
                 DebugMsg("Linger release: " + npc.GetDisplayName() + " sandbox-only AI, 3D loaded -> walking home")
             EndIf
         Else
@@ -1048,6 +1070,195 @@ Function OverrideExistingTask(Actor npc)
             ClearSlot(existingSlot, true)
         EndIf
     EndIf
+    ReleaseStoryClaims(npc)
+EndFunction
+
+Function ReleaseStoryClaims(Actor npc)
+    {The NPC is starting something else: let go of whatever the story engine still holds on them.
+    Clearing the slot alone left a dispatched story marked active (it kept steering the NPC back to the player
+    and blocked new stories until the 6-hour watchdog), and left a lingering visitor's sandbox on top of the
+    new task.}
+    If npc == None || StoryEngine == None
+        Return
+    EndIf
+    If StoryEngine.IsActive && StoryEngine.ActiveStoryNPC == npc
+        DebugMsg(npc.GetDisplayName() + " leaves the active story for a new task")
+        StoryEngine.CleanupStoryDispatch()
+    EndIf
+    StoryEngine.ForgetLingerActor(npc)
+EndFunction
+
+; =============================================================================
+; WHO MAY BE SENT, WHO IS FOLLOWING, AND THE STALE-OVERRIDE SWEEP
+; =============================================================================
+
+Float Property WALK_HOME_MAX_HOURS = 3.0 AutoReadOnly
+; How long a prompt card waits for the player before its fallback answer counts (real seconds).
+Float Property PROMPT_SECONDS_TASK = 20.0 AutoReadOnly    ; "X wants to ..." confirmations -> Deny (Silent)
+Float Property PROMPT_SECONDS_STORY = 40.0 AutoReadOnly   ; a visitor at the door, a quest offer
+Faction _carriageSystemFaction
+Faction _currentFollowerFaction
+Faction _severFollowingFaction
+Bool _softFormsResolved = false
+
+Function ResolveSoftForms()
+    {Forms of the base game and of other mods, looked up once per load. None when the mod is not installed.}
+    _carriageSystemFaction = Game.GetFormFromFile(0x00017F04, "Skyrim.esm") as Faction      ; CarriageSystemFaction
+    _currentFollowerFaction = Game.GetFormFromFile(0x0005C84E, "Skyrim.esm") as Faction     ; CurrentFollowerFaction
+    _severFollowingFaction = None
+    If Game.IsPluginInstalled("SeverActions.esp")
+        _severFollowingFaction = Game.GetFormFromFile(0x000F0809, "SeverActions.esp") as Faction   ; SeverActions_ActivelyFollowing
+    EndIf
+    _softFormsResolved = true
+EndFunction
+
+Bool Function IsFollowingPlayer(Actor npc)
+    {True when some follow system has this NPC with the player right now: the vanilla teammate flag, the vanilla
+    follower faction, or SeverActions' follow (which sets neither).}
+    If npc == None
+        Return false
+    EndIf
+    If !_softFormsResolved
+        ResolveSoftForms()
+    EndIf
+    If npc.IsPlayerTeammate()
+        Return true
+    EndIf
+    If _currentFollowerFaction && npc.GetFactionRank(_currentFollowerFaction) >= 0
+        Return true
+    EndIf
+    ; Rank -1 is what RemoveFromFaction leaves behind, so test the rank, not membership.
+    If _severFollowingFaction && npc.GetFactionRank(_severFollowingFaction) >= 0
+        Return true
+    EndIf
+    Return false
+EndFunction
+
+Bool Function IsUnsuitableTaskAgent(Actor npc)
+    {NPCs that must never be given a travel, fetch, escort, search or delivery task.
+    Carriage drivers: the LLM hears "let's go" in their own lines and fires a travel action; the travel override
+    pulls them off the cart, the carriage service is broken from then on, and face to face the task could not
+    even be cancelled. They carry CarriageSystemFaction in the base game and in Hearthfire and Dawnguard.}
+    If npc == None
+        Return true
+    EndIf
+    If !_softFormsResolved
+        ResolveSoftForms()
+    EndIf
+    If _carriageSystemFaction && npc.IsInFaction(_carriageSystemFaction)
+        Return true
+    EndIf
+    If npc.IsChild()
+        Return true
+    EndIf
+    Return false
+EndFunction
+
+Function TrackWalkHome(Actor npc)
+    StorageUtil.SetFloatValue(npc, "Intel_WalkHomeUntil", Utility.GetCurrentGameTime() + WALK_HOME_MAX_HOURS / 24.0)
+    StorageUtil.FormListAdd(self, "Intel_WalkHomeActors", npc as Form, false)
+EndFunction
+
+Function EndWalkHome(Actor npc, Bool removeOverride)
+    If removeOverride
+        ActorUtil.RemovePackageOverride(npc, TravelPackage_Walk)
+        PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+        npc.EvaluatePackage()
+    EndIf
+    StorageUtil.UnsetFloatValue(npc, "Intel_WalkHomeUntil")
+    StorageUtil.FormListRemove(self, "Intel_WalkHomeActors", npc as Form, true)
+EndFunction
+
+Function CheckWalkHomeActors()
+    {Take the walk-home override off again: at home, out of sight, recruited, on a new task, or after the limit.}
+    Int i = StorageUtil.FormListCount(self, "Intel_WalkHomeActors") - 1
+    Float now = Utility.GetCurrentGameTime()
+    While i >= 0
+        Actor npc = StorageUtil.FormListGet(self, "Intel_WalkHomeActors", i) as Actor
+        If npc == None || npc.IsDead() || npc.IsDisabled()
+            StorageUtil.FormListRemoveAt(self, "Intel_WalkHomeActors", i)
+        ElseIf FindSlotByAgent(npc) >= 0
+            ; A task owns them now: its own package and linked ref are in place, leave both alone.
+            EndWalkHome(npc, false)
+        Else
+            ObjectReference home = npc.GetLinkedRef(IntelEngine_TravelTarget)
+            Bool done = home == None || !npc.Is3DLoaded() || IsFollowingPlayer(npc)
+            If !done && now >= StorageUtil.GetFloatValue(npc, "Intel_WalkHomeUntil", 0.0)
+                done = true
+            EndIf
+            If !done && npc.GetParentCell() == home.GetParentCell() && npc.GetDistance(home) < 400.0
+                done = true
+            EndIf
+            If done
+                If home != None && !npc.Is3DLoaded() && !IsFollowingPlayer(npc)
+                    npc.MoveTo(home)          ; nobody is watching: finish the walk
+                EndIf
+                DebugMsg("Walk home finished: " + npc.GetDisplayName())
+                EndWalkHome(npc, true)
+            EndIf
+        EndIf
+        i -= 1
+    EndWhile
+EndFunction
+
+Bool Function OwnsPackagesOf(Actor npc)
+    {Does any live IntelEngine state account for this NPC running one of our packages?}
+    If FindSlotByActor(npc) >= 0
+        Return true
+    EndIf
+    If StorageUtil.FormListFind(self, "Intel_WalkHomeActors", npc as Form) >= 0
+        Return true
+    EndIf
+    If StoryEngine && StoryEngine.HoldsActor(npc)
+        Return true
+    EndIf
+    If NPCTasks && NPCTasks.HoldsActor(npc)
+        Return true
+    EndIf
+    Return false
+EndFunction
+
+Function SweepStalePackages()
+    {The dashboard lists NPCs who run an IntelEngine package without a task ("Other IE packages") and offers a
+    Remove button. This does the same on its own, once per game hour and on load, for every such NPC that nothing
+    in the mod accounts for any more. An NPC has to be found unaccounted for on two sweeps in a row, so a package
+    that was just handed out between two bookkeeping steps is never taken away.}
+    CheckWalkHomeActors()
+    Int[] ids = new Int[6]
+    ids[0] = TravelPackage_Walk.GetFormID()
+    ids[1] = TravelPackage_Jog.GetFormID()
+    ids[2] = TravelPackage_Run.GetFormID()
+    If TravelPackage_Stalk
+        ids[3] = TravelPackage_Stalk.GetFormID()
+    EndIf
+    If SandboxPackage
+        ids[4] = SandboxPackage.GetFormID()
+    EndIf
+    If SandboxNearPlayerPackage
+        ids[5] = SandboxNearPlayerPackage.GetFormID()
+    EndIf
+    Actor[] holders = IntelEngine.GetActorsWithPackages(ids)
+    If holders.Length > 0
+        DebugMsg("Sweep: " + holders.Length + " NPC(s) currently run an IntelEngine package")
+    EndIf
+    Int i = 0
+    While i < holders.Length
+        Actor npc = holders[i]
+        If npc != None
+            If OwnsPackagesOf(npc)
+                StorageUtil.UnsetIntValue(npc, "Intel_StaleSeen")
+            ElseIf StorageUtil.GetIntValue(npc, "Intel_StaleSeen") == 0
+                StorageUtil.SetIntValue(npc, "Intel_StaleSeen", 1)
+            Else
+                DebugMsg("Sweep: " + npc.GetDisplayName() + " still ran an IntelEngine package with no task behind it -> removed")
+                RemoveIntelPackages(npc, false)
+                PO3_SKSEFunctions.SetLinkedRef(npc, None, IntelEngine_TravelTarget)
+                npc.EvaluatePackage()
+                StorageUtil.UnsetIntValue(npc, "Intel_StaleSeen")
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
 EndFunction
 
 Function DismissFollowerForTask(Actor npc)
@@ -1157,13 +1368,78 @@ Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String 
     EndIf
 
     ; mode 1 (follower matched) or mode 2 (everyone) — show prompt
-    String result = SkyMessage.Show(promptText, "Allow", "Deny", "Deny (Silent)")
+    String promptTitle = "Request"
+    If actionName == "GoToLocation"
+        promptTitle = "Travel"
+    ElseIf actionName == "ScheduleMeeting"
+        promptTitle = "Meeting"
+    ElseIf actionName == "DeliverMessage" || actionName == "ScheduleDelivery"
+        promptTitle = "Message"
+    ElseIf actionName == "FetchPerson" || actionName == "ScheduleFetch"
+        promptTitle = "Fetch"
+    ElseIf actionName == "EscortTarget"
+        promptTitle = "Escort"
+    ElseIf actionName == "SearchForActor"
+        promptTitle = "Search"
+    EndIf
+    String result = AskPlayer(promptTitle, promptText, "Allow", "Deny", "Deny (Silent)", PROMPT_SECONDS_TASK, 2)
     If result == "Deny"
         Return 1
     ElseIf result == "Allow"
         Return 0
     EndIf
     Return 2
+EndFunction
+
+String Function AskPlayer(String title, String body, String option1, String option2 = "", String option3 = "", Float timeoutSeconds = 20.0, Int timeoutChoice = -1)
+    {Asks the player a question with up to three answers and returns the answer's text. The question is shown as
+    a card with a time bar in IntelEngine's own UI; when the time runs out the answer at timeoutChoice counts
+    (the last one by default), so an unanswered prompt never holds up the game or the NPC. Where that UI cannot
+    be shown (no UI host installed, another UI holds the screen, another prompt already up) the classic message
+    box is used; that one waits for the player.}
+    String[] labels = new String[3]
+    labels[0] = option1
+    labels[1] = option2
+    labels[2] = option3
+    Int answers = 1
+    If option2 != ""
+        answers = 2
+    EndIf
+    If option3 != ""
+        answers = 3
+    EndIf
+    If timeoutChoice < 0 || timeoutChoice >= answers
+        timeoutChoice = answers - 1
+    EndIf
+
+    Int promptId = IntelEngine.ShowPrompt(title, body, option1, option2, option3, timeoutSeconds, timeoutChoice)
+    If promptId > 0
+        Float limit = 3700.0
+        If timeoutSeconds > 0.0
+            limit = timeoutSeconds + 15.0
+        EndIf
+        Float waited = 0.0
+        Int picked = -1
+        While picked == -1 && waited < limit
+            Utility.WaitMenuMode(0.2)
+            waited += 0.2
+            picked = IntelEngine.GetPromptResult(promptId)
+        EndWhile
+        If picked >= 0 && picked < answers
+            Return labels[picked]
+        ElseIf picked == -1
+            Return labels[timeoutChoice]
+        EndIf
+        DebugMsg("Prompt card could not be shown, using a message box")
+    EndIf
+
+    ; No time limit here: the classic box cannot take itself off the screen, so after a timeout it would stay
+    ; up with buttons that no longer do anything. It waits for the player instead.
+    String boxResult = SkyMessage.Show(body, option1, option2, option3)
+    If boxResult == "TIMED_OUT" || boxResult == ""
+        Return labels[timeoutChoice]
+    EndIf
+    Return boxResult
 EndFunction
 
 String Function DetermineLatenessOutcome(Float actualGameTime, Float deadlineGameTime)
@@ -2719,6 +2995,8 @@ String Function BuildDashboardStateJson()
                     EndIf
                 EndIf
                 json += ",\"schedState\":" + Schedule.GetScheduleSlotState(i)
+                ; The list skips empty slots, so the page needs the real slot number to cancel the right one.
+                json += ",\"slot\":" + i
                 json += "}"
             EndIf
             i += 1

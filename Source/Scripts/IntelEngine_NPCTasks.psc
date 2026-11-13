@@ -343,6 +343,14 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         true if fetch task started successfully
     }
 
+    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akAgent)
+        If akAgent != None
+            Core.DebugMsg("FetchNPC: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        EndIf
+        Return false
+    EndIf
+
     ; Validate agent
     If akAgent == None
         Core.DebugMsg("FetchNPC: None agent")
@@ -528,6 +536,14 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         true if delivery task started
     }
 
+    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akAgent)
+        If akAgent != None
+            Core.DebugMsg("DeliverMessage: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        EndIf
+        Return false
+    EndIf
+
     ; Validate
     If akAgent == None || akAgent.IsDead() || akAgent.IsInCombat()
         Return false
@@ -684,6 +700,14 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
         true if search task started successfully
     }
 
+    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akAgent)
+        If akAgent != None
+            Core.DebugMsg("SearchForActor: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        EndIf
+        Return false
+    EndIf
+
     ; Validate agent
     If akAgent == None
         Core.DebugMsg("SearchForActor: None agent")
@@ -824,6 +848,14 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     Returns:
         true if escort task started successfully
     }
+
+    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    If Core.IsUnsuitableTaskAgent(akAgent)
+        If akAgent != None
+            Core.DebugMsg("EscortTarget: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        EndIf
+        Return false
+    EndIf
 
     ; Normalize destination
     If destination == ""
@@ -2599,3 +2631,7 @@ Bool Function IsNPCTaskType(String taskType)
     Return taskType == "fetch_npc" || taskType == "deliver_message" || taskType == "search_for_actor" || taskType == "escort_target"
 EndFunction
 
+Bool Function HoldsActor(Actor npc)
+    {Used by Core's sweep of stale overrides: a fetched or escorted NPC who still lingers is accounted for.}
+    Return npc != None && StorageUtil.FormListFind(self, "Intel_LingeringTargets", npc as Form) >= 0
+EndFunction

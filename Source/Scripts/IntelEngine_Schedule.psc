@@ -298,6 +298,9 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
         Return -1
     ElseIf confirmResult == 2
         Core.InjectFact(akNPC, "proposed to " + taskDescription + " but the plan fell through")
+        ; Say so: the prompt can also end without a choice (it timed out, or closed), and a meeting that
+        ; silently never happens looks like a bug to the player.
+        Core.NotifyPlayer("Not scheduled: " + npcName + " will not " + taskDescription + ".")
         Return -1
     EndIf
 
@@ -312,6 +315,7 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     Int slot = FindFreeScheduleSlot()
     If slot < 0
         Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " has too many scheduled tasks already.")
+        Core.NotifyPlayer("Not scheduled: all " + MAX_SCHEDULED + " schedule slots are in use.")
         Return -1
     EndIf
 
@@ -472,9 +476,17 @@ Function ClearScheduleSlot(Int slot)
         StorageUtil.UnsetIntValue(npc, "Intel_ScheduledState")
     EndIf
 
-    If ScheduledCount > 0
-        ScheduledCount -= 1
-    EndIf
+    ; Count what is really there. Subtracting one went wrong when an empty slot was cleared (the dashboard
+    ; could ask for that): the count reached zero with a meeting still waiting, and it was never dispatched.
+    Int remaining = 0
+    Int n = 0
+    While n < MAX_SCHEDULED
+        If ScheduledAgents[n] != None
+            remaining += 1
+        EndIf
+        n += 1
+    EndWhile
+    ScheduledCount = remaining
 EndFunction
 
 Function SetScheduleState(Int slot, Int newState)
@@ -509,7 +521,9 @@ Bool Function HasFutureScheduleForAgent(Actor npc)
     Float now = Utility.GetCurrentGameTime()
     Int i = 0
     While i < MAX_SCHEDULED
-        If ScheduledAgents[i] == npc && ScheduledTimes[i] > now
+        ; Pending (state 0) counts as well: a meeting whose hour has just passed but which has not been
+        ; dispatched yet (the player slept through it) must not be wiped because another task of the NPC ended.
+        If ScheduledAgents[i] == npc && (ScheduledTimes[i] > now || StorageUtil.GetIntValue(npc, "Intel_ScheduledState", -1) == 0)
             Return true
         EndIf
         i += 1
@@ -523,6 +537,9 @@ EndFunction
 
 Event OnUpdateGameTime()
     CheckAndDispatchPendingTasks()
+
+    ; Once per game hour: take IntelEngine packages off NPCs that no task, linger or story accounts for.
+    Core.SweepStalePackages()
 
     ; Heartbeat: ensure monitoring loops are alive.
     ; Papyrus VM stack dumps (from MCM browsing, mod overload, etc.) can kill
@@ -616,6 +633,7 @@ Function ExecuteScheduledTask(Int slot)
             EndIf
         Else
             Core.DebugMsg("Schedule GoToLocation FAILED for " + npc.GetDisplayName())
+            Core.NotifyPlayer(npc.GetDisplayName() + " could not set out for the meeting at " + destination + ". It is off.")
             If npc.Is3DLoaded()
                 Core.SendTaskNarration(npc, npc.GetDisplayName() + " tried to leave for " + destination + " but was unable to.", Game.GetPlayer())
             EndIf
