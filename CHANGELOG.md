@@ -59,6 +59,45 @@
 - Action and scheduling prompts ask for exact in-game place names in the game's language.
 - Extra travel and Director diagnostics at DebugLevel 4.
 
+### Stuck NPCs and package handling
+- All monitoring runs on one shared timer with one owner. Scripts used to cancel or re-arm it for each other: switching the story engine off, or a battle ending, could freeze every trip, task and schedule.
+- A task slot that changed hands while a handler was waiting is no longer wiped or marked "arrived" by the old handler; half-finished slots are cleaned up hourly.
+- An hourly sweep releases NPCs who still run an IntelEngine package with no task behind it; "Reset all tasks" in the MCM does the same at once.
+- NPCs with no routine of their own (many mod-added NPCs) are walked home when a trip, meeting, task or visit ends, instead of standing where it ended.
+- No recovery move happens in the player's view: a stuck NPC who is being watched gets a fresh path instead of a hop, and unseen arrivals come in through the door indoors or from behind outdoors. "Behind the player" used to be "south of the player".
+- Indoors nobody is placed 2000 units away (outside the building's shell) or leapfrogged through a wall.
+- An NPC who is talking is not treated as stuck, and one who is asked to do something in conversation finishes the sentence before turning to go.
+- During a task IntelEngine removes only its own packages, so a follow or wait order from another mod survives the task. If such a package blocks a trip it is cleared and the trip goes on.
+- An unknown place name, an unknown target or no free slot no longer cancels the task the NPC already had.
+- Trips: a disabled NPC's trip ends; a long road walked together with the player is not cut off at seven hours; the time limit no longer restarts on every load.
+- Fetch, deliver, escort, search: a search has an overall limit and the searcher waits on the spot when you fall behind; an escort without "wait" lets the NPC go at the destination; a fetched NPC's visit ends on its own; waits are measured in seconds instead of monitoring passes; carriage drivers are never fetched or escorted.
+- Stories: a refused faction courier gets their aggression back; an ambusher gets their own essential flag, aggression and confidence back; quest enemies, bosses and ambush soldiers are removed once out of sight; a dead guide ends the guiding, not the quest; a visitor walks the last stretch; two NPCs stay together for the length of their scene.
+- Battles: spawned soldiers are remembered across a restart and removed; your crime factions are restored after a battle you joined; an assassin is no longer deleted at the moment of striking.
+
+### Meetings and visits
+- An NPC who is already inside the meeting place has arrived (they were sent to its outside door and the meeting was called off).
+- A meeting is not called off because the NPC was talking, fighting or out of sight when it was time to leave.
+- An NPC waiting at the door while you are inside walks in (the order used to be re-issued every three seconds, so the walk never got anywhere).
+- After a load, an NPC waiting at a destination keeps their place.
+- A visit no longer ends one game hour in, whatever is being said. It lasts while the NPC is talking with you and a little after, and six game hours at most. This applies to meetings, errands, story visitors and fetched NPCs.
+- Times are understood in many more forms ("in 2 hours", "tomorrow at 6", "at dusk"). The natural-language time parser is by Lanosity.
+
+### Prompts, dashboard and controller
+- The choice popup scales with the screen (4K, ultrawide, VR), answers on key release (Enter no longer leaks into the game), takes Left/Right and E, and takes a gamepad when Magelight's gamepad layer is there. Its footer says what Esc answers.
+- The task-permission prompt has a 20-second limit; no answer is a silent deny.
+- The dashboard has a larger layout and can be driven with a gamepad or the arrow keys.
+- A Director political event that is refused now says so (it showed "Sent" and did nothing).
+
+### Fixes to 3.8 changes found in review
+- NPC gossip without a subject no longer starts with a blank.
+- The second NPC of a scene resolves again when they are not in the first one's cell (the pair was dropped as unresolved).
+- A model answer with a field of the wrong type (`"gossip": null`) is rejected instead of ending the game.
+- An informant rumor may start with "During", "King", "Something" and similar words.
+- Choice popup: a lost race for the screen is noticed at once, a late entry no longer leaves the game paused on a hidden page, and a page that failed to load is not reused.
+- A pair of NPCs waiting for you to come within hearing waits for the full time, not thirty seconds.
+- A `factions.d` fragment with an unknown `requires:` line, or saved with a byte-order mark, is not loaded for everyone.
+- A battle in a plugin whose file name is not plain ASCII no longer throws while it is recorded.
+
 ## 3.7.1 — 2026-11-04
 
 - The dashboard no longer goes blank when a game or mod name has invalid text encoding; it shows � instead.

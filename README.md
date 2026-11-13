@@ -379,7 +379,7 @@ IntelEngine operates as two tightly integrated layers, with a third connecting i
 **Extra faction files (`factions.d/`)** — besides `factions.yaml`, IntelEngine loads every `factions.d/*.yaml` next to it (`SKSE/Plugins/SkyrimNet/config/plugins/IntelEngine/`), in filename order. A faction whose `id` already exists is replaced whole; a new `id` is added. A relation for the same pair replaces the earlier one. A broken file is skipped with a log warning. If a file's first line is `requires: political_engine`, it loads only when Political Engine is installed and its integration setting is on; IntelEngine ships `political_engine.yaml` this way. Edits are whole-faction only: copy the full faction into your file to change it, because single fields cannot be overridden. A faction may set an optional `pe_side: 0-3` (Political Engine side: 0 Independent, 1 Empire, 2 Stormcloaks, 3 Aldmeri Dominion); without it the Imperial, Stormcloak and Thalmor engine factions map to 1, 2 and 3.
 
 ```yaml
-# factions.d/my_changes.yaml
+# factions.d/zz_my_changes.yaml  (files load in name order: this one has to come after political_engine.yaml to change PE_Whiterun)
 factions:
   - id: "PE_Whiterun"
     name: "Whiterun (mine)"
