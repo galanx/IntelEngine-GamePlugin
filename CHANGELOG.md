@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.7.2 — 2026-11-13
+
+### Meetings that never happened
+- An NPC who is already inside the meeting place (you arrange to meet at the inn you are both standing in, or they work there) now counts as arrived. They were sent to the building's outside door, usually never left, and the meeting was called off as a failed departure.
+- A scheduled meeting can no longer be cancelled by the NPC's own reaction to setting out (the model answering "X departed for Y" with the CancelCurrentTask action). The player's cancel in the dashboard still works.
+- The schedule counter is recounted instead of decremented; clearing an empty slot could bring it to zero with a meeting still waiting, which stopped all dispatching. The dashboard's cancel button now sends the real slot number.
+- Clock times are read in any spelling: `6am`, `5 a.m.`, `6:30 pm`, `6:00`, `06:00`, `18:30`, `at 6`, `six o'clock`, `9 tonight`. Before, anything but `6am`–`12pm` style fell back to 18:00, 1–5 am did not exist, and `6am tomorrow morning` became 8:00. The preview no longer shows PM for next-day times.
+- When a request is not scheduled (denied silently, timed out, no free slot, departure failed) a notice says so.
+
+### Stuck story and travel packages
+- A story visitor who is recruited (teammate, follower faction, SeverActions follow) or given a new task while lingering is released instead of being sent "home" with a permanent walk override. The walk-home override itself is now tracked and removed on arrival, out of sight, or after 3 game hours.
+- Giving a story's NPC another task ends that story dispatch; the 6-hour story watchdog also frees the NPC's slot and package, and an arrival with a missing slot cleans up instead of blocking later arrivals.
+- Carriage drivers and children are not sent on tasks ("let's go" from a driver no longer breaks their route).
+- New hourly sweep: an NPC still running an IntelEngine package that no task, story or linger accounts for (seen on two sweeps in a row) has it removed. This also repairs NPCs left stuck by earlier versions.
+
+### Dashboard and prompts
+- Larger dashboard: page list on the left, sections as cards, sized from the screen (also on ultrawide and square/upright surfaces), bigger targets and a clear selection ring. Arrow keys move between controls, Page Up/Down switch pages.
+- Controller: on Magelight 1.6.0+ the dashboard opts into the host's gamepad navigation (A select, B back, LB/RB pages). Not tried with a physical pad or in VR yet; in VR Magelight reports no gamepad layer and the pointer is used.
+- Confirmation prompts ("X wants to travel to…", a visitor at the door, a quest offer) are shown as a card with up to three answers and a time bar; without an answer the marked one counts (Deny (Silent) after 20 s for requests, Ignore / Not interested after 40 s). Keys 1–3, arrows + Enter, mouse or pad. When the card cannot be shown (no UI host, another UI holds the screen) the classic message box is used as before.
+
 ## 3.7.1 — 2026-11-04
 
 - The dashboard no longer goes blank when a game or mod name has invalid text encoding; it shows � instead.

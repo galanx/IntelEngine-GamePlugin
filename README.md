@@ -346,7 +346,13 @@ Change the dashboard hotkey in the dashboard's Settings tab or on the SkyrimNet 
 
 The dashboard communicates through a shared C++ host bridge and existing Papyrus ModEvents. All JSON is built with `nlohmann::json` for proper escaping. Papyrus reads live quest properties and pushes comprehensive JSON snapshots. Remove Packages and Execute Action retain exact decimal-string actor FormIDs, including high-bit IDs.
 
-Accepted Director submissions show an on-screen notice; rejected ones show the reason and keep the form open. The dashboard does not close on submission. SkyMessage confirmations are unchanged.
+Accepted Director submissions show an on-screen notice; rejected ones show the reason and keep the form open. The dashboard does not close on submission.
+
+### Keyboard, controller and prompts (3.7.2)
+
+Arrow keys move between controls and Page Up/Down switch pages. On Magelight 1.6.0 or newer the dashboard uses the host's gamepad navigation (A select, B back, LB/RB pages); this has not been tried with a physical controller or in VR yet.
+
+Confirmation prompts are shown as a card with up to three answers and a time bar. Without an answer the marked one counts: Deny (Silent) after 20 seconds for action requests, Ignore / Not interested after 40 seconds for a visitor or a quest offer. Answer with 1–3, arrows + Enter, the mouse or the pad. If no UI host is installed or another UI holds the screen, the classic SkyMessage box is used and waits for an answer.
 
 ---
 
