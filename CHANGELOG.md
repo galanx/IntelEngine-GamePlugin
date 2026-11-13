@@ -82,6 +82,10 @@
 - Fetch, deliver, escort, search: a search has an overall limit and the searcher waits on the spot when you fall behind; an escort without "wait" lets the NPC go at the destination; a fetched NPC's visit ends on its own; waits are measured in seconds instead of monitoring passes; carriage drivers are never fetched or escorted.
 - Stories: a refused faction courier gets their aggression back; an ambusher gets their own essential flag, aggression and confidence back; quest enemies, bosses and ambush soldiers are removed once out of sight; a dead guide ends the guiding, not the quest; a visitor walks the last stretch; two NPCs stay together for the length of their scene.
 - Battles: spawned soldiers are remembered across a restart and removed; your crime factions are restored after a battle you joined; an assassin is no longer deleted at the moment of striking.
+- An NPC sent on a task while the inn's bard is singing no longer sits through the song first, and one caught by a song on the way out walks on. The game takes the people in the room into the bard's audience and holds them until the song is over, whatever they were told to do.
+- An NPC the game is holding in a scene or a quest is not treated as stuck: no recovery moves, and no line about their feet catching on something from someone who has not left their chair.
+- An NPC can no longer cancel the task they were just given with their own first reaction to it (a fetch was called off six seconds in, when the AI answered its start with "stop current task"). A task you cancel yourself ends at once, as before.
+- A message delivered out of your sight is reported back again when the messenger lives where you are waiting. They were back home before the handover was counted, so it was taken as delivered in front of you: no way back and no report.
 
 ### Meetings and visits
 - An NPC who is already inside the meeting place has arrived (they were sent to its outside door and the meeting was called off).
