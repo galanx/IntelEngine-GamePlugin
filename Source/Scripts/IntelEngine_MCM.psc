@@ -205,6 +205,13 @@ Event OnConfigOpen()
     EnsurePages()
 EndEvent
 
+Event OnConfigClose()
+    ; What was changed here also goes to SkyrimNet's settings file, for its plugin settings page.
+    If Core
+        Core.SyncSettingsToPluginConfig()
+    EndIf
+EndEvent
+
 Function EnsurePages()
     If Pages.Length != 4
         Pages = new String[4]

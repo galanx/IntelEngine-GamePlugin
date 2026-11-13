@@ -746,6 +746,15 @@ Float Function GetSecondsSinceNPCSpoke(Actor akActor) Global Native
 ; ReleaseHeldPackages and UnregisterPackageEx may only be called when this is 1 or more.
 Int Function GetSkyrimNetPackageApiVersion() Global Native
 
+; The gameplay settings are shared with SkyrimNet's plugin settings page through
+; config/plugins/IntelEngine/settings.yaml. configJson is Core.BuildConfigJson().
+; SyncPluginSettings: the game's values go into the file where they differ; returns how many were written.
+Int Function SyncPluginSettings(String configJson) Global Native
+; ApplyPluginSettings: the file's values go into the game where they differ (as IntelEngine_DashboardSetting
+; and IntelEngine_DashboardToggleStory events); values the file lacks are filled in from the game. Returns
+; how many settings change.
+Int Function ApplyPluginSettings(String configJson) Global Native
+
 
 ; =============================================================================
 ; DEBUG / TESTING FUNCTIONS

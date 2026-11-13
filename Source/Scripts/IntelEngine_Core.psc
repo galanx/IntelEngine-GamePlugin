@@ -329,6 +329,17 @@ Function Maintenance(Bool isFirstLoad = false)
 
     ; Register dashboard event listeners
     RegisterDashboardEvents()
+
+    ; The settings are shared with SkyrimNet's plugin settings page through one file for every save. A new
+    ; game and a save that has shared before take the file's values. A save from before the settings were
+    ; shared puts its own values into the file once, so nothing a player set up is lost on update.
+    Actor settingsOwner = Game.GetPlayer()
+    If isFirstLoad || StorageUtil.GetIntValue(settingsOwner, "Intel_SettingsShared") == 1
+        ApplyPluginSettings()
+    Else
+        SyncSettingsToPluginConfig()
+    EndIf
+    StorageUtil.SetIntValue(settingsOwner, "Intel_SettingsShared", 1)
 EndFunction
 
 Function InitializeSlotArrays()
@@ -2914,6 +2925,7 @@ EndEvent
 Event OnSkyrimNetPluginConfigSaved(String eventName, String strArg, Float numArg, Form sender)
     If strArg == "IntelEngine"
         IntelEngine.ReloadDashboardConfig()
+        ApplyPluginSettings()
     EndIf
 EndEvent
 
@@ -3012,6 +3024,7 @@ Event OnDashboardToggleStory(String eventName, String strArg, Float numArg, Form
         StoryEngine.TypeNPCGossipEnabled = enabled
     EndIf
     PushDashboardState()
+    SyncSettingsToPluginConfig()
 EndEvent
 
 Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sender)
@@ -3198,6 +3211,7 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
         EndIf
     EndIf
     ; No PushDashboardState() — React updates optimistically
+    SyncSettingsToPluginConfig()
 EndEvent
 
 Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false, Actor replacing = None)
@@ -3975,8 +3989,17 @@ String Function BuildDashboardStateJson()
     EndIf
 
     ; ── Config ──
+    json += ",\"config\":" + BuildConfigJson()
+
+    json += "}"
+    Return json
+EndFunction
+
+String Function BuildConfigJson()
+    {Every setting a player can change, as one JSON object: the "config" part of the dashboard state, and
+    what the settings shared with SkyrimNet's plugin settings page are compared with (SettingsBridge).}
+    String json = "{"
     ; Read from centralized getters — same source MCM uses (single source of truth)
-    json += ",\"config\":{"
     json += "\"debugMode\":" + BoolToJson(IsDebugMode())
     json += ",\"storyEnabled\":" + BoolToJson(IsStoryEngineEnabled())
     json += ",\"storyInterval\":" + GetStoryEngineInterval()
@@ -4031,24 +4054,64 @@ String Function BuildDashboardStateJson()
         json += ",\"questFactionBattle\":" + BoolToJson(StoryEngine.QuestSubTypeFactionBattleEnabled)
         json += ",\"questTimeoutDays\":" + StoryEngine.QUEST_EXPIRY_DAYS
         json += ",\"questAllowVictimDeath\":" + BoolToJson(StoryEngine.QuestAllowVictimDeath)
+        json += ",\"typeSeekPlayer\":" + BoolToJson(StoryEngine.TypeSeekPlayerEnabled)
+        json += ",\"typeInformant\":" + BoolToJson(StoryEngine.TypeInformantEnabled)
+        json += ",\"typeRoadEncounter\":" + BoolToJson(StoryEngine.TypeRoadEncounterEnabled)
+        json += ",\"typeAmbush\":" + BoolToJson(StoryEngine.TypeAmbushEnabled)
+        json += ",\"typeFactionAmbush\":" + BoolToJson(StoryEngine.TypeFactionAmbushEnabled)
+        json += ",\"typeStalker\":" + BoolToJson(StoryEngine.TypeStalkerEnabled)
+        json += ",\"typeMessage\":" + BoolToJson(StoryEngine.TypeMessageEnabled)
+        json += ",\"typeQuest\":" + BoolToJson(StoryEngine.TypeQuestEnabled)
+        json += ",\"typeNpcInteraction\":" + BoolToJson(StoryEngine.TypeNPCInteractionEnabled)
+        json += ",\"typeNpcGossip\":" + BoolToJson(StoryEngine.TypeNPCGossipEnabled)
+        json += ",\"npc_interaction\":" + BoolToJson(StoryEngine.TypeNPCInteractionEnabled)
+        json += ",\"npc_gossip\":" + BoolToJson(StoryEngine.TypeNPCGossipEnabled)
     Else
         json += ",\"longAbsenceDays\":3,\"maxTravelDays\":1,\"allowStuckTeleport\":true"
         json += ",\"dangerZonePolicy\":1,\"playerHomePolicy\":0"
-        json += ",\"holdPolicySeekPlayer\":1,\"holdPolicyInformant\":1,\"holdPolicyRoadEncounter\":1"
-        json += ",\"holdPolicyAmbush\":1,\"holdPolicyStalker\":1,\"holdPolicyMessage\":1,\"holdPolicyQuest\":1"
+        json += ",\"holdPolicySeekPlayer\":1,\"holdPolicyInformant\":6,\"holdPolicyRoadEncounter\":0"
+        json += ",\"holdPolicyAmbush\":1,\"holdPolicyStalker\":1,\"holdPolicyMessage\":2,\"holdPolicyQuest\":0"
         json += ",\"confirmGoToLocation\":1,\"confirmDeliverMessage\":1,\"confirmFetchPerson\":1,\"confirmEscortTarget\":1"
-        json += ",\"confirmSearchForActor\":1,\"confirmScheduleMeeting\":1,\"confirmScheduleFetch\":1,\"confirmScheduleDelivery\":1"
+        json += ",\"confirmSearchForActor\":1,\"confirmScheduleMeeting\":2,\"confirmScheduleFetch\":1,\"confirmScheduleDelivery\":1"
         json += ",\"skipFollowerGoToLocation\":false,\"skipFollowerDeliverMessage\":false,\"skipFollowerFetchPerson\":false,\"skipFollowerEscortTarget\":false"
         json += ",\"skipFollowerSearchForActor\":false,\"skipFollowerScheduleFetch\":false,\"skipFollowerScheduleDelivery\":false,\"skipFollowerScheduleMeeting\":false"
         json += ",\"autoBioEnabled\":false,\"autoBioThreshold\":20"
         json += ",\"npcTickEnabled\":true,\"npcTickInterval\":1.5,\"npcSocialCooldown\":24"
         json += ",\"questCombat\":true,\"questRescue\":true,\"questFindItem\":true,\"questFactionCombat\":true,\"questFactionRescue\":true,\"questFactionBattle\":true"
-        json += ",\"questTimeoutDays\":7,\"questAllowVictimDeath\":false"
+        json += ",\"questTimeoutDays\":1,\"questAllowVictimDeath\":false"
     EndIf
     json += "}"
-
-    json += "}"
     Return json
+EndFunction
+
+Float Property SETTINGS_APPLY_WINDOW_SECONDS = 8.0 AutoReadOnly
+Float SettingsFromFileUntil = 0.0
+
+Function SyncSettingsToPluginConfig()
+    {The settings as they are now go into SkyrimNet's settings file, so its plugin settings page shows what
+    is in force. Called after a change in the MCM or on the dashboard. Not while settings from the file
+    are still arriving (ApplyPluginSettings); real time restarts with the game, so a stamp from an
+    earlier session never blocks.}
+    Float now = Utility.GetCurrentRealTime()
+    If SettingsFromFileUntil > 0.0 && now < SettingsFromFileUntil && SettingsFromFileUntil - now <= SETTINGS_APPLY_WINDOW_SECONDS
+        Return
+    EndIf
+    SettingsFromFileUntil = 0.0
+    IntelEngine.SyncPluginSettings(BuildConfigJson())
+EndFunction
+
+Function ApplyPluginSettings()
+    {The settings in SkyrimNet's settings file come into the game: after a save on SkyrimNet's page, and on
+    load, so that every save and every new game uses what the player set there. The changes arrive as the
+    setting events the dashboard sends. While they arrive nothing is written back: the game would
+    overwrite the values of the file that it has not taken over yet.}
+    SettingsFromFileUntil = Utility.GetCurrentRealTime() + SETTINGS_APPLY_WINDOW_SECONDS
+    Int changes = IntelEngine.ApplyPluginSettings(BuildConfigJson())
+    If changes <= 0
+        SettingsFromFileUntil = 0.0
+    Else
+        DebugMsg("Settings: " + changes + " taken from SkyrimNet's settings file")
+    EndIf
 EndFunction
 
 String Function EscapeJson(String text)
