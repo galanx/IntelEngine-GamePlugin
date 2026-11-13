@@ -656,6 +656,10 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
 
     ; Add to task faction
     akAgent.AddToFaction(IntelEngine_TaskFaction)
+    ; Someone listening to the bard would stay seated until the song is over.
+    ReleaseFromBardAudience(akAgent)
+    ; When the task began, in real seconds (CancelCurrentTask: the NPC's own first reaction does not end it).
+    StorageUtil.SetFloatValue(akAgent, "Intel_TaskStartedRT", Utility.GetCurrentRealTime())
 
     ; Update slot tracking
     SlotStates[slot] = 1  ; traveling
@@ -966,6 +970,18 @@ Bool Function CancelCurrentTask(Actor akNPC, Bool force = false)
     ; NPC never showed up. Only the player (dashboard, MCM, Director: force) ends a scheduled meeting early.
     If !force && StorageUtil.GetIntValue(akNPC, "Intel_IsScheduledMeeting") == 1
         DebugMsg(akNPC.GetDisplayName() + " cancel blocked: on a scheduled meeting")
+        Return false
+    EndIf
+
+    ; Nor in the first moments of any task. The start is narrated, the NPC gets a turn, and the model readily
+    ; answers "stop current task": sent to fetch someone standing in the same room, the fetcher cancelled the
+    ; fetch six seconds in, with the player out of the "nearby" range above (seen 2026-11-13). A cancel the
+    ; player asks for is forced (dashboard, MCM, SkyrimNet's package page). Real time restarts with the game,
+    ; so a stamp from an earlier session never blocks.
+    Float startedRT = StorageUtil.GetFloatValue(akNPC, "Intel_TaskStartedRT", 0.0)
+    Float nowRT = Utility.GetCurrentRealTime()
+    If !force && startedRT > 0.0 && nowRT >= startedRT && nowRT - startedRT < TASK_CANCEL_GRACE_SECONDS
+        DebugMsg(akNPC.GetDisplayName() + " cancel blocked: the task has only just started")
         Return false
     EndIf
 
@@ -1806,7 +1822,12 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
         EndIf
         npc.MoveTo(dest)
         Utility.Wait(0.3)
-        npc.EvaluatePackage()
+        ; Only someone who is loaded is evaluated. An NPC out of sight who is evaluated goes to their own
+        ; routine on the spot, whatever override they carry: a messenger was back home (in the player's
+        ; cell) a third of a second after being placed beside the recipient across town.
+        If npc.Is3DLoaded()
+            npc.EvaluatePackage()
+        EndIf
         Return true
     EndIf
     Return false
@@ -1867,6 +1888,121 @@ Package Function TravelPackageOn(Actor npc, Package fallback)
         Return running
     EndIf
     Return fallback
+EndFunction
+
+String Function CellNameOf(Actor npc)
+    Cell where = npc.GetParentCell()
+    If where == None
+        Return "none"
+    EndIf
+    If where.IsInterior()
+        Return where.GetName()
+    EndIf
+    Return "outdoors"
+EndFunction
+
+Function DiagDeparture(Actor npc, Int seconds = 60)
+    {Development aid: one log line a second about an NPC on a task: why they are, or are not, moving, and
+    where they are (also while they are not loaded).
+    sit: 0 standing, 2 sitting down, 3 seated, 4 getting up. pkg: the package that is running.
+    Call it just before the task is given (it writes to the Papyrus log whatever the debug setting).}
+    If npc == None
+        Return
+    EndIf
+    Float x0 = npc.GetPositionX()
+    Float y0 = npc.GetPositionY()
+    Int i = 0
+    While i < seconds
+        Package running = npc.GetCurrentPackage()
+        String pkg = "none"
+        If running == TravelPackage_Walk || running == TravelPackage_Jog || running == TravelPackage_Run || running == TravelPackage_Stalk
+            pkg = "travel"
+        ElseIf running == SandboxPackage || running == SandboxNearPlayerPackage
+            pkg = "ie-sandbox"
+        ElseIf running != None
+            pkg = "other:" + running.GetFormID()
+        EndIf
+        Float dx = npc.GetPositionX() - x0
+        Float dy = npc.GetPositionY() - y0
+        Debug.Trace("IntelEngine: [diag:depart] " + npc.GetDisplayName() + " t=" + i + " sit=" + npc.GetSitState() + " pkg=" + pkg \
+            + " overrides=" + ActorUtil.CountPackageOverride(npc) + " talking=" + IntelEngine.IsActorTalking(npc) \
+            + " pending=" + IntelEngine.IsNPCSpeechPending(npc) + " dlg=" + (npc.GetDialogueTarget() != None) \
+            + " moved=" + (Math.sqrt(dx * dx + dy * dy) as Int) + " loaded=" + npc.Is3DLoaded() + " cell=" + CellNameOf(npc))
+        Utility.Wait(1.0)
+        i += 1
+    EndWhile
+    Debug.Trace("IntelEngine: [diag:depart] " + npc.GetDisplayName() + " end (loaded=" + npc.Is3DLoaded() + ")")
+EndFunction
+
+Quest _bardAudienceQuest
+Float Property HELD_PATIENCE_SECONDS = 120.0 AutoReadOnly
+; How long after a task starts the NPC's own reaction (the CancelCurrentTask action) cannot end it.
+Float Property TASK_CANCEL_GRACE_SECONDS = 45.0 AutoReadOnly
+
+Bool Function ReleaseFromBardAudience(Actor npc)
+    {When a bard starts a song, the game takes up to five people in the room into the audience (the vanilla
+    quest BardAudienceQuest, aliases Bystander1 to 5): they stand and listen until the song is over, whatever
+    package override they carry. Someone just sent on an errand sat for most of a minute, and someone already
+    walking stopped in the doorway (seen in the Bannered Mare, 2026-11-13). Taking them out of the audience
+    lets the errand go on at once; the song goes on without them. True when the NPC was in it.}
+    If npc == None
+        Return false
+    EndIf
+    If _bardAudienceQuest == None
+        _bardAudienceQuest = Game.GetFormFromFile(0x001062A7, "Skyrim.esm") as Quest
+    EndIf
+    If _bardAudienceQuest == None || !_bardAudienceQuest.IsRunning()
+        Return false
+    EndIf
+    Bool released = false
+    Int n = _bardAudienceQuest.GetNumAliases()
+    While n > 0
+        n -= 1
+        ReferenceAlias seat = _bardAudienceQuest.GetNthAlias(n) as ReferenceAlias
+        If seat != None && seat.GetReference() == npc
+            seat.Clear()
+            released = true
+        EndIf
+    EndWhile
+    Return released
+EndFunction
+
+Bool Function HeldByAnotherPackage(Int slot, Actor npc)
+    {Stuck detection is for an NPC who is trying to walk and cannot. One whose running package is not ours
+    is not trying: the game has them doing something else (a scene, a quest's alias package). True in that
+    case, after doing what can be done: out of the bard's audience at once; anyone else is left to it for up
+    to HELD_PATIENCE_SECONDS, without the "feet caught on something" line and without recovery moves. After
+    that, or when another mod's override sits on top of ours (SoftStuckRecovery clears those), false: the
+    stuck handling takes over.}
+    If npc == None || !npc.Is3DLoaded()
+        Return false
+    EndIf
+    Package running = npc.GetCurrentPackage()
+    If running == None || running == TravelPackage_Walk || running == TravelPackage_Jog || running == TravelPackage_Run         || running == TravelPackage_Stalk || running == SandboxPackage || running == SandboxNearPlayerPackage
+        StorageUtil.UnsetFloatValue(npc, "Intel_HeldSince")
+        Return false
+    EndIf
+    If ReleaseFromBardAudience(npc)
+        DebugMsg(npc.GetDisplayName() + " was taken into the bard's audience -> released, the task goes on")
+        npc.EvaluatePackage()
+        IntelEngine.ResetStuckSlot(slot, npc)
+        Return true
+    EndIf
+    If ActorUtil.CountPackageOverride(npc) > 1
+        Return false
+    EndIf
+    Float now = Utility.GetCurrentRealTime()
+    Float since = StorageUtil.GetFloatValue(npc, "Intel_HeldSince", 0.0)
+    If since <= 0.0 || since > now
+        StorageUtil.SetFloatValue(npc, "Intel_HeldSince", now)
+        DebugMsg(npc.GetDisplayName() + " is kept by a package that is not ours (a scene or a quest) -> waiting, not stuck")
+        since = now
+    EndIf
+    If now - since > HELD_PATIENCE_SECONDS
+        Return false
+    EndIf
+    IntelEngine.ResetStuckSlot(slot, npc)
+    Return true
 EndFunction
 
 Function SoftStuckRecovery(Actor npc, Int slot, ObjectReference dest)

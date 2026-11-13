@@ -1224,6 +1224,10 @@ Function CheckIfStuck(Int slot, Actor npc)
         IntelEngine.ResetStuckSlot(slot, npc)
         Return
     EndIf
+    ; Nor while the game has them doing something else (the bard's audience, a scene).
+    If Core.HeldByAnotherPackage(slot, npc)
+        Return
+    EndIf
 
     Int status = IntelEngine.CheckStuckStatus(npc, slot, Core.STUCK_DISTANCE_THRESHOLD)
     If status == 0
