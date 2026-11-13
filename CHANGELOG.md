@@ -1,12 +1,62 @@
 # Changelog
 
-## Unreleased — Political Engine bridge (offline verified only)
+## 3.8.0 — unreleased
 
-- Read optional API v3 public territory, campaign, ruler and initiative news without load replay.
-- Give the Political DM authoritative current-owner sides and one next-tick organization reaction per development.
-- Add a default-on persisted MCM/dashboard reaction-delta toggle and a provider detection indicator.
-- Keep IE wars/battles independent; PE ranks, offices and reputation remain in PE's own NPC bio.
-- Paired DLL, scripts, prompts, settings template and both dashboard hosts are staged; game behavior remains unverified.
+### Director
+- Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "Skip follower" setting still applies).
+- Story replacement accepts Director fields and explains refusals; a cancelling story must finish before it is replaced.
+- Generate requires real NPC names and no longer makes another NPC approach you in informant narration; NPC suggestions rank exact names first.
+- When an NPC can't be sent because they aren't loaded (they only exist near their home), the Director now says so instead of "no unique match".
+- The dashboard hotkey is ignored while you type in a text field.
+- Informant stories have their own form: Informant NPC, Subject (an NPC, a faction or you), optional Source and a required one-sentence Rumor. IE writes the informant's line, so there is no Narration field.
+- A rumour is refused, with the reason, when it doesn't name the Subject as a whole word ("Ria" inside "Victoria" doesn't count) or starts with an -ing word.
+- NPC Social gossip has a Subject field; the rumour is stored as "<Subject> <what they did>".
+- The story type is never chosen by the LLM: a type left on (auto) must be picked before Dispatch, and Generate fills only that type's fields.
+- Generated interaction narration describes the scene instead of copying a fact; generated gossip says how and where it was told.
+- A social scene for two NPCs already standing together near you plays right there (it used to be applied off-screen).
+
+### Story travel and arrival
+- A story NPC counts as arrived after 15 seconds within talking range.
+- Arrival timers use real time; a late NPC is re-placed once behind the target, then the story aborts with a notice.
+- Story arrival waits until save-load recovery finishes. Director stories ignore the Hold Restriction; automatic stories still turn back and say why.
+- Story NPCs who become your teammate are released from linger; linger timeouts survive pausing.
+- Lingering NPCs are released after one game hour, so waiting or sleeping frees them; the linger release distance defaults to 500 (minimum 300).
+- The story watchdog no longer marks an NPC who already arrived as "never finished", and strips travel packages when it resets a story.
+
+### Stories and NPC scenes
+- NPC-to-NPC scenes are narrated only within SkyrimNet's hearing range; otherwise the pair waits for you and plays when you come close, or is applied as facts only when it times out.
+- An informant's rumour is one checked sentence; IE builds the arrival line from it, and the informant remembers why they came.
+- Two NPCs with the same name (two "Gamlunda"s) resolve to the one the DM was shown.
+- Spawned actors (battle soldiers, ambushers) are never picked for stories or gossip.
+- The Story DM sees which story types each candidate can take, and a Markdown code fence around its reply no longer breaks validation.
+- A seek_player story's memory is no longer added twice.
+
+### Off-screen placement and fetch
+- NPCs travelling while unloaded are now placed near the target when their estimated travel time runs out (they used to walk on indefinitely).
+- A fetched NPC walking toward you is no longer sent home early, and one already beside you is no longer teleported away across an exterior cell boundary.
+
+### Politics
+- New `war_allowed:` section in factions.yaml decides which faction pairs may go to war (default: Legion vs Stormcloaks only). Entries can be faction ids, display names, types or `*`. Political Engine realms never go to war.
+- When the Political DM ignores the "declare war" rule for the most hostile allowed pair, IE declares the war itself (skipping factions whose leaders are all dead); war declarations for pairs that aren't allowed are refused.
+- The Empire and the Aldmeri Dominion are neutral to each other: the Legion and the Thalmor are no longer allies, and their starting relation is 15 (was 50).
+- A battle result for two factions that aren't at war is recorded as a border skirmish, and no soldiers spawn.
+- Fighters left standing after a brawl or skirmish are removed shortly after it ends (they used to stay in the world forever).
+- Loading a save resyncs the "at war" flags with the save's actual wars.
+- Major political news (wars, battles, treaties, Political Engine developments) reaches every NPC; smaller events reach the factions involved and, for political factions, people in their hold. Repeated events show once with "(reported N times)".
+- The Political DM no longer repeats one war's battle, counts a scheduled battle as that war's battle for one game day, and is told which wars can't have a battle yet.
+- Political Engine: realm rulers (including puppet realms) are shown as faction leaders; a realm without a ruler clears its leader; a ruler change becomes news; IE resyncs when Political Engine (re)loads; realm allies and rivals follow live sides; factions can set `pe_side` (the Thalmor map to the Aldmeri Dominion).
+- The dashboard colours faction names by Political Engine side and labels your own puppet and vassal realms.
+- The Politics Enabled toggle comes first in the Faction Politics MCM page.
+
+### Other
+- Battles no longer stop the story and quest timers when they reset.
+- Soft stuck recovery no longer waits on latent calls; stuck detection samples at most every three seconds.
+- Informant gossip keeps the subject's name.
+- Notifications and Papyrus log lines use plain dashes (em dashes showed as "â€”").
+- Optional Political Engine API v3 bridge: public campaign news reaches the Political DM as faction-less rumors, with one organization reaction per development and a persisted MCM/dashboard toggle for reaction relation changes. IE's own wars and battles are unaffected.
+- Faction fragments: extra `factions.d/*.yaml` files add or replace factions and relations; a Political Engine fragment adds the nine vanilla realms as factions, with live rulers and the player's realm passed to the Political DM, when Political Engine is active.
+- Action and scheduling prompts ask for exact in-game place names in the game's language.
+- Extra travel and Director diagnostics at DebugLevel 4.
 
 ## 3.7.1 — 2026-11-04
 

@@ -119,6 +119,7 @@ Int OID_QuestAllowDeath
 ; Faction Politics
 Int OID_PoliticsEnabled
 Int OID_PoliticsTickInterval
+Int OID_PEIntegration
 Int OID_PEReactions
 
 ; Hold Restriction page (per-story-type radio groups)
@@ -404,7 +405,7 @@ Function ShowSettingsPage()
     EndIf
     OID_MeetingGracePeriod = AddSliderOption("Meeting Grace Period (hours)", gracePeriod, "{1}")
 
-    Float lingerDist = 800.0
+    Float lingerDist = 500.0
     If Core != None
         lingerDist = Core.LINGER_RELEASE_DISTANCE
     EndIf
@@ -585,6 +586,7 @@ Function ShowSettingsPage()
 
     Float tickInterval = IntelEngine.GetPoliticsTickInterval() as Float
     OID_PoliticsTickInterval = AddSliderOption("Tick Interval (hours)", tickInterval, "{0}")
+    OID_PEIntegration = AddToggleOption("Political Engine integration", IntelEngine.GetPEIntegration())
     OID_PEReactions = AddToggleOption("PE reactions move relations", IntelEngine.GetPEReactionsMoveRelations())
 
 EndFunction
@@ -953,6 +955,9 @@ Event OnOptionSelect(Int optionId)
         ElseIf !newVal && Core != None && Core.Politics != None
             Core.Politics.StopScheduler()
         EndIf
+    ElseIf optionId == OID_PEIntegration
+        IntelEngine.SetPEIntegration(!IntelEngine.GetPEIntegration())
+        SetToggleOptionValue(OID_PEIntegration, IntelEngine.GetPEIntegration())
     ElseIf optionId == OID_PEReactions
         IntelEngine.SetPEReactionsMoveRelations(!IntelEngine.GetPEReactionsMoveRelations())
         SetToggleOptionValue(OID_PEReactions, IntelEngine.GetPEReactionsMoveRelations())
@@ -1096,13 +1101,13 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogRange(5.0, 1000.0)
         SetSliderDialogInterval(5.0)
     ElseIf optionId == OID_LingerReleaseDistance
-        Float currentValue = 800.0
+        Float currentValue = 500.0
         If Core != None
             currentValue = Core.LINGER_RELEASE_DISTANCE
         EndIf
         SetSliderDialogStartValue(currentValue)
-        SetSliderDialogDefaultValue(800.0)
-        SetSliderDialogRange(400.0, 2000.0)
+        SetSliderDialogDefaultValue(500.0)
+        SetSliderDialogRange(300.0, 2000.0)
         SetSliderDialogInterval(100.0)
     ElseIf optionId == OID_StoryEngineInterval
         SetSliderDialogStartValue(Core.GetStoryEngineInterval())
@@ -1262,7 +1267,7 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_MeetingGracePeriod
         SetInfoText("Arrival tolerance for meetings (±hours). Handles Dynamic Time Scaling mods. Default 0.5 (30 minutes). Set higher if using variable timescales.")
     ElseIf optionId == OID_LingerReleaseDistance
-        SetInfoText("How far (game units) you must walk away before an NPC stops lingering and returns to normal. Affects all systems: travel arrivals, task completions, story encounters. Default 800.")
+        SetInfoText("How far (game units) you must walk away before an NPC stops lingering and returns to normal. Affects all systems: travel arrivals, task completions, story encounters. Default 500.")
     ElseIf optionId == OID_CancelAllSchedules
         SetInfoText("Cancel all scheduled meetings and tasks.")
     ElseIf optionId == OID_StoryEngineEnabled
@@ -1278,11 +1283,11 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_AllowStuckTeleport
         SetInfoText("When enabled, NPCs stuck during travel or exceeding the max travel time are teleported to the target. When disabled, the NPC gives up instead.")
     ElseIf optionId == OID_DangerAllowAll
-        SetInfoText("No danger zone filtering. All NPC types can visit you in dungeons and caves.")
+        SetInfoText("No danger zone filtering. All NPC types can visit you in dungeons and caves. Informants always turn back.")
     ElseIf optionId == OID_DangerBlockCivilians
-        SetInfoText("Farmers, merchants and other civilians stay away from dangerous locations. Warriors and mages can still visit.")
+        SetInfoText("Farmers, merchants and other civilians stay away from dangerous locations. Warriors and mages can still visit. Informants always turn back.")
     ElseIf optionId == OID_DangerFollowersOnly
-        SetInfoText("Only NPCs who can be recruited as followers (PotentialFollowerFaction) can visit you in dangerous locations.")
+        SetInfoText("Only NPCs who can be recruited as followers (PotentialFollowerFaction) can visit you in dangerous locations. Informants always turn back.")
     ElseIf optionId == OID_DangerBlockAll
         SetInfoText("Nobody visits you in dangerous locations (dungeons, caves, etc).")
     ElseIf optionId == OID_HomeAllowAll

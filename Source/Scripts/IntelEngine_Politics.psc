@@ -87,7 +87,7 @@ Function TickNow()
     Float elapsed = (currentTime - LastTickGameTime) * 24.0  ; days to hours
 
     If elapsed >= intervalHours
-        Core.DebugMsg("Politics: interval reached (" + elapsed + "h >= " + intervalHours + "h) — ticking")
+        Core.DebugMsg("Politics: interval reached (" + elapsed + "h >= " + intervalHours + "h) - ticking")
         RunPoliticalTick(currentTime)
     EndIf
 EndFunction

@@ -20,13 +20,14 @@ Your ENTIRE response must be a single JSON object — nothing before it, nothing
 {{ politicalContext }}{% if exists("peActive") and peActive %}
 
 ## Political Engine developments
-Territory in political_engine is authoritative. Prefer at most ONE supported organization reaction from political_engine.react_to, only on this tick; otherwise keep IE's own politics. Ground any reaction in the listed realm names, existing allies/rivals and hold facts; never guess a realm-to-organization match. Rule 8 and mandatory IE war decisions still take priority.
+Territory in political_engine is authoritative. When political_engine.react_to lists an event, this tick's event SHOULD be ONE organization reaction to it (at most one), unless no listed organization plausibly cares; otherwise keep IE's own politics. Ground any reaction in the listed realm names, existing allies/rivals and hold facts; never guess a realm-to-organization match. Rule 8 and mandatory IE war decisions still take priority.
 For a reaction only, use event_type:"political_reaction" and add "reacts_to":<listed PE event id>. Never use pe_* for a reaction. Use the existing faction IDs, description and relation_delta fields; the engine records it even when reaction relation/standing changes are toggled off.
 Holds and districts are owned as listed. Battles may be fought near or over a place, but never state or imply that a hold or district changed hands. IE's Civil War battles, morale and surrender remain organization events, not PE territory transfers.
 District side_id follows its CURRENT owner: 0 Independent, 1 Empire, 2 Stormcloaks, 3 Aldmeri Dominion. Use civil_war_organizations only for the listed engine-faction matches. vanilla_civil_war is fallback vanilla context only: never apply it to PE districts or infer a captured district's side from its original hold. Missing side_id means unknown.
 {% endif %}
 
-## Available Event Types
+## Available Event Types{% if exists("peActive") and peActive %}
+- **political_reaction** — An organization responds to a listed political_engine.react_to development. Requires "reacts_to". Prefer this whenever react_to is not empty.{% endif %}
 
 ### Diplomatic Events (relation changes: +1 to +15)
 - **trade_deal** — Two factions agree to trade goods/services. (+5 to +10)
@@ -54,7 +55,7 @@ District side_id follows its CURRENT owner: 0 Independent, 1 Empire, 2 Stormcloa
 - **proxy_attack** — Covert hired attack NOT attributed to the faction publicly (deniable). (-8 to -12)
 
 ### War Events (only when status is "Critical" or during active war)
-- **war_declaration** — Formal declaration of war. Only when the pair's status is "Critical" AND no active war exists between them AND they are NOT listed in `war_cooldowns`. (-15)
+- **war_declaration** — Formal declaration of war. Only when the pair's status is "Critical" AND the pair has `war_possible: true` AND no active war exists between them AND they are NOT listed in `war_cooldowns`. (-15)
 - **battle_scheduled** — Schedule a battle that will take place in 6-12 hours during active war. Only during active war. No extra fields needed. relation_delta: -1 (minimal — the battle result itself changes relations later). Use sparingly — at most one scheduled battle per war.
 - **battle_result** — Off-screen battle during active war. Include extra fields: `battle_location`, `battle_result` (attacker_victory/defender_victory/draw), `battle_victor` (faction ID of winner), `attacker_losses` (5-20), `defender_losses` (5-20). relation_delta: -5 to -10.
 - **surrender** — Faction surrenders to end war. Only when one side's `morale_a` or `morale_b` (in the `active_wars` entry) is below 20. faction_a = surrendering faction, faction_b = victor. (+5 to +10, ends war)
@@ -62,7 +63,7 @@ District side_id follows its CURRENT owner: 0 Independent, 1 Empire, 2 Stormcloa
 ## Faction-Specific Conflict Styles
 
 Match conflict events to the faction's type:
-- **military** factions (Imperial Legion, Stormcloaks, Thalmor): border_skirmish, war_declaration
+- **military** factions (Imperial Legion, Stormcloaks, Thalmor): border_skirmish, and war_declaration only for pairs with `war_possible: true`
 - **guild/brawl** factions (Companions): brawl, territory_dispute
 - **guild/sabotage** factions (Thieves Guild, College): sabotage, espionage
 - **guild/assassination** factions (Dark Brotherhood, Black-Briars): assassination_attempt
@@ -91,7 +92,7 @@ The `status` field in the relations data uses these labels (mapped from the nume
 - **Neutral** (0 to 39)
 - **Tense** (-1 to -39)
 - **Hostile** (-40 to war_threshold+1) — e.g., -40 to -49 for default threshold of -50
-- **Critical** (at or below war_threshold) — war-eligible. If no active war exists and no cooldown applies, war_declaration MUST be your next event for this pair
+- **Critical** (at or below war_threshold) — war-eligible only when `war_possible` is true (then, if no active war exists and no cooldown applies, war_declaration MUST be your next event for this pair); Critical pairs with `war_possible: false` use their factions' conflict styles and Rule 8 rotation
 
 ## Faction Leader Awareness
 
@@ -138,7 +139,7 @@ Treat any phrasing that implies death, removal, captivity, transformation, defea
 - **Face-to-face constraint.** Events that require both named leaders present (`diplomatic_gift`, `alliance_proposal`, `mutual_defense_pact`, `peace_offer`, `political_marriage`, `surrender`) cannot be generated when either faction's `world_knowledge` names any of its leaders as unavailable. `surrender` is included because it implies a leader capitulating in person — if the surrendering faction's leader is dead, attribute the surrender to a living next-in-command (e.g., `"Galmar Stone-Fist surrendered the Stormcloak remnants"`) rather than the dead leader. For other face-to-face types, use agent-based events instead (`insult` via herald, `espionage`, `sabotage`, `trade_dispute`, `tariff`, `embargo`, `proxy_attack`) — these flow through underlings and don't require the named leader.
 - **Battle continuity.** During active wars, an absent leader doesn't block `battle_scheduled`, `battle_result`, or `surrender` — armies and lieutenants act on the faction's behalf. Don't narrate the fallen leader as personally directing battles or signing capitulations. When a leader has recently fallen, the description MAY reflect that absence as dramatic context (e.g., `"Stormcloak forces, leaderless since Ulfric's fall, fought with desperate fury..."`) — turning the constraint into immersion fuel.
 
-**Critical-pair interaction (Rule 3 below):** Rule 3's mandatory `war_declaration` may be skipped (`should_act:false`) only when world_knowledge for the Critical pair makes the war incoherent — e.g., both factions' named leaders are unavailable AND no living substitute is plausible, or one of the factions itself is dissolved. Otherwise generate the war_declaration and attribute to the faction (no dead leader as `instigator_npc`).
+**Critical-pair interaction (Rule 3 below, `war_possible: true` pairs only):** Rule 3's mandatory `war_declaration` may be skipped (`should_act:false`) only when world_knowledge for the Critical pair makes the war incoherent — e.g., both factions' named leaders are unavailable AND no living substitute is plausible, or one of the factions itself is dissolved. Otherwise generate the war_declaration and attribute to the faction (no dead leader as `instigator_npc`).
 
 Generating "Ulfric Stormcloak rallied his troops" when his faction's world_knowledge says Ulfric is dead breaks immersion. This rule is absolute.
 
@@ -146,19 +147,20 @@ Generating "Ulfric Stormcloak rallied his troops" when his faction's world_knowl
 
 1. **ONE event per tick** — never generate multiple events.
 2. **Gradual escalation** — don't jump from Neutral to war. Follow the path: trade_dispute → tariff → embargo → border_skirmish → war_declaration. However, if a pair's status is already "Critical", war_declaration is appropriate regardless of whether border_skirmish occurred — the gradual path has already completed via score accumulation.
-3. **Respect current relations and DECLARE WAR when appropriate** — conflict events require Tense or worse. **CRITICAL RULE: If ANY faction pair has status "Critical" (at or below war threshold), there is NO active war between them, and they are NOT in `war_cooldowns`, you MUST generate a `war_declaration` event for that pair. This takes absolute priority over all other events** (exceptions: `factions[].world_knowledge` for the pair makes the war incoherent — see World Knowledge section above). Factions at Critical standing without a war is an unstable state that must be resolved. If multiple Critical pairs exist without wars, pick the one with the lowest score. If all Critical pairs are on cooldown or at war, generate non-war events instead. Don't generate border_skirmish between Allied factions.
+3. **Respect current relations and DECLARE WAR when appropriate** — conflict events require Tense or worse. **CRITICAL RULE: If ANY faction pair with `war_possible: true` has status "Critical" (at or below war threshold), there is NO active war between them, and they are NOT in `war_cooldowns`, you MUST generate a `war_declaration` event for that pair. This takes absolute priority over all other events** (exceptions: `factions[].world_knowledge` for the pair makes the war incoherent — see World Knowledge section above). Factions at Critical standing without a war is an unstable state that must be resolved. If multiple such pairs exist without wars, pick the one with the lowest score. If all Critical pairs are on cooldown or at war, generate non-war events instead. Don't generate border_skirmish between Allied factions.
 4. **Positive events happen too** — not every tick is negative. Trade deals, gifts, and alliances keep the world dynamic and interesting.
 5. **Max active wars: {{ maxActiveWars }}** — if already at limit, focus on existing conflicts rather than starting new ones.
 6. **Max relation change: {{ maxRelationChange }}** — relation_delta must be between -{{ maxRelationChange }} and +{{ maxRelationChange }}. The delta must NEVER be 0.
 7. **Ground in lore** — use the geography and lore section above. Events must make geographic and political sense.
-8. **Spread events across factions** — do NOT fixate on one faction pair. Check recent_events: if the last 2+ events involved the same pair, you MUST pick a DIFFERENT pair this tick. **Exceptions:** (a) during active wars, warring factions may appear in consecutive ticks for battle_result or surrender events; (b) if a pair's status is "Critical", war_declaration takes priority over spread rotation.
+8. **Spread events across factions** — do NOT fixate on one faction pair. Check recent_events: if the last 2+ events involved the same pair, you MUST pick a DIFFERENT pair this tick. **Exceptions:** (a) during active wars, warring factions may appear in consecutive ticks, but a war gets at most ONE battle_result in any two consecutive ticks — on the tick after a battle, that pair may appear only for surrender, otherwise pick a different pair or return should_act:false; (b) if a pair's status is "Critical" and `war_possible` is true, war_declaration takes priority over spread rotation.
 9. **When nothing makes sense, skip** — return should_act:false. Not every tick needs an event. But prefer acting over skipping.
 10. **Description must be immersive** — write as a news report that NPCs would gossip about. Past tense. Under 200 characters.
 
 ## Active War Behavior
 
 When `active_wars` is non-empty, prioritize war-related events for those factions:
-- **Generate battle_result events** for active wars — these drive the war forward. Include a `battle_location` that is a real named location on Skyrim's map. Copy the name EXACTLY as it appears in the game/context, in the game's language; NEVER translate it. Use just the place name, no added hold suffix. If unsure of a specific location near the factions' territories, use the nearest hold capital's exact in-game/context name — never invent a location name.
+- **Generate battle_result events** for active wars (subject to Rule 8: never two in a row for one war; never reuse the previous battle's `battle_location` for the same war) — these drive the war forward. Include a `battle_location` that is a real named location on Skyrim's map. Copy the name EXACTLY as it appears in the game/context, in the game's language; NEVER translate it. Use just the place name, no added hold suffix. If unsure of a specific location near the factions' territories, use the nearest hold capital's exact in-game/context name — never invent a location name.
+- **No back-to-back battles** — never pick `battle_result` for an `active_wars` entry whose `battle_result_allowed_now` starts with "no"; choose another event instead.
 - **Low morale triggers surrender** — if a faction's `morale_a` or `morale_b` in the `active_wars` entry is below 20, generate a `surrender` event. This is the hard threshold enforced by the engine.
 - **War fatigue spreads** — wars between two factions can generate negative events between their allies/rivals too (alliances tested, trade disrupted).
 - **Balance war and non-war events** — not every tick during a war needs to be a battle. Political intrigue, espionage, and trade disruptions between non-warring factions keep the world alive.
@@ -186,7 +188,9 @@ Battle result: {{ "{" }}"should_act":true,"faction_a":"ImperialFaction","faction
 
 Surrender: {{ "{" }}"should_act":true,"faction_a":"StormcloakFaction","faction_b":"ImperialFaction","event_type":"surrender","description":"The Stormcloaks sued for peace after a devastating defeat at Eastmarch","relation_delta":8}
 
-Event with player standing: {{ "{" }}"should_act":true,"faction_a":"FactionIdA","faction_b":"FactionIdB","event_type":"trade_deal","description":"Trade routes reopened between Solitude and Riften","relation_delta":8,"instigator_npc":"Maven Black-Briar","player_standing_changes":[{{ "{" }}"faction":"ImperialFaction","delta":5,"reason":"spoke favorably of the Legion"}]}
+Event with player standing: {{ "{" }}"should_act":true,"faction_a":"FactionIdA","faction_b":"FactionIdB","event_type":"trade_deal","description":"Trade routes reopened between Solitude and Riften","relation_delta":8,"instigator_npc":"Maven Black-Briar","player_standing_changes":[{{ "{" }}"faction":"ImperialFaction","delta":5,"reason":"spoke favorably of the Legion"}]}{% if exists("peActive") and peActive %}
+
+Reaction to a listed PE development (use the real listed id): {{ "{" }}"should_act":true,"faction_a":"StormcloakFaction","faction_b":"ImperialFaction","event_type":"political_reaction","reacts_to":26,"description":"Ulfric's court vowed to retake White River Valley from the Legion's allies","relation_delta":-5}{% endif %}
 
 {% else %}
 [ system ]

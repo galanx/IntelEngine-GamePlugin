@@ -134,7 +134,7 @@ Int Property LINGER_FAR_TICKS_LIMIT = 3 AutoReadOnly
 Int Property DEPARTURE_CHECK_CYCLES = 5 AutoReadOnly
 {Update cycles before checking if NPC actually departed (~15s at 3s interval)}
 
-Float Property LINGER_RELEASE_DISTANCE = 800.0 Auto Hidden
+Float Property LINGER_RELEASE_DISTANCE = 500.0 Auto Hidden
 {Distance (game units) the player must walk away before a lingering NPC loses interest.
 Configurable via MCM. Shared between Travel, NPCTasks, and StoryEngine linger systems.}
 
@@ -385,7 +385,7 @@ Function SaveTaskToHistory(Actor akAgent, String taskType, String target, String
 
     ; Skip cancelled tasks — they shouldn't appear in history
     If result == "cancelled"
-        DebugMsg(akAgent.GetDisplayName() + " task cancelled — skipping history")
+        DebugMsg(akAgent.GetDisplayName() + " task cancelled - skipping history")
         Return
     EndIf
 
@@ -725,6 +725,7 @@ Function ClearSlot(Int slot, Bool restoreNPC = true, Bool intelPackagesOnly = fa
             StorageUtil.UnsetFloatValue(agent, "Intel_MeetingLingerDeadline")
             StorageUtil.UnsetIntValue(agent, "Intel_MeetingApproaching")
             StorageUtil.UnsetIntValue(agent, "Intel_LingerFarTicks")
+            StorageUtil.UnsetFloatValue(agent, "Intel_LingerLastDist")
             StorageUtil.UnsetFloatValue(agent, "Intel_ApproachStartX")
             StorageUtil.UnsetFloatValue(agent, "Intel_ApproachStartY")
             StorageUtil.UnsetIntValue(agent, "Intel_ApproachTick")
@@ -969,6 +970,8 @@ Function ReleaseLinger(Actor npc)
     NPCs with only sandbox AI or no AI get a walk-home fallback so they don't
     stand frozen at the linger location forever.
     Shared by Travel, StoryEngine, and NPCTasks.}
+    StorageUtil.UnsetStringValue(npc, "Intel_ArrivalPurpose")
+    StorageUtil.UnsetStringValue(npc, "Intel_ArrivalTopic")
     DebugMsg("Linger release START: " + npc.GetDisplayName() + " [formID=" + npc.GetFormID() + ", 3Dloaded=" + npc.Is3DLoaded() + ", isTeammate=" + npc.IsPlayerTeammate() + "]")
     ActorUtil.RemovePackageOverride(npc, SandboxNearPlayerPackage)
     DebugMsg("Linger release: removed sandbox from " + npc.GetDisplayName())
@@ -1009,6 +1012,7 @@ Function ReleaseLinger(Actor npc)
     npc.EvaluatePackage()
     DebugMsg("Linger release DONE: " + npc.GetDisplayName() + " EvaluatePackage called")
     StorageUtil.UnsetIntValue(npc, "Intel_LingerFarTicks")
+    StorageUtil.UnsetFloatValue(npc, "Intel_LingerLastDist")
     ; Clean up unlock tracking key (vanilla handles re-locking)
     StorageUtil.UnsetIntValue(npc, "Intel_UnlockedHomeCellId")
 EndFunction
@@ -1088,7 +1092,7 @@ Int Function ShowTaskConfirmation(Actor npc, String promptText)
     return ShowTaskConfirmationForAction(npc, promptText, "")
 EndFunction
 
-Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String actionName)
+Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String actionName, String taskOrigin = "")
     {Per-action confirmation prompt. Returns: 0=allow, 1=deny (narrate), 2=deny silent.
     Mode per action: 0=disabled, 1=followers only, 2=everyone.}
 
@@ -1116,6 +1120,10 @@ Int Function ShowTaskConfirmationForAction(Actor npc, String promptText, String 
             DebugMsg("Skipping " + actionName + " for follower " + npc.GetDisplayName())
             Return 2  ; deny silent
         EndIf
+    EndIf
+
+    If taskOrigin == "Director"
+        Return 0  ; Director-dispatched actions skip the confirmation prompt
     EndIf
 
     Int mode = 0
@@ -1245,8 +1253,14 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
     Returns true if teleported (caller should handle arrival).
     Returns false if still in transit (do nothing).}
     Int status = IntelEngine.CheckOffScreenProgress(slot, npc, Utility.GetCurrentGameTime())
+    Float now = Utility.GetCurrentRealTime()
+    Float lastDiag = StorageUtil.GetFloatValue(npc, "Intel_OffscreenDiagAt", -10.0)
+    If now < lastDiag || now - lastDiag >= 10.0
+        DebugMsg("[diag:offscreen] " + npc.GetDisplayName() + " status=" + status)
+        StorageUtil.SetFloatValue(npc, "Intel_OffscreenDiagAt", now)
+    EndIf
     If status == 1
-        DebugMsg(npc.GetDisplayName() + " off-screen arrival (estimated time elapsed)")
+        DebugMsg("[diag:arrival] " + npc.GetDisplayName() + " off-screen arrival " + IntelEngine.DescribeDistance(npc, dest))
         npc.MoveTo(dest)
         Utility.Wait(0.3)
         npc.EvaluatePackage()
@@ -1256,7 +1270,7 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
 EndFunction
 
 Function SoftStuckRecovery(Actor npc, Int slot, ObjectReference dest)
-    {Soft stuck recovery: random displacement + re-apply travel + pathfinding nudge.
+    {Soft stuck recovery: random displacement + re-apply travel package.
     Shared by Travel and NPCTasks stuck handlers.}
     Float nudge = 100.0
     If !npc.Is3DLoaded()
@@ -1272,8 +1286,6 @@ Function SoftStuckRecovery(Actor npc, Int slot, ObjectReference dest)
     npc.EvaluatePackage()
 
     If dest != None
-        Utility.Wait(0.5)
-        npc.PathToReference(dest, 1.0)
         npc.EvaluatePackage()
     EndIf
 EndFunction
@@ -1356,12 +1368,14 @@ Int Function CheckDepartureProgress(Int slot, Actor agent, Float threshold)
 
     If status == 2
         ; Soft recovery — nudge AI packages to get NPC moving
-        DebugMsg(agent.GetDisplayName() + " hasn't departed — nudging package evaluation")
+        DebugMsg(agent.GetDisplayName() + " hasn't departed - nudging package evaluation")
         agent.EvaluatePackage()
 
         ObjectReference dest = StorageUtil.GetFormValue(agent, "Intel_DestMarker") as ObjectReference
         If dest != None
+            DebugMsg("[diag:path] start " + agent.GetDisplayName() + " slot=" + slot + " site=CheckDepartureProgress")
             agent.PathToReference(dest, 1.0)
+            DebugMsg("[diag:path] end " + agent.GetDisplayName() + " slot=" + slot + " site=CheckDepartureProgress")
             agent.EvaluatePackage()
         EndIf
     EndIf
@@ -1402,7 +1416,7 @@ Function RecoverActiveTasks()
                     Else
                         ; No saved deadline — set a fresh one so the task can't stall forever
                         SlotDeadlines[i] = Utility.GetCurrentGameTime() + (6.0 / 24.0)
-                        DebugMsg("No saved deadline for slot " + i + " — set fallback 6h from now")
+                        DebugMsg("No saved deadline for slot " + i + " - set fallback 6h from now")
                     EndIf
 
                     ; Re-init off-screen tracker from persisted arrival estimate
@@ -1791,10 +1805,10 @@ Function SetMaxTasks(Int val)
 EndFunction
 
 Function SetReleaseDistance(Float val)
-    ; Minimum 400 — sandbox radius is 200 units, so anything less causes
+    ; Minimum 300 — sandbox radius is 200 units, so anything less causes
     ; false releases when the NPC walks to a sandbox idle point.
-    If val < 400.0
-        val = 400.0
+    If val < 300.0
+        val = 300.0
     EndIf
     LINGER_RELEASE_DISTANCE = val
 EndFunction
@@ -1906,7 +1920,7 @@ Bool Function TryWaypointNavigation(Int slot, Actor npc, ObjectReference dest)
     If currentWP == waypoint
         ; Already tried walking to this waypoint and still stuck —
         ; teleport to it (short hop to known-good navmesh position)
-        DebugMsg(npc.GetDisplayName() + " stuck at waypoint — teleporting to it")
+        DebugMsg(npc.GetDisplayName() + " stuck at waypoint - teleporting to it")
         npc.MoveTo(waypoint, 0.0, 0.0, 50.0)
         StorageUtil.UnsetFormValue(npc, "Intel_CurrentWaypoint")
         PO3_SKSEFunctions.SetLinkedRef(npc, dest, IntelEngine_TravelTarget)
@@ -2012,9 +2026,9 @@ Event OnAutoBioUpdate(String eventName, String strArg, Float numArg, Form sender
     DebugMsg("Auto Bio Update: " + npc.GetDisplayName())
     String result = SkyrimNetApi.UpdateActorDynamicBio(npc)
     If result != ""
-        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " — " + result)
+        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " - " + result)
     Else
-        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " — failed or no changes")
+        DebugMsg("Auto Bio Update: " + npc.GetDisplayName() + " - failed or no changes")
     EndIf
 EndEvent
 
@@ -2315,18 +2329,18 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
     ; No PushDashboardState() — React updates optimistically
 EndEvent
 
-Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false)
+Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false, Actor replacing = None)
     ; Include aliases retained during task completion, not just nonzero slot states.
     Int slot = 0
     While slot < MAX_SLOTS
         ReferenceAlias taskAlias = GetAgentAlias(slot)
-        If taskAlias && taskAlias.GetActorReference() == npc
+        If taskAlias && taskAlias.GetActorReference() == npc && npc != replacing
             NotifyPlayer(npc.GetDisplayName() + " is already busy (" + IntelEngine.FriendlyKey(SlotTaskTypes[slot]) + "). Cancel it first.")
             Return false
         EndIf
         slot += 1
     EndWhile
-    If storyDispatch && StoryEngine && StoryEngine.IsActive
+    If storyDispatch && StoryEngine && StoryEngine.IsActive && (!replacing || StoryEngine.ActiveStoryNPC != replacing)
         Actor activeNPC = StoryEngine.ActiveStoryNPC
         String activeName = "an unknown NPC"
         If activeNPC
@@ -2341,6 +2355,148 @@ EndFunction
 ; =============================================================================
 ; DIRECTOR MODE: Story Dispatch
 ; =============================================================================
+String Function UntagName(String name)
+    Int tagAt = StringUtil.Find(name, " [")
+    If tagAt > 0
+        Return StringUtil.Substring(name, 0, tagAt)
+    EndIf
+    Return name
+EndFunction
+
+String Function ReplaceText(String text, String what, String with)
+    ; Whole-word, case-insensitive: "Ria" must not hit "Riften" or "Victoria".
+    String result = ""
+    Int len = StringUtil.GetLength(what)
+    Int total = StringUtil.GetLength(text)
+    Int copied = 0
+    Int at = StringUtil.Find(text, what)
+    While at >= 0 && len > 0
+        Int rest = at + len
+        If (at == 0 || !StringUtil.IsLetter(StringUtil.GetNthChar(text, at - 1))) && (rest >= total || !StringUtil.IsLetter(StringUtil.GetNthChar(text, rest)))
+            If at > copied
+                result += StringUtil.Substring(text, copied, at - copied)
+            EndIf
+            result += with
+            copied = rest
+        EndIf
+        at = StringUtil.Find(text, what, at + 1)
+    EndWhile
+    If copied < total
+        result += StringUtil.Substring(text, copied)
+    EndIf
+    Return result
+EndFunction
+
+String Function InformantRumor(String subject, String rumor, String gossip)
+    {The checked rumor sentence. Legacy responses without "rumor" get subject + gossip phrase.}
+    If rumor != "" || gossip == ""
+        Return rumor
+    EndIf
+    If ReplaceText(gossip, UntagName(subject), "") == gossip ; fix96: whole-word, "Ria" is not in "Victoria" (live 17:27)
+        gossip = subject + " " + gossip
+    EndIf
+    Return gossip
+EndFunction
+
+String Function DropLead(String text, String lead)
+    ; Papyrus Find is case-insensitive.
+    If StringUtil.Find(text, lead) == 0
+        Return StringUtil.Substring(text, StringUtil.GetLength(lead))
+    EndIf
+    Return text
+EndFunction
+
+String Function InformantLead(String informant, String rumor, Bool wantSender)
+    {Rumors are the gossip itself. Drops a leading "<informant> heard/overheard/saw/was told/learned that" and a
+    trailing period. wantSender=false: the cleaned rumor; true: Y of "<informant> heard from Y that", else "".}
+    String name = UntagName(informant) + " "
+    Int sp = StringUtil.Find(name, " ")
+    If StringUtil.Find(rumor, name) != 0 && sp < StringUtil.GetLength(name) - 1 ; first-name-only lead
+        name = StringUtil.Substring(name, 0, sp + 1)
+    EndIf
+    String rest = rumor
+    String teller = ""
+    If StringUtil.Find(rumor, name) == 0
+        rest = StringUtil.Substring(rumor, StringUtil.GetLength(name))
+        String afterName = rest
+        If StringUtil.Find(rest, "heard from ") == 0
+            Int at = StringUtil.Find(rest, " that ")
+            If at > 11
+                teller = StringUtil.Substring(rest, 11, at - 11)
+                rest = StringUtil.Substring(rest, at + 6)
+            EndIf
+        Else
+            rest = DropLead(DropLead(DropLead(DropLead(DropLead(rest, "overheard that "), "heard that "), "saw that "), "was told that "), "learned that ")
+        EndIf
+        If rest == "" || rest == afterName ; no lead phrase matched: the name is part of the gossip
+            rest = rumor
+        EndIf
+    EndIf
+    Int last = StringUtil.GetLength(rest) - 1
+    If last > 0 && StringUtil.GetNthChar(rest, last) == "."
+        rest = StringUtil.Substring(rest, 0, last)
+    EndIf
+    If wantSender
+        Return teller
+    EndIf
+    Return rest
+EndFunction
+
+String Function InformantRejection(String subject, String rumor)
+    {Same checks as C++ InformantRumorRejection; "" = accepted.}
+    String name = UntagName(subject)
+    If rumor == ""
+        Return "rumor is empty"
+    ElseIf name == ""
+        Return "subject is empty"
+    ElseIf ReplaceText(rumor, name, "") == rumor ; whole-word, like the C++ check
+        Return "rumor does not name the subject"
+    EndIf
+    Int sp = 0 ; first word ends at " ,.;:" like the C++ check
+    While sp < StringUtil.GetLength(rumor) && StringUtil.Find(" ,.;:", StringUtil.GetNthChar(rumor, sp)) < 0
+        sp += 1
+    EndWhile
+    String first = StringUtil.Substring(rumor, 0, sp)
+    If sp > 3 && StringUtil.Substring(first, sp - 3) == "ing" && StringUtil.Find(name, first) != 0
+        Return "rumor starts with an -ing word"
+    EndIf
+    Return ""
+EndFunction
+
+String Function FormatInformantFact(String subject, String rumor, String sender, String informant)
+    ; The informant's own name inside the rumor becomes "me"/"my"; a rumor about the informant themself is first person.
+    String own = UntagName(informant) + " "
+    If StringUtil.Find(rumor, own) == 0
+        Return "I " + ReplaceText(ReplaceText(StringUtil.Substring(rumor, StringUtil.GetLength(own)), UntagName(informant) + "'s", "my"), UntagName(informant), "me")
+    EndIf
+    rumor = ReplaceText(ReplaceText(rumor, UntagName(informant) + "'s", "my"), UntagName(informant), "me")
+    If sender == ""
+        Return "saw that " + rumor
+    ElseIf UntagName(sender) == UntagName(subject)
+        Return sender + " told me that " + rumor
+    EndIf
+    Return "heard from " + sender + " that " + rumor
+EndFunction
+
+Function SetInformantTopic(Actor npc, String subject)
+    {Short topic for Current Task ("speaking with X about <topic>"); none when the subject is empty or the informant; cleared by ReleaseLinger.}
+    String subj = UntagName(subject)
+    If subj == "" || subj == UntagName(npc.GetDisplayName())
+        StorageUtil.UnsetStringValue(npc, "Intel_ArrivalTopic")
+        Return
+    EndIf
+    StorageUtil.SetStringValue(npc, "Intel_ArrivalTopic", subj)
+EndFunction
+
+String Function InformantNarration(String npcName, String playerName, String sender, String rumor)
+    If StringUtil.Find(rumor, UntagName(npcName) + " ") == 0
+        Return npcName + " came to tell " + playerName + ": " + rumor
+    EndIf
+    If sender == ""
+        Return npcName + " came to tell " + playerName + " what they saw: " + rumor
+    EndIf
+    Return npcName + " came to tell " + playerName + " what " + sender + " told them: " + rumor
+EndFunction
 Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Form sender)
     ; strArg = full JSON payload (race-safe: no shared state between C++ and Papyrus)
     String storyType = IntelEngine.StoryResponseGetField(strArg, "storyType")
@@ -2351,19 +2507,52 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     Actor npc = IntelEngine.ResolveDirectorActor(npcName)
     If !npc || npc.IsDead() || npc.IsDisabled()
         DebugMsg("Director: Could not find NPC '" + npcName + "' for story dispatch")
-        NotifyPlayer("Couldn't find NPC '" + npcName + "' (no unique match).")
+        NotifyPlayer(IntelEngine.GetDirectorFailureMessage(npcName))
         Return
     EndIf
-    If !DirectorCanDispatch(npc, true)
-        Return
-    EndIf
-    If narration == ""
+    If narration == "" && storyType != "informant"
         DebugMsg("Director: Empty narration, aborting")
+        NotifyPlayer("Story dispatch refused: narration is empty.")
         Return
     EndIf
     If !StoryEngine
         DebugMsg("Director: StoryEngine not available")
+        NotifyPlayer("Story dispatch refused: StoryEngine is unavailable.")
         Return
+    EndIf
+    If storyType == "informant"
+        String badSubject = StoryEngine.ExtractJsonField(response, "subject")
+        String badWhy = InformantRejection(badSubject, InformantRumor(badSubject, StoryEngine.ExtractJsonField(response, "rumor"), StoryEngine.ExtractJsonField(response, "gossip")))
+        If badWhy != ""
+            DebugMsg("Director: informant refused (" + badWhy + "): subject='" + badSubject + "'")
+            NotifyPlayer("Informant dispatch refused: " + badWhy + ".")
+            Return
+        EndIf
+    EndIf
+    Actor replacing = None
+    If StoryEngine.IsActive && IntelEngine.StoryResponseGetField(strArg, "replaceGeneration") == StoryEngine.DispatchGeneration as String
+        replacing = StoryEngine.ActiveStoryNPC
+    EndIf
+    If !DirectorCanDispatch(npc, true, replacing)
+        Return
+    EndIf
+    If replacing
+        If (storyType != "seek_player" && storyType != "informant" && storyType != "ambush" && storyType != "stalker" && storyType != "quest" && storyType != "message" && storyType != "road_encounter") || \
+            (storyType == "message" && StoryEngine.ExtractJsonField(response, "msgContent") == "") || (storyType == "informant" && (StoryEngine.ExtractJsonField(response, "subject") == "" || InformantRumor(StoryEngine.ExtractJsonField(response, "subject"), StoryEngine.ExtractJsonField(response, "rumor"), StoryEngine.ExtractJsonField(response, "gossip")) == ""))
+            NotifyPlayer("Story replacement refused: unknown type or missing message content / informant subject and gossip.")
+            Return
+        EndIf
+        CancelCurrentTask(replacing, true)
+        If StoryEngine.ActiveStoryNPC == replacing
+            RemoveIntelPackages(replacing)
+            ClearLinkedRefs(replacing)
+            ClearSlotRestoreFollower(-1, replacing)
+            StoryEngine.CleanupStoryDispatch()
+        EndIf
+        If StoryEngine.IsActive || FindSlotByAgent(replacing) >= 0
+            NotifyPlayer("Story replacement refused: previous story or task is still active after cancellation.")
+            Return
+        EndIf
     EndIf
 
     DebugMsg("Director: Dispatching " + storyType + " with " + npc.GetDisplayName() + " - " + narration)
@@ -2373,26 +2562,28 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     ; Director skips cooldown/MCM checks intentionally — it's a manual DM override
     Int g = StoryEngine.DispatchGeneration
     If storyType == "seek_player"
-        InjectFact(npc, "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration)
+        String seekFact = narration
+        If StringUtil.Find(narration, Game.GetPlayer().GetDisplayName()) < 0
+            seekFact = "set out to find " + Game.GetPlayer().GetDisplayName() + " -- " + narration
+        EndIf
+        InjectFact(npc, seekFact)
         StoryEngine.ActiveStoryType = storyType
         StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
     ElseIf storyType == "informant"
         String fSubject = StoryEngine.ExtractJsonField(response, "subject")
-        String fGossip = StoryEngine.ExtractJsonField(response, "gossip")
-        If fSubject != "" && fGossip != ""
-            Actor subjectNPC = IntelEngine.FindNPCByName(fSubject)
-            If subjectNPC
-                InjectFact(subjectNPC, fGossip)
+        String fRumor = InformantRumor(fSubject, StoryEngine.ExtractJsonField(response, "rumor"), StoryEngine.ExtractJsonField(response, "gossip"))
+        String fSender = StoryEngine.ExtractJsonField(response, "sender")
+        If fSubject != "" && fRumor != ""
+            If fSender == ""
+                fSender = InformantLead(npc.GetDisplayName(), fRumor, true)
             EndIf
-            String fSender = StoryEngine.ExtractJsonField(response, "sender")
-            If fSender != ""
-                InjectFact(npc, "heard from " + fSender + " that " + fSubject + " " + fGossip)
-            Else
-                InjectFact(npc, "witnessed that " + fSubject + " " + fGossip)
-            EndIf
+            fRumor = InformantLead(npc.GetDisplayName(), fRumor, false)
+            InjectFact(npc, FormatInformantFact(fSubject, fRumor, fSender, npc.GetDisplayName()))
+            narration = InformantNarration(npc.GetDisplayName(), Game.GetPlayer().GetDisplayName(), fSender, fRumor)
         EndIf
         StoryEngine.ActiveStoryType = "informant"
+        SetInformantTopic(npc, fSubject)
         StoryEngine.DispatchToTarget(npc, Game.GetPlayer(), narration, "story", "Director")
 
     ElseIf storyType == "ambush" || storyType == "stalker"
@@ -2435,19 +2626,39 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     Actor npc2 = IntelEngine.ResolveDirectorActor(npc2Name)
     If !npc1 || npc1.IsDead() || npc1.IsDisabled()
         DebugMsg("Director: Could not find NPC 1 '" + npc1Name + "' for social dispatch")
-        NotifyPlayer("Couldn't find NPC '" + npc1Name + "' (no unique match).")
+        NotifyPlayer(IntelEngine.GetDirectorFailureMessage(npc1Name))
         Return
     EndIf
     If !npc2 || npc2.IsDead() || npc2.IsDisabled()
         DebugMsg("Director: Could not find NPC 2 '" + npc2Name + "' for social dispatch")
-        NotifyPlayer("Couldn't find NPC '" + npc2Name + "' (no unique match).")
+        NotifyPlayer(IntelEngine.GetDirectorFailureMessage(npc2Name))
         Return
     EndIf
-    If !DirectorCanDispatch(npc1) || !DirectorCanDispatch(npc2)
+    Actor replacing = None
+    If StoryEngine && StoryEngine.IsNPCStoryActive && IntelEngine.StoryResponseGetField(strArg, "replaceGeneration") == StoryEngine.NPCSocialGeneration as String
+        replacing = StoryEngine.NPCSocialTraveler
+    EndIf
+    If narration == "" || (socialType != "npc_interaction" && socialType != "npc_gossip") || npc1 == npc2 || !StoryEngine
+        NotifyPlayer("Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.")
         Return
+    EndIf
+    If !DirectorCanDispatch(npc1, false, replacing) || !DirectorCanDispatch(npc2, false, replacing)
+        Return
+    EndIf
+    If StoryEngine.IsNPCStoryActive && !replacing
+        NotifyPlayer("Social replacement refused: active trip changed; refresh and confirm replacement.")
+        Return
+    EndIf
+    If replacing
+        CancelCurrentTask(replacing, true)
+        StoryEngine.CleanupNPCSocialDispatch()
+        If StoryEngine.IsNPCStoryActive || FindSlotByAgent(replacing) >= 0
+            NotifyPlayer("Social replacement refused: previous trip or task is still active after cancellation.")
+            Return
+        EndIf
     EndIf
 
-    DebugMsg("Director: NPC Social " + socialType + " — " + npc1Name + " -> " + npc2Name + ": " + narration)
+    DebugMsg("Director: NPC Social " + socialType + " - " + npc1Name + " -> " + npc2Name + ": " + narration)
 
     String fact1 = ""
     String fact2 = ""
@@ -2455,12 +2666,26 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     If socialType == "npc_interaction"
         fact1 = StoryEngine.ExtractJsonField(response, "fact1")
         fact2 = StoryEngine.ExtractJsonField(response, "fact2")
-        StoryEngine.AddNPCSocialLog("npc_interaction", npc1Name, npc2Name, narration, npc1)
-        StoryEngine.AddRecentStoryEvent("npc_interaction: " + npc1Name + " and " + npc2Name + " — " + narration)
+        String logDetail = ""
+        If fact1 != ""
+            logDetail = npc1Name + ": " + fact1
+        EndIf
+        If fact2 != ""
+            If logDetail != ""
+                logDetail += " | "
+            EndIf
+            logDetail += npc2Name + ": " + fact2
+        EndIf
+        StoryEngine.AddNPCSocialLog("npc_interaction", npc1Name, npc2Name, narration, npc1, logDetail)
+        StoryEngine.AddRecentStoryEvent("npc_interaction: " + npc1Name + " and " + npc2Name + " - " + narration)
     ElseIf socialType == "npc_gossip"
-        gossip = StoryEngine.ExtractJsonField(response, "gossip")
-        StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, narration, npc1)
-        StoryEngine.AddRecentStoryEvent("npc_gossip: " + npc1Name + " told " + npc2Name + " — " + narration)
+        gossip = InformantRumor(StoryEngine.ExtractJsonField(response, "subject"), "", StoryEngine.ExtractJsonField(response, "gossip")) ; fix84: "<Subject> <gossip>"
+        If gossip == ""
+            StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, narration, npc1)
+        Else
+            StoryEngine.AddNPCSocialLog("npc_gossip", npc1Name, npc2Name, gossip, npc1) ; fix87: log the rumour
+        EndIf
+        StoryEngine.AddRecentStoryEvent("npc_gossip: " + npc1Name + " told " + npc2Name + " - " + narration)
     EndIf
 
     ; Dispatch physical travel for face-to-face when NPCs are close enough.
@@ -2469,9 +2694,21 @@ Event OnDashboardDispatchNpcSocial(String eventName, String strArg, Float numArg
     If dist < 5000.0 && dist > 200.0
         ok = StoryEngine.DispatchNPCSocial(npc1, npc2, narration, socialType, npc1, npc2, fact1, fact2, gossip, "Director")
     Else
-        ; Existing off-screen Director outcome: no travel is needed.
-        StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
-        DebugMsg("Director: NPCs too far apart or already close — applied off-screen")
+        ; fix 95c: loaded near the player, not same parent cell (outdoor grid cells split a few steps; live 16:55:11 dist=59 both cells False)
+        If dist <= 200.0 && npc1.Is3DLoaded() && npc2.Is3DLoaded()
+            ; fix 95: already together where the player is - play it there (in earshot) or hold until the player comes in range
+            If StoryEngine.InNarrationRange(npc1)
+                StoryEngine.PerformVisibleInteraction(npc1, npc2, narration, socialType)
+                StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
+            Else
+                StoryEngine.HoldSocialScene(npc1, npc2, npc1, npc2, narration, socialType, fact1, fact2, gossip)
+            EndIf
+            DebugMsg("Director: NPCs already together near the player - scene played in place")
+        Else
+            ; Existing off-screen Director outcome: no travel is needed.
+            StoryEngine.CompleteNPCSocialOutcome(npc1, npc2, socialType, fact1, fact2, gossip)
+            DebugMsg("Director: NPCs too far apart or already close - applied off-screen (dist=" + dist + " npc1Loaded=" + npc1.Is3DLoaded() + " npc2Loaded=" + npc2.Is3DLoaded() + ")")
+        EndIf
     EndIf
     If ok
         NotifyPlayer(npc1Name + " and " + npc2Name + ": " + IntelEngine.FriendlyKey(socialType) + " started.")
@@ -2486,7 +2723,7 @@ EndEvent
 Event OnDashboardDispatchPolitics(String eventName, String strArg, Float numArg, Form sender)
     ; strArg = fake Political DM response JSON (built by C++ from UI fields)
     ; Feed it directly to ProcessPoliticalDMResponse — same path as a real DM response
-    DebugMsg("Director: Political event received — eventName=" + eventName + " strArg length=" + StringUtil.GetLength(strArg))
+    DebugMsg("Director: Political event received - eventName=" + eventName + " strArg length=" + StringUtil.GetLength(strArg))
     If Politics
         DebugMsg("Director: Forwarding to Politics.OnPoliticalDMResponse")
         ; Director bypasses manifestation cooldown — player is manually triggering events
@@ -2731,6 +2968,7 @@ String Function BuildDashboardStateJson()
     If StoryEngine
         json += "\"enabled\":" + BoolToJson(IsStoryEngineEnabled())
         json += ",\"isActive\":" + BoolToJson(StoryEngine.IsActive)
+        json += ",\"generation\":" + StoryEngine.DispatchGeneration
         json += ",\"activeNPC\":\"" + EscapeJson(GetActorName(StoryEngine.ActiveStoryNPC)) + "\""
         json += ",\"activeType\":\"" + StoryEngine.ActiveStoryType + "\""
         json += ",\"activeNarration\":\"" + EscapeJson(StoryEngine.ActiveNarration) + "\""
@@ -2790,6 +3028,7 @@ String Function BuildDashboardStateJson()
     If StoryEngine
         json += "\"enabled\":" + BoolToJson(StoryEngine.NPCTickEnabled)
         json += ",\"isActive\":" + BoolToJson(StoryEngine.IsNPCStoryActive)
+        json += ",\"generation\":" + StoryEngine.NPCSocialGeneration
         json += ",\"traveler\":\"" + EscapeJson(GetActorName(StoryEngine.NPCSocialTraveler)) + "\""
         json += ",\"target\":\"" + EscapeJson(GetActorName(StoryEngine.NPCSocialTarget)) + "\""
         json += ",\"type\":\"" + StoryEngine.NPCSocialType + "\""
