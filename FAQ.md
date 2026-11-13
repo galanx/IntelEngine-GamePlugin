@@ -9,6 +9,27 @@ If a valid co-save has a STRV record but no IntelEngine rendered-cache targets, 
 
 Original answers are preserved below; ~~struck text~~ is superseded by the dated update immediately after it, and dated notes qualify unverified claims.
 
+> **Updated for 3.8.0: settings have one name everywhere.** The MCM, the dashboard and SkyrimNet's plugin settings page now use the same names. The answers below were written with the older MCM labels; this is what they are called now.
+>
+> | In the answers below | Now |
+> |---|---|
+> | Action Confirmation Prompts | Ask before starting |
+> | Actions Followers Can Do, Skip Action for Followers | What followers can be asked to do |
+> | Go To Location, Fetch Person, Deliver Message, Escort Target, Search For Actor | Go somewhere, Fetch someone, Deliver a message, Escort someone, Search for someone |
+> | Schedule Meeting, Schedule Fetch, Schedule Delivery | Arrange a meeting, Fetch someone later, Deliver a message later |
+> | Check Interval | Check interval (game hours) |
+> | Long Absence | Long absence (days) |
+> | Max Travel Time | Longest journey (days) |
+> | Teleport When Stuck, Teleport on stuck/timeout | Move a stuck traveller along |
+> | Story Types (DM): Seek Player, Informant, Road Encounter, Message, Quest, Ambush, Faction Ambush, Stalker | Story types: Someone comes to see you, Someone brings a rumor, A meeting on the road, A message is delivered, Someone has work for you, An ambush, A faction's patrol hunts you, Someone follows you unseen |
+> | Quest Types: Combat, Rescue, Find Item, Faction Combat, Faction Rescue, Faction Battle | Quest kinds: Clear out enemies, Rescue someone, Find an item, Fight a faction's enemies, Rescue for a faction, Join a faction's battle |
+> | Quest Timeout | Quest expires after (days) |
+> | Interaction Interval, NPC Social Cooldown | Check interval (game hours) and Rest per NPC (game hours), under NPCs among themselves |
+> | NPC Interaction, NPC Gossip | Kind: one NPC goes to see another, Kind: gossip passed on |
+> | Max Concurrent Tasks | NPCs on a task at once |
+> | Default Wait Hours | Wait at a destination (game hours) |
+> | Hold Restrictions: Seek Player, Informant, ... | Hold Restrictions, each group headed by the story type's new name |
+
 **Q: What is IntelEngine?**
 
 IntelEngine is a Skyrim mod that gives NPCs the ability to act independently in the game world. Instead of standing in one spot waiting for the player, NPCs can travel across the map, carry out tasks, remember what happened, and even pursue their own goals — all driven by AI via SkyrimNet.
@@ -37,7 +58,7 @@ Nine factions form alliances, negotiate trade deals, spy on each other, declare 
 
 MCM or Dashboard → Settings → Skip Action for Followers. Toggle ON for any actions you want blocked ~~(`Go To Location`, `Fetch Person`, `Deliver Message`, `Escort Target`)~~. ~~Followers will still talk, gossip, and interact — they just won't physically leave your side.~~
 
-> **Updated for 3.8.0:** MCM or Dashboard → Settings → Actions Followers Can Do (called Skip Action for Followers before 3.8): turn OFF each action you want blocked, including Search For Actor and all three scheduling actions. These default ON; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
+> **Updated for 3.8.0:** MCM or Dashboard → Settings → What followers can be asked to do (called Skip Action for Followers before 3.8): turn OFF each action you want blocked, including Search for someone and all three scheduling actions (Arrange a meeting, Fetch someone later, Deliver a message later). These default ON; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
 
 **Q: Can I get a confirmation prompt instead of blocking entirely?**
 
