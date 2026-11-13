@@ -669,7 +669,7 @@ not also call `RecordPoliticalEvent` for these initiatives. Missing export disab
 Active PE adds authoritative territory and recent public developments to the Political DM
 context. A development is eligible for one `political_reaction` on the next tick through
 `reacts_to`; expiry, load identity and duplicate responses reject stale reactions.
-`politics.pe_integration` defaults true; when false IE ignores Political Engine (no polling, no context, no `pe_*` events) and re-enabling resets the baseline.
+`politics.pe_integration` defaults false (off): a settings file that does not name the key leaves Political Engine alone. While it is false IE ignores Political Engine (no polling, no context, no `pe_*` events, no realm fragment); switching it on resets the baseline, and the realm factions of `factions.d/political_engine.yaml` are added on the next load. It can be switched in the MCM (Faction Politics), on the dashboard's Settings tab and on SkyrimNet's plugin settings page.
 `politics.pe_reactions_move_relations` defaults true. Its persisted Papyrus/MCM/dashboard
 toggle controls only tagged reaction relation and player-standing deltas, not IE's own
 politics, standing decay or war/battle mechanics. Disabled still records the reaction.

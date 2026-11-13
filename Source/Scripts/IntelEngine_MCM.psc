@@ -593,7 +593,7 @@ Function ShowSettingsPage()
 
     Float tickInterval = IntelEngine.GetPoliticsTickInterval() as Float
     OID_PoliticsTickInterval = AddSliderOption("Tick Interval (hours)", tickInterval, "{0}")
-    OID_PEIntegration = AddToggleOption("Political Engine integration", IntelEngine.GetPEIntegration())
+    OID_PEIntegration = AddToggleOption("Political Engine integration (experimental)", IntelEngine.GetPEIntegration())
     OID_PEReactions = AddToggleOption("PE reactions move relations", IntelEngine.GetPEReactionsMoveRelations())
 
 EndFunction
@@ -1351,6 +1351,10 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("Enable the autonomous faction politics system. Factions trade, negotiate, scheme, and go to war based on LLM-driven decisions.")
     ElseIf optionId == OID_PoliticsTickInterval
         SetInfoText("How often (in game hours) the Political DM evaluates faction relations and generates events. Default 6.")
+    ElseIf optionId == OID_PEIntegration
+        SetInfoText("Experimental, off by default. Needs the mod Political Engine and does nothing without it. When on, its realms, rulers and campaign news feed IntelEngine's politics. Load a save after turning it on: the realms are added at game start and on load.")
+    ElseIf optionId == OID_PEReactions
+        SetInfoText("Only matters with Political Engine integration on. When off, reactions to Political Engine's news are recorded without changing faction relations or your standing.")
     EndIf
 EndEvent
 
