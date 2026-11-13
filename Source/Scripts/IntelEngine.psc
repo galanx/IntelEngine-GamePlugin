@@ -292,8 +292,9 @@ Int Function GetStuckRecoveryAttempts(Int slot) Global Native
 Function InitOffScreenTravel(Int slot, Float estimatedArrivalGameTime, Actor npc) Global Native
 
 ; Check off-screen progress. Returns 0=in transit, 1=should teleport.
-; Before estimated arrival: always 0. After: checks position for movement.
+; Before estimated arrival: always 0. After: unloaded=1; loaded waits for stationary ticks.
 Int Function CheckOffScreenProgress(Int slot, Actor npc, Float currentGameTime) Global Native
+String Function DescribeDistance(ObjectReference a, ObjectReference b) Global Native
 
 ; Reset/clear off-screen tracking for a slot
 Function ResetOffScreenSlot(Int slot) Global Native
@@ -365,6 +366,7 @@ Function SetSlotOffscreenArrival(Int slot, Float arrival) Global Native
 
 ; Returns true if slot state was recovered from SKSE co-save (skip StorageUtil recovery).
 Bool Function HasCoSaveTaskData() Global Native
+Bool Function StoryLoadRecovered(Bool complete = false) Global Native
 
 ; Push C++ SlotTracker state to Papyrus arrays (reverse of SyncSlotTrackerFromArrays).
 ; Called from Maintenance when co-save data exists.
@@ -403,12 +405,13 @@ ObjectReference Function GetEditorLocationRef(Actor akActor) Global Native
 
 ; Automatic DM/social responses resolve only within the latest candidate pools.
 ; Exact names precede unique case/whitespace/role-normalized matches.
-; Unknown names and duplicate entries reject; no global lookup fallback.
-Actor Function ResolveStoryCandidate(String name) Global Native
+; Unknown names and distinct-ID matches reject; repeated reference IDs resolve, with no global fallback.
+Actor Function ResolveStoryCandidate(String name, String partnerName = "", Actor anchor = None) Global Native
 
 ; Manual Director only: exact full display name across indexed actor references.
 ; Same-reference duplicates are allowed; distinct-reference clashes and dead/disabled/deleted actors reject.
 Actor Function ResolveDirectorActor(String name) Global Native
+String Function GetDirectorFailureMessage(String name) Global Native
 
 ; Find a suitable messenger to deliver a message on behalf of sender.
 ; Cascade: household member → social associate → same-hold guard → any civilian.
@@ -475,7 +478,6 @@ String Function GetActorHoldName(Actor akActor) Global Native
 
 ; Get recent dialogue history for an NPC. Returns formatted string, empty if no dialogue.
 String Function GetRecentDialogue(Actor akActor, Int maxExchanges = 1) Global Native
-
 
 ; Check if an NPC knows the player (has dialogue, memories, or relationship data).
 Bool Function NPCKnowsPlayer(Actor akActor) Global Native
@@ -567,6 +569,10 @@ Int[] Function GetNPCCandidatePoolFormIDs() Global Native
 ; Scan loaded actors for those currently running one of the given packages.
 ; Returns JSON: [{"name":"...","formId":123,"pkgFormId":456},...]
 String Function ScanActorsWithPackages(Int[] packageFormIDs) Global Native
+
+; The same scan, returning the actors themselves (for Core.SweepStalePackages).
+Actor[] Function GetActorsWithPackages(Int[] packageFormIDs) Global Native
+
 
 ; Spawn leveled enemies at a location for quest system.
 ; Looks up vanilla ActorBases by EditorID (no CK properties needed).
@@ -721,6 +727,13 @@ Function PushDashboardFullState(String json) Global Native
 ; Check if dashboard is currently visible
 Bool Function IsDashboardOpen() Global Native
 
+; Lets a pad answer a Magelight view made from Papyrus (the choice popup): A is Enter, B is Escape, the d-pad and
+; the left stick are the arrow keys. 1 = done, 0 = no gamepad layer (no Magelight 1.6+, VR, switched off), -1 = refused.
+Int Function EnableMagelightGamepadKeys(Int view) Global Native
+
+; Is this NPC saying a line right now? False for an unloaded actor.
+Bool Function IsActorTalking(Actor akActor) Global Native
+
 
 ; =============================================================================
 ; DEBUG / TESTING FUNCTIONS
@@ -783,6 +796,11 @@ String Function BuildPoliticalDashboardJson() Global Native
 
 ; Record a political event between factions, returns event ID (-1 on failure)
 Int Function RecordPoliticalEvent(String factionA, String factionB, String eventType, String description, Int delta, Float gameTime) Global Native
+; Return political events after an ID with feed identity and pagination metadata.
+String Function GetPoliticalEventsAfter(Int afterId, Int limit = 50) Global Native
+; Return configured political factions as JSON.
+String Function GetFactionsJson() Global Native
+
 
 ; Check if a political event should physically manifest near the player.
 ; Returns JSON spawn instructions or empty string if player is not at the event location.
@@ -859,6 +877,10 @@ String Function RunStandingMechanics() Global Native
 
 ; Runtime politics settings
 Function SetPoliticsEnabled(Bool enabled) Global Native
+Bool Function GetPEIntegration() Global Native
+Function SetPEIntegration(Bool enabled) Global Native
+Bool Function GetPEReactionsMoveRelations() Global Native
+Function SetPEReactionsMoveRelations(Bool enabled) Global Native
 Function SetPoliticsTickInterval(Int hours) Global Native
 
 ; === War Lifecycle ===
