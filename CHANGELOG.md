@@ -21,7 +21,7 @@
 - Arrival timers use real time; a late NPC is re-placed once behind the target, then the story aborts with a notice.
 - Story arrival waits until save-load recovery finishes. Director stories ignore the Hold Restriction; automatic stories still turn back and say why.
 - Story NPCs who become your teammate are released from linger; linger timeouts survive pausing.
-- Lingering NPCs are released after one game hour, so waiting or sleeping frees them; the linger release distance defaults to 500 (minimum 300).
+- Lingering NPCs are released after one game hour, so waiting or sleeping frees them (see "Meetings and visits" below for how that limit works now); the linger release distance keeps its default of 800, with the minimum lowered to 300.
 - The story watchdog no longer marks an NPC who already arrived as "never finished", and strips travel packages when it resets a story.
 
 ### Stories and NPC scenes
@@ -37,7 +37,7 @@
 - A fetched NPC walking toward you is no longer sent home early, and one already beside you is no longer teleported away across an exterior cell boundary.
 
 ### Politics
-- New `war_allowed:` section in factions.yaml decides which faction pairs may go to war (default: Legion vs Stormcloaks only). Entries can be faction ids, display names, types or `*`. Political Engine realms never go to war.
+- New `war_allowed:` section in factions.yaml decides which faction pairs may go to war (default: any two factions of type `military`, so guilds and families stay out of it). Entries can be faction ids, display names, types or `*`. Political Engine realms never go to war.
 - When the Political DM ignores the "declare war" rule for the most hostile allowed pair, IE declares the war itself (skipping factions whose leaders are all dead); war declarations for pairs that aren't allowed are refused.
 - The Empire and the Aldmeri Dominion are neutral to each other: the Legion and the Thalmor are no longer allies, and their starting relation is 15 (was 50).
 - A battle result for two factions that aren't at war is recorded as a border skirmish, and no soldiers spawn.
@@ -88,6 +88,11 @@
 - The dashboard has a larger layout and can be driven with a gamepad or the arrow keys.
 - A Director political event that is refused now says so (it showed "Sent" and did nothing).
 
+### Wars that end stay ended
+- A war that ends leaves the two factions at an uneasy truce instead of still being at each other's throats, so the same pair no longer declares war again after every cooldown, a little worse off each time.
+- A war that ends by exhaustion or collapse is recorded as a surrender or a ceasefire, something NPCs can hear about and talk about. It used to end in the database only, with nothing in the world to show for it.
+- A faction's own `war_threshold` is honoured when a war is declared in code, not only when the Political DM proposes one.
+
 ### Fixes to 3.8 changes found in review
 - NPC gossip without a subject no longer starts with a blank.
 - The second NPC of a scene resolves again when they are not in the first one's cell (the pair was dropped as unresolved).
@@ -97,6 +102,8 @@
 - A pair of NPCs waiting for you to come within hearing waits for the full time, not thirty seconds.
 - A `factions.d` fragment with an unknown `requires:` line, or saved with a byte-order mark, is not loaded for everyone.
 - A battle in a plugin whose file name is not plain ASCII no longer throws while it is recorded.
+- An automatic story that is given up on (the NPC cannot reach you, or turns back at a hold border) says nothing on screen: it used to name a visitor you never saw setting out. A story you dispatched from the dashboard still reports back.
+- A story NPC counts as having reached you only on the same floor, as travel arrivals already did; they used to arrive and speak from the room below.
 
 ## 3.7.1 — 2026-11-04
 

@@ -3116,6 +3116,9 @@ Function CheckStoryNPCArrival()
     Cell nearCell = storyNPC.GetParentCell()
     Bool nearPlayer = arrivalTarget == player && storyNPC.Is3DLoaded() && player.Is3DLoaded() && dist >= 0.0 && dist <= 350.0
     nearPlayer = nearPlayer && ((nearCell != None && nearCell == player.GetParentCell()) || (storyNPC.GetWorldSpace() != None && storyNPC.GetWorldSpace() == player.GetWorldSpace()))
+    ; On the same floor, as the travel arrival requires too: 350 units is a short distance in plan but spans
+    ; two storeys of an inn, so the visitor "arrived" and said their line from the room below.
+    nearPlayer = nearPlayer && Math.Abs(storyNPC.GetPositionZ() - player.GetPositionZ()) <= 150.0
     If !StillOwns(storyNPC, claimedGeneration, storyType)
         return
     EndIf
@@ -3176,8 +3179,14 @@ Function CheckStoryNPCArrival()
             EndIf
         Else
             Core.DebugMsg("[diag:fix9] " + storyNPC.GetDisplayName() + " abort last-stretch timeout " + IntelEngine.DescribeDistance(storyNPC, arrivalTarget))
+            ; The notice is for a story the player started from the dashboard. For an automatic one it told
+            ; the player about a visitor they had never seen: the story just ends, as if nobody had set out.
+            Bool lostFromDirector = StorageUtil.GetStringValue(storyNPC, "Intel_TaskOrigin") == "Director"
+            String lostName = storyNPC.GetDisplayName()
             AbortStoryTravel("last-stretch timeout")
-            Core.NotifyPlayer("Story: " + storyNPC.GetDisplayName() + " couldn't reach you - story ended")
+            If lostFromDirector
+                Core.NotifyPlayer("Story: " + lostName + " couldn't reach you - story ended")
+            EndIf
         EndIf
         return
     EndIf
@@ -6009,7 +6018,8 @@ Bool Function ShouldAbortForHoldRestriction(Actor npc, Actor player, String stor
         Core.DebugMsg("Story: aborting " + storyType + " for " + npc.GetDisplayName() + " -- hold restriction" + logSuffix)
         Core.SendTaskNarration(npc, "decided the journey to find " + player.GetDisplayName() + " was too far and turned back", player)
         If StillOwns(npc, claimedGeneration, storyType)
-            Core.NotifyPlayer("Story: " + npc.GetDisplayName() + " turned back - hold restriction" + logSuffix)
+            ; No on-screen notice: this only happens to automatic stories, and "X turned back - hold restriction"
+            ; told the player about someone they never saw setting out. The log line above has it.
             AbortStoryTravel("hold restriction" + logSuffix)
         EndIf
         return true
