@@ -329,6 +329,17 @@ Function Maintenance(Bool isFirstLoad = false)
 
     ; Register dashboard event listeners
     RegisterDashboardEvents()
+
+    ; The settings are shared with SkyrimNet's plugin settings page through one file for every save. A new
+    ; game and a save that has shared before take the file's values. A save from before the settings were
+    ; shared puts its own values into the file once, so nothing a player set up is lost on update.
+    Actor settingsOwner = Game.GetPlayer()
+    If isFirstLoad || StorageUtil.GetIntValue(settingsOwner, "Intel_SettingsShared") == 1
+        ApplyPluginSettings()
+    Else
+        SyncSettingsToPluginConfig()
+    EndIf
+    StorageUtil.SetIntValue(settingsOwner, "Intel_SettingsShared", 1)
 EndFunction
 
 Function InitializeSlotArrays()
@@ -668,9 +679,56 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
     IntelEngine.UpdateSlotState(slot, akAgent, 1, taskType, targetName, taskOrigin, StorageUtil.GetFloatValue(akAgent, "Intel_TaskAllocatedAt", -1.0), taskReason)
     IntelEngine.SetSlotSpeed(slot, speed)
 
+    ListTaskRow(akAgent, taskType, targetName)
+
     DebugMsg("Allocated slot " + slot + " to " + akAgent.GetDisplayName() + " for " + taskType)
     PushDashboardState()
 EndFunction
+
+Function ListTaskRow(Actor agent, String taskType, String targetName)
+    {Shows the task on SkyrimNet's Package Manager page. IntelEngine runs its packages itself (PapyrusUtil
+    overrides), so the row is only listed: SkyrimNet never starts or stops anything for it. The player's Remove
+    on that page cancels the task (OnSkyrimNetPackageRemoved). Nothing happens on a SkyrimNet without the
+    package contract, where these natives do not exist.}
+    If agent == None || IntelEngine.GetSkyrimNetPackageApiVersion() < 1
+        Return
+    EndIf
+    String label = "IntelEngine task: " + taskType
+    If targetName != ""
+        label += ", " + targetName
+    EndIf
+    SkyrimNetApi.ListPackage(agent, SN_TASK_ROW, SN_PKG_OWNER, label + " (Remove cancels it)", true, true)
+EndFunction
+
+Function UnlistTaskRow(Actor agent)
+    If agent == None || IntelEngine.GetSkyrimNetPackageApiVersion() < 1
+        Return
+    EndIf
+    SkyrimNetApi.UnregisterPackageEx(agent, SN_TASK_ROW, SN_PKG_OWNER)
+EndFunction
+
+Event OnSkyrimNetPackageRemoved(String eventName, String strArg, Float numArg, Form sender)
+    {SkyrimNet dropped a package row of an actor (the sender): strArg is "<name>|<reason>|<owner>", numArg
+    the reason code. Only the player's own Remove (1) or Remove all (8) on SkyrimNet's page, for the row of a
+    running IntelEngine task, means something here: stop that task, the way the dashboard's cancel does.
+    IntelEngine's own unlisting arrives as reason 0 and is ignored with every other reason.}
+    Actor npc = sender as Actor
+    Int reason = numArg as Int
+    If npc == None || (reason != 1 && reason != 8)
+        Return
+    EndIf
+    String[] parts = StringUtil.Split(strArg, "|")
+    If parts.Length < 3 || parts[0] != SN_TASK_ROW || parts[2] != SN_PKG_OWNER
+        Return
+    EndIf
+    If FindSlotByAgent(npc) < 0
+        Return
+    EndIf
+    DebugMsg(npc.GetDisplayName() + ": task row removed on SkyrimNet's package page - cancelling the task")
+    If CancelCurrentTask(npc, true)
+        NotifyPlayer(npc.GetDisplayName() + "'s task was cancelled")
+    EndIf
+EndEvent
 
 Function ReleaseAgent(Actor agent, Int slot)
     {Everything IntelEngine put on an NPC for a task comes off again: its packages, the linked refs, the task
@@ -700,6 +758,7 @@ Function ReleaseAgent(Actor agent, Int slot)
     ; framework's wait or follow package and SkyrimNet's with it, and nothing put them back.
     RemoveIntelPackages(agent, false)
     agent.ClearLookAt()
+    UnlistTaskRow(agent)
 
     ; Clear linked refs
     ClearLinkedRefs(agent)
@@ -1314,6 +1373,11 @@ Bool Function IsUnsuitableTaskAgent(Actor npc)
 EndFunction
 
 Float Property SPEECH_GRACE_SECONDS = 7.0 AutoReadOnly
+Float Property SPEECH_PENDING_MAX_SECONDS = 14.0 AutoReadOnly
+
+; SkyrimNet's Package Manager page: the owner name and the row under which a running task is listed there.
+String Property SN_PKG_OWNER = "IntelEngine" AutoReadOnly
+String Property SN_TASK_ROW = "IntelEngine_Task" AutoReadOnly
 
 Function LetFinishSpeaking(Actor npc)
     {A task that starts in conversation fires while the NPC is still answering ("Alright, I'll head to the
@@ -1323,12 +1387,23 @@ Function LetFinishSpeaking(Actor npc)
     If npc == None || !npc.Is3DLoaded()
         Return
     EndIf
-    ; The spoken reply usually begins a moment after the action has fired.
-    Utility.Wait(0.7)
-    Float waited = 0.7
-    While waited < SPEECH_GRACE_SECONDS && npc.Is3DLoaded() && IntelEngine.IsActorTalking(npc)
+    ; The spoken reply usually begins a moment after the action has fired. SkyrimNet says so itself when a line
+    ; is on its way (queued, being synthesized or playing: IsNPCSpeechPending); without that notice the voice
+    ; gets a moment to start, as before.
+    Float waited = 0.0
+    If !IntelEngine.IsNPCSpeechPending(npc)
+        Utility.Wait(0.7)
+        waited = 0.7
+    EndIf
+    ; A line the engine hears is waited for SPEECH_GRACE_SECONDS at most; one SkyrimNet reports, which includes
+    ; the seconds before the voice starts and the sentences still to come, a little longer.
+    Bool talking = IntelEngine.IsActorTalking(npc)
+    Bool pending = IntelEngine.IsNPCSpeechPending(npc)
+    While npc.Is3DLoaded() && ((talking && waited < SPEECH_GRACE_SECONDS) || (pending && waited < SPEECH_PENDING_MAX_SECONDS))
         Utility.Wait(0.4)
         waited += 0.4
+        talking = IntelEngine.IsActorTalking(npc)
+        pending = IntelEngine.IsNPCSpeechPending(npc)
     EndWhile
 EndFunction
 
@@ -1508,8 +1583,10 @@ EndFunction
 Function DismissFollowerForTask(Actor npc)
     {Prepare NPC for a new IntelEngine task by clearing ALL package overrides.
 
-    Uses ActorUtil.ClearPackageOverride to remove overrides from ALL sources —
-    IntelEngine, SkyrimNet (companion follow, TalkToPlayer), and any other mod.
+    Uses ActorUtil.ClearPackageOverride to remove the PapyrusUtil overrides of every mod, IntelEngine's own
+    included. (Since SkyrimNet got its package registry this no longer reaches the packages SkyrimNet runs
+    itself, such as TalkToPlayer at priority 30 or a FollowPlayer row: those sit below IntelEngine's 90 and
+    100 and lose to them without being removed.)
     IntelEngine's task functions (GoToLocation, FetchNPC, etc.) immediately apply
     their own packages after this call, so the NPC is never left without overrides.
 
@@ -2802,6 +2879,7 @@ Function RegisterDashboardEvents()
     RegisterForModEvent("IntelEngine_AutoBioUpdate", "OnAutoBioUpdate")
     RegisterForModEvent("IntelEngine_SaveBioCount", "OnSaveBioCount")
     RegisterForModEvent("SkyrimNet_OnPluginConfigSaved", "OnSkyrimNetPluginConfigSaved")
+    RegisterForModEvent("SkyrimNet_OnPackageRemoved", "OnSkyrimNetPackageRemoved")
     DebugMsg("Dashboard ModEvent listeners registered")
 EndFunction
 
@@ -2847,6 +2925,7 @@ EndEvent
 Event OnSkyrimNetPluginConfigSaved(String eventName, String strArg, Float numArg, Form sender)
     If strArg == "IntelEngine"
         IntelEngine.ReloadDashboardConfig()
+        ApplyPluginSettings()
     EndIf
 EndEvent
 
@@ -2945,6 +3024,7 @@ Event OnDashboardToggleStory(String eventName, String strArg, Float numArg, Form
         StoryEngine.TypeNPCGossipEnabled = enabled
     EndIf
     PushDashboardState()
+    SyncSettingsToPluginConfig()
 EndEvent
 
 Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sender)
@@ -3131,6 +3211,7 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
         EndIf
     EndIf
     ; No PushDashboardState() — React updates optimistically
+    SyncSettingsToPluginConfig()
 EndEvent
 
 Bool Function DirectorCanDispatch(Actor npc, Bool storyDispatch = false, Actor replacing = None)
@@ -3908,8 +3989,17 @@ String Function BuildDashboardStateJson()
     EndIf
 
     ; ── Config ──
+    json += ",\"config\":" + BuildConfigJson()
+
+    json += "}"
+    Return json
+EndFunction
+
+String Function BuildConfigJson()
+    {Every setting a player can change, as one JSON object: the "config" part of the dashboard state, and
+    what the settings shared with SkyrimNet's plugin settings page are compared with (SettingsBridge).}
+    String json = "{"
     ; Read from centralized getters — same source MCM uses (single source of truth)
-    json += ",\"config\":{"
     json += "\"debugMode\":" + BoolToJson(IsDebugMode())
     json += ",\"storyEnabled\":" + BoolToJson(IsStoryEngineEnabled())
     json += ",\"storyInterval\":" + GetStoryEngineInterval()
@@ -3964,24 +4054,64 @@ String Function BuildDashboardStateJson()
         json += ",\"questFactionBattle\":" + BoolToJson(StoryEngine.QuestSubTypeFactionBattleEnabled)
         json += ",\"questTimeoutDays\":" + StoryEngine.QUEST_EXPIRY_DAYS
         json += ",\"questAllowVictimDeath\":" + BoolToJson(StoryEngine.QuestAllowVictimDeath)
+        json += ",\"typeSeekPlayer\":" + BoolToJson(StoryEngine.TypeSeekPlayerEnabled)
+        json += ",\"typeInformant\":" + BoolToJson(StoryEngine.TypeInformantEnabled)
+        json += ",\"typeRoadEncounter\":" + BoolToJson(StoryEngine.TypeRoadEncounterEnabled)
+        json += ",\"typeAmbush\":" + BoolToJson(StoryEngine.TypeAmbushEnabled)
+        json += ",\"typeFactionAmbush\":" + BoolToJson(StoryEngine.TypeFactionAmbushEnabled)
+        json += ",\"typeStalker\":" + BoolToJson(StoryEngine.TypeStalkerEnabled)
+        json += ",\"typeMessage\":" + BoolToJson(StoryEngine.TypeMessageEnabled)
+        json += ",\"typeQuest\":" + BoolToJson(StoryEngine.TypeQuestEnabled)
+        json += ",\"typeNpcInteraction\":" + BoolToJson(StoryEngine.TypeNPCInteractionEnabled)
+        json += ",\"typeNpcGossip\":" + BoolToJson(StoryEngine.TypeNPCGossipEnabled)
+        json += ",\"npc_interaction\":" + BoolToJson(StoryEngine.TypeNPCInteractionEnabled)
+        json += ",\"npc_gossip\":" + BoolToJson(StoryEngine.TypeNPCGossipEnabled)
     Else
         json += ",\"longAbsenceDays\":3,\"maxTravelDays\":1,\"allowStuckTeleport\":true"
         json += ",\"dangerZonePolicy\":1,\"playerHomePolicy\":0"
-        json += ",\"holdPolicySeekPlayer\":1,\"holdPolicyInformant\":1,\"holdPolicyRoadEncounter\":1"
-        json += ",\"holdPolicyAmbush\":1,\"holdPolicyStalker\":1,\"holdPolicyMessage\":1,\"holdPolicyQuest\":1"
+        json += ",\"holdPolicySeekPlayer\":1,\"holdPolicyInformant\":6,\"holdPolicyRoadEncounter\":0"
+        json += ",\"holdPolicyAmbush\":1,\"holdPolicyStalker\":1,\"holdPolicyMessage\":2,\"holdPolicyQuest\":0"
         json += ",\"confirmGoToLocation\":1,\"confirmDeliverMessage\":1,\"confirmFetchPerson\":1,\"confirmEscortTarget\":1"
-        json += ",\"confirmSearchForActor\":1,\"confirmScheduleMeeting\":1,\"confirmScheduleFetch\":1,\"confirmScheduleDelivery\":1"
+        json += ",\"confirmSearchForActor\":1,\"confirmScheduleMeeting\":2,\"confirmScheduleFetch\":1,\"confirmScheduleDelivery\":1"
         json += ",\"skipFollowerGoToLocation\":false,\"skipFollowerDeliverMessage\":false,\"skipFollowerFetchPerson\":false,\"skipFollowerEscortTarget\":false"
         json += ",\"skipFollowerSearchForActor\":false,\"skipFollowerScheduleFetch\":false,\"skipFollowerScheduleDelivery\":false,\"skipFollowerScheduleMeeting\":false"
         json += ",\"autoBioEnabled\":false,\"autoBioThreshold\":20"
         json += ",\"npcTickEnabled\":true,\"npcTickInterval\":1.5,\"npcSocialCooldown\":24"
         json += ",\"questCombat\":true,\"questRescue\":true,\"questFindItem\":true,\"questFactionCombat\":true,\"questFactionRescue\":true,\"questFactionBattle\":true"
-        json += ",\"questTimeoutDays\":7,\"questAllowVictimDeath\":false"
+        json += ",\"questTimeoutDays\":1,\"questAllowVictimDeath\":false"
     EndIf
     json += "}"
-
-    json += "}"
     Return json
+EndFunction
+
+Float Property SETTINGS_APPLY_WINDOW_SECONDS = 8.0 AutoReadOnly
+Float SettingsFromFileUntil = 0.0
+
+Function SyncSettingsToPluginConfig()
+    {The settings as they are now go into SkyrimNet's settings file, so its plugin settings page shows what
+    is in force. Called after a change in the MCM or on the dashboard. Not while settings from the file
+    are still arriving (ApplyPluginSettings); real time restarts with the game, so a stamp from an
+    earlier session never blocks.}
+    Float now = Utility.GetCurrentRealTime()
+    If SettingsFromFileUntil > 0.0 && now < SettingsFromFileUntil && SettingsFromFileUntil - now <= SETTINGS_APPLY_WINDOW_SECONDS
+        Return
+    EndIf
+    SettingsFromFileUntil = 0.0
+    IntelEngine.SyncPluginSettings(BuildConfigJson())
+EndFunction
+
+Function ApplyPluginSettings()
+    {The settings in SkyrimNet's settings file come into the game: after a save on SkyrimNet's page, and on
+    load, so that every save and every new game uses what the player set there. The changes arrive as the
+    setting events the dashboard sends. While they arrive nothing is written back: the game would
+    overwrite the values of the file that it has not taken over yet.}
+    SettingsFromFileUntil = Utility.GetCurrentRealTime() + SETTINGS_APPLY_WINDOW_SECONDS
+    Int changes = IntelEngine.ApplyPluginSettings(BuildConfigJson())
+    If changes <= 0
+        SettingsFromFileUntil = 0.0
+    Else
+        DebugMsg("Settings: " + changes + " taken from SkyrimNet's settings file")
+    EndIf
 EndFunction
 
 String Function EscapeJson(String text)

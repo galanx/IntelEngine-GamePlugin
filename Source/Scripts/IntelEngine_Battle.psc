@@ -1664,20 +1664,27 @@ Function HandleAssassinArrival(Actor assassin, String targetName)
     assassin.StartCombat(target)
     ManifestAssassinStruck = true
 
-    ; Inject facts + SkyrimNet event
+    ; Inject facts + SkyrimNet event. The witnesses are the people around the victim. They were counted around
+    ; the player, 3000 units wide: someone two rooms from the attack remembered having witnessed it because
+    ; the player stood near them (seen in Jorrvaskr, 2026-11-13). And the victim got the witnesses' line,
+    ; "witnessed an assassination attempt on Kodlak Whitemane", about themself.
     String infiltrationFact = "witnessed an assassination attempt on " + targetName
-    Actor[] witnesses = IntelEngine.GetNearbyWitnessNPCs(player, 3000.0)
+    Actor[] witnesses = IntelEngine.GetNearbyWitnessNPCs(target, 2000.0)
+    Actor eventWitness = player
+    Bool haveWitness = false
     Int wi = 0
     While wi < witnesses.Length
-        If witnesses[wi] != None
+        If witnesses[wi] == target
+            Core.InjectFact(target, "was attacked by an assassin")
+        ElseIf witnesses[wi] != None
             Core.InjectFact(witnesses[wi], infiltrationFact)
+            If !haveWitness
+                eventWitness = witnesses[wi]
+                haveWitness = true
+            EndIf
         EndIf
         wi += 1
     EndWhile
-    Actor eventWitness = player
-    If witnesses.Length > 0 && witnesses[0] != None
-        eventWitness = witnesses[0]
-    EndIf
     SkyrimNetApi.RegisterEvent("political_assassination", infiltrationFact, target, eventWitness)
 
     ; Reset manifest timer so cleanup doesn't fire immediately
