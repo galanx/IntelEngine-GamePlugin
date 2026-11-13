@@ -668,9 +668,56 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
     IntelEngine.UpdateSlotState(slot, akAgent, 1, taskType, targetName, taskOrigin, StorageUtil.GetFloatValue(akAgent, "Intel_TaskAllocatedAt", -1.0), taskReason)
     IntelEngine.SetSlotSpeed(slot, speed)
 
+    ListTaskRow(akAgent, taskType, targetName)
+
     DebugMsg("Allocated slot " + slot + " to " + akAgent.GetDisplayName() + " for " + taskType)
     PushDashboardState()
 EndFunction
+
+Function ListTaskRow(Actor agent, String taskType, String targetName)
+    {Shows the task on SkyrimNet's Package Manager page. IntelEngine runs its packages itself (PapyrusUtil
+    overrides), so the row is only listed: SkyrimNet never starts or stops anything for it. The player's Remove
+    on that page cancels the task (OnSkyrimNetPackageRemoved). Nothing happens on a SkyrimNet without the
+    package contract, where these natives do not exist.}
+    If agent == None || IntelEngine.GetSkyrimNetPackageApiVersion() < 1
+        Return
+    EndIf
+    String label = "IntelEngine task: " + taskType
+    If targetName != ""
+        label += ", " + targetName
+    EndIf
+    SkyrimNetApi.ListPackage(agent, SN_TASK_ROW, SN_PKG_OWNER, label + " (Remove cancels it)", true, true)
+EndFunction
+
+Function UnlistTaskRow(Actor agent)
+    If agent == None || IntelEngine.GetSkyrimNetPackageApiVersion() < 1
+        Return
+    EndIf
+    SkyrimNetApi.UnregisterPackageEx(agent, SN_TASK_ROW, SN_PKG_OWNER)
+EndFunction
+
+Event OnSkyrimNetPackageRemoved(String eventName, String strArg, Float numArg, Form sender)
+    {SkyrimNet dropped a package row of an actor (the sender): strArg is "<name>|<reason>|<owner>", numArg
+    the reason code. Only the player's own Remove (1) or Remove all (8) on SkyrimNet's page, for the row of a
+    running IntelEngine task, means something here: stop that task, the way the dashboard's cancel does.
+    IntelEngine's own unlisting arrives as reason 0 and is ignored with every other reason.}
+    Actor npc = sender as Actor
+    Int reason = numArg as Int
+    If npc == None || (reason != 1 && reason != 8)
+        Return
+    EndIf
+    String[] parts = StringUtil.Split(strArg, "|")
+    If parts.Length < 3 || parts[0] != SN_TASK_ROW || parts[2] != SN_PKG_OWNER
+        Return
+    EndIf
+    If FindSlotByAgent(npc) < 0
+        Return
+    EndIf
+    DebugMsg(npc.GetDisplayName() + ": task row removed on SkyrimNet's package page - cancelling the task")
+    If CancelCurrentTask(npc, true)
+        NotifyPlayer(npc.GetDisplayName() + "'s task was cancelled")
+    EndIf
+EndEvent
 
 Function ReleaseAgent(Actor agent, Int slot)
     {Everything IntelEngine put on an NPC for a task comes off again: its packages, the linked refs, the task
@@ -700,6 +747,7 @@ Function ReleaseAgent(Actor agent, Int slot)
     ; framework's wait or follow package and SkyrimNet's with it, and nothing put them back.
     RemoveIntelPackages(agent, false)
     agent.ClearLookAt()
+    UnlistTaskRow(agent)
 
     ; Clear linked refs
     ClearLinkedRefs(agent)
@@ -1314,6 +1362,11 @@ Bool Function IsUnsuitableTaskAgent(Actor npc)
 EndFunction
 
 Float Property SPEECH_GRACE_SECONDS = 7.0 AutoReadOnly
+Float Property SPEECH_PENDING_MAX_SECONDS = 14.0 AutoReadOnly
+
+; SkyrimNet's Package Manager page: the owner name and the row under which a running task is listed there.
+String Property SN_PKG_OWNER = "IntelEngine" AutoReadOnly
+String Property SN_TASK_ROW = "IntelEngine_Task" AutoReadOnly
 
 Function LetFinishSpeaking(Actor npc)
     {A task that starts in conversation fires while the NPC is still answering ("Alright, I'll head to the
@@ -1323,12 +1376,23 @@ Function LetFinishSpeaking(Actor npc)
     If npc == None || !npc.Is3DLoaded()
         Return
     EndIf
-    ; The spoken reply usually begins a moment after the action has fired.
-    Utility.Wait(0.7)
-    Float waited = 0.7
-    While waited < SPEECH_GRACE_SECONDS && npc.Is3DLoaded() && IntelEngine.IsActorTalking(npc)
+    ; The spoken reply usually begins a moment after the action has fired. SkyrimNet says so itself when a line
+    ; is on its way (queued, being synthesized or playing: IsNPCSpeechPending); without that notice the voice
+    ; gets a moment to start, as before.
+    Float waited = 0.0
+    If !IntelEngine.IsNPCSpeechPending(npc)
+        Utility.Wait(0.7)
+        waited = 0.7
+    EndIf
+    ; A line the engine hears is waited for SPEECH_GRACE_SECONDS at most; one SkyrimNet reports, which includes
+    ; the seconds before the voice starts and the sentences still to come, a little longer.
+    Bool talking = IntelEngine.IsActorTalking(npc)
+    Bool pending = IntelEngine.IsNPCSpeechPending(npc)
+    While npc.Is3DLoaded() && ((talking && waited < SPEECH_GRACE_SECONDS) || (pending && waited < SPEECH_PENDING_MAX_SECONDS))
         Utility.Wait(0.4)
         waited += 0.4
+        talking = IntelEngine.IsActorTalking(npc)
+        pending = IntelEngine.IsNPCSpeechPending(npc)
     EndWhile
 EndFunction
 
@@ -1508,8 +1572,10 @@ EndFunction
 Function DismissFollowerForTask(Actor npc)
     {Prepare NPC for a new IntelEngine task by clearing ALL package overrides.
 
-    Uses ActorUtil.ClearPackageOverride to remove overrides from ALL sources —
-    IntelEngine, SkyrimNet (companion follow, TalkToPlayer), and any other mod.
+    Uses ActorUtil.ClearPackageOverride to remove the PapyrusUtil overrides of every mod, IntelEngine's own
+    included. (Since SkyrimNet got its package registry this no longer reaches the packages SkyrimNet runs
+    itself, such as TalkToPlayer at priority 30 or a FollowPlayer row: those sit below IntelEngine's 90 and
+    100 and lose to them without being removed.)
     IntelEngine's task functions (GoToLocation, FetchNPC, etc.) immediately apply
     their own packages after this call, so the NPC is never left without overrides.
 
@@ -2802,6 +2868,7 @@ Function RegisterDashboardEvents()
     RegisterForModEvent("IntelEngine_AutoBioUpdate", "OnAutoBioUpdate")
     RegisterForModEvent("IntelEngine_SaveBioCount", "OnSaveBioCount")
     RegisterForModEvent("SkyrimNet_OnPluginConfigSaved", "OnSkyrimNetPluginConfigSaved")
+    RegisterForModEvent("SkyrimNet_OnPackageRemoved", "OnSkyrimNetPackageRemoved")
     DebugMsg("Dashboard ModEvent listeners registered")
 EndFunction
 
