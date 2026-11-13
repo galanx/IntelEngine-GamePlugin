@@ -2017,14 +2017,22 @@ EndFunction
 
 ; Returns "0".."2" (button index), "t" (timer ran out) or "" (Magelight unusable before the player saw it).
 String Function ShowMagelightChoice(String asTitle, String asKind, String asBody, String asB1, String asB2, String asB3, Int aiCount, Float afTimeoutSecs)
-    If SKSE.GetPluginVersion("Magelight") <= 0 || _mlRequest != ""
+    If SKSE.GetPluginVersion("Magelight") <= 0 || Magelight.GetVersion() == 0
         Return ""
     EndIf
-    If Magelight.GetVersion() == 0 || !Magelight.IsReady() || Magelight.IsUIModeActive()
-        Return ""                                     ; never steal focus (also: dashboard open)
-    EndIf
     String token = "r" + Utility.RandomInt(1, 2147483647)
+    ; Wait our turn instead of falling back: another IE choice is open, or any Magelight window
+    ; (e.g. the IE dashboard) holds UI mode. No external call between the check and the claim.
+    While _mlRequest != ""
+        Utility.WaitMenuMode(0.25)
+    EndWhile
     _mlRequest = token
+    While Magelight.IsReady() && Magelight.IsUIModeActive()
+        Utility.WaitMenuMode(0.25)
+    EndWhile
+    If !Magelight.IsReady()
+        Return EndML(token, "")
+    EndIf
     _mlResult = ""
     _mlCount = aiCount
     _mlTimed = afTimeoutSecs > 0.0
