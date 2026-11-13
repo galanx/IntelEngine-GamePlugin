@@ -1705,16 +1705,19 @@ Function OnArrivedAtTarget(Int slot, Actor agent, Actor target)
     ; Remove travel package, apply sandbox near target to hold agent in place
     ; during interaction. Without this, NPCs with schedule AI (innkeepers, etc.)
     ; revert to default packages and walk home before interaction completes.
-    Core.RemoveIntelPackages(agent, false)
-    ; Arrived unseen: the sandbox is anchored on the agent themselves. A sandbox around a ref that is not
-    ; loaded can crash the engine (see Travel.OnArrival, same package), and they are at the target anyway.
     If agent.Is3DLoaded() && target.Is3DLoaded()
+        Core.RemoveIntelPackages(agent, false)
         PO3_SKSEFunctions.SetLinkedRef(agent, target as ObjectReference, Core.IntelEngine_TravelTarget)
+        ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
+        agent.EvaluatePackage()
+        StorageUtil.UnsetIntValue(agent, "Intel_ArrivedUnseen")
     Else
-        PO3_SKSEFunctions.SetLinkedRef(agent, agent as ObjectReference, Core.IntelEngine_TravelTarget)
+        ; Arrived unseen: nothing is swapped and nothing is evaluated. The travel package they carry has the
+        ; target as its goal, so it keeps them there for the moment the handover takes. Swapping it for a
+        ; sandbox and evaluating an NPC who is not loaded sent them to their own routine on the spot (and a
+        ; sandbox around a ref that is not loaded can crash the engine, see Travel.OnArrival).
+        StorageUtil.SetIntValue(agent, "Intel_ArrivedUnseen", 1)
     EndIf
-    ActorUtil.AddPackageOverride(agent, Core.SandboxNearPlayerPackage, Core.PRIORITY_SANDBOX, 1)
-    agent.EvaluatePackage()
 
     ; Face the target for immersive conversation
     agent.SetLookAt(target)
@@ -2649,7 +2652,11 @@ Function OnArrivedToDeliver(Int slot, Actor agent, Actor target)
 
     ; Deliver the message — narration depends on player proximity
     Actor player = Game.GetPlayer()
-    Bool playerPresent = (agent.GetParentCell() == player.GetParentCell())
+    ; The player saw it only if the recipient is where the player is, and the messenger got there in view.
+    ; Asking only where the messenger is took "the messenger lives in this inn and is already back" for
+    ; "the player saw the delivery": no way back, no report, and the handover narrated as if in the room.
+    Bool playerPresent = (agent.GetParentCell() == player.GetParentCell()) && (target.GetParentCell() == player.GetParentCell())         && StorageUtil.GetIntValue(agent, "Intel_ArrivedUnseen") != 1
+    StorageUtil.UnsetIntValue(agent, "Intel_ArrivedUnseen")
     String agentName = agent.GetDisplayName()
     String targetName = target.GetDisplayName()
 
@@ -2960,6 +2967,10 @@ Function CheckIfStuck(Int slot, Actor npc)
     ; who stopped to answer was "stuck", narrated as stumbling and, further on, teleported.
     If npc.GetDialogueTarget() != None || npc.IsInCombat() || IntelEngine.IsActorTalking(npc)
         IntelEngine.ResetStuckSlot(slot, npc)
+        Return
+    EndIf
+    ; Nor while the game has them doing something else (the bard's audience, a scene).
+    If Core.HeldByAnotherPackage(slot, npc)
         Return
     EndIf
 

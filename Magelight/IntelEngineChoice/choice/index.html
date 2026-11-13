@@ -114,7 +114,12 @@
     payload = payload || {};
     stopTimer();
     token = String(payload.token || '');
-    buttons = Array.isArray(payload.buttons) ? payload.buttons.slice(0, 3) : [];
+    // The labels are script strings, and the game's string pool keeps one spelling per word whatever its case:
+    // "Deny" arrived as "deny" between "Allow" and "Deny (Silent)". Labels are sentence case: first letter up.
+    buttons = (Array.isArray(payload.buttons) ? payload.buttons.slice(0, 3) : []).map(function (label) {
+      var text = String(label);
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    });
     $('title').textContent = String(payload.title || '');
     $('kind').textContent = String(payload.kind || '');
     $('text').textContent = String(payload.body || '');

@@ -412,7 +412,7 @@ Function ShowSettingsPage()
     EndIf
     OID_MeetingGracePeriod = AddSliderOption("Meeting Grace Period (hours)", gracePeriod, "{1}")
 
-    Float lingerDist = 500.0
+    Float lingerDist = 800.0
     If Core != None
         lingerDist = Core.LINGER_RELEASE_DISTANCE
     EndIf
@@ -458,16 +458,18 @@ Function ShowSettingsPage()
     ; ---- Right column: Story Types + NPC Social + Tuning ----
     SetCursorPosition(1)
 
-    AddHeaderOption("Skip Action for Followers")
+    ; Stored as "skip for followers"; shown the other way round (on = followers can do it), because a column of
+    ; switches that are off under "Skip Action for Followers" read as "switched off for my followers".
+    AddHeaderOption("Actions Followers Can Do")
     If Core != None && Core.StoryEngine != None
-        OID_SkipFollowerGoToLocation = AddToggleOption("Go To Location", Core.StoryEngine.SkipFollowerGoToLocation)
-        OID_SkipFollowerFetchPerson = AddToggleOption("Fetch Person", Core.StoryEngine.SkipFollowerFetchPerson)
-        OID_SkipFollowerDeliverMessage = AddToggleOption("Deliver Message", Core.StoryEngine.SkipFollowerDeliverMessage)
-        OID_SkipFollowerEscortTarget = AddToggleOption("Escort Target", Core.StoryEngine.SkipFollowerEscortTarget)
-        OID_SkipFollowerSearchForActor = AddToggleOption("Search For Actor", Core.StoryEngine.SkipFollowerSearchForActor)
-        OID_SkipFollowerScheduleMeeting = AddToggleOption("Schedule Meeting", Core.StoryEngine.SkipFollowerScheduleMeeting)
-        OID_SkipFollowerScheduleFetch = AddToggleOption("Schedule Fetch", Core.StoryEngine.SkipFollowerScheduleFetch)
-        OID_SkipFollowerScheduleDelivery = AddToggleOption("Schedule Delivery", Core.StoryEngine.SkipFollowerScheduleDelivery)
+        OID_SkipFollowerGoToLocation = AddToggleOption("Go To Location", !Core.StoryEngine.SkipFollowerGoToLocation)
+        OID_SkipFollowerFetchPerson = AddToggleOption("Fetch Person", !Core.StoryEngine.SkipFollowerFetchPerson)
+        OID_SkipFollowerDeliverMessage = AddToggleOption("Deliver Message", !Core.StoryEngine.SkipFollowerDeliverMessage)
+        OID_SkipFollowerEscortTarget = AddToggleOption("Escort Target", !Core.StoryEngine.SkipFollowerEscortTarget)
+        OID_SkipFollowerSearchForActor = AddToggleOption("Search For Actor", !Core.StoryEngine.SkipFollowerSearchForActor)
+        OID_SkipFollowerScheduleMeeting = AddToggleOption("Schedule Meeting", !Core.StoryEngine.SkipFollowerScheduleMeeting)
+        OID_SkipFollowerScheduleFetch = AddToggleOption("Schedule Fetch", !Core.StoryEngine.SkipFollowerScheduleFetch)
+        OID_SkipFollowerScheduleDelivery = AddToggleOption("Schedule Delivery", !Core.StoryEngine.SkipFollowerScheduleDelivery)
     EndIf
 
     AddEmptyOption()
@@ -593,7 +595,7 @@ Function ShowSettingsPage()
 
     Float tickInterval = IntelEngine.GetPoliticsTickInterval() as Float
     OID_PoliticsTickInterval = AddSliderOption("Tick Interval (hours)", tickInterval, "{0}")
-    OID_PEIntegration = AddToggleOption("Political Engine integration", IntelEngine.GetPEIntegration())
+    OID_PEIntegration = AddToggleOption("Political Engine integration (experimental)", IntelEngine.GetPEIntegration())
     OID_PEReactions = AddToggleOption("PE reactions move relations", IntelEngine.GetPEReactionsMoveRelations())
 
 EndFunction
@@ -774,7 +776,8 @@ Function ToggleSkipFollower(Int optionId, String propName)
         current = Core.StoryEngine.SkipFollowerScheduleMeeting
         Core.StoryEngine.SkipFollowerScheduleMeeting = !current
     EndIf
-    SetToggleOptionValue(optionId, !current)
+    ; The option shows "followers can do it": the opposite of the new skip value (!current), so `current`.
+    SetToggleOptionValue(optionId, current)
 EndFunction
 
 Function SetHoldPolicy(String storyType, Int optionId, Int oidNone, Int oidCivilian, Int oidExceptFollower, Int oidAll, Int oidLocalCivilian, Int oidLocalExceptFollower, Int oidLocalAll)
@@ -1108,12 +1111,12 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogRange(5.0, 1000.0)
         SetSliderDialogInterval(5.0)
     ElseIf optionId == OID_LingerReleaseDistance
-        Float currentValue = 500.0
+        Float currentValue = 800.0
         If Core != None
             currentValue = Core.LINGER_RELEASE_DISTANCE
         EndIf
         SetSliderDialogStartValue(currentValue)
-        SetSliderDialogDefaultValue(500.0)
+        SetSliderDialogDefaultValue(800.0)
         SetSliderDialogRange(300.0, 2000.0)
         SetSliderDialogInterval(100.0)
     ElseIf optionId == OID_StoryEngineInterval
@@ -1266,7 +1269,7 @@ Event OnOptionHighlight(Int optionId)
            optionId == OID_SkipFollowerFetchPerson || optionId == OID_SkipFollowerEscortTarget || \
            optionId == OID_SkipFollowerSearchForActor || optionId == OID_SkipFollowerScheduleFetch || \
            optionId == OID_SkipFollowerScheduleDelivery || optionId == OID_SkipFollowerScheduleMeeting
-        SetInfoText("When enabled, silently blocks this action for active followers. The action is denied before any confirmation prompt.")
+        SetInfoText("On (default): your active followers can be given this action. Off: it is silently refused for them, before any confirmation prompt.")
     ElseIf optionId == OID_DeliveryReportBack
         SetInfoText("When enabled, messengers return to you after delivering a message off-screen and report back.")
     ElseIf optionId == OID_MeetingTimeoutHours
@@ -1274,7 +1277,7 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_MeetingGracePeriod
         SetInfoText("Arrival tolerance for meetings (±hours). Handles Dynamic Time Scaling mods. Default 0.5 (30 minutes). Set higher if using variable timescales.")
     ElseIf optionId == OID_LingerReleaseDistance
-        SetInfoText("How far (game units) you must walk away before an NPC stops lingering and returns to normal. Affects all systems: travel arrivals, task completions, story encounters. Default 500.")
+        SetInfoText("How far (game units) you must walk away before an NPC stops lingering and returns to normal. Affects all systems: travel arrivals, task completions, story encounters. Default 800.")
     ElseIf optionId == OID_CancelAllSchedules
         SetInfoText("Cancel all scheduled meetings and tasks.")
     ElseIf optionId == OID_StoryEngineEnabled
@@ -1351,6 +1354,10 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("Enable the autonomous faction politics system. Factions trade, negotiate, scheme, and go to war based on LLM-driven decisions.")
     ElseIf optionId == OID_PoliticsTickInterval
         SetInfoText("How often (in game hours) the Political DM evaluates faction relations and generates events. Default 6.")
+    ElseIf optionId == OID_PEIntegration
+        SetInfoText("Experimental, off by default. Needs the mod Political Engine and does nothing without it. When on, its realms, rulers and campaign news feed IntelEngine's politics. Load a save after turning it on: the realms are added at game start and on load.")
+    ElseIf optionId == OID_PEReactions
+        SetInfoText("Only matters with Political Engine integration on. When off, reactions to Political Engine's news are recorded without changing faction relations or your standing.")
     EndIf
 EndEvent
 

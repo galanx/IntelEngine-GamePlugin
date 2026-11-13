@@ -8,11 +8,12 @@
 - **Galanx** reviewed the release and wrote the sections Stuck NPCs and package handling, Meetings and visits, Prompts, dashboard and controller, Wars that end stay ended, Working with SkyrimNet, Assassins and soldiers that turned on the player, and Fixes to 3.8 changes found in review.
 
 ### Director
-- Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "Skip follower" setting still applies).
+- Director-dispatched actions no longer show the Allow/Deny confirmation (the per-action "Actions Followers Can Do" setting still applies).
 - Story replacement accepts Director fields and explains refusals; a cancelling story must finish before it is replaced.
 - Generate requires real NPC names and no longer makes another NPC approach you in informant narration; NPC suggestions rank exact names first.
 - When an NPC can't be sent because they aren't loaded (they only exist near their home), the Director now says so instead of "no unique match".
 - The dashboard hotkey is ignored while you type in a text field.
+- "Skip Action for Followers" is now "Actions Followers Can Do" in the MCM, on the dashboard and on SkyrimNet's settings page, with every action on by default. Nothing changes in what followers do: the old list of switches that were off read as if the actions were switched off for followers.
 - Informant stories have their own form: Informant NPC, Subject (an NPC, a faction or you), optional Source and a required one-sentence Rumor. IE writes the informant's line, so there is no Narration field.
 - A rumour is refused, with the reason, when it doesn't name the Subject as a whole word ("Ria" inside "Victoria" doesn't count) or starts with an -ing word.
 - NPC Social gossip has a Subject field; the rumour is stored as "<Subject> <what they did>".
@@ -61,6 +62,7 @@
 - Soft stuck recovery no longer waits on latent calls; stuck detection samples at most every three seconds.
 - Informant gossip keeps the subject's name.
 - Notifications and Papyrus log lines use plain dashes (em dashes showed as "â€”").
+- Political Engine integration is off by default and marked experimental. It needs the mod Political Engine and does nothing without it (the dashboard greys the switches out then). Switch it on in the MCM (Faction Politics), on the dashboard's Settings tab or on SkyrimNet's plugin settings page; a `settings.yaml` that already says `pe_integration: true` keeps it on. Its realms join the factions on the next load.
 - Optional Political Engine API v3 bridge: public campaign news reaches the Political DM as faction-less rumors, with one organization reaction per development and a persisted MCM/dashboard toggle for reaction relation changes. IE's own wars and battles are unaffected.
 - Faction fragments: extra `factions.d/*.yaml` files add or replace factions and relations; a Political Engine fragment adds the nine vanilla realms as factions, with live rulers and the player's realm passed to the Political DM, when Political Engine is active.
 - Action and scheduling prompts ask for exact in-game place names in the game's language.
@@ -80,6 +82,10 @@
 - Fetch, deliver, escort, search: a search has an overall limit and the searcher waits on the spot when you fall behind; an escort without "wait" lets the NPC go at the destination; a fetched NPC's visit ends on its own; waits are measured in seconds instead of monitoring passes; carriage drivers are never fetched or escorted.
 - Stories: a refused faction courier gets their aggression back; an ambusher gets their own essential flag, aggression and confidence back; quest enemies, bosses and ambush soldiers are removed once out of sight; a dead guide ends the guiding, not the quest; a visitor walks the last stretch; two NPCs stay together for the length of their scene.
 - Battles: spawned soldiers are remembered across a restart and removed; your crime factions are restored after a battle you joined; an assassin is no longer deleted at the moment of striking.
+- An NPC sent on a task while the inn's bard is singing no longer sits through the song first, and one caught by a song on the way out walks on. The game takes the people in the room into the bard's audience and holds them until the song is over, whatever they were told to do.
+- An NPC the game is holding in a scene or a quest is not treated as stuck: no recovery moves, and no line about their feet catching on something from someone who has not left their chair.
+- An NPC can no longer cancel the task they were just given with their own first reaction to it (a fetch was called off six seconds in, when the AI answered its start with "stop current task"). A task you cancel yourself ends at once, as before.
+- A message delivered out of your sight is reported back again when the messenger lives where you are waiting. They were back home before the handover was counted, so it was taken as delivered in front of you: no way back and no report.
 
 ### Meetings and visits
 - An NPC who is already inside the meeting place has arrived (they were sent to its outside door and the meeting was called off).
@@ -95,6 +101,8 @@
 - The task-permission prompt has a 20-second limit; no answer is a silent deny.
 - The dashboard has a larger layout and can be driven with a gamepad or the arrow keys.
 - A Director political event that is refused now says so (it showed "Sent" and did nothing).
+- The middle answer of a prompt reads "Deny" (it showed as "deny").
+- The MCM offered 500 as the default of the linger release distance; the default is 800. Default Wait Hours moves in steps of one hour on the dashboard, as it does in the MCM.
 
 ### Wars that end stay ended
 - A war that ends leaves the two factions at an uneasy truce instead of still being at each other's throats, so the same pair no longer declares war again after every cooldown, a little worse off each time.
