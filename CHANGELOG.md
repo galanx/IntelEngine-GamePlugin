@@ -15,13 +15,14 @@
 - Generated interaction narration describes the scene instead of copying a fact; generated gossip says how and where it was told.
 - A social scene for two NPCs already standing together near you plays right there (it used to be applied off-screen).
 - With Magelight UI installed, the Allow/Deny, door-knock and quest-offer prompts open as a Magelight page in the dashboard's style (keys 1-3, Esc = the do-nothing answer, timer bar on the knock). A prompt waits while the dashboard or another Magelight window is open. Without Magelight, the Papyrus MessageBox is used as before; it is now only needed without Magelight.
+- Director quests need a Plea for help (and a Victim for rescue, an Item description for find_item) before Dispatch; Generate no longer picks the current location or a player home as the quest location.
 
 ### Story travel and arrival
 - A story NPC counts as arrived after 15 seconds within talking range.
 - Arrival timers use real time; a late NPC is re-placed once behind the target, then the story aborts with a notice.
 - Story arrival waits until save-load recovery finishes. Director stories ignore the Hold Restriction; automatic stories still turn back and say why.
 - Story NPCs who become your teammate are released from linger; linger timeouts survive pausing.
-- Lingering NPCs are released after one game hour, so waiting or sleeping frees them; the linger release distance defaults to 500 (minimum 300).
+- Lingering NPCs are released after one game hour, so waiting or sleeping frees them (see "Meetings and visits" below for how that limit works now); the linger release distance keeps its default of 800, with the minimum lowered to 300.
 - The story watchdog no longer marks an NPC who already arrived as "never finished", and strips travel packages when it resets a story.
 
 ### Stories and NPC scenes
@@ -37,7 +38,7 @@
 - A fetched NPC walking toward you is no longer sent home early, and one already beside you is no longer teleported away across an exterior cell boundary.
 
 ### Politics
-- New `war_allowed:` section in factions.yaml decides which faction pairs may go to war (default: Legion vs Stormcloaks only). Entries can be faction ids, display names, types or `*`. Political Engine realms never go to war.
+- New `war_allowed:` section in factions.yaml decides which faction pairs may go to war (default: any two factions of type `military`, so guilds and families stay out of it). Entries can be faction ids, display names, types or `*`. Political Engine realms never go to war.
 - When the Political DM ignores the "declare war" rule for the most hostile allowed pair, IE declares the war itself (skipping factions whose leaders are all dead); war declarations for pairs that aren't allowed are refused.
 - The Empire and the Aldmeri Dominion are neutral to each other: the Legion and the Thalmor are no longer allies, and their starting relation is 15 (was 50).
 - A battle result for two factions that aren't at war is recorded as a border skirmish, and no soldiers spawn.
@@ -48,6 +49,7 @@
 - Political Engine: realm rulers (including puppet realms) are shown as faction leaders; a realm without a ruler clears its leader; a ruler change becomes news; IE resyncs when Political Engine (re)loads; realm allies and rivals follow live sides; factions can set `pe_side` (the Thalmor map to the Aldmeri Dominion).
 - The dashboard colours faction names by Political Engine side and labels your own puppet and vassal realms.
 - The Politics Enabled toggle comes first in the Faction Politics MCM page.
+- Director Politics: a surrender names the Surrendering faction and the Victor, and is refused unless the two are at war; Generate never drafts war declarations, surrenders or peace offers.
 
 ### Other
 - Battles no longer stop the story and quest timers when they reset.
@@ -58,6 +60,60 @@
 - Faction fragments: extra `factions.d/*.yaml` files add or replace factions and relations; a Political Engine fragment adds the nine vanilla realms as factions, with live rulers and the player's realm passed to the Political DM, when Political Engine is active.
 - Action and scheduling prompts ask for exact in-game place names in the game's language.
 - Extra travel and Director diagnostics at DebugLevel 4.
+
+### Stuck NPCs and package handling
+- All monitoring runs on one shared timer with one owner. Scripts used to cancel or re-arm it for each other: switching the story engine off, or a battle ending, could freeze every trip, task and schedule.
+- A task slot that changed hands while a handler was waiting is no longer wiped or marked "arrived" by the old handler; half-finished slots are cleaned up hourly.
+- An hourly sweep releases NPCs who still run an IntelEngine package with no task behind it; "Reset all tasks" in the MCM does the same at once.
+- NPCs with no routine of their own (many mod-added NPCs) are walked home when a trip, meeting, task or visit ends, instead of standing where it ended.
+- No recovery move happens in the player's view: a stuck NPC who is being watched gets a fresh path instead of a hop, and unseen arrivals come in through the door indoors or from behind outdoors. "Behind the player" used to be "south of the player".
+- Indoors nobody is placed 2000 units away (outside the building's shell) or leapfrogged through a wall.
+- An NPC who is talking is not treated as stuck, and one who is asked to do something in conversation finishes the sentence before turning to go.
+- During a task IntelEngine removes only its own packages, so a follow or wait order from another mod survives the task. If such a package blocks a trip it is cleared and the trip goes on.
+- An unknown place name, an unknown target or no free slot no longer cancels the task the NPC already had.
+- Trips: a disabled NPC's trip ends; a long road walked together with the player is not cut off at seven hours; the time limit no longer restarts on every load.
+- Fetch, deliver, escort, search: a search has an overall limit and the searcher waits on the spot when you fall behind; an escort without "wait" lets the NPC go at the destination; a fetched NPC's visit ends on its own; waits are measured in seconds instead of monitoring passes; carriage drivers are never fetched or escorted.
+- Stories: a refused faction courier gets their aggression back; an ambusher gets their own essential flag, aggression and confidence back; quest enemies, bosses and ambush soldiers are removed once out of sight; a dead guide ends the guiding, not the quest; a visitor walks the last stretch; two NPCs stay together for the length of their scene.
+- Battles: spawned soldiers are remembered across a restart and removed; your crime factions are restored after a battle you joined; an assassin is no longer deleted at the moment of striking.
+
+### Meetings and visits
+- An NPC who is already inside the meeting place has arrived (they were sent to its outside door and the meeting was called off).
+- A meeting is not called off because the NPC was talking, fighting or out of sight when it was time to leave.
+- An NPC waiting at the door while you are inside walks in (the order used to be re-issued every three seconds, so the walk never got anywhere).
+- After a load, an NPC waiting at a destination keeps their place.
+- A visit no longer ends one game hour in, whatever is being said. It lasts while the NPC is talking with you and a little after, and six game hours at most. This applies to meetings, errands, story visitors and fetched NPCs.
+- Times are understood in many more forms ("in 2 hours", "tomorrow at 6", "at dusk"). The natural-language time parser is by Lanosity.
+
+### Prompts, dashboard and controller
+- The choice popup scales with the screen (4K, ultrawide, VR), answers on key release (Enter no longer leaks into the game), takes Left/Right and E, and takes a gamepad when Magelight's gamepad layer is there. Its footer says what Esc answers.
+- The task-permission prompt has a 20-second limit; no answer is a silent deny.
+- The dashboard has a larger layout and can be driven with a gamepad or the arrow keys.
+- A Director political event that is refused now says so (it showed "Sent" and did nothing).
+
+### Wars that end stay ended
+- A war that ends leaves the two factions at an uneasy truce instead of still being at each other's throats, so the same pair no longer declares war again after every cooldown, a little worse off each time.
+- A war that ends by exhaustion or collapse is recorded as a surrender or a ceasefire, something NPCs can hear about and talk about. It used to end in the database only, with nothing in the world to show for it.
+- A faction's own `war_threshold` is honoured when a war is declared in code, not only when the Political DM proposes one.
+
+### Assassins and soldiers that turned on the player
+- An assassin sent after a faction leader goes for that leader and nobody else. They were made hostile to every neutral in reach, the player included, and attacked whoever stood nearest once the leader was down or out of reach.
+- The pause between an assassin reaching the leader and striking no longer runs into the cleanup timer. When the walk had taken fifteen seconds, the assassin was taken off the books during that pause and then struck anyway: an attacker nothing ever removed. This is the assassin that "kept attacking".
+- The attempt ends when the leader is dead, on their knees (leaders who cannot die) or gone; the assassin then stands down instead of looking for the next target. An attempt on a leader who has left the room is called off.
+- Soldiers spawned for a brawl or a skirmish fight each other and their factions' enemies, not bystanders. Several soldier types, and the stand-in used for Political Engine realms, attacked any neutral on sight.
+- Spawned fighters who survive their event put their weapons away, and are removed at once where nobody is looking.
+- A faction ambush only comes from a faction that is hostile to you (standing -40 or lower), and stays small until the feud is deep. The model could pick any enemy of one of your friends, or a faction that does not exist.
+
+### Fixes to 3.8 changes found in review
+- NPC gossip without a subject no longer starts with a blank.
+- The second NPC of a scene resolves again when they are not in the first one's cell (the pair was dropped as unresolved).
+- A model answer with a field of the wrong type (`"gossip": null`) is rejected instead of ending the game.
+- An informant rumor may start with "During", "King", "Something" and similar words.
+- Choice popup: a lost race for the screen is noticed at once, a late entry no longer leaves the game paused on a hidden page, and a page that failed to load is not reused.
+- A pair of NPCs waiting for you to come within hearing waits for the full time, not thirty seconds.
+- A `factions.d` fragment with an unknown `requires:` line, or saved with a byte-order mark, is not loaded for everyone.
+- A battle in a plugin whose file name is not plain ASCII no longer throws while it is recorded.
+- An automatic story that is given up on (the NPC cannot reach you, or turns back at a hold border) says nothing on screen: it used to name a visitor you never saw setting out. A story you dispatched from the dashboard still reports back.
+- A story NPC counts as having reached you only on the same floor, as travel arrivals already did; they used to arrive and speak from the room below.
 
 ## 3.7.1 — 2026-11-04
 

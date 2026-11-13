@@ -35,7 +35,7 @@ Nine factions form alliances, negotiate trade deals, spy on each other, declare 
 
 **Q: My followers keep leaving to do tasks. How do I stop this?**
 
-MCM or Prisma Dashboard → Settings → Skip Action for Followers. Toggle ON for any actions you want blocked ~~(`Go To Location`, `Fetch Person`, `Deliver Message`, `Escort Target`)~~. ~~Followers will still talk, gossip, and interact — they just won't physically leave your side.~~
+MCM or Dashboard → Settings → Skip Action for Followers. Toggle ON for any actions you want blocked ~~(`Go To Location`, `Fetch Person`, `Deliver Message`, `Escort Target`)~~. ~~Followers will still talk, gossip, and interact — they just won't physically leave your side.~~
 
 > **Updated 2026-10-19 (3.6.0 update):** MCM or Dashboard → Settings → Skip Action for Followers: turn ON each action you want blocked, including Search For Actor and all three scheduling actions. These default OFF; your active followers can still talk to you, but aren't picked for autonomous stories or social events.
 
@@ -115,7 +115,7 @@ Quest Timeout slider (default 1 day, max 30). After this, unfinished quests auto
 
 **Q: How do I see faction relations?**
 
-Prisma Dashboard (`Shift+7`) → **Politics** tab. Shows faction grid, active wars, standings, and events.
+Dashboard (`Shift+7`) → **Politics** tab. Shows faction grid, active wars, standings, and events.
 
 **Q: Can I trigger political events manually?**
 
@@ -149,7 +149,7 @@ Lower Max Travel Time (default 1 day). NPCs exceeding this teleport or give up.
 
 ~~Teleport When Stuck~~ is ON by default. Check Active Tasks in MCM to see and manage ~~all tasks~~.
 
-> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Teleport on stuck/timeout is ON by default. Manage player tasks in MCM → Active Tasks, or inspect and remove stuck AI packages in Dashboard → Packages.
+> **Updated 2026-10-19 (3.6.0 update):** MCM → Settings → Teleport on stuck/timeout is ON by default. Manage player tasks in MCM → Active Tasks, or inspect and remove stuck AI packages in Dashboard → Tasks.
 
 **Q: Too many NPCs doing tasks at once.**
 
@@ -205,7 +205,7 @@ Galanx is IntelEngine's original author.
 PhospheneOD (Gerkinfeltser on GitHub) maintains it now, with Galanx's go-ahead, in the official [GamePlugin](https://github.com/galanx/IntelEngine-GamePlugin) and [NativePlugin](https://github.com/galanx/IntelEngine-NativePlugin) repositories.
 For bugs, use the [issue-reporting callout below](#have-issues-report-them-here).
 
-IntelEngine 3.6.0 declares SkyrimNet Beta 25 as its minimum and was tested with official Beta 28. VR 1.4.15 should work and was partly tested.
+IntelEngine 3.6.0 declares SkyrimNet Beta 25 as its minimum and was tested with official Beta 28. 3.7.0 and later (including 3.8.0) require SkyrimNet Beta 27 or newer. VR 1.4.15 should work and was partly tested.
 
 **Q: What changes after Galanx's 3.5.2?**
 

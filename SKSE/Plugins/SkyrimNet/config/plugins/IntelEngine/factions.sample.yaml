@@ -138,6 +138,6 @@ default_relations:
 # Entries: "*" (any faction), a faction id or name, or a type (military, guild, political).
 # A war still starts only when the pair's relation is Critical. Political Engine realms never go to war here.
 # Examples:  CompanionsFaction: ["*"]    ThalmorFaction: ["StormcloakFaction", "guild"]
-# If this section is missing, only Imperial Legion vs Stormcloaks may go to war.
+# If this section is missing, any two factions of type "military" may go to war (armies fight armies).
 war_allowed:
-  ImperialFaction: ["StormcloakFaction"]
+  military: ["military"]

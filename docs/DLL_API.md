@@ -25,6 +25,40 @@ The `IntelEngine.dll` SKSE plugin provides high-performance functions that would
 
 All functions are exposed to Papyrus via the `IntelEngine` script namespace.
 
+### Story load recovery
+`Bool Function StoryLoadRecovered(Bool complete = false) Global Native` reads a nonpersisted, atomic readiness marker. Passing `true` marks StoryEngine load recovery complete; only `RestartMonitoring` does this after cleanup. Preload and serialization revert reset it, including same-process reloads. `CheckStoryNPCArrival` does nothing while it is false. A saved Papyrus property cannot provide this per-load boundary.
+
+### Travel diagnostics
+`String Function DescribeDistance(ObjectReference a, ObjectReference b) Global Native` returns `dist=<rounded 3D game units> sameSpace=yes` only for the same interior cell or matching nonnull exterior worldspaces. Null references, missing cells and different spaces return `sameSpace=no` without a distance.
+
+Native `[diag:*]` logs require `DebugLevel=4`; Papyrus diagnostics use the existing MCM debug toggle. Off-screen phase-2 logs include actor/player context, movement and stationary ticks; phase 1 retains only initialization logging. Caller-status and linger logs are limited to once per ten real seconds per NPC. `[diag:path]` start/end pairs bracket the three remaining latent recovery calls without changing them. Offline production logic checks: `python SKSE/tests/RunDiagnosticCheck.py <vcpkg-triplet-dir>`. These checks do not establish live behavior.
+
+### Read-only political feeds (pipe 2)
+
+```papyrus
+String Function GetPoliticalEventsAfter(Int afterId, Int limit = 50) Global Native
+String Function GetFactionsJson() Global Native
+```
+
+Both return JSON with `schema_version: 1`, `save_id`, `db_uuid`, `load_id`, and `ready`. `db_uuid` is persisted per database generation and changes on deletion/recreation even with the same save ID. `load_id` changes on every load, including reloading the same save. Discard both caches and reset the event cursor when either identity changes; wait for `ready: true` before reading a new baseline. Readiness drops at load/revert and remains false until DB initialization and timeline cleanup succeed. A cleanup error logs a warning and keeps that load not ready. Not-ready responses contain empty data arrays.
+
+`GetPoliticalEventsAfter` reads events in ascending ID order, strictly after `afterId` (negative cursors mean zero). `limit <= 0` means 50; limits above 200 are capped at 200. It returns `events`, `next_cursor` (last returned ID, or the normalized input cursor when empty), and `has_more`. IDs are not reused after timeline rollback. The feed retains all event types, including `pe_*` and replay-only `relation_adjustment`; consumers decide which to ignore. Loading a save does not create historical news.
+
+Each event contains `id`, nullable `game_time`, `type`, `faction_a`, `faction_b`, `delta`, `description`, `location_name` (empty when unknown), and `position`. Position is explicitly null unless a reliable physical battle spawn was captured. Otherwise it contains `worldspace` (exterior) or `cell` (interior), the unused identity set to null, and finite `x`, `y`, `z` in game units. Each identity is `{plugin: "Origin.esm", local_id: 123}`: the originating filename and numeric plugin-local FormID, independent of load-order indices. Dynamic or unowned spaces remain null. Capture uses shared actor registration, including late-arrival spawns. Battle results record this position on both active-war and no-war finalization paths; no hold-centre or named-marker substitution is made.
+
+Manifested assassination/brawl/skirmish rows remain position-null: they precede scene spawning, and the forward-only feed cannot deliver later position updates. Offscreen/narrative events also remain null.
+
+`GetFactionsJson` returns `factions` with `id`, `name`, `hold`, `skyrim_faction_id`, `disbanded`, `allies`, and `rivals`, plus `revision`. Compare revisions only within the same `db_uuid`/`load_id`. The in-memory counter resets for a new load and advances on successful config reloads and observed disband/undisband transitions. Leader liveness is polled on getter reads; transitions entirely between reads are not tracked. A disbanded organization remains in the array.
+
+Offline production-backed check (VS developer shell): `python SKSE/tests/RunPoliticalFeedCheck.py <vcpkg-triplet-dir>`. It covers pagination/limit edges, rollback cursors, DB recreation/load identities, readiness/failure latching, legacy schema upgrade and explicit 3.7-style reader/writer compatibility, retained PE events, narrative null positions, organization revisions, and battle position capture/persistence with modeled engine objects. Offline evidence does not establish Papyrus VM or live PE integration.
+
+
+### FriendlyKey
+```papyrus
+String Function FriendlyKey(String key) Global Native
+```
+Replaces underscores with spaces and uppercases an ASCII lowercase letter at each word start; preserves other characters and existing case. Empty input stays empty. Example: `war_declaration` → `War Declaration`. Director notice fallback only; supplied event labels remain unchanged.
+
 ---
 
 ## NPC Search Functions
@@ -57,22 +91,6 @@ Actor nazeem = IntelEngine.FindNPCByName("Nazeem")
 Actor jarl = IntelEngine.FindNPCByName("jarl balgruuf")
 Actor fuzzy = IntelEngine.FindNPCByName("nazim")  ; typo still works
 ```
-
----
-
-### FindNPCsNearLocation
-```papyrus
-Actor[] Function FindNPCsNearLocation(String locationName, Float radius) Global Native
-```
-
-Find all NPCs near a named location.
-
-**Parameters:**
-- `locationName` - Location to search near
-- `radius` - Search radius in game units
-
-**Returns:**
-- Array of Actor references
 
 ---
 
@@ -154,24 +172,6 @@ Find a door in loaded cells that leads to the target location.
 - Door reference if found in current/loaded cells, None otherwise
 
 **Use Case:** If door is found, NPC can walk to it directly. If None, fall back to AI package travel.
-
----
-
-### ResolveLocation (Legacy)
-```papyrus
-ObjectReference Function ResolveLocation(String locationName) Global Native
-```
-
-Legacy function - tries FindDoorToLocation first, returns None if not found.
-
-**Returns:**
-- Door reference or None
-
-**Supports Fuzzy Matching:**
-- City names: "Whiterun", "Solitude", "Riften"
-- Specific places: "Dragonsreach", "Blue Palace"
-- Inns: "Bannered Mare", "Sleeping Giant"
-- Typo tolerance via Levenshtein distance
 
 ---
 
@@ -398,16 +398,13 @@ Rebuild location index from game data.
 
 ## Decorator Registration
 
-The DLL automatically registers these decorators with SkyrimNet on load:
+When the SkyrimNet API is available, the DLL registers one decorator on load (soft dependency: skipped if the API is missing):
 
 | Decorator | Arguments | Returns | Description |
 |-----------|-----------|---------|-------------|
-| `can_resolve_location` | `actor`, `locationName` | bool | Can travel to this location? |
-| `can_resolve_semantic` | `actor`, `term` | bool | Can resolve "upstairs" etc? |
-| `can_find_npc` | `npcName` | bool | Does this NPC exist? |
-| `get_npc_location` | `npcName` | string | Where is this NPC? |
-| `validate_task` | `actor`, `taskType`, `target` | bool | Is task feasible? |
-| `get_task_failure_reason` | `actor`, `taskType`, `target` | string | Why would task fail? |
+| `get_intelengine_quests` | `actor` (unused) | string | Active IntelEngine quest details (location, type, briefing, objectives). Use instead of the generic quest list entry for IntelEngine quests. |
+
+The IntelEngine prompts use SkyrimNet's own `get_place_names("nearby")` for location names.
 
 ---
 
@@ -461,9 +458,11 @@ The Native-owned encoder preserves plain Markdown renderer APIs and the scalar-c
 
 One bytewise pass maps `%` → `%25`, BEL → `%07`, TAB → `%09`, LF → `%0A`, VT → `%0B`, FF → `%0C`, CR → `%0D`, ESC → `%1B`. Empty input stays empty; spaces, UTF-8, quotes and backslashes are unchanged. Embedded NUL/binary text is unsupported. The three cached readers reverse the seven control tokens, then `%25` **LAST**, once, before checking emptiness/output. This is neither URI decoding nor an idempotent encoder.
 
+Native text caps now retain complete UTF-8 code points: delivery-message task descriptions retain at most 80 bytes before `...`, and political event/battle narratives and dispatch prompt history use the same boundary helper with their existing caps/suffixes. This prevents new split-code-point text; it does not repair suffixes already lost in historical saves. `Utf8TruncateCheck` is the standalone boundary check. Source/build verification is separate from packaging, installation and in-game acceptance.
+
 **BREAKING / coherent providers required:** start a fresh new game with the repaired DLL, freshly compiled `IntelEngine.pex`/`IntelEngine_Core.pex` and all three repaired prompts already winning, or use only an eligible offline-converted copy as described below. Unconverted existing saves, including apparently cache-free saves, remain unsupported: old values can poison restoration before scripts run or ambiguously decode literal percent text. There is no raw fallback or general post-load safety guarantee.
 
-Native owns C++/PSC/templates; Game is the Data-layout mirror. Keep both PSC files and all three prompt pairs byte-identical, and mirror this API document explicitly (root staging does not copy docs). Source equality does not prove DLL/PEX freshness, packaged equality does not identify installed winners, and neither proves runtime behavior. Stop on new PEX/old DLL missing binding, old Core PEX/new DLL raw writes, old templates/new encoded caches, or ambiguous providers; do not assume an unbound call's result.
+Native owns C++/PSC/templates; Game is the Data-layout mirror. Keep both PSC trees and all three prompt pairs byte-identical; `verify.ps1 -DataDir <Game tree>` checks every PSC and the existing prompt bundle. Mirror this API document explicitly (root staging does not copy docs). Source equality does not prove DLL/PEX freshness, packaged equality does not identify installed winners, and neither proves runtime behavior. Stop on new PEX/old DLL missing binding, old Core PEX/new DLL raw writes, old templates/new encoded caches, or ambiguous providers; do not assume an unbound call's result.
 
 Rollback requires the complete old DLL/PEX/template set and its separately preserved pre-cutover save lineage. Do not load repaired saves under old components or rewrite evidence saves.
 
@@ -511,12 +510,15 @@ Offline production byte comparisons passed after safety corrections on two prese
    ```
 
 3. Success creates `<stem>_IEbackup/` containing the original `.ess` and `.skse`, plus sibling `<stem>_IEconverted.ess` and `<stem>_IEconverted.skse`. The tool does not overwrite existing backup/output files. It leaves the original pair unchanged.
+   Player `fix` reports each converted cache, each unique temporary identity (decimal object ID and hexadecimal form ID), and each orphaned global cache key on separate lines. Its conversion result records temporary holders in `temporary_identities` and converted global keys in `global_entries`; expert JSON receipts and inspection output are unchanged.
 4. Exit **0** means both verified converted files were published; **2** means usage, eligibility or safety refusal; **3** means I/O, verification or publication failure. If publishing the second file fails, the first converted file may remain. This is an incomplete pair: do not load it, and retain the backup and all remaining files for diagnosis.
 5. Install the complete repaired providers (DLL, both affected PEX files and all three prompts) before using the converted pair. Never load a converted save with 3.5.2 or earlier. Do not convert again, mix original and converted companions, or assume already-lost names/history can be recovered.
 
-If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
+Linked/cloud-managed components and extended/device paths remain unsupported. Copy **both** `.ess` and `.skse` to a short writable normal physical folder, e.g. `C:\IE-convert`, preserving the originals; Desktop/Documents may themselves be cloud-managed. Ordinary `.\My Save.ess` spelling and case-insensitive `.ess` extensions are accepted without renaming the input. Refusals identify resolved companion paths/OS errors, matched game executable/PID, detected and supported runtime/SKSE tuples, and retained output collisions. Inspect retained artifacts and retry the original pair in a fresh physical folder; never overwrite backups or load an incomplete pair.
 
 Rollback means restoring the preserved original pair with its matching old providers and the corresponding IntelEngine/SkyrimNet external-data snapshot. The pair backup does not include external databases or their `-wal`/`-shm` files. Do not mix saves/providers or claim general legacy-save safety.
+
+`fix` refuses input stems ending in `_IEconverted` (case-insensitive). It also refuses the whole save if any rendered-cache value contains `%0A` without a raw LF, naming the first such object/key: nonempty rendered sections begin with a heading and LF, which 3.6 encodes. If other target values contain raw LF, the refusal identifies mixed legacy/3.6 caches; header-only stubs without either are neutral. Already-encoded saves should load directly with IntelEngine 3.6.x, not be converted again. Support-only escape hatch: `fix --save FILE.ess --force` skips only this structural check and can double-encode text; all other refusals remain active.
 
 The historical writer's identity/provenance cannot be proved from the file. Treating serialized BEL as a space is owner policy, not recovered original text. The required real-template smoke rendered all three full fixed prompts through Inja commit `affabd9fb6e679b2535382063e11ac9cc5ff860c`. Legacy literal `%07%09%0A%0B%0C%0D%1B%25%250A%0a%41%07` produced payload bytes `07090A0B0C0D1B2525304125306125343107`: the upper-case control tokens became their control bytes, `%25` became `%`, `%250A` became literal `%0A` without recursion, and lowercase `%0a` / unknown `%41` remained literal. Encoding that same literal input with the production codec preserved it through all three templates. This measured decoder behavior does not establish that native restoration of legacy percent text is safe.
 
@@ -531,9 +533,9 @@ VR `fix` reuses the shared repair path for eligible VR-capable IE 3.5.1-or-earli
 #### Eligibility and refusal policy
 
 - Require complete supported SKSE/STRV framing, exact counts and EOF, exactly one PapyrusUtil owner and STRV record, canonical lowercase target keys, pinned provider/runtime/codec provenance and evidence covering **every** target: `intel_factsrendered`, `intel_gossiprendered`, `intel_taskhistoryrendered`. Inspection alone never grants eligibility.
-- `actor-in-place` requires explicit `legacy_writer: "IE-3.5.2"`, `actor_bel_policy: "space"` and `preserve_rne_name_bel: true` in both the evidence and qualification basis. It preserves serialized identities without resolving/remapping forms. Only qualified actor identities carrying caches are eligible; temporary cache targets refuse. Non-target holders pass through, not declared runtime-qualified.
-- In the actor cache policy, serialized BEL means space and LF is allowed within a complete cache value. Genuine original cache BEL, ESC, other C0 controls and DEL refuse. Non-cache values, including `rne_name` and task destinations, preserve all bytes without interpretation. `legacy` cache fields require independent original-byte evidence; `legacy-policy` cache fields additionally declare `original_basis: "owner-policy"`.
-- Global mode remains stricter for targets: every cache identity must be global, legacy BEL/ESC collisions refuse, and every target needs independent original-byte evidence. Neither mode guesses unknown target sentinel meanings. Already-encoded fields require a pinned writer codec and exact expected original bytes; literal percent text or a filename does not prove encoding.
+- Expert `actor-in-place` requires explicit `legacy_writer: "IE-3.5.2"`, `actor_bel_policy: "space"` and `preserve_rne_name_bel: true` in both the evidence and qualification basis. It preserves serialized identities without resolving/remapping forms. Only qualified actor identities carrying caches are eligible; temporary cache targets still refuse expert conversion. Player `fix` instead accepts `0xFF` cache holders with serialized actor type `62` and a nonzero form, plus orphaned global (object `0`) cache entries, re-encoding their values in place through the same owner-policy path as other actors. The non-global identity check remains unchanged: non-62 types and zero forms refuse. Non-target holders pass through, not declared runtime-qualified.
+- In the actor cache policy (also used for global entries in player `fix`), serialized BEL means space and LF is allowed within a complete cache value. Player `fix` additionally admits TAB, VT, FF, CR and embedded ESC, and preserves malformed UTF-8 value bytes through the bytewise codec without transcoding/replacement; a lone ESC remains an ambiguous empty sentinel and refuses. NUL, DEL and unsupported C0 controls still refuse. Native assignment and reverse-patch proofs remain mandatory. Expert mode retains strict UTF-8 and its original BEL/ESC/control policy. Restored-original bytes must agree with the BEL-restored span. Non-cache values, including `rne_name` and task destinations, preserve all bytes without interpretation. `legacy` cache fields require independent original-byte evidence; `legacy-policy` cache fields additionally declare `original_basis: "owner-policy"`.
+- Expert global mode remains stricter for targets: every cache identity must be global, legacy BEL/ESC collisions refuse, and every target needs independent original-byte evidence. Neither expert scope guesses unknown target sentinel meanings. Already-encoded fields require a pinned writer codec and exact expected original bytes; literal percent text or a filename does not prove encoding.
 - Refuse the whole candidate on truncation, ambiguous target framing, duplicate PapyrusUtil owners or STRV records, declared/written count gaps (including skipped empty maps), unsupported target version/identity/key, duplicate or noncanonical target keys, repeated object identities involving a target, missing/duplicate/extraneous field evidence, mismatched spans/hashes, unknown target representation or unpinned encoded generation. No partial salvage or force switch.
 - Refuse unmatched companion pairs, source drift, existing/overlapping destinations, unsafe aliases/reparse paths and protected save-directory destinations. Copy-only checks do not prove installation or runtime behavior.
 
@@ -612,6 +614,47 @@ Dynamic save-layer bios remain offline-only. File edits or newly generated bios 
 not promised visible until cache invalidation.
 Cache invalidation across save loads remains to be qualified.
 
+### Political Engine bridge — change intake
+
+Optional read-only `PoliticalLetters.dll` detection requires API v3 and the snapshot export.
+Missing or incompatible PE disables the bridge for the session. The bounded reader retains
+four attempts, the 64 MiB limit, NUL validation and nonthrowing JSON parsing.
+
+`PL_StateChanged` only marks dirty state. The political-context worker polls comparable public
+district owners, war phases and present rulers. Initial attachment, loads and inactive reads
+establish a fresh baseline without news. At most four comparable records are returned per revision;
+district changes in one read are combined. Private puppet state, draft proposals and military
+detail are excluded. The temporary snapshot files/event-log writer has been removed.
+The worker records factual `pe_territory`, `pe_campaign` and `pe_ruler` rumors with zero
+relation delta. Empty faction IDs are allowed only for `pe_*`; invalid nonempty IDs and
+same-faction pairs still reject. Public PE news is visible to unaffiliated NPCs through 0810.
+Optional `PE_GetIntelInitiatives080JSON` supplies public visits, gifts and disputes.
+IE baselines the bounded journal on attach/load and deduplicates string IDs; PE must
+not also call `RecordPoliticalEvent` for these initiatives. Missing export disables only this intake.
+Active PE adds authoritative territory and recent public developments to the Political DM
+context. A development is eligible for one `political_reaction` on the next tick through
+`reacts_to`; expiry, load identity and duplicate responses reject stale reactions.
+`politics.pe_integration` defaults true; when false IE ignores Political Engine (no polling, no context, no `pe_*` events) and re-enabling resets the baseline.
+`politics.pe_reactions_move_relations` defaults true. Its persisted Papyrus/MCM/dashboard
+toggle controls only tagged reaction relation and player-standing deltas, not IE's own
+politics, standing decay or war/battle mechanics. Disabled still records the reaction.
+Dashboard settings also report optional-provider detection. All of this remains offline-verified.
+Optional `PE_GetPoliticalSides080JSON` joins current district owner IDs to realm sides;
+both ownership and sides-only changes refresh context. A present but unreadable export
+never invokes vanilla fallback. Only an absent export permits main-thread `CWOwner`
+keyword-value reads, exposed separately as vanilla Civil War context, never district sides.
+Civil War organizations match existing `CWImperialFaction`/`CWSonsFaction` IDs.
+The active-only prompt forbids organization battles from inventing territory transfers.
+PE territory/development context is Political-DM-only. NPC 0810 retains organization
+events/relations and public PE news, without duplicating PE bio ranks, offices or reputation.
+The worker polls/builds context; the existing game-thread callback commits news, then
+dispatches the DM, only for the captured load generation. New news is eligible on the following tick.
+
+Run `PoliticalEngineReadJSONCheck` and
+`python SKSE/tests/RunPoliticalEngineBridgeCheck.py <vcpkg-triplet-dir> <private-sample-directory>`
+from a VS2022 developer shell. These are offline checks, not provider/runtime verification.
+`python SKSE/tests/RunPoliticalEngineTickCheck.py <vcpkg-triplet-dir>` exercises that thread/load boundary.
+
 ### Source-level checks
 
 From Native in a VS2022 amd64 developer shell, create the detached check directory and run:
@@ -634,6 +677,7 @@ This cleanup removes unused safety-net and pending Director-parameter Papyrus na
 their registrations and their exclusive C++ state. Source scans of both Native and Game
 repositories found no script, prompt, YAML or JavaScript callers; external or dynamic
 callers are not covered.
+
 
 Core `Maintenance` uses `If !SlotStates`; Schedule `RestartMonitoring` uses `If !ScheduledAgents` twice. Initialization, Core's separate length validation, restored arrays, co-save/legacy recovery, recount and monitoring remain unchanged. The encoder declaration, four complete writes and three mirrored readers are preserved.
 
@@ -715,13 +759,3 @@ IntelEngine.TestLocationResolve("upstairs")  ; Context-dependent
 ; Test validation
 IntelEngine.TestValidation("fetch_npc", "Nazeem")
 ```
-
-## Unreleased Political Engine bridge (offline only)
-
-Optional `PoliticalLetters.dll` API v3 provides public news and active-only Political DM context.
-`IntelEngine.GetPEReactionsMoveRelations()` returns the default-on persisted reaction toggle;
-`IntelEngine.SetPEReactionsMoveRelations(bool)` saves it through the shared settings path.
-Off records tagged `reacts_to` reactions without their relation/player-standing deltas.
-Current-owner PE sides are authoritative; only an absent sides export permits separate vanilla CWOwner context.
-IE wars/battles and NPC organization awareness remain independent; PE ranks/offices/reputation are not copied.
-DLL/PEX/dashboard staging and offline checks are not installed/runtime verification.
