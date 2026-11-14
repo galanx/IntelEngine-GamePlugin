@@ -1242,7 +1242,8 @@ Function CheckIfStuck(Int slot, Actor npc)
     ; Skip stuck detection while NPC is in dialogue or combat — stationary
     ; by design, not actually stuck. Reset the C++ counter so time spent
     ; talking/fighting doesn't accumulate toward a false stuck trigger.
-    If npc.GetDialogueTarget() != None || npc.IsInCombat()
+    ; (A dialogue target alone does not count: SkyrimNet leaves it set for minutes. See Core.IsHeldByTalk.)
+    If npc.IsInCombat() || Core.IsHeldByTalk(npc)
         IntelEngine.ResetStuckSlot(slot, npc)
         Return
     EndIf
@@ -1403,7 +1404,8 @@ Bool Function CheckMeetingDeparture(Int slot, Actor npc)
     ; Not leaving because they are fighting, being spoken to or in the middle of a sentence is not a failed
     ; departure: the count starts again when they are free. It used to call the meeting off ("could not set
     ; out") fifteen seconds into a conversation that was going on when the hour came.
-    If npc.IsInCombat() || npc.GetDialogueTarget() != None || IntelEngine.IsActorTalking(npc)
+    ; (Really held by talk, that is: a dialogue target alone says nothing, see Core.IsHeldByTalk.)
+    If npc.IsInCombat() || Core.IsHeldByTalk(npc)
         Core.InitializeDepartureTracking(slot, npc)
         Return false
     EndIf

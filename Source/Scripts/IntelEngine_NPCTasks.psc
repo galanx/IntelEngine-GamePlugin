@@ -2911,7 +2911,8 @@ Bool Function CheckDeparture(Int slot, Actor agent)
     ; Not leaving because they are fighting, being spoken to or in the middle of a sentence is not a failed
     ; departure: the count starts again when they are free. The task used to be called off ("was unable
     ; to carry out the task") fifteen seconds into a conversation that held them where they stood.
-    If agent.IsInCombat() || agent.GetDialogueTarget() != None || IntelEngine.IsActorTalking(agent)
+    ; (Really held by talk, that is: a dialogue target alone says nothing, see Core.IsHeldByTalk.)
+    If agent.IsInCombat() || Core.IsHeldByTalk(agent)
         Core.InitializeDepartureTracking(slot, agent)
         Return false
     EndIf
@@ -2970,7 +2971,8 @@ Function CheckIfStuck(Int slot, Actor npc)
     ; Skip stuck detection while NPC is in dialogue or combat — stationary by design.
     ; The same while they are speaking: a SkyrimNet conversation sets no dialogue target, so an agent
     ; who stopped to answer was "stuck", narrated as stumbling and, further on, teleported.
-    If npc.GetDialogueTarget() != None || npc.IsInCombat() || IntelEngine.IsActorTalking(npc)
+    ; (A dialogue target alone does not count: SkyrimNet leaves it set for minutes. See Core.IsHeldByTalk.)
+    If npc.IsInCombat() || Core.IsHeldByTalk(npc)
         IntelEngine.ResetStuckSlot(slot, npc)
         Return
     EndIf
