@@ -64,9 +64,12 @@ Replaces underscores with spaces and uppercases an ASCII lowercase letter at eac
 ```papyrus
 Bool Function IsNPCSpeechPending(Actor akActor) Global Native
 Float Function GetSecondsSinceNPCSpoke(Actor akActor) Global Native
+Float Function GetSecondsSincePlayerSpoke() Global Native
 ```
 
 `IsNPCSpeechPending` is true while SkyrimNet has a generated line of this NPC queued, being synthesized or audible. The DLL listens to SkyrimNet's outbound mod events (`SkyrimNet_SpeechStarted`, `SkyrimNet_AudioStarted`, `SkyrimNet_AudioEnded`), so it is also true in the seconds before the voice starts, which `IsActorTalking` cannot see. Narration segments are ignored. A queued segment that never becomes audible stops counting after 20 seconds, an audible one whose end notice never comes after 60. `GetSecondsSinceNPCSpoke` returns the real seconds since the NPC's last generated line stopped, or -1 when none was heard since the load. The state is per session and is cleared on load and on a new game. When SkyrimNet sends no such events (outbound mod events switched off, or an older version) both stay at "nothing pending" and -1, so callers use `IsActorTalking` beside them; `Core.LetFinishSpeaking` does. Offline check: `python SKSE/tests/RunSpeechTrackerCheck.py <vcpkg-triplet-dir>`.
+
+`GetSecondsSincePlayerSpoke` is the time since the player's last line, from SkyrimNet's event callbacks (`dialogue_player_text`, `dialogue_player_stt`, `dialogue_player`); -1 when there was none since the game loaded. A typed or spoken line names no addressee in SkyrimNet, so the value is the same for every NPC. `Core.CancelCurrentTask` uses it: an NPC's own cancel counts only when the player has just said something within earshot.
 
 ### SkyrimNet package contract
 

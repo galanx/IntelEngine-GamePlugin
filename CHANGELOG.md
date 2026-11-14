@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.8.1 — 2026-11-14
+
+Two fixes for things you notice in play, by Galanx. Install over 3.8.0; saves and settings carry over.
+
+- NPCs no longer dawdle before they leave. Whether an NPC "has not set off" or "is stuck" was not looked at while they had a dialogue target, and SkyrimNet leaves that set to whoever they last chatted with, for minutes. On a full load order many NPCs therefore stood where they were (one at the inn's door for three minutes, twice) until the task's time limit ended it. The two checks now stand down only for an NPC who is really held by talk: in the game's dialogue menu with you, speaking, about to speak, or having finished a line a moment ago.
+- An NPC no longer calls off a task you gave them by themselves. Their own cancel was refused while you stood near and taken when you were away, which is exactly when nobody can have told them to stop: the AI answered the line about their setting off with "stop current task", and the NPC you had sent never arrived (seen twice in a row, 47 and 52 seconds into a trip). Away from you it now counts only when you have just said something within earshot ("Come back!"). Cancelling from the dashboard, the MCM or SkyrimNet's package page works as before.
+- The cancel action's description tells the AI the same thing: it is for when you tell them to stop, not for when they have set off, arrived or lost interest.
+
 ## 3.8.0 — 2026-11-14
 
 ### Contributors

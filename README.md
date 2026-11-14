@@ -513,9 +513,9 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 ## Requirements
 
-- Skyrim Special Edition / Anniversary Edition. 3.8.0 was tested on Skyrim SE 1.5.97, on a small test setup and on a full Nolvus Awakening load order; it was not retested on the newer runtimes. 3.6.0 was tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested.
+- Skyrim Special Edition / Anniversary Edition. 3.8 was tested on Skyrim SE 1.5.97, on a small test setup and on a full Nolvus Awakening load order; it was not retested on the newer runtimes. 3.6.0 was tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested.
 - [SKSE](https://skse.silverlock.org/)
-- [SkyrimNet](https://github.com/MinLL/SkyrimNet-GamePlugin): 3.8.0 was tested with SkyrimNet 1.1.1 Alpha; Beta 28 was used for 3.6.0 testing. Declared minimum for 3.8.0: Beta 27.
+- [SkyrimNet](https://github.com/MinLL/SkyrimNet-GamePlugin): 3.8 was tested with SkyrimNet 1.1.1 Alpha; Beta 28 was used for 3.6.0 testing. Declared minimum for 3.8.0: Beta 27.
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)
