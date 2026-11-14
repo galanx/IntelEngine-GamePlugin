@@ -234,8 +234,8 @@ Int Property QUEST_OBJECTIVE_ID = 0 AutoReadOnly
 ; =============================================================================
 
 Function StartScheduler()
-    ; StoryEngine owns the shared game-time timer for ALL systems (Story, NPC, Politics).
-    ; Always register the timer even if Story DM is disabled — other systems may be active.
+    ; StoryEngine asks for the shared game-time timer for Story, NPC and Politics (Core.RequestGameTimeTick
+    ; keeps the soonest of its, Schedule's and Battle's requests). Always register the timer even if Story DM is disabled — other systems may be active.
     ; Each system self-gates via its own enabled check.
     ; Clear stale ambush StorageUtil key if ambush isn't active (survives save/load but FactionAmbushActive resets)
     If !FactionAmbushActive
@@ -247,8 +247,9 @@ Function StartScheduler()
     Else
         ; Game-time timer: fires instantly during Wait/Sleep.
         ; Use the SHORTEST interval across all systems (Story, NPC, Politics)
-        ; because all scripts share the same quest and RegisterForSingleUpdateGameTime
+        ; because all scripts share the same quest and the game-time registration
         ; is per-quest — only one can be active. Each system self-gates via elapsed time.
+        ; Core.RequestGameTimeTick keeps the soonest request (Battle and Schedule use it too).
         Float storyInterval = 3.0
         If Core != None
             storyInterval = Core.GetStoryEngineInterval()
@@ -267,17 +268,11 @@ Function StartScheduler()
             interval = politicsInterval
         EndIf
 
-        RegisterForSingleUpdateGameTime(interval)
+        Core.RequestGameTimeTick(interval)
         ; Real-time backup: ensures tick fires even at low timescales (timescale 2-6).
         Core.RequestTick(IDLE_POLL_INTERVAL)
         Core.DebugMsg("Story: StartScheduler - game-time mode (interval=" + interval + "h = min of story=" + storyInterval + " npc=" + npcInterval + " politics=" + politicsInterval + ")")
     EndIf
-EndFunction
-
-Function StopScheduler()
-    ; Only the game-time timer. The real-time one is shared by every script of the quest: unregistering
-    ; it here stopped travel, task and schedule monitoring as well.
-    UnregisterForUpdateGameTime()
 EndFunction
 
 Function SyncHoldRestrictionPolicies()
@@ -542,7 +537,7 @@ EndFunction
 Event OnUpdateGameTime()
     Core.DebugMsg("Story: OnUpdateGameTime fired (gameTime=" + Utility.GetCurrentGameTime() + ")")
     ; Register FIRST so the timer chain survives even if processing errors out.
-    ; StoryEngine owns the game-time timer for ALL systems (shared quest).
+    ; StoryEngine asks for the game-time timer for Story, NPC and Politics (shared quest).
     StartScheduler()
 
     ; Safety net: clean up lingering NPCs even if real-time timer died
@@ -596,7 +591,10 @@ Event OnUpdate()
     If !needsRealTime && (IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive)
         Core.RequestTick(MONITOR_INTERVAL)
     ElseIf !needsRealTime
-        StartScheduler()
+        ; Idle: only keep the real-time backup poll alive. Calling StartScheduler here re-registered the
+        ; game-time timer on every tick, so it never fired. It is already pending: StartScheduler runs on
+        ; load, settings changes, dispatch end and in OnUpdateGameTime.
+        Core.RequestTick(IDLE_POLL_INTERVAL)
     EndIf
 
     ; Idle-poll: trigger TickScheduler based on game-time elapsed.
@@ -2208,8 +2206,6 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
             Core.DebugMsg(npc.GetDisplayName() + " story off-screen capped to " + MAX_STORY_OFFSCREEN_HOURS + "H (was " + ((estimate - now) * 24.0) + "H)")
         EndIf
     EndIf
-
-    StopScheduler()
 
     ; Fast-path proximity arrival. The C++ monitor ticks every 150ms and
     ; fires OnProximityArrived the instant the NPC enters range of the
@@ -6184,14 +6180,12 @@ Function CleanupStoryDispatch()
     LastStretchRetry = 0
     IntelEngine.ClearSystemPending("storyDM")
     ClearPending()
-    ; Re-register game-time scheduling so TickScheduler keeps firing.
-    ; DispatchToTarget calls StopScheduler (kills game-time timer) then registers
-    ; real-time only. When the dispatch ends here, game-time must restart or
-    ; TickScheduler never fires again — especially when HasLingerNPCs() keeps
-    ; the real-time loop alive (road encounters in Intel_FakeEncounterNPCs),
-    ; because OnUpdate's transition logic requires !HasLingerNPCs() to call
-    ; StartScheduler. This only adds a game-time timer (RegisterForSingleUpdateGameTime),
-    ; which is independent of the real-time timer — no interference with OnUpdate.
+    ; Re-arm game-time scheduling so TickScheduler keeps firing, especially when
+    ; HasLingerNPCs() keeps the real-time loop alive (road encounters in
+    ; Intel_FakeEncounterNPCs), because OnUpdate's transition logic requires
+    ; !HasLingerNPCs() to call StartScheduler. Dispatch no longer unregisters the
+    ; game-time timer (that also killed Battle's and Schedule's), so this is a no-op
+    ; when a sooner request is already pending.
     StartScheduler()
 EndFunction
 
