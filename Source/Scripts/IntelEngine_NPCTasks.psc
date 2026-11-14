@@ -623,7 +623,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     EndIf
 
     ; Find free slot
-    Int slot = Core.FindFreeAgentSlot()
+    Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
@@ -808,7 +808,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     Core.OverrideExistingTask(akAgent)
 
     ; Find slot
-    Int slot = Core.FindFreeAgentSlot()
+    Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
@@ -989,7 +989,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     Core.OverrideExistingTask(akAgent)
 
     ; Find free slot
-    Int slot = Core.FindFreeAgentSlot()
+    Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
@@ -1216,7 +1216,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     EndIf
 
     ; Find free slot
-    Int slot = Core.FindFreeAgentSlot()
+    Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
         Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false

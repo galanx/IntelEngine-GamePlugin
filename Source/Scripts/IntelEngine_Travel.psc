@@ -275,7 +275,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     Core.OverrideExistingTask(akNPC)
 
     ; Find free slot
-    Int slot = Core.FindFreeAgentSlot()
+    Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
         Core.DebugMsg("GoToLocation: No free slots")
         Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
