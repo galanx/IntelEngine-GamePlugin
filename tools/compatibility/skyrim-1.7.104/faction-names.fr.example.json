@@ -1,0 +1,32 @@
+{
+  "hold_names": {
+    "ImperialFaction": "Haafingar",
+    "StormcloakFaction": "Estemarche",
+    "ThalmorFaction": "Haafingar",
+    "CompanionsFaction": "Blancherive",
+    "ThievesGuildFaction": "La Brèche",
+    "CollegeOfWinterholdFaction": "Winterhold",
+    "DarkBrotherhoodFaction": "Falkreath",
+    "SilverBloodFamily": "La Crevasse",
+    "BlackBriarFamily": "La Brèche"
+  },
+  "leader_names": {
+    "General Tullius": "Général Tullius",
+    "Legate Rikke": "Légat Rikke",
+    "Ulfric Stormcloak": "Ulfric Sombrage",
+    "Galmar Stone-Fist": "Galmar Rudepoing",
+    "Elenwen": "Elenwen",
+    "Ondolemar": "Ondolemar",
+    "Kodlak Whitemane": "Kodlak Blancrin",
+    "Vilkas": "Vilkas",
+    "Mercer Frey": "Mercer Frey",
+    "Brynjolf": "Brynjolf",
+    "Savos Aren": "Savos Aren",
+    "Mirabelle Ervine": "Mirabelle Ervine",
+    "Astrid": "Astrid",
+    "Nazir": "Nazir",
+    "Thongvor Silver-Blood": "Thongvor Sang-d'Argent",
+    "Thonar Silver-Blood": "Thonar Sang-d'Argent",
+    "Maven Black-Briar": "Maven Roncenoir"
+  }
+}
