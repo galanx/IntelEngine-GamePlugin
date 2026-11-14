@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.8.0 — unreleased
+## 3.8.0 — 2026-11-14
 
 ### Contributors
 - **Gerkinfeltser** developed 3.8: the sections Director, Story travel and arrival, Stories and NPC scenes, Off-screen placement and fetch, Politics and Other below, with the Magelight prompts, the Political Engine bridge and the faction fragments.
