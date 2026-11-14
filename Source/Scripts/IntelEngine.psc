@@ -742,6 +742,11 @@ Bool Function IsNPCSpeechPending(Actor akActor) Global Native
 ; Seconds since this NPC's last generated line stopped playing; -1 when none was heard since the game loaded.
 Float Function GetSecondsSinceNPCSpoke(Actor akActor) Global Native
 
+; Seconds since the player last said a line (typed, spoken, or picked in the game's own dialogue menu), as
+; SkyrimNet reports it; -1 when none since the game loaded. SkyrimNet names no addressee for a typed or spoken
+; line, so this is one time for everybody.
+Float Function GetSecondsSincePlayerSpoke() Global Native
+
 ; Version of SkyrimNet's package contract; 0 when SkyrimNet has none. SkyrimNetApi.ListPackage, HoldPackages,
 ; ReleaseHeldPackages and UnregisterPackageEx may only be called when this is 1 or more.
 Int Function GetSkyrimNetPackageApiVersion() Global Native

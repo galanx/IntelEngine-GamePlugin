@@ -1070,6 +1070,16 @@ Bool Function CancelCurrentTask(Actor akNPC, Bool force = false)
         Return false
     EndIf
 
+    ; Whoever gets here is away from the player (the check above refuses the rest). Out there the cancel used to
+    ; be taken, which is when nobody can have told the NPC to stop: it was the model's own idea, a reaction to
+    ; the line about their setting off, and the NPC you had sent simply never arrived (seen twice in a row,
+    ; 47 and 52 seconds into a trip). It counts only when the player has just said something within earshot
+    ; ("Come back!"). Dashboard, MCM and SkyrimNet's package page are forced and not asked.
+    If !force && !PlayerJustSpokeNear(akNPC)
+        DebugMsg(akNPC.GetDisplayName() + " cancel blocked: nobody told them to stop")
+        Return false
+    EndIf
+
     StorageUtil.SetStringValue(akNPC, "Intel_Result", "cancelled")
     ClearSlotRestoreFollower(slot, akNPC)
     If StoryEngine && StoryEngine.IsActive && StoryEngine.ActiveStoryNPC == akNPC
@@ -1219,6 +1229,42 @@ EndFunction
 
 Float Property LINGER_VISIT_MAX_HOURS = 6.0 AutoReadOnly
 {No visit at the player's side lasts longer than this many game hours, whatever is being said.}
+
+Float Property TALK_HOLD_SECONDS = 12.0 AutoReadOnly
+Float Property CANCEL_ASKED_SECONDS = 45.0 AutoReadOnly
+Float Property CANCEL_EARSHOT_DISTANCE = 2500.0 AutoReadOnly
+
+Bool Function IsHeldByTalk(Actor npc)
+    {Is this NPC kept where they stand by a conversation right now: in the game's dialogue menu with the player,
+    speaking, about to speak (SkyrimNet has a line of theirs on its way), or having finished a line a moment
+    ago (the other side is probably answering)? The checks for "has not left" and "is stuck" stand down for that.
+    They used to stand down for anyone with a dialogue target. SkyrimNet sets the target to whoever the NPC
+    last chatted with and leaves it set for minutes, so on a full load order the checks never ran for many
+    NPCs: one stood at the inn's door for three minutes, twice, until the task's time limit ended it.}
+    If npc == None
+        Return false
+    EndIf
+    If npc.IsInDialogueWithPlayer() || IntelEngine.IsActorTalking(npc) || IntelEngine.IsNPCSpeechPending(npc)
+        Return true
+    EndIf
+    Float since = IntelEngine.GetSecondsSinceNPCSpoke(npc)
+    Return since >= 0.0 && since < TALK_HOLD_SECONDS
+EndFunction
+
+Bool Function PlayerJustSpokeNear(Actor npc)
+    {Could the player have just told this NPC something? The player said a line within the last
+    CANCEL_ASKED_SECONDS and the NPC is loaded and within earshot. SkyrimNet names no addressee for a typed or
+    spoken line, so it cannot be told more exactly than this.}
+    If npc == None || !npc.Is3DLoaded()
+        Return false
+    EndIf
+    Float since = IntelEngine.GetSecondsSincePlayerSpoke()
+    If since < 0.0 || since > CANCEL_ASKED_SECONDS
+        Return false
+    EndIf
+    Float dist = npc.GetDistance(Game.GetPlayer())
+    Return dist > 0.0 && dist <= CANCEL_EARSHOT_DISTANCE
+EndFunction
 
 Bool Function IsTalkingWithPlayer(Actor npc)
     {Is this NPC in a conversation the player is part of: in dialogue with the player, or speaking with nobody
@@ -2190,7 +2236,7 @@ Function SoftStuckRecovery(Actor npc, Int slot, ObjectReference dest)
     ; the time limit. The other overrides are taken off, as they are when a task starts, and ours is put back.
     Package running = npc.GetCurrentPackage()
     If travelPkg && running != None && running != travelPkg && ActorUtil.CountPackageOverride(npc) > 1 \
-        && npc.GetDialogueTarget() == None && !npc.IsInCombat()
+        && !IsHeldByTalk(npc) && !npc.IsInCombat()
         If running != TravelPackage_Walk && running != TravelPackage_Jog && running != TravelPackage_Run \
             && running != TravelPackage_Stalk && running != SandboxPackage && running != SandboxNearPlayerPackage
             DebugMsg(npc.GetDisplayName() + " is held by a package that is not ours -> other overrides cleared, travel package put back")
