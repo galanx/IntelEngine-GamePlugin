@@ -2,7 +2,7 @@
 
 By Galanx 3/2026
 
-> **New in 3.6.0:** convert before loading an old save with 3.6.0. The tools install for everyone; fresh games do not need conversion. Eligible SE/AE saves from IE 3.5.2 or earlier and VR 1.4.15 saves from VR-capable IE 3.5.1 or earlier are supported, with bounded real-fixture acceptance, not blanket old-save safety. See [IntelEngine 3.6.0 update](#intelengine-360-update) for instructions and limits.
+> **New in 3.6.0:** convert before loading an old save with 3.6.0. The converter is a [separate download](https://github.com/galanx/IntelEngine-GamePlugin/releases/tag/save-converter-1); fresh games do not need conversion. Eligible SE/AE saves from IE 3.5.2 or earlier and VR 1.4.15 saves from VR-capable IE 3.5.1 or earlier are supported, with bounded real-fixture acceptance, not blanket old-save safety. See [IntelEngine 3.6.0 update](#intelengine-360-update) for instructions and limits.
 
 **Q: The converter says “no conversion needed” and creates no files. What now?**
 If a valid co-save has a STRV record but no IntelEngine rendered-cache targets, `fix` leaves the originals unchanged and returns exit code **2** without creating a backup or converted pair. This result is not a repair or blanket old-save safety clearance. An absent STRV can instead produce a verified byte-identical copy (exit **0**).
@@ -244,11 +244,11 @@ See the [Game changelog](https://github.com/galanx/IntelEngine-GamePlugin/blob/m
 
 Yes, for eligible saves on the supported conversion runtimes — **convert before loading the old save with 3.6.0**. One real 3.5.2 save per qualified SE/AE runtime and one real 3.5.1 VR fixture passed bounded acceptance; older versions are format-gated, not separately tested. Starting a fresh game? You do not need conversion.
 
-Find the IntelEngineTools folder in your installed mod: in MO2, right-click IntelEngine → Open in Explorer. In Vortex, it's in your game's Data folder. The FAQ, save converter executable and launcher are installed automatically for everyone; no installer selection is needed.
+The converter is not part of the mod package. Download `IntelEngine-SaveConverter.zip` from https://github.com/galanx/IntelEngine-GamePlugin/releases/tag/save-converter-1 and unzip it anywhere.
 
 1. Close Skyrim.
 2. Back up your save's matching `.ess` and `.skse` files and keep them together in the same folder; back up IntelEngine and SkyrimNet's extra data too if you might roll back.
-3. Keep `LegacyCacheMigration.exe` beside `Convert-IE-Save.bat`, then drag your `.ess` onto `Convert-IE-Save.bat` — leave its matching `.skse` beside the save.
+3. Keep the unzipped files together, then drag your `.ess` onto `Convert-IE-Save.bat` — leave its matching `.skse` beside the save.
 4. Once conversion succeeds, install this release's full package and load the new `_IEconverted` save, keeping its matching `_IEconverted.skse` alongside it.
 
 If the converter says the save path is not allowed (Reparse path rejected), your save folder is a link or junction (for example My Games moved to another drive, or OneDrive): copy the .ess and .skse pair to a normal folder such as Desktop\IE-convert and drag the .ess from there.
