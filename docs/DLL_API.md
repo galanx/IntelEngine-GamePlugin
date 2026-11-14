@@ -541,10 +541,10 @@ When STRV is absent, player `fix` permits a verified byte-identical cache-free p
 Offline production byte comparisons passed after safety corrections on two preserved save pairs: one produced 29 caches / 44 name spans, the other 13 caches / 28 name spans. Both ESS outputs were unchanged and preserved-source hashes matched. The unmodified shipped batch and production CLI succeeded with Skyrim closed on ASCII and Unicode/space scratch paths; the actual CLI also correctly refused while Skyrim was running. Migration/codec checks and refusal/partial-publication regressions passed. Offline byte reproduction is distinct from the bounded historical converted-copy runtime acceptance below; detailed evidence is maintained privately.
 
 1. Close Skyrim. Keep the same-directory, same-stem `.ess` and `.skse` pair together. Make sure you have a backup of IntelEngine and SkyrimNet external data as well if you may need timeline rollback.
-2. Put `LegacyCacheMigration.exe` beside `Convert-IE-Save.bat`, or run it directly from any working directory. Drag exactly one `.ess` onto the adjacent batch file, or run:
+2. Download the converter from https://github.com/galanx/IntelEngine-GamePlugin/releases/tag/save-converter-1 and unzip it. Keep `LegacyCacheMigration.exe` beside `Convert-IE-Save.bat`, or run it directly from any working directory. Drag exactly one `.ess` onto the adjacent batch file, or run:
 
    ```powershell
-   & ".\IntelEngineTools\LegacyCacheMigration.exe" fix --save ".\My Save.ess"
+   & ".\LegacyCacheMigration.exe" fix --save ".\My Save.ess"
    ```
 
 3. Success creates `<stem>_IEbackup/` containing the original `.ess` and `.skse`, plus sibling `<stem>_IEconverted.ess` and `<stem>_IEconverted.skse`. The tool does not overwrite existing backup/output files. It leaves the original pair unchanged.
