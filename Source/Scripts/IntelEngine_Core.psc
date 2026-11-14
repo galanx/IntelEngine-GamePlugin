@@ -541,11 +541,15 @@ Int Function FindFreeAgentSlot()
         maxAllowed = 1
     EndIf
 
+    Float now = Utility.GetCurrentRealTime()
     Int activeCount = 0
     Int firstFree = -1
     Int i = 0
     While i < MAX_SLOTS
         If SlotStates[i] != 0
+            activeCount += 1
+        ElseIf SlotIsClaimed(i, now)
+            ; Picked a moment ago for a task that is still being set up (ClaimFreeAgentSlot): taken.
             activeCount += 1
         ElseIf firstFree < 0 && SlotIsVacant(i)
             ; State 0 with the agent still in the alias is a task being finished (the handlers mark the slot
@@ -564,6 +568,59 @@ EndFunction
 Bool Function SlotIsVacant(Int slot)
     ReferenceAlias slotAlias = GetAgentAlias(slot)
     Return slotAlias == None || slotAlias.GetActorReference() == None
+EndFunction
+
+; Slots picked for a task that is being set up: when, in real seconds; 0 = not picked. Not in older saves
+; (None there until the first pick).
+Float[] _slotClaimedAt
+Float Property SLOT_CLAIM_SECONDS = 30.0 AutoReadOnly
+
+Bool Function SlotIsClaimed(Int slot, Float now)
+    {Picked for a task that has not taken it yet (ClaimFreeAgentSlot). A mark from before the game was
+    restarted (the clock starts again at zero) or older than SLOT_CLAIM_SECONDS does not count: whoever set it
+    never went on.}
+    If !_slotClaimedAt
+        Return false
+    EndIf
+    Float at = _slotClaimedAt[slot]
+    Return at > 0.0 && at <= now && now - at < SLOT_CLAIM_SECONDS
+EndFunction
+
+Int Function ClaimFreeAgentSlot()
+    {The free slot for a task that is about to start, and it is taken in the same breath. -1 when there is none.
+    The task functions used to pick a slot (FindFreeAgentSlot) and take it some calls later (AllocateSlot
+    sets the state after the alias, the faction and the bard release). A script gives way to others whenever it
+    calls into another object, so two tasks started in the same instant could pick the same slot: the second
+    agent went into it, the first task found its slot holding someone else and gave up without a word, and its
+    agent stayed flagged as busy (seen on a full load order, 2026-11-14: a fetch lost to a delivery).
+    AllocateSlot lifts the mark; a caller that does not go on gives it back with ReleaseSlotClaim.}
+    If !_slotClaimedAt
+        _slotClaimedAt = new Float[5]
+    EndIf
+    Int tries = 0
+    While tries < MAX_SLOTS
+        Float now = Utility.GetCurrentRealTime()
+        Int slot = FindFreeAgentSlot()
+        If slot < 0
+            Return -1
+        EndIf
+        ; From this test to the mark nothing is called, so no other script runs in between. (The search above
+        ; does call out: someone else may have taken the slot while it ran, and then the search is repeated.)
+        Float at = _slotClaimedAt[slot]
+        If SlotStates[slot] == 0 && !(at > 0.0 && at <= now && now - at < SLOT_CLAIM_SECONDS)
+            _slotClaimedAt[slot] = now
+            Return slot
+        EndIf
+        tries += 1
+    EndWhile
+    Return -1
+EndFunction
+
+Function ReleaseSlotClaim(Int slot)
+    {For a caller that picked a slot with ClaimFreeAgentSlot and then does not start the task.}
+    If _slotClaimedAt && slot >= 0 && slot < MAX_SLOTS
+        _slotClaimedAt[slot] = 0.0
+    EndIf
 EndFunction
 
 Function ForgetTaskStartStamps()
@@ -687,6 +744,10 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
 
     ; Update slot tracking
     SlotStates[slot] = 1  ; traveling
+    ; Taken for good from here on: the mark of ClaimFreeAgentSlot has done its work. (No call between the two.)
+    If _slotClaimedAt
+        _slotClaimedAt[slot] = 0.0
+    EndIf
     SlotTaskTypes[slot] = taskType
     SlotTargetNames[slot] = targetName
     SlotSpeeds[slot] = speed
@@ -1288,6 +1349,11 @@ EndFunction
 Bool Function IsDuplicateTask(Actor npc, String taskType, String target)
     {Returns true if NPC is already doing the exact same task. Caller should return false.}
     If !npc.IsInFaction(IntelEngine_TaskFaction)
+        Return false
+    EndIf
+    ; Flagged as on a task, but in no slot: a task that never got going. Its fields are left over, and the same
+    ; request was refused for good ("Duplicate task ignored") although nobody was doing it.
+    If FindSlotByAgent(npc) < 0
         Return false
     EndIf
     ; On the way to a meeting the player agreed to: no other task replaces that trip. The model starts one as

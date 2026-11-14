@@ -1464,7 +1464,7 @@ Function ManifestEvent(String manifestJson)
         ManifestLeaderTarget = assTarget
 
         ; Find a free slot
-        Int slot = Core.FindFreeAgentSlot()
+        Int slot = Core.ClaimFreeAgentSlot()
         If slot < 0
             Core.DebugMsg("Battle: No free task slot for assassin - aborting")
             assassin.DisableNoWait()
