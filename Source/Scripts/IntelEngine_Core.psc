@@ -1661,6 +1661,26 @@ Function RequestTick(Float seconds)
     RegisterForSingleUpdate(seconds)
 EndFunction
 
+Float _gameTickDue = 0.0
+
+Function RequestGameTimeTick(Float hours)
+    {Game-time twin of RequestTick. Story, Schedule and Battle share the quest's one game-time registration,
+    so the last RegisterForSingleUpdateGameTime won: the story engine re-registered on every monitoring tick
+    (every 3 s while a task ran), pushing the timer back forever and replacing Battle's and Schedule's timers.
+    Only re-register when this request is sooner than what is pending. Every OnUpdateGameTime checks whether
+    its own work is due, so firing on the soonest request is safe. The registration and _gameTickDue are both
+    saved, so they stay in step across loads. No slack before the due time: Schedule.OnUpdate asks on every
+    real-time tick, so any slack window would let that tick push a nearly-due timer back again. If a timer
+    fires a hair early or a registration is lost, the first request after _gameTickDue passes re-arms it.}
+    Float now = Utility.GetCurrentGameTime()
+    Float due = now + hours / 24.0
+    If _gameTickDue > now && _gameTickDue <= due
+        Return
+    EndIf
+    _gameTickDue = due
+    RegisterForSingleUpdateGameTime(hours)
+EndFunction
+
 Function SweepIfDue()
     {Run the sweep once per game hour, whoever asks: the real-time monitoring loops and the game-time event.}
     Float now = Utility.GetCurrentGameTime()

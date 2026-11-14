@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.8.2 — 2026-11-14
+
+One timer fix, and the save converter moves to its own download. The DLL and ESP are unchanged from 3.8.1; four scripts changed (Core, Schedule, StoryEngine, Battle). Install over 3.8.0 or 3.8.1; saves and settings carry over.
+
+- The game-time timer goes off again while NPCs are busy. All IntelEngine scripts share one game-time timer, and the story engine restarted it every few seconds while any task ran, so it went off only when you waited or slept. Scheduled tasks, scheduled battles and the story engine's game-time checks wait on it. A new story dispatch also switched it off outright. Now a script only moves the timer earlier, never later. On a full load order, with an NPC travelling and no waiting: before, the timer was restarted 170 times in about ten minutes and went off 0 times in about three game hours; with the fix it went off every game hour. A scheduled battle was not tested live.
+- The legacy save converter is no longer in the mod package. Upgrading a save from IntelEngine 3.5.2 or earlier? Download the unchanged converter separately: https://github.com/galanx/IntelEngine-GamePlugin/releases/tag/save-converter-1
+
 ## 3.8.1 — 2026-11-14
 
 Fixes for things you notice in play, by Galanx. Install over 3.8.0; saves and settings carry over.
