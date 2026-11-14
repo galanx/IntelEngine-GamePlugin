@@ -1261,7 +1261,15 @@ EndFunction
 
 Function ReleaseOldSoldiers()
     {Another battle begins while soldiers or bodies of the last one are still on the list: out of sight they go
-    now, in view they are let go (no travel order, no side) and leave the game with the area.}
+    now, in view they are let go (no travel order, no side) and leave the game with the area.
+    The last battle's aftermath ends here as well. Its wind-up, three minutes after that battle, resets the
+    battle state: left running, it reset whichever battle had begun in the meantime.}
+    If DeferredCleanupActive
+        DeferredCleanupActive = false
+        IntelEngine.ForgetBattleSoldiers()
+        RemovePlayerFromBattle()
+        Core.DebugMsg("Battle: the last battle's aftermath ends early, another battle begins")
+    EndIf
     If SpawnedSoldierCount > 0
         SweepSoldiers(true)
     EndIf
