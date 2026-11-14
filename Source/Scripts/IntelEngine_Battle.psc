@@ -121,7 +121,7 @@ Function ScheduleBattle(String factionA, String factionB, Int warId, Float gameT
     If hoursUntilBattle < 0.1
         hoursUntilBattle = 0.1
     EndIf
-    RegisterForSingleUpdateGameTime(hoursUntilBattle)
+    Core.RequestGameTimeTick(hoursUntilBattle)
 
     Core.DebugMsg("Battle: Scheduled " + factionA + " vs " + factionB + " in " + hoursUntilBattle + "h")
 EndFunction
@@ -212,7 +212,7 @@ Event OnUpdateGameTime()
     Else
         ; Not time yet, re-register
         Float hoursLeft = (ScheduledBattleTime - now) * 24.0
-        RegisterForSingleUpdateGameTime(hoursLeft)
+        Core.RequestGameTimeTick(hoursLeft)
     EndIf
 EndEvent
 
