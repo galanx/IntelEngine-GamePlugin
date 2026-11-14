@@ -2,11 +2,24 @@
 
 ## 3.8.1 — 2026-11-14
 
-Two fixes for things you notice in play, by Galanx. Install over 3.8.0; saves and settings carry over.
+Fixes for things you notice in play, by Galanx. Install over 3.8.0; saves and settings carry over.
+
+### NPCs on a task
 
 - NPCs no longer dawdle before they leave. Whether an NPC "has not set off" or "is stuck" was not looked at while they had a dialogue target, and SkyrimNet leaves that set to whoever they last chatted with, for minutes. On a full load order many NPCs therefore stood where they were (one at the inn's door for three minutes, twice) until the task's time limit ended it. The two checks now stand down only for an NPC who is really held by talk: in the game's dialogue menu with you, speaking, about to speak, or having finished a line a moment ago.
 - An NPC no longer calls off a task you gave them by themselves. Their own cancel was refused while you stood near and taken when you were away, which is exactly when nobody can have told them to stop: the AI answered the line about their setting off with "stop current task", and the NPC you had sent never arrived (seen twice in a row, 47 and 52 seconds into a trip). Away from you it now counts only when you have just said something within earshot ("Come back!"). Cancelling from the dashboard, the MCM or SkyrimNet's package page works as before.
 - The cancel action's description tells the AI the same thing: it is for when you tell them to stop, not for when they have set off, arrived or lost interest.
+
+### How a battle ends
+- When a battle is over the field empties the way a field does: the fighting stops, the beaten run for it, the winners put their weapons away and walk off, each side its own way. Until now nobody was told the battle was over. The survivors stood where the fighting had stopped, and three minutes later every soldier and every body was removed in one stroke, wherever you were looking.
+- Nobody is taken out of the world in your view any more. A soldier who has walked off is removed once you cannot see them: out of the loaded area, or far off and off screen.
+- The dead stay where they fell for six hours of game time, also when you step indoors or travel away and come back. After that they are cleared away when you are not looking. (The game itself keeps about fifteen dead in one place and removes the oldest beyond that; that is Skyrim's own limit.)
+- After a battle you fought in, one of your side comes over and says a word, then follows the others. Instead you were always told "none of your allies remain to celebrate", with your allies standing around you. If your side fought too far from you for anyone to come over, nothing is said.
+- The stand-down comes first and the announcement after it. The fighting used to go on through the pause and the announcement of who had won.
+- The battle script gets hold of its soldiers. It asked the DLL for them under the name "formIds"; the game keeps one spelling per string and handed over "formIDs", the spelling of a variable in another IntelEngine script, and the DLL answered with nothing. So the script never knew a single soldier of any battle: it could not start the first clash (the log's "Kick-started 0/6 combat pairs"; the soldiers found each other on their own), and it had nobody to send home at the end. The DLL now matches such names in any spelling.
+- Two armies raised from the same soldier list fight each other. Members of one list are friends through the faction they come with, which outranked the two battle sides: both armies stood side by side (seen with both sides from the bandit list). A soldier now belongs to their battle side alone.
+- A faction's `soldier_template` can be written as a form id ("0x0001FC5B", or "MyMod.esp|0x000801" for a mod's list), and the stock templates are known by form id as well as by name, so raising an army no longer depends on an editor-id cache (po3 Tweaks) being installed.
+- A battle that is cut short (its time limit, a save loaded in the middle of it) ends the same way: the soldiers walk off instead of vanishing on the spot.
 
 ## 3.8.0 — 2026-11-14
 

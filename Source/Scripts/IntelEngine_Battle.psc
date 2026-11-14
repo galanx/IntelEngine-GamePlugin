@@ -304,30 +304,44 @@ Event OnUpdate()
         EndIf
     EndIf
 
-    ; Phase 0: Deferred cleanup — proximity-based per-actor cleanup.
-    ; Actors behind the player and >2000 units away (or unloaded) get cleaned.
-    ; 180s hard timeout as safety net to prevent stale actors cluttering the world.
+    ; Stragglers of a battle that is already wound up: each one leaves the world once the player does not see it.
+    If SoldiersLeaving && !DeferredCleanupActive
+        If SweepDue(StragglerInterval) && SweepSoldiers(false) == 0
+            SoldiersLeaving = false
+            ClearExitMarkers()
+            Core.DebugMsg("Battle: the last soldiers of the battle are gone")
+        Else
+            Core.RequestTick(StragglerInterval)
+        EndIf
+    EndIf
+
+    ; Phase 0: the aftermath. The survivors are walking off (DisperseSoldiers); each soldier and each body leaves
+    ; the world once the player does not see it. After 180 s the battle is wound up whatever is left, so that the
+    ; player is out of the battle sides and another battle may start; those still in view stay on the list as
+    ; stragglers. (This used to switch off everyone who was left, in front of the player.)
     If DeferredCleanupActive
         Float elapsed = Utility.GetCurrentRealTime() - DeferredCleanupStart
-        Bool forceAll = elapsed >= 180.0
-        Actor player = Game.GetPlayer()
-
-        ; Clean soldiers via C++ (no Papyrus arrays — immune to stale bytecode)
-        Int remaining = IntelEngine.CleanupBattleSoldiers(player.GetPositionX(), \
-            player.GetPositionY(), player.GetPositionZ(), player.GetAngleZ(), forceAll)
-
-        If remaining == 0 || forceAll
-            If forceAll && remaining > 0
-                Core.DebugMsg("Battle: Hard timeout cleanup - " + remaining + " actors remaining")
-            EndIf
-            ; NOW remove player from battle factions — all soldiers are disabled/gone
+        Int remaining = SpawnedSoldierCount
+        If SweepDue(AftermathInterval) || elapsed >= 180.0
+            remaining = SweepSoldiers(false)
+        EndIf
+        If remaining == 0 || elapsed >= 180.0
+            IntelEngine.ForgetBattleSoldiers()
             RemovePlayerFromBattle()
-            CleanupMarkers()
-            ; The native cleanup only disables. Deleting them here takes them out of the save as well.
-            RemoveRememberedSoldiers()
             DeferredCleanupActive = false
             Bool hadPendingPolls = PendingPollActive && IntelEngine.GetPendingBattleCount() > 0
+            If remaining > 0
+                Core.DebugMsg("Battle: wound up with " + remaining + " soldiers or bodies still on the field")
+                LeaveBattleSides()
+                CleanupMarkers(true)          ; the exit markers stay: the stragglers are still walking to them
+            Else
+                CleanupMarkers()
+            EndIf
             ResetState()
+            If remaining > 0
+                SoldiersLeaving = true
+                Core.RequestTick(StragglerInterval)
+            EndIf
             If hadPendingPolls
                 PendingPollActive = true
                 Core.RequestTick(PollInterval)
@@ -335,6 +349,7 @@ Event OnUpdate()
             EndIf
             return
         EndIf
+        Core.RequestTick(PollInterval)
     EndIf
 
     ; Dual-phase polling: pending battles (proximity check) and active battles (combat state)
@@ -390,6 +405,7 @@ Event OnUpdate()
             If Core.StoryEngine != None
                 Core.StoryEngine.CheckQuestProximity()
             EndIf
+            DisperseSoldiers(0, false)
             DeferredCleanupActive = true
             DeferredCleanupStart = Utility.GetCurrentRealTime()
             Core.RequestTick(PollInterval)
@@ -523,6 +539,7 @@ Function SpawnFullBattle()
         spawnAnchor = player as ObjectReference
     EndIf
 
+    ReleaseOldSoldiers()
     String resultJson = IntelEngine.ExecuteFullBattleSpawn(QuestAutoJoinFaction, player, player.GetAngleZ(), spawnAnchor)
     QuestAutoJoinFaction = ""
 
@@ -556,12 +573,12 @@ Function SpawnFullBattle()
     ; Quest marker on leader (C++ already made leader Protected + SpeedMult 115)
     Int leaderFormId = IntelEngine.GetJsonArrayInt(resultJson, "leaderFormId", 0)
     If leaderFormId != 0
-        Actor leader = Game.GetForm(leaderFormId) as Actor
+        Actor leader = SoldierFromId(leaderFormId)
         If leader
             BattleLeader = leader
             BattleLeaderWasEssential = leader.IsEssential()
             ; Move quest marker from location to leader's head
-            If Core.StoryEngine != None
+            If Core.StoryEngine != None && Core.StoryEngine.IsObjectiveDisplayed(Core.StoryEngine.QUEST_OBJECTIVE_ID)
                 ReferenceAlias targetAlias = Core.StoryEngine.QuestTargetAlias
                 ; Runtime recovery: property may be None on old saves
                 ; Uses same recovery pattern as StoryEngine.PlaceQuestMarker
@@ -609,6 +626,7 @@ Function SpawnFullBattle()
 
     ; Kick-start combat — soldiers need StartCombat to engage immediately
     ForceInitialEngagement()
+    RememberBattleSoldiers()
 
     ShowBattleStartNotification(BattleLocationName)
 
@@ -625,6 +643,7 @@ EndFunction
 Function SpawnMidBattle()
     Core.DebugMsg("Battle: Player arrived - spawning mid-battle")
     BattleSpawned = true
+    ReleaseOldSoldiers()
 
     ; Calculate how long battle has been running (use actual start, not scheduled)
     Float now = Utility.GetCurrentGameTime()
@@ -815,6 +834,7 @@ Function SpawnWave(Int waveNum)
     ; SetPlayerTeammate handled by C++ SpawnReinforcements (SetActorPlayerTeammate).
     ; Old Papyrus loop removed — Game.GetForm() fails for 0xFF-prefix FormIDs.
     Core.DebugMsg("Battle: Wave " + waveNum + " - " + sideASpawned + " vs " + sideBSpawned + " (teammates set by C++)")
+    RememberBattleSoldiers()
 
     CurrentWave = waveNum
     IntelEngine.AdvanceBattleWave()
@@ -1041,8 +1061,8 @@ Function ForceInitialEngagement()
     While i < engageCount
         Int formIdA = IntelEngine.GetJsonArrayInt(jsonA, "formIds", i)
         Int formIdB = IntelEngine.GetJsonArrayInt(jsonB, "formIds", i)
-        Actor soldierA = Game.GetForm(formIdA) as Actor
-        Actor soldierB = Game.GetForm(formIdB) as Actor
+        Actor soldierA = SoldierFromId(formIdA)
+        Actor soldierB = SoldierFromId(formIdB)
         If soldierA && soldierB && !soldierA.IsDead() && !soldierB.IsDead()
             soldierA.StartCombat(soldierB)
             soldierB.StartCombat(soldierA)
@@ -1067,25 +1087,12 @@ EndFunction
 ; POST-BATTLE
 ; =============================================================================
 
-Function PostBattleSoldierMoment(String playerFaction, String victorName, Bool playerWon)
-    ; Find a surviving ally via C++ actor list (no Papyrus arrays)
-    String side = "A"
-    If playerFaction != BattleFactionA
-        side = "B"
-    EndIf
-    String json = IntelEngine.GetBattleSoldierFormIds(side)
-    Int count = IntelEngine.StoryResponseGetField(json, "count") as Int
-    Actor survivor = None
-    Int i = 0
-    While i < count && !survivor
-        Int formId = IntelEngine.GetJsonArrayInt(json, "formIds", i)
-        Actor soldier = Game.GetForm(formId) as Actor
-        If soldier && !soldier.IsDead()
-            survivor = soldier
-        EndIf
-        i += 1
-    EndWhile
-    If !survivor
+
+Function PostBattleSoldierMoment(Actor survivor, Int alliesLeft, String victorName, Bool playerWon)
+    {One of the player's side comes over and says a word, then follows the others. The soldier used to be looked
+    up in the native list, which is empty once the battle has been closed: after every battle fought on a side the
+    player read that none of their allies remained, with the allies standing around them.}
+    If alliesLeft <= 0
         ; C++ generates the no-survivor notification text
         String noSurvivorType = "no_survivor_win"
         If !playerWon
@@ -1094,23 +1101,37 @@ Function PostBattleSoldierMoment(String playerFaction, String victorName, Bool p
         Debug.Notification(IntelEngine.GetBattleNotification(noSurvivorType, "", "", false))
         return
     EndIf
-    ; Survivor walks toward player — weary pace (engine operations)
+    If !survivor || survivor.IsDead()
+        return              ; allies live, but none is near enough to come over
+    EndIf
+    ; Comes over at a weary pace. A travel order, not a scripted path: that one cannot be given up.
     Actor player = Game.GetPlayer()
     survivor.SetActorValue("SpeedMult", 70.0)
-    survivor.PathToReference(player, 1)
-    Float waitTime = 0.0
-    While waitTime < 8.0 && survivor.GetDistance(player) > 200.0
+    TakeBackTravelOrder(survivor)
+    PO3_SKSEFunctions.SetLinkedRef(survivor, player, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(survivor, Core.TravelPackage_Run, Core.PRIORITY_TRAVEL, 1)
+    survivor.EvaluatePackage()
+    Float waited = 0.0
+    While waited < 12.0 && survivor.GetDistance(player) > AllySpeaksDistance && !survivor.IsDead()
         Utility.Wait(1.0)
-        waitTime += 1.0
+        waited += 1.0
     EndWhile
-    ; C++ generates the soldier dialogue text
-    String dialogueType = "soldier_victory"
-    If !playerWon
-        dialogueType = "soldier_defeat"
+    If !survivor.IsDead() && survivor.GetDistance(player) <= AllySpeaksDistance
+        ; C++ generates the soldier dialogue text
+        String dialogueType = "soldier_victory"
+        If !playerWon
+            dialogueType = "soldier_defeat"
+        EndIf
+        Debug.Notification("\"" + IntelEngine.GetBattleNotification(dialogueType, "", victorName, playerWon) + "\"")
+        Core.DebugMsg("Battle: Post-battle soldier moment - " + survivor.GetDisplayName() + " after " + waited + " s")
+        Utility.Wait(4.0)
+    Else
+        Core.DebugMsg("Battle: " + survivor.GetDisplayName() + " did not reach the player in time, no word")
     EndIf
-    Debug.Notification("\"" + IntelEngine.GetBattleNotification(dialogueType, "", victorName, playerWon) + "\"")
     survivor.SetActorValue("SpeedMult", 100.0)
-    Core.DebugMsg("Battle: Post-battle soldier moment - " + survivor.GetDisplayName())
+    If !survivor.IsDead() && ExitMarkerA != None
+        SendSoldierOff(survivor, ExitMarkerA, !playerWon)
+    EndIf
 EndFunction
 
 ; =============================================================================
@@ -1158,6 +1179,9 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
     ; MUST run BEFORE RemovePlayerFromBattle — FinalizeBattle reads playerSide to award standing.
     String resultJson = IntelEngine.FinalizeBattle(ActiveBattleId, result, victor, \
         lossesA, lossesB, BattleLocationName, Utility.GetCurrentGameTime())
+    ; The battle is closed on the native side from here on. The poll must not take that for a battle that ended
+    ; behind the script's back while this function is still waiting below (it then sent everybody off a second time).
+    BattleSpawned = false
 
     ; Do NOT remove player from battle factions here — soldiers are still alive during
     ; deferred cleanup. Removing the player from the faction makes stray-hit soldiers
@@ -1169,6 +1193,17 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
     String notification = IntelEngine.StoryResponseGetField(resultJson, "notification")
     String spectatorNotif = IntelEngine.StoryResponseGetOptionalField(resultJson, "spectatorNotification")
     String witnessFact = IntelEngine.StoryResponseGetField(resultJson, "witnessFact")
+
+    ; The field empties, before anything is announced: the fighting stops, the beaten run, the winners walk off.
+    ; Whoever is out of sight is removed as the polls come round. (The fighting used to go on through the pause
+    ; and the announcement below.)
+    DisperseSoldiers(WinningSide(victor), playerSideWas != "")
+    Actor speaker = _allyNear
+    Int alliesLeft = _alliesLeft
+    _allyNear = None
+    DeferredCleanupActive = true
+    DeferredCleanupStart = Utility.GetCurrentRealTime()
+    Core.RequestTick(PollInterval)
 
     ; Inject witness memories (requires Papyrus Actor handles for SkyrimNet API)
     If witnessFact != ""
@@ -1195,16 +1230,11 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
         Debug.Notification(spectatorNotif)
     EndIf
 
-    ; Post-battle soldier moment (engine-only: PathToReference, GetDistance)
+    ; One of the player's side comes over, and follows the others afterwards.
     If playerSideWas != ""
         String victorName = IntelEngine.StoryResponseGetField(resultJson, "victorName")
-        PostBattleSoldierMoment(playerSideWas, victorName, playerWon)
+        PostBattleSoldierMoment(speaker, alliesLeft, victorName, playerWon)
     EndIf
-
-    ; Deferred cleanup — soldiers stay until player leaves
-    DeferredCleanupActive = true
-    DeferredCleanupStart = Utility.GetCurrentRealTime()
-    Core.RequestTick(PollInterval)
 EndFunction
 
 ; ApplyPlayerKillStanding, ApplyPostBattleStanding, ApplySpectatorConsequences,
@@ -1218,14 +1248,324 @@ EndFunction
 ; =============================================================================
 
 Function CleanupAllActors()
-    ; Delegated entirely to C++ — no Papyrus arrays needed
-    IntelEngine.ForceCleanupAllSoldiers()
-    ; ...except after a load: see RememberSoldier.
-    RemoveRememberedSoldiers()
+    {A battle that is cut short (a load, an error, its time limit): the soldiers stop fighting and walk off, and
+    each one is removed where the player does not see it. This used to switch every one of them off on the spot.}
+    DisperseSoldiers(0, false)
+    IntelEngine.ForgetBattleSoldiers()
+    If SweepSoldiers(false) > 0
+        LeaveBattleSides()
+        SoldiersLeaving = true
+        Core.RequestTick(StragglerInterval)
+    EndIf
+EndFunction
+
+Function ReleaseOldSoldiers()
+    {Another battle begins while soldiers or bodies of the last one are still on the list: out of sight they go
+    now, in view they are let go (no travel order, no side) and leave the game with the area.}
+    If SpawnedSoldierCount > 0
+        SweepSoldiers(true)
+    EndIf
+    SoldiersLeaving = false
 EndFunction
 
 Actor[] Property SpawnedSoldiers Auto Hidden       ; every soldier spawned for the current battle (kept in the save)
 Int Property SpawnedSoldierCount = 0 Auto Hidden
+
+Actor Function SoldierFromId(Int formId)
+    {A spawned actor by the id the DLL reports (created references: their ids start with FF). GetFormEx finds
+    them, seen 2026-11-14 ("Kick-started 4/4 combat pairs"). Until then no id ever reached this function: the DLL
+    was asked for "formIds" under another spelling and answered 0 (see JsonKeys.h), so the kick-start of the
+    fighting found nobody ("Kick-started 0/6 combat pairs").}
+    If formId == 0
+        Return None
+    EndIf
+    Return Game.GetFormEx(formId) as Actor
+EndFunction
+
+Function RememberBattleSoldiers()
+    {Everybody the DLL has spawned for this battle goes onto the script's own list. Only the soldiers of one rare
+    path (the player arriving in the middle of a battle) used to be on it; the others were known to the DLL alone,
+    so the script could neither send them off when the battle was over nor find them after the game was closed.}
+    String side = "A"
+    Int pass = 0
+    Int missing = 0
+    While pass < 2
+        String json = IntelEngine.GetBattleSoldierFormIds(side)
+        Int count = IntelEngine.StoryResponseGetField(json, "count") as Int
+        Int i = 0
+        While i < count
+            Actor soldier = SoldierFromId(IntelEngine.GetJsonArrayInt(json, "formIds", i))
+            If soldier == None
+                missing += 1
+            ElseIf !IsRemembered(soldier)
+                RememberSoldier(soldier)
+            EndIf
+            i += 1
+        EndWhile
+        side = "B"
+        pass += 1
+    EndWhile
+    If missing > 0
+        Core.DebugMsg("Battle: WARNING - " + missing + " soldiers of the battle could not be found by their id")
+    EndIf
+EndFunction
+
+Bool Function IsRemembered(Actor soldier)
+    If !SpawnedSoldiers
+        Return false
+    EndIf
+    Int i = 0
+    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
+        If SpawnedSoldiers[i] == soldier
+            Return true
+        EndIf
+        i += 1
+    EndWhile
+    Return false
+EndFunction
+
+; ── When it is over: the field empties ──
+
+ObjectReference Property ExitMarkerA Auto Hidden
+ObjectReference Property ExitMarkerB Auto Hidden
+Float Property ExitDistance = 14000.0 AutoReadOnly      ; beyond the loaded area: whoever gets there is out of the world
+Float Property BodyOutOfSightDistance = 5000.0 AutoReadOnly     ; nearer than this a body is not removed even off screen
+Float Property WalkerOutOfSightDistance = 7000.0 AutoReadOnly   ; and a living soldier not nearer than this
+Float Property AftermathInterval = 6.0 AutoReadOnly     ; seconds between sweeps while a battle's aftermath runs
+Float Property StragglerInterval = 15.0 AutoReadOnly    ; and between looks at what a wound-up battle left behind
+Float Property BodiesStayHours = 6.0 AutoReadOnly       ; game hours the dead stay on the field, wherever the player goes
+Float Property AllyComesOverDistance = 2500.0 AutoReadOnly  ; an ally farther off than this does not come over after the battle
+Float Property AllySpeaksDistance = 350.0 AutoReadOnly  ; how near the ally has to get before the word is said
+Float Property BattleEndedGameTime = 0.0 Auto Hidden    ; when the last battle's soldiers were sent off (game days)
+Bool Property SoldiersLeaving = false Auto Hidden       ; a wound-up battle still has soldiers or bodies in the player's view
+
+Int Function WinningSide(String victor)
+    {1: the soldiers in battle side A won, 2: those in side B, 0: nobody. The player's side is always side A;
+    without the player it is the battle's first faction.}
+    If victor == ""
+        Return 0
+    EndIf
+    String sideAFaction = BattleFactionA
+    If PlayerBattleSide != ""
+        sideAFaction = PlayerBattleSide
+    EndIf
+    If victor == sideAFaction
+        Return 1
+    EndIf
+    Return 2
+EndFunction
+
+Actor _allyNear = None      ; the living soldier of the player's side nearest to the player, when asked for
+Int _alliesLeft = 0         ; living soldiers of side A (the player's side when the player took one)
+
+Function DisperseSoldiers(Int winningSide, Bool findAlly)
+    {The battle is over and the field empties the way a field does: the beaten run for it, the winners put their
+    weapons away and walk off, each side in the direction it stands from the other. They used to be given nothing
+    to do: they stood where the fighting had stopped, and three minutes later every soldier and every body was
+    removed in one stroke, in front of the player. Where they are going lies beyond the loaded area, so whoever
+    gets there has left the world; SweepSoldiers deals with the rest. findAlly: note the ally nearest to the
+    player on the way (_allyNear, within AllyComesOverDistance), for the word after the battle.}
+    Float began = Utility.GetCurrentRealTime()
+    _allyNear = None
+    _alliesLeft = 0
+    BattleEndedGameTime = Utility.GetCurrentGameTime()
+    RememberBattleSoldiers()
+    If !SpawnedSoldiers || SpawnedSoldierCount <= 0
+        Return
+    EndIf
+    ; One living soldier of each side tells where the sides stand.
+    Actor oneA = None
+    Actor oneB = None
+    Int i = 0
+    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length && (oneA == None || oneB == None)
+        Actor candidate = SpawnedSoldiers[i]
+        If candidate != None && !candidate.IsDead()
+            If candidate.IsInFaction(Intel_BattleSideB)
+                If oneB == None
+                    oneB = candidate
+                EndIf
+            ElseIf oneA == None
+                oneA = candidate
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+    If oneA == None && oneB == None
+        Return
+    EndIf
+    ; The middle of the field, and the direction side A leaves in; side B takes the opposite one.
+    Actor player = Game.GetPlayer()
+    Float cx = 0.0
+    Float cy = 0.0
+    Float z = 0.0
+    Float dx = 0.0
+    Float dy = 0.0
+    If oneA != None && oneB != None
+        cx = (oneA.GetPositionX() + oneB.GetPositionX()) / 2.0
+        cy = (oneA.GetPositionY() + oneB.GetPositionY()) / 2.0
+        z = oneA.GetPositionZ()
+        dx = oneA.GetPositionX() - oneB.GetPositionX()
+        dy = oneA.GetPositionY() - oneB.GetPositionY()
+    ElseIf oneA != None
+        cx = oneA.GetPositionX()
+        cy = oneA.GetPositionY()
+        z = oneA.GetPositionZ()
+        dx = cx - player.GetPositionX()          ; one side left: away from the player
+        dy = cy - player.GetPositionY()
+    Else
+        cx = oneB.GetPositionX()
+        cy = oneB.GetPositionY()
+        z = oneB.GetPositionZ()
+        dx = player.GetPositionX() - cx
+        dy = player.GetPositionY() - cy
+    EndIf
+    Float span = Math.sqrt(dx * dx + dy * dy)
+    If span < 50.0
+        dx = Math.Sin(player.GetAngleZ())        ; on top of each other: the way the player is facing, and its opposite
+        dy = Math.Cos(player.GetAngleZ())
+        span = 1.0
+    EndIf
+    dx = dx / span
+    dy = dy / span
+
+    Form xmarkerBase = Game.GetFormFromFile(0x0000003B, "Skyrim.esm")
+    If !xmarkerBase
+        Return
+    EndIf
+    ClearExitMarkers()
+    ExitMarkerA = player.PlaceAtMe(xmarkerBase)
+    ExitMarkerA.SetPosition(cx + dx * ExitDistance, cy + dy * ExitDistance, z)
+    ExitMarkerB = player.PlaceAtMe(xmarkerBase)
+    ExitMarkerB.SetPosition(cx - dx * ExitDistance, cy - dy * ExitDistance, z)
+
+    Int leavingA = 0
+    Int leavingB = 0
+    Float nearest = AllyComesOverDistance
+    i = 0
+    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
+        Actor soldier = SpawnedSoldiers[i]
+        If soldier != None && !soldier.IsDead()
+            Bool sideB = soldier.IsInFaction(Intel_BattleSideB)
+            Bool beaten = (winningSide == 1 && sideB) || (winningSide == 2 && !sideB)
+            If sideB
+                SendSoldierOff(soldier, ExitMarkerB, beaten)
+                leavingB += 1
+            Else
+                SendSoldierOff(soldier, ExitMarkerA, beaten)
+                leavingA += 1
+                If findAlly
+                    Float distance = soldier.GetDistance(player)
+                    If distance < nearest
+                        nearest = distance
+                        _allyNear = soldier
+                    EndIf
+                EndIf
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+    _alliesLeft = leavingA
+    Core.DebugMsg("Battle: the field empties - " + leavingA + " soldiers leave one way, " + leavingB + " the other (" + \
+        (Utility.GetCurrentRealTime() - began) + " s)")
+EndFunction
+
+Function CalmSoldier(Actor soldier)
+    {No more fighting for this one: weapon away.}
+    soldier.SetActorValue("Aggression", 0.0)
+    soldier.StopCombat()
+    soldier.StopCombatAlarm()
+    soldier.SheatheWeapon()
+EndFunction
+
+Function SendSoldierOff(Actor soldier, ObjectReference exit, Bool running)
+    {Weapon away, and off they go. The beaten run. Sending somebody off a second time leaves one travel order.}
+    CalmSoldier(soldier)
+    TakeBackTravelOrder(soldier)
+    Package pace = Core.TravelPackage_Walk
+    If running
+        pace = Core.TravelPackage_Run
+    EndIf
+    PO3_SKSEFunctions.SetLinkedRef(soldier, exit, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(soldier, pace, Core.PRIORITY_TRAVEL, 1)
+    soldier.EvaluatePackage()
+EndFunction
+
+Function TakeBackTravelOrder(Actor soldier)
+    {The travel order is stored under the soldier's id, outside the soldier. It has to be gone before the soldier
+    is: the id of a deleted reference is handed out again, and whoever gets it would walk off with the order.}
+    ActorUtil.RemovePackageOverride(soldier, Core.TravelPackage_Walk)
+    ActorUtil.RemovePackageOverride(soldier, Core.TravelPackage_Run)
+EndFunction
+
+Int Function OutOfSight(Actor soldier, Actor player, Bool bodiesStay)
+    {May this soldier, alive or dead, leave the world without the player noticing? 0: no. 1: yes, not loaded (the
+    player went indoors or away, or the soldier walked out of the loaded area). 2: yes, far off and not on screen
+    (for the player, HasLOS is true only for what is in view). Far off is farther for the living: somebody the
+    player watched walking away should still be there after a glance to the side.
+    bodiesStay: the battle is not long over, and the dead stay where they fell whatever the player does. Half a
+    minute inside a house used to be enough to come back to a field without a single body.}
+    If bodiesStay && soldier.IsDead()
+        Return 0
+    EndIf
+    If !soldier.Is3DLoaded()
+        Return 1
+    EndIf
+    Float distance = soldier.GetDistance(player)
+    If distance <= BodyOutOfSightDistance
+        Return 0
+    EndIf
+    If distance <= WalkerOutOfSightDistance && !soldier.IsDead()
+        Return 0
+    EndIf
+    If player.HasLOS(soldier)
+        Return 0
+    EndIf
+    Return 2
+EndFunction
+
+Float _sweepDueAt = 0.0
+Bool _sweeping = false
+
+Bool Function SweepDue(Float interval)
+    {Is it time for the next sweep? (The update timer is shared by every script of the quest, so this handler
+    runs far more often than the battle asks for.)}
+    Float now = Utility.GetCurrentRealTime()
+    If now < _sweepDueAt && _sweepDueAt - now <= interval       ; a stamp from an earlier session lies far ahead
+        Return false
+    EndIf
+    _sweepDueAt = now + interval
+    Return true
+EndFunction
+
+Function LeaveBattleSides()
+    {The battle is wound up with soldiers still in view: they belong to no side any more, so nobody of theirs
+    turns on the player, who has just left the battle sides too.}
+    If !SpawnedSoldiers
+        Return
+    EndIf
+    Int i = 0
+    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
+        Actor soldier = SpawnedSoldiers[i]
+        If soldier != None && !soldier.IsDead()
+            soldier.RemoveFromFaction(Intel_BattleSideA)
+            soldier.RemoveFromFaction(Intel_BattleSideB)
+        EndIf
+        i += 1
+    EndWhile
+EndFunction
+
+Function ClearExitMarkers()
+    If ExitMarkerA
+        ExitMarkerA.DisableNoWait()
+        ExitMarkerA.Delete()
+        ExitMarkerA = None
+    EndIf
+    If ExitMarkerB
+        ExitMarkerB.DisableNoWait()
+        ExitMarkerB.Delete()
+        ExitMarkerB = None
+    EndIf
+EndFunction
 
 Function RememberSoldier(Actor soldier)
     {The native side keeps the list of spawned soldiers in memory only. After the game was closed and a
@@ -1242,31 +1582,85 @@ Function RememberSoldier(Actor soldier)
     EndIf
 EndFunction
 
-Function RemoveRememberedSoldiers()
-    {Disable+Delete every soldier of the battle that is still there, and forget the list. Called where
-    the native cleanup has just run (it only disables), so this also takes its leftovers out of the save.}
+Int Function SweepSoldiers(Bool letGo)
+    {Every soldier and every body of the battle that the player does not see leaves the game; the others stay on
+    the list for the next round. Returns how many are still on it. Nobody is taken away in view: this used to
+    switch all of them off at once, three minutes after the battle, wherever the player was looking. The dead
+    are not taken away at all for BodiesStayHours.
+    letGo: the list is needed for another battle. Whoever is in view is released instead: no travel order, no
+    side, marked for removal, which the game carries out when the area unloads.}
     If !SpawnedSoldiers
         SpawnedSoldierCount = 0
-        return
+        Return 0
     EndIf
+    If _sweeping
+        Return SpawnedSoldierCount           ; one sweep at a time: the calls below let other events in
+    EndIf
+    _sweeping = true
+    Float began = Utility.GetCurrentRealTime()
+    Actor player = Game.GetPlayer()
+    Float hoursSince = (Utility.GetCurrentGameTime() - BattleEndedGameTime) * 24.0
+    Bool bodiesStay = !letGo && hoursSince >= 0.0 && hoursSince < BodiesStayHours
+    Int listed = SpawnedSoldierCount
+    Int unloaded = 0
+    Int farOff = 0
+    Int released = 0
+    Int kept = 0
     Int i = 0
-    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
+    While i < listed && i < SpawnedSoldiers.Length
         Actor soldier = SpawnedSoldiers[i]
-        If soldier != None
-            If !soldier.IsDeleted()
+        SpawnedSoldiers[i] = None
+        If soldier != None && !soldier.IsDeleted()
+            Int unseen = OutOfSight(soldier, player, bodiesStay)
+            If unseen > 0
+                TakeBackTravelOrder(soldier)
                 soldier.DisableNoWait()
                 soldier.Delete()
+                If unseen == 1
+                    unloaded += 1
+                Else
+                    farOff += 1
+                EndIf
+            ElseIf letGo
+                TakeBackTravelOrder(soldier)
+                If !soldier.IsDead()
+                    soldier.SetActorValue("Aggression", 0.0)
+                    soldier.StopCombat()
+                    soldier.RemoveFromFaction(Intel_BattleSideA)
+                    soldier.RemoveFromFaction(Intel_BattleSideB)
+                    soldier.EvaluatePackage()
+                EndIf
+                soldier.Delete()
+                released += 1
+            Else
+                SpawnedSoldiers[kept] = soldier
+                kept += 1
             EndIf
-            SpawnedSoldiers[i] = None
         EndIf
         i += 1
     EndWhile
-    SpawnedSoldierCount = 0
+    ; Soldiers remembered while this was running (another battle spawning) sit behind the old end of the list.
+    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
+        Actor late = SpawnedSoldiers[i]
+        SpawnedSoldiers[i] = None
+        If late != None
+            SpawnedSoldiers[kept] = late
+            kept += 1
+        EndIf
+        i += 1
+    EndWhile
+    SpawnedSoldierCount = kept
+    _sweeping = false
+    If unloaded + farOff + released > 0
+        Core.DebugMsg("Battle: removed out of sight - " + unloaded + " that left the loaded area, " + farOff + \
+            " far off and off screen; " + released + " let go; " + kept + " stay (" + (Utility.GetCurrentRealTime() - began) + " s)")
+    EndIf
+    Return kept
 EndFunction
 
 ; CleanupActorArray — REMOVED. C++ ForceCleanupAllSoldiers handles all cleanup.
 
-Function CleanupMarkers()
+Function CleanupMarkers(Bool keepExits = false)
     If CenterMarker
         CenterMarker.DisableNoWait()
         CenterMarker.Delete()
@@ -1281,6 +1675,9 @@ Function CleanupMarkers()
         RallyMarkerB.DisableNoWait()
         RallyMarkerB.Delete()
         RallyMarkerB = None
+    EndIf
+    If !keepExits
+        ClearExitMarkers()
     EndIf
 EndFunction
 
@@ -1829,7 +2226,7 @@ Function CleanupBattle()
     Core.DebugMsg("Battle: Unexpected end - cleaning up")
     RemovePlayerFromBattle()
     CleanupAllActors()
-    CleanupMarkers()
+    CleanupMarkers(SoldiersLeaving)
     ResetState()
 EndFunction
 
@@ -1863,13 +2260,23 @@ Function OnGameReload()
     ; Battle state is not save-persistent in C++ (BattleManager resets on load)
     ; ActiveBattleId >= 0 catches battles that started but never spawned (player was indoors)
     If BattleSpawned || BattleScheduled || ActiveBattleId >= 0
+        ; The load handler can run twice at once (seen 2026-11-14: two Maintenance passes three seconds apart).
+        ; The second one sent every soldier off again after the first had taken them out of their sides, all in
+        ; one direction. The flags go down before the first call that lets another event in.
+        Int endedBattleId = ActiveBattleId
+        BattleSpawned = false
+        BattleScheduled = false
+        ActiveBattleId = -1
         Core.DebugMsg("Battle: Game reloaded during active battle - cleaning up")
-        ; Clear C++ active battle BEFORE Papyrus ResetState (which sets ActiveBattleId = -1)
-        IntelEngine.EndBattle(ActiveBattleId, "reload", "")
+        ; Clear C++ active battle BEFORE Papyrus ResetState
+        IntelEngine.EndBattle(endedBattleId, "reload", "")
         RemovePlayerFromBattle()
         CleanupAllActors()
-        CleanupMarkers()
+        CleanupMarkers(SoldiersLeaving)
         ResetState()
+    EndIf
+    If SoldiersLeaving
+        Core.RequestTick(StragglerInterval)      ; stragglers of a battle that was over when the game was saved
     EndIf
 
     ; Clear stale pending battles from C++ singleton (persists across reloads)
