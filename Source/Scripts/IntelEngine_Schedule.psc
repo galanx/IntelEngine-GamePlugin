@@ -64,7 +64,7 @@ Int Property MAX_SCHEDULED = 10 AutoReadOnly
 
 Event OnInit()
     InitializeScheduleArrays()
-    RegisterForSingleUpdateGameTime(1.0)  ; Check every game hour
+    Core.RequestGameTimeTick(1.0)  ; Check every game hour
 EndEvent
 
 ; NOTE: Quest scripts do NOT receive OnPlayerLoadGame events.
@@ -277,7 +277,7 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     {Shared scheduling setup. Handles time parsing, per-action confirmation, slot override,
     and common data storage. Returns slot index or -1 on failure.
     After success, callers store task-specific data into ScheduledTargetNames,
-    ScheduledMessages, etc. and call RegisterForSingleUpdateGameTime(0.5).}
+    ScheduledMessages, etc. and call RegisterForNextDispatch().}
 
     ; Parse time condition
     Float targetHour = IntelEngine.ParseTimeCondition(timeCondition)
@@ -834,14 +834,14 @@ Function RegisterForNextDispatch()
                 If sleepHours > 1.0
                     sleepHours = 1.0
                 EndIf
-                RegisterForSingleUpdateGameTime(sleepHours)
+                Core.RequestGameTimeTick(sleepHours)
                 Core.DebugMsg("Schedule loop: " + ScheduledCount + " pending, gameTime=" + currentGameTime + ", next check in " + sleepHours + "h")
             EndIf
         Else
             ; All tasks are dispatched (state != 0), just heartbeat
-            RegisterForSingleUpdateGameTime(1.0)
+            Core.RequestGameTimeTick(1.0)
         EndIf
     Else
-        RegisterForSingleUpdateGameTime(1.0)
+        Core.RequestGameTimeTick(1.0)
     EndIf
 EndFunction
