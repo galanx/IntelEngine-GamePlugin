@@ -1120,12 +1120,13 @@ EndFunction
 
 Bool Function DispatchNPCSocial(Actor npc, Actor target, String narration, String storyType, Actor socialNPC1, Actor socialNPC2, String fact1, String fact2, String gossipContent, String taskOrigin = "NPC social engine")
     {Lightweight dispatch for NPC-to-NPC travel. Uses slots but does NOT touch IsActive/ActiveStoryNPC.}
-    Int slot = Core.FindFreeAgentSlot()
+    Int slot = Core.ClaimFreeAgentSlot()
     ; Not someone who is already in a task (as its agent or as the one being fetched), in another story
     ; role, with the player, or never sent on errands: they got a second slot and a jog override on top of
     ; what they were doing. The meeting then counts as having happened off-screen, as with no free slot.
     If slot >= 0 && (Core.FindSlotByActor(npc) >= 0 || HoldsActor(npc) || Core.IsFollowingPlayer(npc) || Core.IsUnsuitableTaskAgent(npc))
         Core.DebugMsg("NPC Social: " + npc.GetDisplayName() + " is not free to walk over")
+        Core.ReleaseSlotClaim(slot)
         slot = -1
     EndIf
     If slot < 0
@@ -2148,7 +2149,7 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
         EndIf
     EndIf
 
-    Int slot = Core.FindFreeAgentSlot()
+    Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
         Debug.Trace("[IntelEngine] StoryEngine: No free slots for dispatch")
         ; For NPC targets, log event (facts already injected by caller)

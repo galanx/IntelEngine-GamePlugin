@@ -78,6 +78,7 @@
 - An NPC who is talking is not treated as stuck, and one who is asked to do something in conversation finishes the sentence before turning to go.
 - During a task IntelEngine removes only its own packages, so a follow or wait order from another mod survives the task. If such a package blocks a trip it is cleared and the trip goes on.
 - An unknown place name, an unknown target or no free slot no longer cancels the task the NPC already had.
+- Two NPCs given a task in the same instant no longer end up in the same task slot. The second one went, the first task was dropped without a word, and that NPC then refused the same request as "already on it". A slot is now taken in the step that picks it. (3.7.1 could do the same.)
 - Trips: a disabled NPC's trip ends; a long road walked together with the player is not cut off at seven hours; the time limit no longer restarts on every load.
 - Fetch, deliver, escort, search: a search has an overall limit and the searcher waits on the spot when you fall behind; an escort without "wait" lets the NPC go at the destination; a fetched NPC's visit ends on its own; waits are measured in seconds instead of monitoring passes; carriage drivers are never fetched or escorted.
 - Stories: a refused faction courier gets their aggression back; an ambusher gets their own essential flag, aggression and confidence back; quest enemies, bosses and ambush soldiers are removed once out of sight; a dead guide ends the guiding, not the quest; a visitor walks the last stretch; two NPCs stay together for the length of their scene.
