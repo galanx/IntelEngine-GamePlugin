@@ -996,6 +996,10 @@ Int Function CleanupBattleSoldiers(Float playerX, Float playerY, Float playerZ, 
 ; Force cleanup ALL battle soldiers (hard timeout).
 Function ForceCleanupAllSoldiers() Global Native
 
+; Drops the DLL's list of soldiers left to clean up without touching them. The battle script removes the
+; soldiers itself when a battle is over (it never removes one the player is looking at).
+Function ForgetBattleSoldiers() Global Native
+
 ; Bounty prevention: removes crime factions from spawned soldiers at battle start.
 Function SnapshotBounties() Global Native
 

@@ -2,6 +2,8 @@
 # To restore: copy this file as "factions.yaml" in the same folder.
 # If factions.yaml is missing, IntelEngine auto-creates it with these defaults on game load.
 # Modders can edit factions.yaml to add/modify factions. It will NOT be overwritten by updates.
+# soldier_template names the leveled list a faction's soldiers are raised from: by its name, or by form id
+# ("0x0001FC5B" for a record of Skyrim.esm, "MyMod.esp|0x000801" for a mod's).
 factions:
   - id: "ImperialFaction"
     name: "Imperial Legion"
