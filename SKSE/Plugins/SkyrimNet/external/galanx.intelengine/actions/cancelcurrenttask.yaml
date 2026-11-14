@@ -3,10 +3,11 @@ name: CancelCurrentTask
 description: >
   Stop your current active task entirely.
 
-  Use when:
-  - Someone tells you to stop, wait, hold on, come back, or stay
-  - You decide the task is no longer worth doing
-  - You need to follow someone (cancel task first, then follow)
+  Use ONLY when {{ player.name }} has just told you to stop, wait, hold on, come back or stay, or to follow them
+  instead (cancel the task first, then follow).
+
+  A task you were given is carried out. Setting off, arriving or finishing is no reason to use this, and neither
+  is something else seeming more important.
 
   You don't need this before starting a new task — new tasks replace the current one automatically.
 
