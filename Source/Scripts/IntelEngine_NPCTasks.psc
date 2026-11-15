@@ -1093,6 +1093,15 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
         Return false
     EndIf
 
+    ; "Take me to X": models pick EscortTarget with the player as target despite the action rules. The name
+    ; lookup below never returns the player, so it grabbed an NPC whose name merely contains the player's
+    ; (a summoned "Shadow <player name>" across the map) and walked off to it. Lead the player instead.
+    Actor player = Game.GetPlayer()
+    If targetName == player.GetDisplayName() || targetName == player.GetActorBase().GetName()
+        Core.DebugMsg("EscortTarget: target is the player, leading them there via GoToLocation")
+        Return Travel.GoToLocation(akAgent, destination, 0, 1, false, taskOrigin)
+    EndIf
+
     ; Duplicate action guard
     If Core.IsDuplicateTask(akAgent, "escort_target", targetName)
         Return false
