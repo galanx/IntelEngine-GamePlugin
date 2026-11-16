@@ -1508,7 +1508,9 @@ Bool Function IsUnsuitableTaskAgent(Actor npc)
     {NPCs that must never be given a travel, fetch, escort, search or delivery task.
     Carriage drivers: the LLM hears "let's go" in their own lines and fires a travel action; the travel override
     pulls them off the cart, the carriage service is broken from then on, and face to face the task could not
-    even be cancelled. They carry CarriageSystemFaction in the base game and in Hearthfire and Dawnguard.}
+    even be cancelled. They carry CarriageSystemFaction in the base game and in Hearthfire and Dawnguard.
+    Children are not excluded: a child asked to fetch someone said he would and then did nothing, which breaks
+    immersion; children run errands like anyone else (the story director still leaves them out of its events).}
     If npc == None
         Return true
     EndIf
@@ -1516,9 +1518,6 @@ Bool Function IsUnsuitableTaskAgent(Actor npc)
         ResolveSoftForms()
     EndIf
     If _carriageSystemFaction && npc.IsInFaction(_carriageSystemFaction)
-        Return true
-    EndIf
-    If npc.IsChild()
         Return true
     EndIf
     Return false
