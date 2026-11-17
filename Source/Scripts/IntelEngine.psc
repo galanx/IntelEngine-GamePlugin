@@ -607,6 +607,12 @@ String Function LivingWorldDescribe(Actor npc) Global Native
 ; May this kind of story moment move this NPC? ("NPCs of running quests may move"; the target of an objective the
 ; player has open never moves; "message" always may, the sender stays and a courier goes)
 Bool Function LivingWorldMayMove(Actor npc, String storyType) Global Native
+
+; 4.0: a place named in SkyrimNet (the player's /mark and Places page, a pack's, another mod's travel markers): a
+; persistent reference in its cell or worldspace, None when the destination names no such place. The NPC's own
+; marker goes to it with SkyrimNetPlaceOffset (axis 0 x, 1 y, 2 z); IntelEngine_Core.ResolveTravelTarget does both.
+ObjectReference Function ResolveSkyrimNetPlace(Actor npc, String destination) Global Native
+Float Function SkyrimNetPlaceOffset(Actor npc, Int axis) Global Native
 ; The base form of an item by its name (the item index), None when there is no such item.
 Form Function ResolveItemByName(String itemName) Global Native
 ; An item this actor carries named exactly so (any case), else None: any mod's "Ale" counts, "Pale Ale" does not.

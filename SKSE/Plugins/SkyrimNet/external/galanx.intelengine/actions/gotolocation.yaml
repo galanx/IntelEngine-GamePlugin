@@ -28,7 +28,7 @@ description: >
   B) NAMED SKYRIM LOCATIONS — any real location that exists in the game world.
   Copy the place name EXACTLY as it appears in the game/context, in the game's language.
   NEVER translate place names. Use context names, not English names recalled from Skyrim lore.
-  Nearby place names (context only, not a guarantee that IE can resolve every name):
+  Named places nearby (rooms and spots people have named; you can go to these by their name):
   {% for place in get_place_names("nearby") %}{{ place }}; {% endfor %}
   The location MUST actually exist in Skyrim. Do NOT invent location names.
 
@@ -65,6 +65,7 @@ parameterMapping:
       - A semantic keyword from list A: "home", "upstairs", "downstairs", "outside", "inside",
         "the kitchen", "the bedroom", "the cellar", "<Name>'s house"
       - OR a real Skyrim place name copied EXACTLY from the game/context, in the game's language.
+      - OR a named place from the list above (a room or spot someone named), by its name.
       NEVER translate place names; the semantic keywords in list A stay English.
       NEVER use a person's name alone. NEVER invent locations. NEVER use vague descriptions.
   - type: dynamic

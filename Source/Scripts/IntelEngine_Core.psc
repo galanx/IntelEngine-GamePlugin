@@ -2569,6 +2569,37 @@ Function SendTaskNarration(Actor akActor, String msgText, Actor akTarget = None)
     SkyrimNetApi.DirectNarration(msgText, akActor, akTarget)
 EndFunction
 
+ObjectReference Function ResolveTravelTarget(Actor akNPC, String destination)
+    {4.0: a destination as a travel target. A place named in SkyrimNet (the player's /mark and Places page, a pack's,
+    another mod's travel markers such as SeverActions') comes first: the NPC's own marker goes there and the trip is
+    to it. Otherwise the native resolver (named locations, rooms, homes, directions).}
+    ObjectReference anchor = IntelEngine.ResolveSkyrimNetPlace(akNPC, destination)
+    If anchor != None
+        ObjectReference marker = PlaceMarkerOf(akNPC)
+        If marker != None
+            marker.MoveTo(anchor, IntelEngine.SkyrimNetPlaceOffset(akNPC, 0), IntelEngine.SkyrimNetPlaceOffset(akNPC, 1), \
+                IntelEngine.SkyrimNetPlaceOffset(akNPC, 2), false)
+            DebugMsg(akNPC.GetDisplayName() + ": '" + destination + "' is a place named in SkyrimNet")
+            Return marker
+        EndIf
+    EndIf
+    Return IntelEngine.ResolveAnyDestination(akNPC, destination)
+EndFunction
+
+ObjectReference Function PlaceMarkerOf(Actor akNPC)
+    {The NPC's own marker for trips to SkyrimNet places: one persistent XMarker each, made the first time.}
+    ObjectReference marker = StorageUtil.GetFormValue(akNPC, "Intel_PlaceMarker") as ObjectReference
+    If marker == None || marker.IsDeleted()
+        Form xmarker = Game.GetFormFromFile(0x0000003B, "Skyrim.esm")
+        If xmarker == None
+            Return None
+        EndIf
+        marker = Game.GetPlayer().PlaceAtMe(xmarker, 1, true, false)
+        StorageUtil.SetFormValue(akNPC, "Intel_PlaceMarker", marker)
+    EndIf
+    Return marker
+EndFunction
+
 Function SendPersistentMemory(Actor akOriginator, Actor akTarget, String msgText)
     ; Registers a persistent event in SkyrimNet's event system.
     ; Writes to both in-memory cache (NPC dialogue prompts) and event DB
