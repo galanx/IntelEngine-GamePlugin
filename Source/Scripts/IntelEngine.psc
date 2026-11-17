@@ -595,6 +595,12 @@ String Function StorylineReply(Int id, Actor speaker, String reply, Bool comesAl
 Int Function StorylineAboutId(Actor person) Global Native
 String Function StorylineOtherMemory(Int id) Global Native
 Int Function StorylineOfferedGold(Int id, Int playerLevel) Global Native
+; Whether running quests let this person go along with the player (their own storyline objective left out).
+Bool Function StorylineMayComeAlong(Actor person) Global Native
+; Why a request was asked, in the asker's words; shown with it in both people's bios and memories.
+Bool Function StorylineSetAbout(Int id, String text) Global Native
+; field: "about" (why it was asked), "reply" (the answer sent back), "note" (the reason for the last change); "" when none.
+String Function StorylineText(Int id, String field) Global Native
 
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.

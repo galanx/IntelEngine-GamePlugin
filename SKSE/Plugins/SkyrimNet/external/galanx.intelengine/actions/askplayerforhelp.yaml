@@ -34,6 +34,11 @@ parameterMapping:
     description: >
       For escort_me: where you want to be taken (a town, an inn or a landmark, e.g. "The Bannered Mare").
       Otherwise: "none".
+  - type: dynamic
+    name: why
+    description: >
+      Why you need it, in a few words of your own, as you just said it (e.g. "she owes two months' rent",
+      "the guards drank the cellar dry").
 
 eligibilityRules:
   - conditions:
