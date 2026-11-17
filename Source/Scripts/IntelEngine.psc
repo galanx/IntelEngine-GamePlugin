@@ -567,6 +567,27 @@ Function SetLivingWorldSettings(Int level, Int interruptions, Int questNpcs, Int
 ; 4.0 living world: a story moment really started with this NPC (counted for pacing and rotation). Not for rejections.
 Function LivingWorldMomentDispatched(Actor npc, String storyType) Global Native
 
+; 4.0 storylines (StorylineBridge). Kinds: 1 meeting, 2 request, 3 visit. Requests: 1 find someone, 2 bring an item,
+; 3 deal with a threat, 4 take me somewhere, 5 speak with someone, 6 free a captive. Events: 1 achieved, 2 met,
+; 3 declined, 4 time ran out, 5 someone died, 6 talked, 7 no-show, 8 fell through. Days: until the deadline, 0 none.
+Int Function StorylineOpen(Int kind, Int request, Actor owner, Actor other, Location place, ObjectReference target, Form item, Float days, Int importance, Bool urgent) Global Native
+String Function StorylineRefusal(Int kind, Int request, Actor owner) Global Native
+Bool Function StorylineEvent(Int id, Int eventId) Global Native
+Int[] Function StorylineOpenIds() Global Native
+Int[] Function StorylineOverdue() Global Native
+; field: "slot", "objective" (255 none), "stage", "kind", "request", "importance"; -1 when there is no such storyline
+Int Function StorylineField(Int id, String field) Global Native
+Actor Function StorylineOwner(Int id) Global Native
+Actor Function StorylineOther(Int id) Global Native
+Location Function StorylinePlace(Int id) Global Native
+ObjectReference Function StorylineTarget(Int id) Global Native
+Form Function StorylineItem(Int id) Global Native
+String Function StorylineMemory(Int id) Global Native
+Int Function StorylineReward(Int id, Int playerLevel) Global Native
+Int Function StorylineOpenIdFor(Actor owner) Global Native
+; The base form of an item by its name (the item index), None when there is no such item.
+Form Function ResolveItemByName(String itemName) Global Native
+
 ; Flip the most recent RecordStoryDispatch entry to REJECTED with a short
 ; reason. Called from any early-return path after RecordStoryDispatch.
 Function MarkLastDispatchFailed(String reason) Global Native
