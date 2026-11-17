@@ -41,6 +41,8 @@ The living world, by Galanx. People you know get on with their lives while you a
 - A fetch, and an arrival, could be handled twice when two checks saw it at the same moment ("Jenassa brought Ysolda" twice, "Uthgerd arrived at Drunken Huntsman" shown twice). Each is handled once.
 - An NPC who arrives where you already are is no longer said to arrive "together with" you, nor, when they come into a room you are across, to find you arriving where they waited. Indoors the scene is told that you were there first; outdoors, only that you are both there.
 - The Travel and Scheduling choices the dialogue model sees now say which is which: setting off now, even to wait somewhere ("go on ahead and wait for me at the inn"), is a trip; a plan is for a set later time. Asked to go ahead and wait, NPCs agreed and then chose neither.
+- With SeverActions, whose own descriptions send "going ahead to a place" to a "Journeys" entry that SeverActions does not have, the Travel choice now says it is that entry.
+- Times counted in words or past twelve are understood: "in two hours", "two hours from now", "in twenty minutes", "in 24 hours". They used to be read as no time at all, and a meeting then fell back to 6 PM ("in two hours" at dawn was a meeting that evening).
 - After a meeting is over, the NPC takes a new task again. Asked to wait somewhere else, Elrindir agreed and then stood where he was.
 
 
