@@ -585,6 +585,28 @@ Form Function StorylineItem(Int id) Global Native
 String Function StorylineMemory(Int id) Global Native
 Int Function StorylineReward(Int id, Int playerLevel) Global Native
 Int Function StorylineOpenIdFor(Actor owner) Global Native
+
+; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
+; Track: see who follows, who was left behind, who is on an errand, and plan the next change.
+Function LivingWorldTrack() Global Native
+; The actor of the change that is out, None when there is none.
+Actor Function LivingWorldTakeOrder() Global Native
+; 1 move them (their own life goes on somewhere), 2 home, 3 take the package off (back with the player, an errand,
+; a story), 4 they notice the player
+Int Function LivingWorldOrderKind() Global Native
+ObjectReference Function LivingWorldOrderTarget() Global Native
+; axis 0 x, 1 y, 2 z: from the target to where they stand
+Float Function LivingWorldOrderOffset(Int axis) Global Native
+Actor Function LivingWorldOrderCompanion() Global Native
+Bool Function LivingWorldOrderProtect() Global Native
+String Function LivingWorldOrderNarration() Global Native
+; true: done; false: not now (someone could see), tried again later
+Function LivingWorldOrderDone(Bool ok) Global Native
+; The record of one NPC (flags, activity, place, when they parted...), for tests and the log.
+String Function LivingWorldDescribe(Actor npc) Global Native
+; May this kind of story moment move this NPC? ("NPCs of running quests may move"; the target of an objective the
+; player has open never moves; "message" always may, the sender stays and a courier goes)
+Bool Function LivingWorldMayMove(Actor npc, String storyType) Global Native
 ; The base form of an item by its name (the item index), None when there is no such item.
 Form Function ResolveItemByName(String itemName) Global Native
 ; An item this actor carries named exactly so (any case), else None: any mod's "Ale" counts, "Pale Ale" does not.

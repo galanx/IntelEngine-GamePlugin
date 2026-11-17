@@ -1371,7 +1371,7 @@ EndEvent
 
 Event OnOptionHighlight(Int optionId)
     If optionId == OID_LWLevel
-        SetInfoText("Click to cycle. Classic: as before 4.0. Rumors: the world moves on while you are away and you hear about it, but followers you left wait where you left them. Lives: followers you left behind and people close to you live their own lives, and you can find them later.")
+        SetInfoText("Click to cycle. Classic: as before 4.0. Rumors: the world moves on while you are away and you hear about it, but followers you left wait where you left them. Lives: followers you left behind live lives of their own (work at an inn, an adventure, a trip) and you can come upon them later; people close to you miss you while you are away.")
     ElseIf optionId == OID_LWInterruptions
         SetInfoText("Click to cycle. Whether someone may turn up during a fight, a conversation, a scene or a menu: never, only for something urgent, or now and then, as in real life.")
     ElseIf optionId == OID_LWQuestNpcs
@@ -1379,7 +1379,7 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_LWPacing
         SetInfoText("Click to cycle. About one notable moment every two game days, every game day, or twice a game day. Moments wait for a good time: arriving in a town or an inn, coming home, leaving a dungeon, waking up.")
     ElseIf optionId == OID_LWWaitDays
-        SetInfoText("How long a follower you told to wait keeps waiting before starting a life of their own.")
+        SetInfoText("How long after you told a follower to wait they start a life of their own, once their follower mod lets them go. While it still holds them, they keep waiting.")
     ElseIf optionId == OID_LWLifeDays
         SetInfoText("How long a follower you dismissed stays where you left them before starting a life of their own.")
     ElseIf optionId == OID_DebugMode

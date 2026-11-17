@@ -74,6 +74,13 @@ Function Begin()
     RegisterForSingleUpdate(WATCH_SECONDS)
 EndFunction
 
+Function Resume()
+    {On every load: the watch goes on where a storyline is open.}
+    If IntelEngine.StorylineOpenIds().Length > 0
+        Begin()
+    EndIf
+EndFunction
+
 Int Function OpenMeeting(Actor owner, ObjectReference destination, Float days)
     {A meeting the player agreed to: "Meet <owner> at <place>", the marker on the meeting spot.}
     If !Enabled() || owner == None || destination == None
