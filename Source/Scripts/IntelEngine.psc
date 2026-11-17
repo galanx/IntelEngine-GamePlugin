@@ -587,6 +587,8 @@ Int Function StorylineReward(Int id, Int playerLevel) Global Native
 Int Function StorylineOpenIdFor(Actor owner) Global Native
 ; The base form of an item by its name (the item index), None when there is no such item.
 Form Function ResolveItemByName(String itemName) Global Native
+; An item this actor carries named exactly so (any case), else None: any mod's "Ale" counts, "Pale Ale" does not.
+Form Function FindItemNamedExactly(Actor akActor, String itemName) Global Native
 
 ; Flip the most recent RecordStoryDispatch entry to REJECTED with a short
 ; reason. Called from any early-return path after RecordStoryDispatch.
