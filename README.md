@@ -87,6 +87,17 @@ A living political system where 9 factions (configurable) scheme, trade, and wag
 - **Political awareness** — NPCs know about recent political events and react to them in conversation
 - **In-game dashboard** (Magelight UI recommended, PrismaUI fallback) with a Politics tab showing all faction relations, active wars, and player standings
 
+### Part 4 — The Living World (4.0)
+
+People you know get on with their lives while you are away:
+
+- **Unfinished business** — NPCs ask things of you in conversation (find someone, bring an item, take them somewhere, speak with someone for them). The journal keeps each request with a marker, the reward is fixed when it is asked, and the request can change course as you talk. How it ended is remembered, and heard of in their hold.
+- **Followers left behind** live lives of their own: work at an inn, an adventure, a trip, home for a while, and you can come upon them later.
+- **A director that waits for a reason** — each candidate is judged on their own memories; nobody comes without a real reason of their own, and moments wait for a good time (arriving in a town, waking up, leaving a dungeon).
+- **Group travel** — "Lydia, Uthgerd, wait for me at the Bannered Mare" sends them together.
+
+See [The Living World](#the-living-world-40) below. At "Classic" everything stays as in 3.8.
+
 **One political timeline per playthrough:** `IntelEngine-<id>.db` is one database shared by all saves in that playthrough, not a separate database per save. Loading an earlier save permanently removes later political events, wars, battles and standing history, and re-opens wars that ended after that save (`CleanupFutureEvents`). To keep a later timeline, back up the database and its `-wal`/`-shm` companions with the game closed before loading an earlier save; the `.ess`/`.skse` pair alone does not preserve it.
 
 **Political Engine bridge (3.8.0, optional, off by default):** switch on "Political Engine integration" in the MCM (Faction politics), on the dashboard's Settings tab or on SkyrimNet's plugin settings page (`politics.pe_integration` in `settings.yaml`). With it on, Political Engine API v3 supplies public campaign news and current-owner district sides to the Political DM. Initial attachment and loads do not replay news. “PE reactions move relations” in MCM/dashboard defaults on; off still records tagged reactions without their relation/player-standing deltas. IE's own politics, decay and battles remain independent. Existing user `settings.yaml` is preserved; the new key is `politics.pe_reactions_move_relations`.
@@ -448,7 +459,34 @@ Ten story types, each individually toggleable via MCM:
 
 **Background events in SkyrimNet History — implemented, pending live acceptance:** persistent `intel_social` and `intel_story` schemas categorize executed NPC interactions, gossip exchanges and story/seek/informant outcomes. Matching generic memories are replaced rather than duplicated; travel proposals, rejections and cooldown blocks do not emit these types. SkyrimNet's existing automatic-audience distance/configuration filters still apply, so off-screen registration does not guarantee History retention. Politics remains in IntelEngine's Politics tab: SkyrimNet currently has no History-only sink excluded from NPC prompts/memory.
 
+At the living-world levels (4.0, see below) the Dungeon Master no longer chooses from one prompt holding every candidate. Each candidate is first judged on their own, from their own memories, through SkyrimNet's decision model when one is set up: how strong a reason of their own they have to act now, and which kind of moment fits. The code picks one, and the Dungeon Master writes that one moment. Nobody with a real reason means no moment.
+
 Every event injects facts into NPC bios that persist and influence all future dialogue. Message and quest courier facts/memories are recorded only after arrival passes the travel rejection checks; rejected pending quests do not publish quest facts or repetition history. The Dungeon Master prompt lists only enabled story types and guards long-absence seek-player guidance accordingly. Anti-repetition, type balancing, and per-NPC cooldowns keep stories varied and meaningful.
+
+---
+
+## The Living World (4.0)
+
+Six settings under "Living world" (SkyrimNet's plugin settings page, the MCM's Stories page and the dashboard) decide how much of it you get:
+
+| Setting | Choices | Default |
+|---|---|---|
+| How alive the world is | Classic (as before 4.0), Rumors (the world moves on and you hear about it), Lives (followers you left behind also live lives of their own) | Lives |
+| How often something happens | Calm (about one notable moment every two game days), Normal (one a game day), Lively (two a game day) | Normal |
+| Interruptions at bad moments | Never, Only when urgent, Realistic: whether someone may turn up during a fight, a conversation, a scene or a menu | Only when urgent |
+| NPCs of running quests may move | Never, For important reasons, Freely. Only quests with an objective in your journal count; the target of an objective you have open never moves | For important reasons |
+| A follower told to wait waits (days) | 1–120 | 30 |
+| A follower left behind moves on after (days) | 1–60 | 7 |
+
+**Moments wait for a good time.** Arriving in a town or an inn, coming home, coming out of a dungeon and waking up are the moments the director looks for; the old clock remains as a fallback, paced the same way.
+
+**Unfinished business.** A request made in conversation (`AskPlayerForHelp`) opens an objective under Miscellaneous, "Unfinished Business", with a marker: find someone, bring an item, take them somewhere, speak with someone for them. A meeting arranged in conversation is one too. At most six are open, never two from one person. The journal watches for the deed (the person found, the item in your pack, the place reached, you back with them) and closes it: they pay what they offered, the item changes hands, and they remember it. You can turn a request down (`PlayerTurnsDownRequest`). While it is open, the one who asked can call it off, give more time, need it sooner, offer more gold or want something else (`ChangeWhatIAsked`); the one it was about can send an answer back through you or come along (`SendWordBack`). How it ended is heard of in the asker's hold.
+
+**Followers left behind.** At "Lives", a follower you dismissed starts a life of their own after a while: work at an inn of the hold, an adventure at a dungeon (sometimes with another former follower), a trip to a town, or home for a while. Every step happens where you cannot see it; they remember it, people may have heard of it, and when you come upon them they notice you. Taking them back ends it at once.
+
+**Public pleas.** Ordinary people where you are can cry out for help to everyone around, then come over with the offer.
+
+**Group travel and places.** Travel takes up to three companions who walk together at the leader's pace. Destinations can be places named in SkyrimNet: your own marks, a content pack's places, another mod's travel markers.
 
 ---
 

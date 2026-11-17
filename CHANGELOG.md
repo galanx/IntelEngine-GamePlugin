@@ -1,6 +1,47 @@
 # Changelog
 
-## 3.8.2 — 2026-11-14
+## 4.0.0 — unreleased
+
+The living world, by Galanx. People you know get on with their lives while you are away, ask things of you that the journal keeps, and come back to what is still open between you. Six new settings under "Living world" decide how much of it you get; at "Classic" everything stays as it was in 3.8.
+
+### The living world
+- "How alive the world is": Classic (as before 4.0), Rumors (the world moves on and you hear about it), Lives (the default: followers you left behind also live lives of their own).
+- Moments wait for a good time: arriving in a town or an inn, coming home, coming out of a dungeon, waking up. "How often something happens" sets about one notable moment every two game days (Calm), every game day (Normal) or twice a game day (Lively). The old clock is still there as a fallback and is paced the same way.
+- "Interruptions at bad moments": whether someone may turn up during a fight, a conversation, a scene or a menu (Never, Only when urgent, Realistic).
+- "NPCs of running quests may move": whether people in a quest you are on may travel for a story (Never, For important reasons, Freely). Only a quest with an objective in your journal counts, so the many quests that run from the start of a game no longer hold their people. The target of an objective you have open never moves.
+- Road encounters no longer appear in plain view: the traveller is placed while unseen, farther spots are tried first, and the last resort is behind you.
+
+### How the director chooses
+- Each candidate is judged on their own, from their own memories only: how strong a reason of their own they have to act now, and which kind of moment fits. Then the code picks one, and the dungeon master writes that one moment. Without a real reason nobody comes. With SkyrimNet's decision model set up, the judging runs there; otherwise the dialogue model does it. At Classic the single prompt of 3.8 decides, as before.
+- After a game day and a half without a moment, a smaller reason may bring a gentle one (a visit, a word passed on, a message). Nobody is at the centre of two moments within two game days unless it is pressing, and someone chosen whose moment never went out rests for half a game day instead of being asked about again on every round.
+- Candidates are ranked by your bond with them, how long you have been apart, who has been left out lately, and whether they are in your hold.
+- Ordinary people right where you are (in a town, a settlement or an inn) can ask for help in public: they cry out to everyone around, then come over with the offer.
+- The random encounters are drawn from the people of the hold you are in, at most one stranger from elsewhere. Before, the same three were taken every time (the orcs of Largashbur while you were in Whiterun).
+- Someone held by a scene (a bard performing) is not sent anywhere until it ends.
+
+### Unfinished business
+- What someone asks of you is kept in the journal under Miscellaneous, "Unfinished Business", with its own objective and marker: a meeting, or a request (find someone, bring an item, take them somewhere, speak with someone for them). At most six are open, never two from the same person.
+- NPCs ask in conversation (the new action AskPlayerForHelp) and you can turn them down (PlayerTurnsDownRequest). The watch sees when it is done: you found them, the item is in your pack, you spoke with them, you arrived together, you came back. Done, they pay what they offered, the item changes hands, and they remember it. Refused, never done or too late, they remember that too.
+- A request can change course in conversation: the one who asked can call it off, give you two more days, need it sooner, offer more gold (at most three times the offer) or want another person, item or place. The journal follows. The one it was about can send an answer back through you, or come along to see the one who asked.
+- The reward is fixed when the request is made, and the one who asked knows the sum, the time left, and afterwards that it was paid and is settled.
+- How a request ended is heard of in the asker's hold ("Hulda asked Prisoner to bring her Ale, and Prisoner refused."), found when the talk turns to it.
+- A meeting arranged in conversation is a journal entry with a marker on the spot until the waiting time is over.
+- Items are found by name across load orders and languages: sorting tags ("[Drink] Nord Mead", "Drink - Ale"), words turned round ("Ingot - Iron"), and the plainest item of a vaguer word ("Mead") all match; part of a word never does.
+
+### Followers you left behind
+- At "Lives", a follower you dismissed starts a life of their own after a while (7 days by default; 30 for one you told to wait, once their follower mod lets them go): work at an inn of the hold, an adventure at a dungeon (now and then with another former follower), a trip to a town, home for a while.
+- Each step happens only where you cannot see it. They remember it, people of the holds concerned may have heard of it, and their own prompt says where their life stands. When you come upon them they notice you. Taking them back, an errand or a story ends the step at once.
+- Hirelings like Jenassa take part too: the game used to forget them once they walked into a part of the world that was not loaded, so their life never began.
+
+### Getting about
+- Travel takes companions: "Lydia, Uthgerd, wait for me at the Bannered Mare" sends both, walking together at the leader's pace (at most three). When you arrive, the leader greets you once for the group.
+- NPCs can be sent to places named in SkyrimNet: your own marks, a content pack's places, another mod's travel markers. A room word ("the kitchen") means a room in their own building.
+- "The Drunken Huntsman" and "Drunken Huntsman" are the same place. A location's marker that the game data puts inside another building is no longer used: everyone sent to the Drunken Huntsman used to wait in Belethor's shop next door.
+- Asking someone to "fetch Olfina from the Bannered Mare" brings Olfina to you; it used to send them to the inn to wait.
+- A fetch could finish twice when two checks saw the arrival at the same moment ("Jenassa brought Ysolda" twice). It finishes once.
+- Arriving where you already are, an NPC is announced as arriving "where you are", not "together with" you.
+- After a meeting is over, the NPC takes a new task again. Asked to wait somewhere else, Elrindir agreed and then stood where he was.
+
 
 One timer fix, and the save converter moves to its own download. The DLL and ESP are unchanged from 3.8.1; four scripts changed (Core, Schedule, StoryEngine, Battle). Install over 3.8.0 or 3.8.1; saves and settings carry over.
 
