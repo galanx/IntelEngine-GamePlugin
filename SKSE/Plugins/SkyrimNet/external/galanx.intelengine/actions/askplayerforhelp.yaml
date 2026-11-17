@@ -1,0 +1,55 @@
+customCategory: intel_communication
+name: AskPlayerForHelp
+description: >
+  Ask {{ player.name }} for real help with something you need: to find a person, to bring you an item, to take
+  you somewhere, or to speak with someone for you.
+
+  Use ONLY when you yourself truly need it now and have just asked {{ player.name }} for it in this conversation,
+  in your own words. It goes into {{ player.name }}'s journal with a marker, so the person, the item or the place
+  must be real and named exactly as they are called.
+
+  Do NOT use it for small talk, for something {{ player.name }} asked of you, or while something you asked of
+  {{ player.name }} before is not done yet.
+
+questEditorId: IntelEngine_Threads
+scriptName: IntelEngine_Threads
+executionFunctionName: AskPlayerForHelp
+
+parameterMapping:
+  - type: speaker
+    name: akNPC
+    description: You (the one asking)
+  - type: dynamic
+    name: helpKind
+    description: >
+      Exactly one of: find_person (find someone and tell you where they are), bring_item (bring you an item),
+      escort_me (take you to a place), deliver_word (go and speak with someone for you).
+  - type: dynamic
+    name: subject
+    description: >
+      For find_person and deliver_word: the person's name, exactly as they are called (e.g. "Ysolda").
+      For bring_item: the item's name (e.g. "Ale", "Iron Dagger"). For escort_me: "none".
+  - type: dynamic
+    name: place
+    description: >
+      For escort_me: where you want to be taken (a town, an inn or a landmark, e.g. "The Bannered Mare").
+      Otherwise: "none".
+
+eligibilityRules:
+  - conditions:
+      - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+      - decoratorName: get_intelengine_open_storyline
+        arguments: ["currentActor"]
+        comparisonOperator: "is_empty"
+        expectedValue: ""
+    logicalOperator: "AND"
+    required: true
+
+eventString: "{{ actor.name }} asked {{ player.name }} for help"
+isShortLived: true
+enabled: true
+defaultPriority: 5
+tags: []

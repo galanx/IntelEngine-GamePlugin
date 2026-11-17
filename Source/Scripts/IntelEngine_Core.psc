@@ -481,6 +481,12 @@ Function StoreMeetingOutcome(Actor akNPC, String outcome, String dest)
     StorageUtil.SetFloatValue(akNPC, "Intel_MeetingOutcomeTime", Utility.GetCurrentGameTime())
 
     DebugMsg(akNPC.GetDisplayName() + " meeting outcome: " + outcome + " at " + dest)
+
+    ; 4.0: the meeting storyline in the journal ends the way the meeting went
+    IntelEngine_Threads threads = Quest.GetQuest("IntelEngine_Threads") as IntelEngine_Threads
+    If threads != None
+        threads.OnMeetingOutcome(akNPC, outcome)
+    EndIf
 EndFunction
 
 Function ClearMeetingOutcome(Actor akNPC)

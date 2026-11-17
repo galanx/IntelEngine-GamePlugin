@@ -186,6 +186,13 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will " + meetingDescription + " " + timeDesc)
     Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", condition='" + timeCondition + "')")
 
+    ; 4.0: the meeting goes in the journal ("Meet <name> at <place>") until the waiting time after it is over
+    IntelEngine_Threads threads = Quest.GetQuest("IntelEngine_Threads") as IntelEngine_Threads
+    If threads != None && destRef != None
+        Float waitHours = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 5.0)
+        threads.OpenMeeting(akNPC, destRef, (meetingGameTime - currentGameTime) + waitHours / 24.0)
+    EndIf
+
     RegisterForNextDispatch()
     Return true
 EndFunction
