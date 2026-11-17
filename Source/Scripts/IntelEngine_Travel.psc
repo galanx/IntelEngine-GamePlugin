@@ -186,7 +186,7 @@ EndFunction
 ; MAIN API - GoToLocation
 ; =============================================================================
 
-Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int waitForPlayer = 1, Bool isScheduled = false, String taskOrigin = "SkyrimNet dialogue action")
+Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int waitForPlayer = 1, Bool isScheduled = false, String taskOrigin = "SkyrimNet dialogue action", String companions = "")
     {
     Send an NPC to a destination. Supports both named and semantic locations.
 
@@ -368,7 +368,56 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     Core.RequestTick(Core.UPDATE_INTERVAL)
 
     Core.DebugMsg(akNPC.GetDisplayName() + " traveling to " + destination)
+    If companions != "" && companions != "none"
+        BringCompanions(akNPC, destination, speed, waitForPlayer, taskOrigin, companions)
+    EndIf
     Return true
+EndFunction
+
+Function BringCompanions(Actor leader, String destination, Int speed, Int waitForPlayer, String taskOrigin, String companions)
+    {4.0 group travel: the people named go along to the same spot at the leader's pace, so they walk together.
+    Only people here with the leader and free to go, at most three; each becomes a travel task of its own, so the
+    usual arrival, stuck and off-screen handling applies to every one of them.}
+    String[] names = StringUtil.Split(companions, ",")
+    Actor player = Game.GetPlayer()
+    Int i = 0
+    Int count = 0
+    While i < names.Length && count < 3
+        String who = TrimSpaces(names[i])
+        Actor companion = None
+        If who != "" && who != "none"
+            companion = IntelEngine.FindNPCByNameNear(who, leader)
+        EndIf
+        If companion != None && companion != leader && companion != player && !companion.IsDead() && !companion.IsInCombat() \
+            && companion.GetWorldSpace() == leader.GetWorldSpace() && (!leader.IsInInterior() || companion.GetParentCell() == leader.GetParentCell()) \
+            && companion.GetDistance(leader) <= 2000.0 && Core.FindSlotByAgent(companion) < 0
+            If GoToLocation(companion, destination, speed, waitForPlayer, false, taskOrigin + " (with " + leader.GetDisplayName() + ")")
+                StorageUtil.SetFormValue(companion, "Intel_PartyLeader", leader)
+                count += 1
+            EndIf
+        Else
+            Core.DebugMsg("Group travel: " + who + " does not come along (not here, busy or no such person)")
+        EndIf
+        i += 1
+    EndWhile
+    If count > 0
+        Core.DebugMsg(leader.GetDisplayName() + " sets off for " + destination + " with " + count + " companion(s)")
+    EndIf
+EndFunction
+
+String Function TrimSpaces(String text)
+    Int first = 0
+    Int last = StringUtil.GetLength(text) - 1
+    While first <= last && StringUtil.GetNthChar(text, first) == " "
+        first += 1
+    EndWhile
+    While last >= first && StringUtil.GetNthChar(text, last) == " "
+        last -= 1
+    EndWhile
+    If last < first
+        Return ""
+    EndIf
+    Return StringUtil.Substring(text, first, last - first + 1)
 EndFunction
 
 
