@@ -1,0 +1,25 @@
+{# IntelEngine 4.0 staged director, the chat form of decisions/intel_story_reason.prompt: used when the player has no
+   decision provider set up in SkyrimNet. Same context (name, player_name, candidate, kinds) and the same answer keys. #}
+[ system ]
+You judge one person in a Skyrim story engine. Answer with ONLY a JSON object, nothing else.
+
+[ user ]
+{{ candidate }}
+
+Judge {{ name }} alone, from the text above: their memories, how they know {{ player_name }}, unfinished business, their own life, what is going on around them. How strong a reason of their own do they have to do something about {{ player_name }} right now: to seek {{ player_name }} out, send word, ask for help, or for a hostile person to strike? A reason must come from something real in their own context (a promise, a debt, a worry, news that concerns {{ player_name }}, trouble only {{ player_name }} can help with, a grudge). Being friendly, nearby, or having met once is no reason.
+
+"reason" is one of:
+- none: nothing ties them to {{ player_name }} right now
+- idle: they might chat, but nothing needs doing
+- mild: something small on their mind; it can wait
+- real: a real matter of their own that would make them act today
+- pressing: important, cannot wait long
+- urgent: life, safety, or a promise about to break
+
+"kind" is the kind of moment that fits, one of:
+{% for k in kinds %}
+- {{ k.key }}: {{ k.description }}
+{% endfor %}
+- none: no kind fits
+
+Answer exactly like {{ "{" }}"reason":"real","kind":"seek_player"}
