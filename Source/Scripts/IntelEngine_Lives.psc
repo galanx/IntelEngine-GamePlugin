@@ -43,6 +43,7 @@ EndEvent
 
 Function Tick()
     IntelEngine.LivingWorldTrack()
+    KeepInMemory()
     ; At most a few changes a tick; the DLL plans the next one when the last is done.
     Int done = 0
     Actor npc = IntelEngine.LivingWorldTakeOrder()
@@ -52,6 +53,64 @@ Function Tick()
         IntelEngine.LivingWorldTrack()
         npc = IntelEngine.LivingWorldTakeOrder()
     EndWhile
+EndFunction
+
+Function KeepInMemory()
+    {Former and present followers whose life the DLL keeps a record of are held in this quest's aliases (LifeKeep00
+    and on, IntelEngine.esp by esp/EspBuilder): a hireling's reference is not persistent, and once one walked home into
+    a cell that was not loaded the game let go of them; their record froze at "near the player" and their own life
+    never began (Jenassa, 2026-11-17). A filled alias keeps a reference in memory. Freed when the record lets go.}
+    Int count = GetNumAliases()
+    If count <= 0
+        Return
+    EndIf
+    Actor[] keep = IntelEngine.LivingWorldKeepers(count)
+    Int i = 0
+    While i < count
+        ReferenceAlias slot = GetNthAlias(i) as ReferenceAlias
+        If slot != None
+            Actor held = slot.GetActorReference()
+            If held != None && (held.IsDead() || keep.Find(held) < 0)
+                slot.Clear()
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+    Int k = 0
+    While k < keep.Length
+        Actor npc = keep[k]
+        If npc != None && !IsHeld(npc, count)
+            ReferenceAlias free = FreeAlias(count)
+            If free != None
+                free.ForceRefTo(npc)
+            EndIf
+        EndIf
+        k += 1
+    EndWhile
+EndFunction
+
+Bool Function IsHeld(Actor npc, Int count)
+    Int i = 0
+    While i < count
+        ReferenceAlias slot = GetNthAlias(i) as ReferenceAlias
+        If slot != None && slot.GetActorReference() == npc
+            Return true
+        EndIf
+        i += 1
+    EndWhile
+    Return false
+EndFunction
+
+ReferenceAlias Function FreeAlias(Int count)
+    Int i = 0
+    While i < count
+        ReferenceAlias slot = GetNthAlias(i) as ReferenceAlias
+        If slot != None && slot.GetReference() == None
+            Return slot
+        EndIf
+        i += 1
+    EndWhile
+    Return None
 EndFunction
 
 Function CarryOut(Actor npc)

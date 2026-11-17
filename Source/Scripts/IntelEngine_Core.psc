@@ -1421,7 +1421,10 @@ Bool Function IsDuplicateTask(Actor npc, String taskType, String target)
     ; easily as it cancels (it reacts to the "departed for ..." line); the meeting then never happened and its
     ; entry stayed in the schedule as "dispatched". The schedule's own dispatch clears the old slot first, and
     ; the Director has its own check, so neither comes through here with the meeting flag set.
-    If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1 && FindSlotByAgent(npc) >= 0
+    ; Once they have met the player (the meeting linger), the meeting is over: Elrindir, asked after the
+    ; meeting to go wait elsewhere, agreed and then stood there, his trip refused (2026-11-17).
+    If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1 && FindSlotByAgent(npc) >= 0 \
+        && StorageUtil.GetIntValue(npc, "Intel_MeetingLingering") != 1
         DebugMsg("New " + taskType + " task ignored: " + npc.GetDisplayName() + " is on a scheduled meeting")
         Return true
     EndIf

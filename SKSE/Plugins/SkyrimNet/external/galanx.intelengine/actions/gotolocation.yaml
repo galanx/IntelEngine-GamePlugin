@@ -15,6 +15,10 @@ description: >
   warn someone, or relay information. Use DeliverMessage instead. Examples that are NOT travel:
   "go tell Alvor...", "warn Adrianne...", "let Nazeem know...", "go find Lydia and tell her..."
 
+  DO NOT USE THIS ACTION when the player asks you to bring someone back, even when a place is named:
+  "fetch Olfina from the Bannered Mare", "get Alvor from the forge", "bring Ysolda here from the market"
+  are FetchPerson. The place only says where that person is; you are not asked to stay there.
+
   DESTINATION must be one of these two categories:
 
   A) SEMANTIC KEYWORDS — use ONLY these exact words in English (never translate these keywords):

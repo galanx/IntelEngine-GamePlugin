@@ -2116,7 +2116,33 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
     EndIf
 EndFunction
 
+; Slots whose return is being handled right now, one bit per slot. The proximity watch and the 0.5 s monitoring
+; loop can both see the agent arrive in the same moment; both ran the whole return (the player got "Jenassa
+; brought Ysolda" twice and the history held the errand twice, 2026-11-17). Checked and set before any call that
+; can hand the thread to another one, so it cannot be raced.
+Int ReturningSlots = 0
+
 Function OnReturnedWithTarget(Int slot, Actor agent, Actor target)
+    Int bit = 1
+    Int k = 0
+    While k < slot
+        bit *= 2
+        k += 1
+    EndWhile
+    If (ReturningSlots / bit) % 2 == 1
+        Return
+    EndIf
+    ReturningSlots += bit
+    HandleReturnWithTarget(slot, agent, target)
+    ReturningSlots -= bit
+EndFunction
+
+Function HandleReturnWithTarget(Int slot, Actor agent, Actor target)
+    ; A caller that saw the arrival before the first one finished comes too late: the slot is free already.
+    If !Core.SlotHolds(slot, agent)
+        Core.DebugMsg(agent.GetDisplayName() + " return skipped (slot " + slot + " is no longer theirs)")
+        Return
+    EndIf
     ; Immediately mark slot inactive so the 0.5s monitoring loop doesn't re-enter
     Core.MarkSlotProcessing(slot, agent)
 

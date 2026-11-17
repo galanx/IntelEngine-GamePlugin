@@ -607,6 +607,9 @@ String Function StorylineText(Int id, String field) Global Native
 Function LivingWorldTrack() Global Native
 ; The actor of the change that is out, None when there is none.
 Actor Function LivingWorldTakeOrder() Global Native
+; Followers whose life the record keeps (with the player now or left behind), at most limit: held in the lives
+; quest's aliases so the game keeps them in memory (a hireling's reference is not persistent).
+Actor[] Function LivingWorldKeepers(Int limit) Global Native
 ; 1 move them (their own life goes on somewhere), 2 home, 3 take the package off (back with the player, an errand,
 ; a story), 4 they notice the player
 Int Function LivingWorldOrderKind() Global Native
