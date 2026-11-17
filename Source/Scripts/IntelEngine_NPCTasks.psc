@@ -1177,7 +1177,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
             Return false
         EndIf
     Else
-        destMarkerRef = IntelEngine.ResolveAnyDestination(akAgent, destination)
+        destMarkerRef = Core.ResolveTravelTarget(akAgent, destination)
         If destMarkerRef == None
             Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " does not know where " + destination + " is.")
             Return false

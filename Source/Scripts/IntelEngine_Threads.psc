@@ -468,7 +468,7 @@ Function AskPlayerForHelp(Actor akNPC, String helpKind, String subject, String p
         EndIf
     ElseIf kindLower == "escort_me"
         request = REQ_ESCORT
-        destination = IntelEngine.ResolveAnyDestination(akNPC, place)
+        destination = Core().ResolveTravelTarget(akNPC, place)
         If destination == None
             Core().SendTransientEvent(akNPC, player, "There is no place called " + place + " to be taken to.")
             Return

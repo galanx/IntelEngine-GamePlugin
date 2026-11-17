@@ -164,6 +164,10 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     Float currentGameTime = Utility.GetCurrentGameTime()
     Float hoursUntilMeeting = (meetingGameTime - currentGameTime) * 24.0
     ObjectReference destRef = IntelEngine.ResolveAnyDestination(akNPC, destination)
+    If destRef == None
+        ; A place named in SkyrimNet: its anchor is close enough for the estimate (the trip itself resolves it again).
+        destRef = IntelEngine.ResolveSkyrimNetPlace(akNPC, destination)
+    EndIf
     Float travelHoursEstimate = DEPARTURE_BUFFER_HOURS
     If destRef != None
         Float travelDeadline = IntelEngine.CalculateDeadlineFromDistance(akNPC, destRef, false, 1.0, 12.0)
