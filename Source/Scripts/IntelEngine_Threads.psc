@@ -348,11 +348,15 @@ Function WatchOne(Int id, Actor player)
     If stage == STAGE_RETURN
         If Near(player, owner, 300.0) && Spoke(owner)
             If request == REQ_ITEM
-                Form item = IntelEngine.StorylineItem(id)
-                If item == None || player.GetItemCount(item) <= 0
+                Form asked = IntelEngine.StorylineItem(id)
+                Form held = None
+                If asked != None
+                    held = IntelEngine.FindItemNamedExactly(player, asked.GetName())
+                EndIf
+                If held == None
                     Return                                   ; the item is gone again: not yet
                 EndIf
-                player.RemoveItem(item, 1, false, owner)
+                player.RemoveItem(held, 1, false, owner)
             EndIf
             Report(id, EV_MET)
         EndIf
@@ -367,8 +371,9 @@ Function WatchOne(Int id, Actor player)
             Report(id, EV_TALKED)
         EndIf
     ElseIf request == REQ_ITEM
+        ; Any item of that name counts (two mods may both have an "Ale").
         Form wanted = IntelEngine.StorylineItem(id)
-        If wanted != None && player.GetItemCount(wanted) > 0
+        If wanted != None && IntelEngine.FindItemNamedExactly(player, wanted.GetName()) != None
             Report(id, EV_ACHIEVED)
         EndIf
     ElseIf request == REQ_ESCORT
