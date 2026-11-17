@@ -2264,10 +2264,31 @@ Function PlaceRoadEncounter(Actor npc, String narration, String destination)
         return
     EndIf
 
-    ; Place NPC AHEAD of player (negative distance = forward direction)
-    Float placeDist = Utility.RandomFloat(3000.0, 5000.0)
-    Float[] offset = IntelEngine.GetOffsetBehind(player, -placeDist)
-    npc.MoveTo(player, offset[0], offset[1], 0.0, false)
+    ; Place NPC AHEAD of player (negative distance = forward direction), but never where the player is
+    ; looking: the NPC stays invisible while placed, farther spots are tried, and the last resort is behind
+    ; the player. Before 4.0 the NPC could appear in plain view on an open road.
+    npc.SetAlpha(0.0, false)
+    Bool hidden = false
+    Int attempt = 0
+    While attempt < 4 && !hidden
+        Float placeDist = Utility.RandomFloat(3000.0, 5000.0) + (attempt as Float) * 1000.0
+        Float[] offset = IntelEngine.GetOffsetBehind(player, -placeDist)
+        If attempt == 3
+            offset = IntelEngine.GetOffsetBehind(player, 4000.0)
+        EndIf
+        npc.MoveTo(player, offset[0], offset[1], 0.0, false)
+        Int waited = 0
+        While !npc.Is3DLoaded() && waited < 10
+            Utility.Wait(0.1)
+            waited += 1
+        EndWhile
+        hidden = !Core.PlayerCanSee(npc)
+        attempt += 1
+    EndWhile
+    npc.SetAlpha(1.0, false)
+    If !hidden
+        Debug.Trace("[IntelEngine] StoryEngine: road encounter placed where the player may see it (no hidden spot found)")
+    EndIf
 
     ; Give NPC conversational context
     Core.SendPersistentMemory(npc, npc, npc.GetDisplayName() + " " + narration)
