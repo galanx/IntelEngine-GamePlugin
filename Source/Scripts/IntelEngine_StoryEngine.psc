@@ -2008,6 +2008,14 @@ Function OnDungeonMasterResponse(String response, Int success)
             return
         EndIf
 
+        ; 4.0: someone right here with the player is only offered for a quest (a public plea); any other moment
+        ; would send them off and bring them back in view.
+        If storyType != "quest" && storyType != "seek_player" && storyType != "informant" && npc.GetParentCell() == Game.GetPlayer().GetParentCell()
+            Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " is right here - only a quest (a public plea) fits, not " + storyType)
+            RejectStory(typeWithSub, npcName, narration, "npc already in player's cell")
+            return
+        EndIf
+
         ; Re-validate: reject player-targeted types if NPC ended up in the player's cell
         ; (pool was built seconds ago — player may have moved cells during LLM round-trip)
         If storyType == "seek_player" || storyType == "informant"
@@ -4336,6 +4344,16 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     EndIf
 
     ActiveStoryType = "quest"
+    ; 4.0: someone who is already here does not walk up and whisper: they cry out for help in front of everyone first
+    ; (a public plea), then come to the player, who looks able to help, and make the offer as usual.
+    Actor plPlayer = Game.GetPlayer()
+    If !calmCourier && npc.Is3DLoaded() && npc.GetParentCell() == plPlayer.GetParentCell() && msgContent != ""
+        Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " cries out for help in front of everyone")
+        ; Worded as what drives them to speak, so the line they say is the plea itself (worded as the outburst, it was
+        ; taken as already said and they only reacted to it).
+        SkyrimNetApi.DirectNarration(npc.GetDisplayName() + " turns to everyone around and begs out loud for someone, anyone, to help. What happened: " + msgContent, npc, None)
+        Utility.Wait(4.0)
+    EndIf
     If !DispatchToTarget(npc, Game.GetPlayer(), narration, "story", taskOrigin)
         ; Never set out (no slot after all, or turned away at the player's door). CleanupQuest only
         ; restores a courier who is on the way, so the aggression is put back here.
