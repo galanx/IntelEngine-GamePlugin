@@ -3413,6 +3413,11 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
         SetMaxTasks(numArg as Int)
     ElseIf strArg == "releaseDistance"
         SetReleaseDistance(numArg)
+    ElseIf strArg == "livingWorldLevel" || strArg == "livingWorldInterruptions" || strArg == "livingWorldQuestNpcs" || \
+           strArg == "livingWorldPacing" || strArg == "livingWorldWaitDays" || strArg == "livingWorldLifeDays"
+        If StoryEngine
+            StoryEngine.SetLivingWorldSetting(strArg, numArg)
+        EndIf
     ElseIf strArg == "longAbsenceDays"
         If StoryEngine
             StoryEngine.LongAbsenceDaysConfig = numArg
@@ -4384,6 +4389,12 @@ String Function BuildConfigJson()
 
     If StoryEngine
         json += ",\"longAbsenceDays\":" + StoryEngine.LongAbsenceDaysConfig
+        json += ",\"livingWorldLevel\":" + StoryEngine.LivingWorldLevel
+        json += ",\"livingWorldInterruptions\":" + StoryEngine.LivingWorldInterruptions
+        json += ",\"livingWorldQuestNpcs\":" + StoryEngine.LivingWorldQuestNpcs
+        json += ",\"livingWorldPacing\":" + StoryEngine.LivingWorldPacing
+        json += ",\"livingWorldWaitDays\":" + StoryEngine.LivingWorldWaitDays
+        json += ",\"livingWorldLifeDays\":" + StoryEngine.LivingWorldLifeDays
         json += ",\"maxTravelDays\":" + StoryEngine.MaxTravelDaysConfig
         json += ",\"allowStuckTeleport\":" + BoolToJson(StoryEngine.AllowStuckTeleport)
         json += ",\"dangerZonePolicy\":" + StoryEngine.DangerZonePolicy
@@ -4438,6 +4449,8 @@ String Function BuildConfigJson()
         json += ",\"npc_gossip\":" + BoolToJson(StoryEngine.TypeNPCGossipEnabled)
     Else
         json += ",\"longAbsenceDays\":3,\"maxTravelDays\":1,\"allowStuckTeleport\":true"
+        json += ",\"livingWorldLevel\":2,\"livingWorldInterruptions\":1,\"livingWorldQuestNpcs\":1,\"livingWorldPacing\":1"
+        json += ",\"livingWorldWaitDays\":30,\"livingWorldLifeDays\":7"
         json += ",\"dangerZonePolicy\":1,\"playerHomePolicy\":0"
         json += ",\"holdPolicySeekPlayer\":1,\"holdPolicyInformant\":6,\"holdPolicyRoadEncounter\":0"
         json += ",\"holdPolicyAmbush\":1,\"holdPolicyStalker\":1,\"holdPolicyMessage\":2,\"holdPolicyQuest\":0"

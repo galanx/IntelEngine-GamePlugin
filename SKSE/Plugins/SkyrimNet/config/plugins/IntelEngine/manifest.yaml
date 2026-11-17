@@ -197,6 +197,69 @@ schema:
       defaultValue: "Allow all NPCs"
       category: "Stories"
 
+    # ── Living world ──
+    - name: "How alive the world is"
+      path: "living_world.level"
+      type: "select"
+      description: "Classic: as before 4.0. Rumors: the world moves on while you are away and you hear about it, but followers you left wait where you left them. Lives: followers you left behind and people close to you live their own lives, and you can find them later."
+      options:
+        - "Classic"
+        - "Rumors"
+        - "Lives"
+      defaultValue: "Lives"
+      category: "Living world"
+
+    - name: "Interruptions at bad moments"
+      path: "living_world.interruptions"
+      type: "select"
+      description: "Whether someone may turn up during a fight, a conversation, a scene or a menu: never, only for something urgent, or now and then, as in real life."
+      options:
+        - "Never"
+        - "Only when urgent"
+        - "Realistic"
+      defaultValue: "Only when urgent"
+      category: "Living world"
+
+    - name: "NPCs of running quests may move"
+      path: "living_world.quest_npcs_move"
+      type: "select"
+      description: "Whether NPCs who take part in a running quest may travel or move for a story. The target of an objective you have open never moves."
+      options:
+        - "Never"
+        - "For important reasons"
+        - "Freely"
+      defaultValue: "For important reasons"
+      category: "Living world"
+
+    - name: "How often something happens"
+      path: "living_world.pacing"
+      type: "select"
+      description: "About one notable moment every two game days, every game day, or twice a game day. Moments wait for a good time: arriving in a town or an inn, coming home, leaving a dungeon, waking up."
+      options:
+        - "Calm"
+        - "Normal"
+        - "Lively"
+      defaultValue: "Normal"
+      category: "Living world"
+
+    - name: "A follower told to wait waits (days)"
+      path: "living_world.wait_order_days"
+      type: "float"
+      description: "How long a follower you told to wait keeps waiting before starting a life of their own."
+      defaultValue: 30
+      min: 1
+      max: 120
+      category: "Living world"
+
+    - name: "A follower left behind moves on after (days)"
+      path: "living_world.life_start_days"
+      type: "float"
+      description: "How long a follower you dismissed stays where you left them before starting a life of their own."
+      defaultValue: 7
+      min: 1
+      max: 60
+      category: "Living world"
+
     # ── Stories: how far NPCs travel ──
     - name: "Someone comes to see you"
       path: "stories.reach_seek_player"
