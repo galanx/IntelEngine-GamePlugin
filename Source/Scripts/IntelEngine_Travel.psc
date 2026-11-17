@@ -210,6 +210,8 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
         Core.DebugMsg("GoToLocation: Dead actor")
         Return false
     EndIf
+    ; A trip of one's own (BringCompanions marks a companion again right after this returns).
+    StorageUtil.UnsetFormValue(akNPC, "Intel_PartyLeader")
 
     ; Carriage drivers and children are never sent travelling (see Core.IsUnsuitableTaskAgent).
     If Core.IsUnsuitableTaskAgent(akNPC)
@@ -926,9 +928,11 @@ Function OnArrival(Int slot, Actor npc)
                 ; Scheduled meeting — run the meeting flow (lateness, linger, etc.)
                 OnPlayerArrived(slot, npc)
             ElseIf StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") == 1
-                ; Player-directed travel — arrived with player nearby (traveled together)
+                ; Player-directed travel, the player there when they arrive: maybe they came together, maybe the
+                ; player was there first (Brenuin "arrived together with" a player who had been waiting inside for
+                ; a minute and a half, 2026-11-17). Only what is true either way.
                 Core.SendTaskNarration(npc, npc.GetDisplayName() + " arrived at " \
-                    + destination + " together with " + player.GetDisplayName() + ".", player)
+                    + destination + ", where " + player.GetDisplayName() + " is.", player)
                 If IsStayAtDestination(destination)
                     StartStayAtDestLinger(slot, npc)
                 Else
@@ -1197,7 +1201,14 @@ Function OnPlayerArrived(Int slot, Actor npc)
                 waitHours = (Utility.GetCurrentGameTime() - arrivalTime) * 24.0
             EndIf
 
-            If waitHours > 2.0
+            ; One who came along with someone else's party is not greeted on their own: each member's own
+            ; "arrived where X was waiting" made the leader start the same talk twice (Ysolda offered the same
+            ; deal twice in a row, 2026-11-17). They hear of it; the leader speaks.
+            Actor partyLeader = StorageUtil.GetFormValue(npc, "Intel_PartyLeader") as Actor
+            If partyLeader != None && partyLeader != npc && partyLeader.Is3DLoaded() && partyLeader.GetDistance(npc) < 2000.0
+                Core.SendTransientEvent(npc, player, playerName + " arrived at " + destination + " where " + npcName \
+                    + " was waiting with " + partyLeader.GetDisplayName() + ".")
+            ElseIf waitHours > 2.0
                 Core.SendTaskNarration(npc, playerName + " finally arrived at " \
                     + destination + ". " + npcName + " had been waiting for a long time.", player)
             Else
