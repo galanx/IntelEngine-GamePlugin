@@ -201,7 +201,7 @@ schema:
     - name: "How alive the world is"
       path: "living_world.level"
       type: "select"
-      description: "Classic: as before 4.0. Rumors: the world moves on while you are away and you hear about it, but followers you left wait where you left them. Lives: followers you left behind and people close to you live their own lives, and you can find them later."
+      description: "Classic: as before 4.0. Rumors: the world moves on while you are away and you hear about it, but followers you left wait where you left them. Lives: followers you left behind live lives of their own (work at an inn, an adventure, a trip) and you can come upon them later; people close to you miss you while you are away."
       options:
         - "Classic"
         - "Rumors"
@@ -245,7 +245,7 @@ schema:
     - name: "A follower told to wait waits (days)"
       path: "living_world.wait_order_days"
       type: "float"
-      description: "How long a follower you told to wait keeps waiting before starting a life of their own."
+      description: "How long after you told a follower to wait they start a life of their own, once their follower mod lets them go. While it still holds them, they keep waiting."
       defaultValue: 30
       min: 1
       max: 120

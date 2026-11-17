@@ -318,6 +318,15 @@ Function Maintenance(Bool isFirstLoad = false)
         StoryEngine.RestartMonitoring()
         StoryEngine.StartScheduler()
     EndIf
+    ; 4.0: storylines in the journal keep being watched, and the lives of followers left behind go on.
+    IntelEngine_Threads threads = Quest.GetQuest("IntelEngine_Threads") as IntelEngine_Threads
+    If threads
+        threads.Resume()
+    EndIf
+    IntelEngine_Lives lives = Quest.GetQuest("IntelEngine_Lives") as IntelEngine_Lives
+    If lives
+        lives.Begin()
+    EndIf
     If Politics
         Politics.Maintenance()
     EndIf

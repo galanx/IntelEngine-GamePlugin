@@ -2000,6 +2000,13 @@ Function OnDungeonMasterResponse(String response, Int success)
             RejectStory(typeWithSub, npcName, narration, "hold restriction")
             return
         EndIf
+        ; 4.0: someone in a running quest moves only as "NPCs of running quests may move" allows, and the target of
+        ; an objective the player has open never does (the LLM may ignore the candidate's Quest line).
+        If !IntelEngine.LivingWorldMayMove(npc, storyType)
+            Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " rejected - held by a running quest for " + storyType)
+            RejectStory(typeWithSub, npcName, narration, "held by a running quest")
+            return
+        EndIf
 
         ; Re-validate: reject player-targeted types if NPC ended up in the player's cell
         ; (pool was built seconds ago — player may have moved cells during LLM round-trip)
