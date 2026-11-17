@@ -50,6 +50,15 @@ Float Property SNEAK_TIMEOUT_SECONDS = 300.0 AutoReadOnly
 ; === Configurable (MCM) ===
 Float Property MaxTravelDaysConfig = 1.0 Auto Hidden
 Float Property LongAbsenceDaysConfig = 3.0 Auto Hidden
+
+; 4.0 living world settings, as on SkyrimNet's settings page (indexes of the choices there). The DLL gets them on load
+; and on every change (PushLivingWorldSettings).
+Int Property LivingWorldLevel = 2 Auto Hidden            ; 0 Classic, 1 Rumors, 2 Lives
+Int Property LivingWorldInterruptions = 1 Auto Hidden    ; 0 Never, 1 Only when urgent, 2 Realistic
+Int Property LivingWorldQuestNpcs = 1 Auto Hidden        ; 0 Never, 1 For important reasons, 2 Freely
+Int Property LivingWorldPacing = 1 Auto Hidden           ; 0 Calm, 1 Normal, 2 Lively
+Float Property LivingWorldWaitDays = 30.0 Auto Hidden
+Float Property LivingWorldLifeDays = 7.0 Auto Hidden
 String Property ExcludedTypesConfig = "" Auto Hidden
 Bool Property AllowStuckTeleport = true Auto Hidden
 Int Property DangerZonePolicy = 1 Auto Hidden
@@ -234,6 +243,9 @@ Int Property QUEST_OBJECTIVE_ID = 0 AutoReadOnly
 ; =============================================================================
 
 Function StartScheduler()
+    ; 4.0: the player arriving somewhere that suits a moment (a town, an inn, home, out of a dungeon, waking up)
+    RegisterForModEvent("IntelEngine_Seam", "OnLivingWorldSeam")
+    PushLivingWorldSettings()
     ; StoryEngine asks for the shared game-time timer for Story, NPC and Politics (Core.RequestGameTimeTick
     ; keeps the soonest of its, Schedule's and Battle's requests). Always register the timer even if Story DM is disabled — other systems may be active.
     ; Each system self-gates via its own enabled check.
@@ -762,6 +774,11 @@ Function TickScheduler()
     ArrivalPendingSince = 0.0
 
     If !IsActive
+        ; 4.0: the director paces moments (a budget, a rest after a big one, bad moments). A seam has asked it already.
+        If !SeamApproved && !IntelEngine.LivingWorldMayDeliver(0, false)
+            Core.DebugMsg("Story: TickScheduler - the director holds this clock tick back")
+            return
+        EndIf
         Actor player = Game.GetPlayer()
         If !player.IsInCombat()
             String excludeList = BuildExcludeList(player)
@@ -809,6 +826,57 @@ Function TickScheduler()
 EndFunction
 
 Float ArrivalPendingSince = 0.0
+Bool SeamApproved = false
+
+Function PushLivingWorldSettings()
+    IntelEngine.SetLivingWorldSettings(LivingWorldLevel, LivingWorldInterruptions, LivingWorldQuestNpcs, LivingWorldPacing, \
+        LivingWorldWaitDays, LivingWorldLifeDays)
+EndFunction
+
+Function SetLivingWorldSetting(String settingKey, Float value)
+    {One living-world setting from the settings page, the dashboard or the MCM; the choices clamp to 0..2.}
+    Int choice = value as Int
+    If choice < 0
+        choice = 0
+    ElseIf choice > 2
+        choice = 2
+    EndIf
+    If settingKey == "livingWorldLevel"
+        LivingWorldLevel = choice
+    ElseIf settingKey == "livingWorldInterruptions"
+        LivingWorldInterruptions = choice
+    ElseIf settingKey == "livingWorldQuestNpcs"
+        LivingWorldQuestNpcs = choice
+    ElseIf settingKey == "livingWorldPacing"
+        LivingWorldPacing = choice
+    ElseIf settingKey == "livingWorldWaitDays" && value >= 1.0
+        LivingWorldWaitDays = value
+    ElseIf settingKey == "livingWorldLifeDays" && value >= 1.0
+        LivingWorldLifeDays = value
+    EndIf
+    PushLivingWorldSettings()
+EndFunction
+
+Event OnLivingWorldSeam(String eventName, String strArg, Float numArg, Form sender)
+    {4.0: the player arrived somewhere that suits a moment. If the director lets one land now, the dungeon master
+    looks at once instead of waiting for its clock (at most once a game hour).}
+    If Core == None || !Core.IsStoryEngineEnabled() || IsActive || ArrivalHandling
+        Return
+    EndIf
+    If (Utility.GetCurrentGameTime() - LastStoryTickTime) * 24.0 < 1.0
+        Return
+    EndIf
+    Int seam = numArg as Int
+    If !IntelEngine.LivingWorldMayDeliver(seam, false)
+        Return
+    EndIf
+    Core.DebugMsg("Story: seam " + seam + " - the dungeon master looks now")
+    LastStoryTickTime = 0.0
+    SeamApproved = true
+    TickScheduler()
+    SeamApproved = false
+EndEvent
+
 Int ArrivalPendingGeneration = 0
 
 Function ReleaseStaleStoryNPC()

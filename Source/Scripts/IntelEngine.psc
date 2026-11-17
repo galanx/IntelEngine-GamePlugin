@@ -554,6 +554,16 @@ Function NotifyStoryTypePicked(String storyType) Global Native
 ; entry flips to REJECTED for the next DM tick to see.
 Function RecordStoryDispatch(String storyType, String npcName, String narration) Global Native
 
+; 4.0 living world: may a story moment land now? seam: 0 = the clock, 1 arrived in town, 2 entered an inn,
+; 3 left a dungeon, 4 on the road, 5 woke up, 6 came home, 7 quest done. Always true at the Classic level.
+Bool Function LivingWorldMayDeliver(Int seam, Bool urgent) Global Native
+
+; 4.0 living world settings (indexes as on the settings page): level 0 Classic, 1 Rumors, 2 Lives; interruptions
+; 0 Never, 1 Only when urgent, 2 Realistic; quest NPCs 0 Never, 1 For important reasons, 2 Freely; pacing 0 Calm,
+; 1 Normal, 2 Lively; then the days a follower told to wait keeps waiting and the days before a follower left
+; behind starts a life of their own.
+Function SetLivingWorldSettings(Int level, Int interruptions, Int questNpcs, Int pacing, Float waitDays, Float lifeDays) Global Native
+
 ; Flip the most recent RecordStoryDispatch entry to REJECTED with a short
 ; reason. Called from any early-return path after RecordStoryDispatch.
 Function MarkLastDispatchFailed(String reason) Global Native
