@@ -17,6 +17,10 @@ Study the candidate pool below. Each NPC has a bio, archetype, location, distanc
 {{ candidatePool }}
 
 {# Recent gossip is rendered in the candidatePool by C++ BuildDungeonMasterContext #}
+{% if decided_npc and decided_npc != "" %}
+## Already Decided
+The director has weighed every candidate on their own: {{ decided_npc }} has a real reason of their own to act now, and the moment is a `{{ decided_type }}`. Write exactly that moment, with {{ decided_npc }} as "npc" (or as the sender, where the type sends someone else). Find their reason in their own memories, unfinished business and what is going on, and keep it true to them. Answer "should_act": true.
+{% endif %}
 
 ## Available Story Types
 

@@ -1,0 +1,35 @@
+{# IntelEngine 4.0 staged director: does this one person have a real reason, of their own, to do something with the
+   player right now, and what kind of moment would it be. One request per candidate (StoryDirector.cpp); the code
+   then lets the strongest real reason act (StoryDirectorPick.h). Without a decision provider the same questions go
+   to the chat model (intel_story_reason_chat.prompt).
+
+   Context set by IntelEngine: name, player_name, candidate (their block from the director's context: who they are,
+   where, how well they know the player, their memories, unfinished business with the player, their own life lately,
+   the world around), kinds (the kinds of moment they may be part of now: key, description).
+   The level keys and "none" are the contract with StoryDirectorPick.h; keep them. #}
+[ state candidate ]
+{{ candidate }}
+[ end state ]
+
+[ question reason choice ]
+Judge {{ name }} alone, from `candidate`: their memories, how they know {{ player_name }}, unfinished business, their own life, what is going on around them. How strong a reason of their own do they have to do something about {{ player_name }} right now: to seek {{ player_name }} out, send word, ask for help, or for a hostile person to strike?
+A reason must come from something real in their own context: a promise, a debt, a worry, news that concerns {{ player_name }}, trouble only {{ player_name }} can help with, a grudge. Being friendly, being nearby, or having met once is no reason. Time apart is a reason only together with a bond that would make them miss {{ player_name }}.
+[ criteria ]
+none: Nothing ties them to {{ player_name }} right now.
+idle: They might chat if they ran into {{ player_name }}, but nothing needs doing.
+mild: Something small is on their mind about {{ player_name }}; it can wait.
+real: A real matter of their own that would make them act today.
+pressing: Something important that cannot wait long.
+urgent: Life, safety, or a promise about to break: they act now whatever it costs.
+[ end criteria ]
+[ end question ]
+
+[ question kind choice ]
+If {{ name }} does act, which kind of moment fits their reason best? Only these kinds are possible for them now.
+[ criteria ]
+{% for k in kinds %}
+{{ k.key }}: {{ k.description }}
+{% endfor %}
+none: No kind of moment fits their reason.
+[ end criteria ]
+[ end question ]
