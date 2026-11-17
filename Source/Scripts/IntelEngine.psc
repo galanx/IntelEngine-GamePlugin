@@ -575,7 +575,8 @@ String Function StorylineRefusal(Int kind, Int request, Actor owner) Global Nati
 Bool Function StorylineEvent(Int id, Int eventId) Global Native
 Int[] Function StorylineOpenIds() Global Native
 Int[] Function StorylineOverdue() Global Native
-; field: "slot", "objective" (255 none), "stage", "kind", "request", "importance"; -1 when there is no such storyline
+; field: "slot", "objective" (255 none), "stage", "kind", "request", "importance", "comes" (1: the one it is about goes
+; along with the player), "replied" (1: they sent an answer); -1 when there is no such storyline
 Int Function StorylineField(Int id, String field) Global Native
 Actor Function StorylineOwner(Int id) Global Native
 Actor Function StorylineOther(Int id) Global Native
@@ -585,6 +586,15 @@ Form Function StorylineItem(Int id) Global Native
 String Function StorylineMemory(Int id) Global Native
 Int Function StorylineReward(Int id, Int playerLevel) Global Native
 Int Function StorylineOpenIdFor(Actor owner) Global Native
+; Branches from conversation. CallOff: the one who asked no longer needs it (stage 14). Amend: change 1 more time,
+; 2 hurry, 3 raise the reward (gold = the sum named), 4 a new person, place or item; returns "" when changed, else why
+; not. Reply: the one it is about sends an answer back through the player and/or comes along; "" when recorded.
+Bool Function StorylineCallOff(Int id, String note) Global Native
+String Function StorylineAmend(Int id, Int change, Actor other, Location place, ObjectReference target, Form item, Int gold, String note) Global Native
+String Function StorylineReply(Int id, Actor speaker, String reply, Bool comesAlong) Global Native
+Int Function StorylineAboutId(Actor person) Global Native
+String Function StorylineOtherMemory(Int id) Global Native
+Int Function StorylineOfferedGold(Int id, Int playerLevel) Global Native
 
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.

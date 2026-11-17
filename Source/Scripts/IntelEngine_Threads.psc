@@ -26,6 +26,12 @@ Int Property STAGE_OPEN = 0 AutoReadOnly
 Int Property STAGE_RETURN = 1 AutoReadOnly
 Int Property STAGE_DONE = 10 AutoReadOnly
 Int Property STAGE_FAILED = 13 AutoReadOnly
+Int Property STAGE_WITHDRAWN = 14 AutoReadOnly
+
+Int Property CHANGE_MORE_TIME = 1 AutoReadOnly
+Int Property CHANGE_HURRY = 2 AutoReadOnly
+Int Property CHANGE_REWARD = 3 AutoReadOnly
+Int Property CHANGE_SUBJECT = 4 AutoReadOnly
 
 Int Property EV_ACHIEVED = 1 AutoReadOnly
 Int Property EV_MET = 2 AutoReadOnly
@@ -226,6 +232,12 @@ Function Report(Int id, Int eventId)
     If !IntelEngine.StorylineEvent(id, eventId)
         Return
     EndIf
+    Settle(id, slot, before)
+EndFunction
+
+Function Settle(Int id, Int slot, Int before)
+    {After a change of stage: the objective shown before is done, failed or gone; the next one is shown, or the
+    ending goes to the people in it.}
     Int stage = IntelEngine.StorylineField(id, "stage")
     If slot >= 0 && slot < SLOTS && before >= 0 && before <= 9
         Int index = slot * 10 + before
@@ -249,6 +261,9 @@ Function Ended(Int id, Int stage, Int slot)
     Actor player = Game.GetPlayer()
     If IntelEngine.StorylineField(id, "request") == REQ_ESCORT
         Follow(owner, false)
+    EndIf
+    If IntelEngine.StorylineField(id, "comes") == 1
+        Follow(IntelEngine.StorylineOther(id), false)          ; the one it was about came along: free them again
     EndIf
     String memory = IntelEngine.StorylineMemory(id)
     If owner != None && memory != ""
@@ -494,4 +509,160 @@ EndFunction
 Function PlayerTurnsDownRequest(Actor akNPC)
     {The PlayerTurnsDownRequest action: the player said no to what this NPC asked.}
     Decline(akNPC)
+EndFunction
+
+; ----------------------------------------------------------------------------------------------- branches in talk
+
+Function ChangeWhatIAsked(Actor akNPC, String change, String subject, String place, Int gold, String reason)
+    {The ChangeWhatIAsked action: the one who asked changes it in conversation (calls it off, gives more time, hurries
+    it, raises the reward, wants another person, item or place). The journal and the reward follow; a change that
+    cannot be made is told to the NPC, so the talk stays true.}
+    If akNPC == None || !Enabled()
+        Return
+    EndIf
+    Int id = IntelEngine.StorylineOpenIdFor(akNPC)
+    If id <= 0 || IntelEngine.StorylineField(id, "kind") != KIND_REQUEST
+        Return
+    EndIf
+    Actor player = Game.GetPlayer()
+    String name = akNPC.GetDisplayName()
+    If change == "call_off"
+        Int slot = IntelEngine.StorylineField(id, "slot")
+        Int before = IntelEngine.StorylineField(id, "objective")
+        If IntelEngine.StorylineCallOff(id, reason)
+            Core().NotifyPlayer(name + " no longer needs your help with it.")
+            Settle(id, slot, before)
+        Else
+            Core().SendTransientEvent(akNPC, player, player.GetDisplayName() + " has already done what " + name + " asked, so there is nothing left to call off.")
+        EndIf
+        Return
+    EndIf
+    Int changeId = 0
+    Actor other = None
+    Location newPlace = None
+    ObjectReference target = None
+    Form item = None
+    If change == "more_time"
+        changeId = CHANGE_MORE_TIME
+    ElseIf change == "hurry"
+        changeId = CHANGE_HURRY
+    ElseIf change == "raise_reward"
+        changeId = CHANGE_REWARD
+    ElseIf change == "new_subject"
+        changeId = CHANGE_SUBJECT
+        Int request = IntelEngine.StorylineField(id, "request")
+        If request == REQ_FIND || request == REQ_WORD
+            other = IntelEngine.FindNPCByName(subject)
+            If other == None || other == player || other == akNPC
+                Core().SendTransientEvent(akNPC, player, "There is nobody called " + subject + " to ask " + player.GetDisplayName() + " about.")
+                Return
+            EndIf
+            newPlace = other.GetCurrentLocation()
+        ElseIf request == REQ_ITEM
+            item = IntelEngine.ResolveItemByName(subject)
+            If item == None
+                Core().SendTransientEvent(akNPC, player, "There is no such thing as " + subject + " to ask " + player.GetDisplayName() + " for.")
+                Return
+            EndIf
+        ElseIf request == REQ_ESCORT
+            String goal = place
+            If goal == "" || goal == "none"
+                goal = subject
+            EndIf
+            target = Core().ResolveTravelTarget(akNPC, goal)
+            If target == None
+                Core().SendTransientEvent(akNPC, player, "There is no place called " + goal + " to be taken to.")
+                Return
+            EndIf
+            newPlace = target.GetCurrentLocation()
+        Else
+            Return
+        EndIf
+    Else
+        Return
+    EndIf
+    String why = IntelEngine.StorylineAmend(id, changeId, other, newPlace, target, item, gold, reason)
+    If why != ""
+        Core().DebugMsg("Storylines: " + name + " could not change it: " + why)
+        Core().SendTransientEvent(akNPC, player, "What " + name + " asked of " + player.GetDisplayName() + " stays as it was: " + why + ".")
+        Return
+    EndIf
+    If changeId == CHANGE_MORE_TIME
+        Core().NotifyPlayer(name + " gave you more time.")
+    ElseIf changeId == CHANGE_HURRY
+        Core().NotifyPlayer(name + " needs it within half a day now.")
+    ElseIf changeId == CHANGE_REWARD
+        Int offered = IntelEngine.StorylineOfferedGold(id, player.GetLevel())
+        Core().NotifyPlayer(name + " will give you " + offered + " gold for it.")
+        If gold > offered
+            ; more than three times the first offer: the NPC learns the sum that stands, so the talk stays true
+            Core().SendTransientEvent(akNPC, player, name + " cannot give more than " + offered + " gold for it, and that is what " + player.GetDisplayName() + " will get.")
+        EndIf
+    Else
+        Show(id)                                                ; the journal names the new person, item or place
+    EndIf
+EndFunction
+
+Function SendWordBack(Actor akNPC, String answer, Int comeAlong)
+    {The SendWordBack action: the one a request is about answers through the player, or goes along to see the one
+    who asked. Finding them or speaking with them was the deed, so going back is next.}
+    If akNPC == None || !Enabled()
+        Return
+    EndIf
+    Int id = IntelEngine.StorylineAboutId(akNPC)
+    If id <= 0
+        Return
+    EndIf
+    Actor player = Game.GetPlayer()
+    Actor owner = IntelEngine.StorylineOwner(id)
+    Bool comes = false
+    Bool follows = false
+    If comeAlong > 0
+        If akNPC.IsPlayerTeammate()
+            comes = true                                        ; with the player already
+        ElseIf MayComeAlong(akNPC)
+            comes = true
+            follows = true
+        Else
+            Core().SendTransientEvent(akNPC, player, akNPC.GetDisplayName() + " cannot leave here now to go with " + player.GetDisplayName() + ".")
+        EndIf
+    EndIf
+    Int slot = IntelEngine.StorylineField(id, "slot")
+    Int before = IntelEngine.StorylineField(id, "objective")
+    String why = IntelEngine.StorylineReply(id, akNPC, answer, comes)
+    If why != ""
+        Core().DebugMsg("Storylines: no answer from " + akNPC.GetDisplayName() + ": " + why)
+        Return
+    EndIf
+    If before != OBJ_RETURN
+        Settle(id, slot, before)                                ; found them / spoke with them: go back
+    EndIf
+    String memory = IntelEngine.StorylineOtherMemory(id)
+    If memory != ""
+        Core().SendPersistentMemory(akNPC, player, memory)
+    EndIf
+    String ownerName = "them"
+    If owner != None
+        ownerName = owner.GetDisplayName()
+    EndIf
+    If follows
+        Follow(akNPC, true)
+    EndIf
+    If comes
+        Core().NotifyPlayer(akNPC.GetDisplayName() + " is coming with you to see " + ownerName + ".")
+    Else
+        Core().NotifyPlayer(akNPC.GetDisplayName() + " gave you an answer for " + ownerName + ".")
+    EndIf
+EndFunction
+
+Bool Function MayComeAlong(Actor npc)
+    {Someone may leave with the player only when nothing else holds them: not dead or fighting, not on an
+    IntelEngine errand, not in a scene, and not held by a running quest beyond what the setting allows.}
+    If npc == None || npc.IsDead() || npc.IsInCombat() || npc.GetCurrentScene() != None
+        Return false
+    EndIf
+    If Core().FindSlotByAgent(npc) >= 0
+        Return false
+    EndIf
+    Return IntelEngine.LivingWorldMayMove(npc, "quest")
 EndFunction
