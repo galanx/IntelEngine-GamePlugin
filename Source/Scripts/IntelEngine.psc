@@ -564,6 +564,9 @@ Bool Function LivingWorldMayDeliver(Int seam, Bool urgent) Global Native
 ; behind starts a life of their own.
 Function SetLivingWorldSettings(Int level, Int interruptions, Int questNpcs, Int pacing, Float waitDays, Float lifeDays) Global Native
 
+; 4.0 living world: a story moment really started with this NPC (counted for pacing and rotation). Not for rejections.
+Function LivingWorldMomentDispatched(Actor npc, String storyType) Global Native
+
 ; Flip the most recent RecordStoryDispatch entry to REJECTED with a short
 ; reason. Called from any early-return path after RecordStoryDispatch.
 Function MarkLastDispatchFailed(String reason) Global Native

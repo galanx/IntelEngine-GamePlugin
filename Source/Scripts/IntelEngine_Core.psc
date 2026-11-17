@@ -3828,6 +3828,8 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     ; Route through StoryEngine's actual type handlers (identical to automatic dispatch)
     ; Director skips cooldown/MCM checks intentionally — it's a manual DM override
     Int g = StoryEngine.DispatchGeneration
+    ; 4.0: a moment the player gets all the same, counted for the living world's pacing and rotation
+    IntelEngine.LivingWorldMomentDispatched(npc, storyType)
     If storyType == "seek_player"
         String seekFact = narration
         If StringUtil.Find(narration, Game.GetPlayer().GetDisplayName()) < 0

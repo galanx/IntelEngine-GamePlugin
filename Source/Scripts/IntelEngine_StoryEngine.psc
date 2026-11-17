@@ -2079,6 +2079,7 @@ Function OnDungeonMasterResponse(String response, Int success)
     EndIf
     IntelEngine.NotifyStoryTypePicked(typeWithSub)
     IntelEngine.RecordStoryDispatch(typeWithSub, npcName, narration)
+    IntelEngine.LivingWorldMomentDispatched(npc, storyType)
 
     ; Route by type
     If storyType == "seek_player"
