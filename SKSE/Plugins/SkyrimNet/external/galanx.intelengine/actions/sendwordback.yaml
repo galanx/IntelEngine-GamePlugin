@@ -5,7 +5,8 @@ description: >
   Once {{ player.name }} has told you so, send that person your answer through {{ player.name }}, or go along with
   {{ player.name }} to see them yourself, or both.
 
-  Use ONLY after you have given your answer in your own words in this conversation. Not for small talk.
+  Use it in the same reply in which you give your answer in your own words, or say you will go along. Not for
+  small talk.
 
 questEditorId: IntelEngine_Threads
 scriptName: IntelEngine_Threads

@@ -54,6 +54,9 @@ Float Property WATCH_SECONDS = 2.0 AutoReadOnly
 
 ; Hidden, disabled references that only lend an item's name to the journal ("Recover <item> for <name>").
 ObjectReference[] NameHolders
+; Someone who came along to see the one who asked: the storyline whose arrival they spoke (per slot) and when.
+Int[] ArrivalIds
+Float[] ArrivalAt
 IntelEngine_Core CoreScript
 
 ; ----------------------------------------------------------------------------------------------- opening
@@ -76,6 +79,10 @@ Function Begin()
     EndIf
     If NameHolders.Length != SLOTS
         NameHolders = new ObjectReference[6]
+    EndIf
+    If ArrivalIds.Length != SLOTS
+        ArrivalIds = new Int[6]
+        ArrivalAt = new Float[6]
     EndIf
     RegisterForSingleUpdate(WATCH_SECONDS)
 EndFunction
@@ -368,6 +375,9 @@ Function WatchOne(Int id, Actor player)
         Return
     EndIf
     If stage == STAGE_RETURN
+        If other != None && IntelEngine.StorylineField(id, "comes") == 1 && !BroughtAlongHeard(id, player, owner, other)
+            Return
+        EndIf
         If Near(player, owner, 300.0) && Spoke(owner)
             If request == REQ_ITEM
                 Form asked = IntelEngine.StorylineItem(id)
@@ -413,6 +423,45 @@ Function WatchOne(Int id, Actor player)
     EndIf
 EndFunction
 
+Bool Function BroughtAlongHeard(Int id, Actor player, Actor owner, Actor other)
+    {Someone who came along speaks to the one who asked first, face to face (that is why they came); it counts as met
+    only once the one who asked has answered them. True when the usual rule applies: they are not with the player
+    any more, or their line never came.}
+    Int slot = IntelEngine.StorylineField(id, "slot")
+    If slot < 0 || slot >= SLOTS || ArrivalIds.Length != SLOTS
+        Return true
+    EndIf
+    If ArrivalIds[slot] != id
+        If !Near(other, owner, 600.0) || !Near(player, owner, 800.0)
+            ; Still on the way: wait for them while they keep up with the player; lost on the way, the usual rule.
+            Return !Near(other, player, 2500.0)
+        EndIf
+        ArrivalIds[slot] = id
+        ArrivalAt[slot] = Utility.GetCurrentRealTime()
+        String ownerName = owner.GetDisplayName()
+        String otherName = other.GetDisplayName()
+        String line = otherName + " has come along with " + player.GetDisplayName() + " to see " + ownerName + " in person, and turns to " + ownerName + " to say it face to face."
+        String why = IntelEngine.StorylineText(id, "about")
+        If why != ""
+            line += " What " + ownerName + " had wanted: " + why + "."
+        EndIf
+        String said = IntelEngine.StorylineText(id, "reply")
+        If said != ""
+            line += " What " + otherName + " has to say: " + said
+        EndIf
+        Core().DebugMsg("Storylines: " + otherName + " speaks to " + ownerName + " in person")
+        SkyrimNetApi.DirectNarration(line, other, owner)
+        Return false
+    EndIf
+    Float since = Utility.GetCurrentRealTime() - ArrivalAt[slot]
+    If since < 0.0 || since > 90.0
+        Return true                                             ; the line never came, or the game was restarted
+    EndIf
+    Float otherSaid = IntelEngine.GetSecondsSinceNPCSpoke(other)
+    Float ownerSaid = IntelEngine.GetSecondsSinceNPCSpoke(owner)
+    Return otherSaid >= 0.0 && otherSaid < since && ownerSaid >= 0.0 && ownerSaid < otherSaid
+EndFunction
+
 Bool Function Near(ObjectReference a, ObjectReference b, Float distance)
     {Within this distance in the same space. GetDistance is 0 across worldspaces, so the space is checked first.}
     If a == None || b == None || !a.Is3DLoaded() || !b.Is3DLoaded()
@@ -452,7 +501,7 @@ EndFunction
 
 ; ----------------------------------------------------------------------------------------------- SkyrimNet actions
 
-Function AskPlayerForHelp(Actor akNPC, String helpKind, String subject, String place)
+Function AskPlayerForHelp(Actor akNPC, String helpKind, String subject, String place, String why = "")
     {The AskPlayerForHelp action: the NPC asks the player for something real. The person, item or place must exist;
     otherwise nothing opens and the NPC learns why.}
     If akNPC == None || !Enabled()
@@ -503,7 +552,10 @@ Function AskPlayerForHelp(Actor akNPC, String helpKind, String subject, String p
         days = 1.0
     EndIf
     ; What they asked shows in their bio from now on (get_intelengine_storylines), so no memory is written here.
-    OpenRequest(request, akNPC, other, destination, item, days, 2)
+    Int id = OpenRequest(request, akNPC, other, destination, item, days, 2)
+    If id > 0 && why != "" && why != "none"
+        IntelEngine.StorylineSetAbout(id, why)              ; why it was asked stays known after the talk fades
+    EndIf
 EndFunction
 
 Function PlayerTurnsDownRequest(Actor akNPC)
@@ -648,7 +700,9 @@ Function SendWordBack(Actor akNPC, String answer, Int comeAlong)
     If follows
         Follow(akNPC, true)
     EndIf
-    If comes
+    If comes && follows && akNPC.GetCurrentScene() != None
+        Core().NotifyPlayer(akNPC.GetDisplayName() + " will come with you to see " + ownerName + " once done here.")
+    ElseIf comes
         Core().NotifyPlayer(akNPC.GetDisplayName() + " is coming with you to see " + ownerName + ".")
     Else
         Core().NotifyPlayer(akNPC.GetDisplayName() + " gave you an answer for " + ownerName + ".")
@@ -657,12 +711,20 @@ EndFunction
 
 Bool Function MayComeAlong(Actor npc)
     {Someone may leave with the player only when nothing else holds them: not dead or fighting, not on an
-    IntelEngine errand, not in a scene, and not held by a running quest beyond what the setting allows.}
-    If npc == None || npc.IsDead() || npc.IsInCombat() || npc.GetCurrentScene() != None
+    IntelEngine errand, and not held by a running quest beyond what the setting allows. A scene they are in (an inn
+    chat, a song) only makes them finish it first: the follow package waits under it.}
+    If npc == None || npc.IsDead() || npc.IsInCombat()
         Return false
     EndIf
+    String why = ""
     If Core().FindSlotByAgent(npc) >= 0
+        why = "they are on an IntelEngine errand"
+    ElseIf !IntelEngine.StorylineMayComeAlong(npc)
+        why = "a running quest holds them"
+    EndIf
+    If why != ""
+        Core().DebugMsg("Storylines: " + npc.GetDisplayName() + " cannot come along: " + why)
         Return false
     EndIf
-    Return IntelEngine.LivingWorldMayMove(npc, "quest")
+    Return true
 EndFunction

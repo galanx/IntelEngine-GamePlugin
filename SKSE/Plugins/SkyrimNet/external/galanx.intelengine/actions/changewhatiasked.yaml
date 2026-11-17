@@ -10,7 +10,7 @@ description: >
   raise_reward: you promise more gold for it than you offered.
   new_subject: you now need another person found or spoken with, another item, or another place to be taken to.
 
-  Use ONLY for a change you have just stated in your own words in this conversation. Not for small talk, not when
+  Use it in the same reply in which you state the change in your own words. Not for small talk, not when
   {{ player.name }} refuses (that is PlayerTurnsDownRequest), and not to repeat what is so already.
 
 questEditorId: IntelEngine_Threads
@@ -27,7 +27,7 @@ parameterMapping:
   - type: dynamic
     name: subject
     description: >
-      For new_subject: the new person's or item's name, exactly as they are called (e.g. "Ysolda", "Mead").
+      For new_subject: the new person's or item's name, exactly as they are called (e.g. "Ysolda", "Nord Mead").
       Otherwise "none".
   - type: dynamic
     name: place
