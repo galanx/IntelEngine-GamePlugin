@@ -6,7 +6,7 @@ The living world, by Galanx. People you know get on with their lives while you a
 
 ### The living world
 - "How alive the world is": Classic (as before 4.0), Rumors (the world moves on and you hear about it), Lives (the default: followers you left behind also live lives of their own).
-- Moments wait for a good time: arriving in a town or an inn, coming home, coming out of a dungeon, waking up. "How often something happens" sets about one notable moment every two game days (Calm), every game day (Normal) or twice a game day (Lively). The old clock is still there as a fallback and is paced the same way.
+- Moments wait for a good time: arriving in a town or an inn, coming home, coming out of a dungeon, waking up. Loading a save is not an arrival. "How often something happens" sets about one notable moment every two game days (Calm), every game day (Normal) or twice a game day (Lively). The old clock is still there as a fallback and is paced the same way.
 - "Interruptions at bad moments": whether someone may turn up during a fight, a conversation, a scene or a menu (Never, Only when urgent, Realistic).
 - "NPCs of running quests may move": whether people in a quest you are on may travel for a story (Never, For important reasons, Freely). Only a quest with an objective in your journal counts, so the many quests that run from the start of a game no longer hold their people. The target of an objective you have open never moves.
 - Road encounters no longer appear in plain view: the traveller is placed while unseen, farther spots are tried first, and the last resort is behind you.
@@ -38,8 +38,9 @@ The living world, by Galanx. People you know get on with their lives while you a
 - NPCs can be sent to places named in SkyrimNet: your own marks, a content pack's places, another mod's travel markers. A room word ("the kitchen") means a room in their own building.
 - "The Drunken Huntsman" and "Drunken Huntsman" are the same place. A location's marker that the game data puts inside another building is no longer used: everyone sent to the Drunken Huntsman used to wait in Belethor's shop next door.
 - Asking someone to "fetch Olfina from the Bannered Mare" brings Olfina to you; it used to send them to the inn to wait.
-- A fetch could finish twice when two checks saw the arrival at the same moment ("Jenassa brought Ysolda" twice). It finishes once.
-- Arriving where you already are, an NPC is announced as arriving "where you are", not "together with" you.
+- A fetch, and an arrival, could be handled twice when two checks saw it at the same moment ("Jenassa brought Ysolda" twice, "Uthgerd arrived at Drunken Huntsman" shown twice). Each is handled once.
+- An NPC who arrives where you already are is no longer said to arrive "together with" you, nor, when they come into a room you are across, to find you arriving where they waited. Indoors the scene is told that you were there first; outdoors, only that you are both there.
+- The Travel and Scheduling choices the dialogue model sees now say which is which: setting off now, even to wait somewhere ("go on ahead and wait for me at the inn"), is a trip; a plan is for a set later time. Asked to go ahead and wait, NPCs agreed and then chose neither.
 - After a meeting is over, the NPC takes a new task again. Asked to wait somewhere else, Elrindir agreed and then stood where he was.
 
 

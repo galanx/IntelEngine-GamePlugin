@@ -212,6 +212,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     EndIf
     ; A trip of one's own (BringCompanions marks a companion again right after this returns).
     StorageUtil.UnsetFormValue(akNPC, "Intel_PartyLeader")
+    StorageUtil.UnsetIntValue(akNPC, "Intel_PlayerWasThere")
 
     ; Carriage drivers and children are never sent travelling (see Core.IsUnsuitableTaskAgent).
     If Core.IsUnsuitableTaskAgent(akNPC)
@@ -797,7 +798,28 @@ Function OnProximityArrived(String slotStr)
     CheckForArrival(slot, npc)
 EndFunction
 
+; Slots whose arrival is being handled right now, one bit per slot. The state check below reads Core, and reading
+; another script can hand the thread over: the door step and the 3 s poll both got past it before the first one
+; set the state, so the arrival ran twice and the player was told "Uthgerd arrived at Drunken Huntsman" twice
+; (2026-11-17). This is checked and set before any call that can hand the thread to another one.
+Int ArrivingSlots = 0
+
 Function OnArrival(Int slot, Actor npc)
+    Int bit = 1
+    Int k = 0
+    While k < slot
+        bit *= 2
+        k += 1
+    EndWhile
+    If (ArrivingSlots / bit) % 2 == 1
+        Return
+    EndIf
+    ArrivingSlots += bit
+    HandleArrival(slot, npc)
+    ArrivingSlots -= bit
+EndFunction
+
+Function HandleArrival(Int slot, Actor npc)
     ; Idempotency guard — C++ proximity fast path and Papyrus 3s poll can race.
     ; Only the first caller should run the arrival logic.
     If Core.SlotStates[slot] != 1
@@ -906,11 +928,26 @@ Function OnArrival(Int slot, Actor npc)
     ; the door naturally (no teleport — preserves immersion and approach flow).
     Actor player = Game.GetPlayer()
     Cell playerCell = player.GetParentCell()
+    ; Was the player there when they came? Then they arrive where the player is, however far across the room:
+    ; Jenassa came into the Bannered Mare while the player stood at the bar, walked over, and the scene was told
+    ; "Prisoner arrived at Bannered Mare where Jenassa was waiting" (2026-11-18). 1: indoors, so the player was
+    ; there first (they came in through the door); 2: outdoors, where they may have walked there together.
+    ; Forgotten if the player leaves. ArrivalLine says it.
+    If !isMeetingArrival && !isSelfMotivated && playerCell != None && npc.GetParentCell() == playerCell
+        If playerCell.IsInterior()
+            StorageUtil.SetIntValue(npc, "Intel_PlayerWasThere", 1)
+        ElseIf npc.GetDistance(player) < MEETING_PLAYER_PROXIMITY
+            StorageUtil.SetIntValue(npc, "Intel_PlayerWasThere", 2)
+        EndIf
+    EndIf
     If playerCell != None && playerCell.IsInterior() && npc.GetParentCell() != playerCell
         ObjectReference destRef = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
         If destRef != None
             ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destRef)
             If doorDest != None && doorDest.GetParentCell() == playerCell
+                If !isMeetingArrival && !isSelfMotivated
+                    StorageUtil.SetIntValue(npc, "Intel_PlayerWasThere", 1)   ; inside the building they came to
+                EndIf
                 ; Unlock the door so the NPC can walk through it
                 IntelEngine.SetHomeDoorAccessForCell(playerCell.GetFormID(), true)
                 StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", playerCell.GetFormID())
@@ -930,9 +967,8 @@ Function OnArrival(Int slot, Actor npc)
             ElseIf StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") == 1
                 ; Player-directed travel, the player there when they arrive: maybe they came together, maybe the
                 ; player was there first (Brenuin "arrived together with" a player who had been waiting inside for
-                ; a minute and a half, 2026-11-17). Only what is true either way.
-                Core.SendTaskNarration(npc, npc.GetDisplayName() + " arrived at " \
-                    + destination + ", where " + player.GetDisplayName() + " is.", player)
+                ; a minute and a half, 2026-11-17). Only what is true.
+                Core.SendTaskNarration(npc, ArrivalLine(npc, destination), player)
                 If IsStayAtDestination(destination)
                     StartStayAtDestLinger(slot, npc)
                 Else
@@ -945,6 +981,19 @@ Function OnArrival(Int slot, Actor npc)
             Return
         EndIf
     EndIf
+EndFunction
+
+String Function ArrivalLine(Actor npc, String destination)
+    {The scene line for an NPC who arrives where the player already is. Indoors the player was there first, and it
+    is said in so many words: "arrived at the Drunken Huntsman, where Prisoner is" was read as the player coming
+    second (Brenuin: "Got here before you, like I said", 2026-11-18). Outdoors they may have walked there together,
+    so it says only that both are there.}
+    String npcName = npc.GetDisplayName()
+    String playerName = Game.GetPlayer().GetDisplayName()
+    If StorageUtil.GetIntValue(npc, "Intel_PlayerWasThere") == 1
+        Return npcName + " arrived at " + destination + ". " + playerName + " was already there."
+    EndIf
+    Return npcName + " and " + playerName + " are both at " + destination + " now."
 EndFunction
 
 Function ComeThroughDoor(Actor npc)
@@ -1103,6 +1152,9 @@ Function CheckWaiting(Int slot, Actor npc)
             Return  ; Don't timeout while player is nearby
         ElseIf !comingThroughDoor
             ; Player left the area — stop approaching and return to destination sandbox
+            If player.GetParentCell() != npc.GetParentCell() || !npc.Is3DLoaded()
+                StorageUtil.UnsetIntValue(npc, "Intel_PlayerWasThere")   ; when they come back, it is they who arrive
+            EndIf
             If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
                 StopApproachingPlayer(npc)
                 ; Restore sandbox at destination (not player)
@@ -1208,6 +1260,8 @@ Function OnPlayerArrived(Int slot, Actor npc)
             If partyLeader != None && partyLeader != npc && partyLeader.Is3DLoaded() && partyLeader.GetDistance(npc) < 2000.0
                 Core.SendTransientEvent(npc, player, playerName + " arrived at " + destination + " where " + npcName \
                     + " was waiting with " + partyLeader.GetDisplayName() + ".")
+            ElseIf StorageUtil.GetIntValue(npc, "Intel_PlayerWasThere") > 0
+                Core.SendTaskNarration(npc, ArrivalLine(npc, destination), player)
             ElseIf waitHours > 2.0
                 Core.SendTaskNarration(npc, playerName + " finally arrived at " \
                     + destination + ". " + npcName + " had been waiting for a long time.", player)
