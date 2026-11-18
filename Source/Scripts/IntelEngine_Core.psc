@@ -1662,6 +1662,16 @@ Bool Function OwnsPackagesOf(Actor npc)
     If NPCTasks && NPCTasks.HoldsActor(npc)
         Return true
     EndIf
+    ; A road meeting of a venture (IntelEngine_Quests) gives its people packages without a task slot; the sweep took
+    ; Jenassa's and Vilkas' off on the road (2026-11-18). Its mark is trusted while the venture is live, and for a
+    ; little while after it ended (they walk off and are let go once out of sight); a mark left behind stops counting.
+    Int venture = StorageUtil.GetIntValue(npc, "Intel_RoadVenture", 0)
+    If venture > 0
+        Int phase = IntelEngine.QuestField(venture, "phase")
+        If phase == 0 || phase == 1 || Utility.GetCurrentGameTime() - StorageUtil.GetFloatValue(npc, "Intel_RoadVentureAt", 0.0) < 0.1
+            Return true
+        EndIf
+    EndIf
     Return false
 EndFunction
 

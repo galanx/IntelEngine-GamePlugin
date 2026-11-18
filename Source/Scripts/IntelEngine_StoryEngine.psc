@@ -1091,6 +1091,13 @@ Function OnNPCInteractionResponse(String response, Int success)
     EndIf
 
     ; Check cooldown for BOTH before applying either (avoid partial cooldown reset)
+    ; Someone a quest has out on the road (a venture's ally or companion resting by the road, a giver on the way) is
+    ; not free for a social call: the NPC social engine sent Ugor off to visit Hilde while he waited by the road with
+    ; Jenassa for the player (2026-11-18).
+    If IntelEngine.QuestInvolves(npc1) || IntelEngine.QuestInvolves(npc2) || StorageUtil.GetIntValue(npc1, "Intel_RoadVenture", 0) > 0 || StorageUtil.GetIntValue(npc2, "Intel_RoadVenture", 0) > 0
+        Core.DebugMsg("NPC DM: dropped - " + npc1.GetDisplayName() + " or " + npc2.GetDisplayName() + " is on a quest's errand")
+        Return
+    EndIf
     If !CheckNPCSocialCooldown(npc1) || !CheckNPCSocialCooldown(npc2)
         Core.DebugMsg("NPC DM: " + npc1.GetDisplayName() + " or " + npc2.GetDisplayName() + " on social cooldown")
         return
@@ -1190,7 +1197,7 @@ Bool Function DispatchNPCSocial(Actor npc, Actor target, String narration, Strin
     ; Not someone who is already in a task (as its agent or as the one being fetched), in another story
     ; role, with the player, or never sent on errands: they got a second slot and a jog override on top of
     ; what they were doing. The meeting then counts as having happened off-screen, as with no free slot.
-    If slot >= 0 && (Core.FindSlotByActor(npc) >= 0 || HoldsActor(npc) || Core.IsFollowingPlayer(npc) || Core.IsUnsuitableTaskAgent(npc))
+    If slot >= 0 && (Core.FindSlotByActor(npc) >= 0 || HoldsActor(npc) || Core.IsFollowingPlayer(npc) || Core.IsUnsuitableTaskAgent(npc) || IntelEngine.QuestInvolves(npc))
         Core.DebugMsg("NPC Social: " + npc.GetDisplayName() + " is not free to walk over")
         Core.ReleaseSlotClaim(slot)
         slot = -1

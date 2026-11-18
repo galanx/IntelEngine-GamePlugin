@@ -607,6 +607,16 @@ String Function StorylineText(Int id, String field) Global Native
 ; 16 the ally died, 17 lapsed. Every step is a fact the DLL reads from the game; the scripts show and place.
 Int Function QuestPlanFor(Actor giver) Global Native
 Int Function QuestPlanVenture(Actor ally) Global Native
+; A venture where a former follower already is on an adventure of their own life (met at the dungeon).
+Int Function QuestPlanVentureHere(Actor ally) Global Native
+; Spots ahead of the player where people stand, along the way (dx, dy) they are going (0, 0: the way they face).
+ObjectReference[] Function QuestSpotsAhead(Float dx, Float dy) Global Native
+; Points on the ground ahead (the navmesh, roads first): x, y, z triples, best first.
+Float[] Function QuestGroundAhead(Float dx, Float dy) Global Native
+; The planned venture this actor is the ally or companion of, 0 = none.
+Int Function QuestVentureOf(Actor actor) Global Native
+; A planned quest ends before it was taken on: 12 declined, 15 went alone, 17 nothing came of it.
+Bool Function QuestEndPlanned(Int id, Int ending) Global Native
 Bool Function QuestAccept(Int id) Global Native
 Bool Function QuestDecline(Int id) Global Native
 Int[] Function QuestLapse() Global Native
@@ -630,6 +640,13 @@ Function QuestApplyTitles() Global Native
 Function QuestVenturePlaced(Int id) Global Native
 ; Test hook: who a venture's ally travels with (0 by chance, 1 a follower type never travelled with, 2 another former follower, 3 alone).
 Function QuestDebugForceCompanion(Int mode) Global Native
+; A venture's companion who could not be put beside the ally drops out of it (before the meeting only).
+Function QuestDropCompanion(Int id) Global Native
+; Part of a live quest: a giver on the way, a venture's ally or companion. Other systems leave them be.
+Bool Function QuestInvolves(Actor akActor) Global Native
+; Makes them the player's follower (join) or lets them go: SeverActions when installed, else SkyrimNet's follow. The
+; system's name, "" when none could be called.
+String Function QuestFollower(Actor npc, Bool join) Global Native
 
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.
