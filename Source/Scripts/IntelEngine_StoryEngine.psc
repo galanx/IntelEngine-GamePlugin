@@ -1895,6 +1895,57 @@ Bool Function DispatchQuestOffer(Actor giver, Int questId)
     Return true
 EndFunction
 
+Bool Function DispatchArcOffer(Actor asker, Int arcId)
+    {4.0 story arcs (IntelEngine_Arcs.DebugArc, the director): the asker of an arc the engine planned comes to the
+    player as a story visitor does (seek_player), and the arc keeper makes the offer once their say is over. False
+    when they cannot come now; the plan is then dropped.}
+    If asker == None || arcId <= 0
+        Return false
+    EndIf
+    String narration = IntelEngine.ArcText(arcId, "narration")
+    String why = ""
+    If IsActive || ArrivalHandling
+        why = "another story visitor is on the way"
+    ElseIf asker.IsDead() || asker.IsInCombat() || asker.IsPlayerTeammate() || narration == ""
+        why = "they cannot come now"
+    ElseIf IntelEngine.IsHighStatusNPC(asker) || IntelEngine.IsJarl(asker)
+        why = "a high-status NPC does not travel"
+    ElseIf !IntelEngine.LivingWorldMayMove(asker, "quest")
+        why = "held by a running quest"
+    EndIf
+    If why != ""
+        Core.DebugMsg("Arcs: " + asker.GetDisplayName() + " cannot bring arc " + arcId + ": " + why)
+        Return false
+    EndIf
+    IntelEngine.NotifyStoryTypePicked("quest")
+    IntelEngine.RecordStoryDispatch("quest", asker.GetDisplayName(), narration)
+    IntelEngine.LivingWorldMomentDispatched(asker, "quest")
+    StorageUtil.SetIntValue(asker, "Intel_ArcOffer", arcId)
+    Core.InjectFact(asker, narration)
+    ActiveStoryType = "seek_player"
+    If !DispatchToTarget(asker, Game.GetPlayer(), narration, "story")
+        StorageUtil.UnsetIntValue(asker, "Intel_ArcOffer")
+        Return false
+    EndIf
+    Core.DebugMsg("Arcs: " + asker.GetDisplayName() + " sets out to ask the player (arc " + arcId + ")")
+    Return true
+EndFunction
+
+Function SignalArcAskerArrived(Actor npc)
+    {The asker of a story arc reached the player (IntelEngine_Arcs.OnAskerArrived makes the offer).}
+    Int arcOffered = StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0)
+    If arcOffered <= 0
+        Return
+    EndIf
+    StorageUtil.UnsetIntValue(npc, "Intel_ArcOffer")
+    Int handle = ModEvent.Create("IntelEngine_ArcAskerArrived")
+    If handle
+        ModEvent.PushForm(handle, npc)
+        ModEvent.PushInt(handle, arcOffered)
+        ModEvent.Send(handle)
+    EndIf
+EndFunction
+
 Function RejectStory(String typeWithSub, String npcName, String narration, String reason)
     IntelEngine.RecordStoryDispatch(typeWithSub, npcName, narration)
     IntelEngine.MarkLastDispatchFailed(reason)
@@ -3547,6 +3598,7 @@ Function OnStoryNPCArrived()
                 ModEvent.Send(handle)
             EndIf
         EndIf
+        SignalArcAskerArrived(ActiveStoryNPC)
     EndIf
     If ActiveStoryType == "seek_player" || ActiveStoryType == "informant"
         Core.SendStoryEvent("intel_story", ActiveStoryNPC, Game.GetPlayer(), ActiveStoryNPC.GetDisplayName() + " arrived to speak with " + Game.GetPlayer().GetDisplayName())

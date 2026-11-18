@@ -331,6 +331,10 @@ Function Maintenance(Bool isFirstLoad = false)
     If quests
         quests.Begin()
     EndIf
+    IntelEngine_Arcs arcs = Quest.GetQuest("IntelEngine_ArcKeeper") as IntelEngine_Arcs
+    If arcs
+        arcs.Begin()
+    EndIf
     If Politics
         Politics.Maintenance()
     EndIf

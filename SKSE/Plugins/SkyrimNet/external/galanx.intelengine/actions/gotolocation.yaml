@@ -109,6 +109,10 @@ eligibilityRules:
         arguments: ["currentActor"]
         comparisonOperator: "is_empty"
         expectedValue: ""
+      - decoratorName: get_intelengine_arc
+        arguments: ["currentActor"]
+        comparisonOperator: "is_empty"
+        expectedValue: ""
     logicalOperator: "AND"
     required: true
 
