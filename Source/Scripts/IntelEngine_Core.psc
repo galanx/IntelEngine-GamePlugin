@@ -327,6 +327,10 @@ Function Maintenance(Bool isFirstLoad = false)
     If lives
         lives.Begin()
     EndIf
+    IntelEngine_Quests quests = Quest.GetQuest("IntelEngine_QuestKeeper") as IntelEngine_Quests
+    If quests
+        quests.Begin()
+    EndIf
     If Politics
         Politics.Maintenance()
     EndIf

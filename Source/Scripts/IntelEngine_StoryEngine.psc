@@ -1850,6 +1850,44 @@ EndFunction
 
 ; Record the rejected dispatch FIRST so the failure flag lands on it, not on the previous entry (or an empty history).
 ; Rejections return before the success-path record and stale/racing callbacks never reach here, so nothing double-records.
+Bool Function DispatchQuestOffer(Actor giver, Int questId)
+    {4.0 quests (IntelEngine_Quests.OnQuestOffer): the giver of a quest the engine planned comes to the player as a
+    story visitor does (seek_player), and the keeper makes the offer once their first line is said. False when they
+    cannot come now; the plan is then dropped.}
+    If giver == None || questId <= 0
+        Return false
+    EndIf
+    String narration = IntelEngine.QuestText(questId, "narration")
+    String why = ""
+    If IsActive || ArrivalHandling
+        why = "another story visitor is on the way"
+    ElseIf giver.IsDead() || giver.IsInCombat() || giver.IsPlayerTeammate() || narration == ""
+        why = "they cannot come now"
+    ElseIf IntelEngine.IsHighStatusNPC(giver) || IntelEngine.IsJarl(giver)
+        why = "a high-status NPC does not travel"
+    ElseIf !IntelEngine.LivingWorldMayMove(giver, "quest")
+        why = "held by a running quest"
+    ElseIf !ApplyCooldownCheck(giver)
+        why = "on story cooldown"
+    EndIf
+    If why != ""
+        Core.DebugMsg("Quests: " + giver.GetDisplayName() + " cannot bring quest " + questId + ": " + why)
+        Return false
+    EndIf
+    IntelEngine.NotifyStoryTypePicked("quest")
+    IntelEngine.RecordStoryDispatch("quest", giver.GetDisplayName(), narration)
+    IntelEngine.LivingWorldMomentDispatched(giver, "quest")
+    StorageUtil.SetIntValue(giver, "Intel_QuestOffer", questId)
+    Core.InjectFact(giver, narration)
+    ActiveStoryType = "seek_player"
+    If !DispatchToTarget(giver, Game.GetPlayer(), narration, "story")
+        StorageUtil.UnsetIntValue(giver, "Intel_QuestOffer")
+        Return false
+    EndIf
+    Core.DebugMsg("Quests: " + giver.GetDisplayName() + " sets out to offer quest " + questId)
+    Return true
+EndFunction
+
 Function RejectStory(String typeWithSub, String npcName, String narration, String reason)
     IntelEngine.RecordStoryDispatch(typeWithSub, npcName, narration)
     IntelEngine.MarkLastDispatchFailed(reason)
@@ -2886,6 +2924,18 @@ Function TriggerRoadEncounterGreeting(Actor npc)
     Utility.Wait(0.5)
     npc.SetLookAt(player)
     Core.SendTaskNarration(npc, narration, player)
+    ; 4.0 quests: a former follower met on the way to a venture asks the player along once their line is said
+    ; (IntelEngine_Quests.OnGiverArrived makes the offer).
+    Int questOffered = StorageUtil.GetIntValue(npc, "Intel_QuestOffer", 0)
+    If questOffered > 0
+        StorageUtil.UnsetIntValue(npc, "Intel_QuestOffer")
+        Int handle = ModEvent.Create("IntelEngine_QuestGiverArrived")
+        If handle
+            ModEvent.PushForm(handle, npc)
+            ModEvent.PushInt(handle, questOffered)
+            ModEvent.Send(handle)
+        EndIf
+    EndIf
 
     ; Mark as interacted + store time for max-linger fallback
     StorageUtil.SetIntValue(npc, "Intel_FakeEncounterInteracted", 1)
@@ -3478,6 +3528,18 @@ Function OnStoryNPCArrived()
             StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_ArrivalTopic")
         EndIf
         Core.SendTaskNarration(ActiveStoryNPC, ActiveNarration, Game.GetPlayer())
+        ; 4.0 quests: a giver who came to offer a quest the engine planned; the keeper makes the offer once their
+        ; first line is said (IntelEngine_Quests.OnGiverArrived).
+        Int questOffered = StorageUtil.GetIntValue(ActiveStoryNPC, "Intel_QuestOffer", 0)
+        If questOffered > 0
+            StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_QuestOffer")
+            Int handle = ModEvent.Create("IntelEngine_QuestGiverArrived")
+            If handle
+                ModEvent.PushForm(handle, ActiveStoryNPC)
+                ModEvent.PushInt(handle, questOffered)
+                ModEvent.Send(handle)
+            EndIf
+        EndIf
     EndIf
     If ActiveStoryType == "seek_player" || ActiveStoryType == "informant"
         Core.SendStoryEvent("intel_story", ActiveStoryNPC, Game.GetPlayer(), ActiveStoryNPC.GetDisplayName() + " arrived to speak with " + Game.GetPlayer().GetDisplayName())
