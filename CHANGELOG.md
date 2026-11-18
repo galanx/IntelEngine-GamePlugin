@@ -44,7 +44,7 @@ The living world, by Galanx. People you know get on with their lives while you a
 - With SeverActions, whose own descriptions send "going ahead to a place" to a "Journeys" entry that SeverActions does not have, the Travel choice now says it is that entry.
 - Times counted in words or past twelve are understood: "in two hours", "two hours from now", "in twenty minutes", "in 24 hours". They used to be read as no time at all, and a meeting then fell back to 6 PM ("in two hours" at dawn was a meeting that evening).
 - After a meeting is over, the NPC takes a new task again. Asked to wait somewhere else, Elrindir agreed and then stood where he was. The meeting is kept in their own history as done, not as "attempted".
-- An inn's bard sent somewhere stops his songs and goes. The game's bard quest plays one song after another while you are in the inn, and IntelEngine ended a song only when it caught him between two; while he sang he counted as talking, so the checks that would free him stood down. Mikael, sent to a meeting, played on past it.
+- An inn's bard sent somewhere stops his songs and goes. The game's bard quest plays one song after another while you are in the inn, and IntelEngine ended a song only when it caught him between two; while he sang he counted as talking, so the checks that would free him stood down. Mikael, sent to a meeting, played on past it. (A song SkyrimNet's own bard action has him perform, and the inn's conversations SkyrimNet keeps him in, still hold him until they end.)
 - A late NPC who still reached the meeting place before you is no longer said to have found you "already waiting": the scene is told you came later still.
 
 
