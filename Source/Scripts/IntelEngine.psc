@@ -651,6 +651,28 @@ Bool Function StopCasualFollow(Actor akActor) Global Native
 ; system's name, "" when none could be called.
 String Function QuestFollower(Actor npc, Bool join) Global Native
 
+; 4.0 story arcs (ArcBridge; docs/STORY_ARCS.md). IntelEngine_Arcs.psc offers, shows and carries out; the DLL decides.
+; Plans an arc of this pattern (0 whichever fits, 1 a thief, 2 a feud, 3 a murder) with this asker: its id, 0 when none.
+Int Function ArcPlan(Actor asker, Int pattern) Global Native
+Bool Function ArcAccept(Int id) Global Native
+Bool Function ArcDecline(Int id) Global Native
+; Planned arcs never offered in time (their ids).
+Int[] Function ArcLapse() Global Native
+Int[] Function ArcOpenIds() Global Native
+; Reads the facts and moves the arc on: bits 0-7 nodes done now, 8-15 the ending, 16-19 the effect, 20-23 its role,
+; 24 a prop goes in place now, 25 the choice may be offered, 26 the hand-over may be offered. 0 = nothing.
+Int Function ArcAdvance(Int id) Global Native
+; The choice popup's answer (the index of the node's options, -1 not now).
+Bool Function ArcAnswer(Int id, Int option) Global Native
+; The prop of the current hand-over goes from the player to who the node gives it to.
+Bool Function ArcHandOver(Int id) Global Native
+; The prop was put at this reference (a container, or the floor beside it).
+Function ArcPlanted(Int id, Int prop, ObjectReference akAt) Global Native
+Int Function ArcField(Int id, String field) Global Native
+Form Function ArcForm(Int id, String field) Global Native
+String Function ArcText(Int id, String field) Global Native
+Function ArcApplyTitles() Global Native
+
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.
 Function LivingWorldTrack() Global Native

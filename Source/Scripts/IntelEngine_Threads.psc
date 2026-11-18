@@ -516,6 +516,13 @@ Function AskPlayerForHelp(Actor akNPC, String helpKind, String subject, String p
         Core().SendTransientEvent(akNPC, player, player.GetDisplayName() + " is already going with " + akNPC.GetDisplayName() + " on this venture; there is nothing more to ask.")
         Return
     EndIf
+    ; Part of a story arc or a quest of the engine (asking for help with it now, or in it): that story is the request,
+    ; with its own journal and popup. Ysolda, come to ask about her stolen circlet, also opened a second request for
+    ; the same circlet (2026-11-18).
+    If IntelEngine.QuestInvolves(akNPC)
+        Core().DebugMsg("Storylines: " + akNPC.GetDisplayName() + " is part of a story of the engine; no request opened")
+        Return
+    EndIf
     Int request = 0
     Actor other = None
     ObjectReference destination = None
