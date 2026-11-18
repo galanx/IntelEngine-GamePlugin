@@ -16,6 +16,11 @@ Int Property EFFECT_PAYGOLD = 1 AutoReadOnly
 Int Property EFFECT_JAIL = 2 AutoReadOnly
 Int Property EFFECT_SHAME = 3 AutoReadOnly
 Int Property EFFECT_PLAYERPAYS = 5 AutoReadOnly
+Int Property KIND_BRAWL = 5 AutoReadOnly
+; The game's own brawl (FavorDialogueScript.Brawl): a story event with the opponent, quest DGIntimidateQuest, stage 15
+; when the opponent goes down, 180 when the player does, 150 when it turned into a real fight.
+Int Property BRAWL_EVENT = 0x00047AE2 AutoReadOnly
+Int Property BRAWL_QUEST = 0x00047AE6 AutoReadOnly
 Int Property SIGNAL_PLANT = 16777216 AutoReadOnly    ; 1 << 24
 Int Property SIGNAL_CHOOSE = 33554432 AutoReadOnly   ; 1 << 25
 Int Property SIGNAL_GIVE = 67108864 AutoReadOnly     ; 1 << 26
@@ -207,6 +212,84 @@ Function ShowStep(Int id, Quest jq)
         jq.SetObjectiveCompleted(objective, false)
     EndIf
     jq.SetObjectiveDisplayed(objective, true, true)
+    If IntelEngine.ArcField(id, "kind") == KIND_BRAWL && StorageUtil.GetFloatValue(self, "Intel_ArcFightFrom" + id, -1.0) < 0.0
+        ; From now on a brawl with them counts, whoever started it (this popup, or their own challenge in talk).
+        StorageUtil.SetFloatValue(self, "Intel_ArcFightFrom" + id, Utility.GetCurrentGameTime())
+    EndIf
+EndFunction
+
+; ----------------------------------------------------------------------------------------------- fights
+
+Function OfferFight(Int id)
+    {A feud to settle with fists: the rival has just talked with the player, who may start the fight now. It is the
+    game's own brawl (no weapons, no deaths, the guards look on).}
+    Actor rival = IntelEngine.ArcForm(id, "who") as Actor
+    Actor player = Game.GetPlayer()
+    If rival == None
+        Return
+    EndIf
+    Quests().WaitForSilence(rival, 15.0)
+    ; Already fighting: the game's brawl, or one of SeverActions (their own model may accept a challenge in talk,
+    ; as Hulda did twice): no second fight is offered on top of it.
+    Quest brawl = Game.GetFormFromFile(BRAWL_QUEST, "Skyrim.esm") as Quest
+    If (brawl != None && brawl.IsRunning()) || rival.IsInCombat() || player.IsInCombat() || StorageUtil.GetFormValue(rival, "SeverBrawl_Opponent") != None
+        IntelEngine.ArcAnswer(id, -1)
+        Return
+    EndIf
+    If Core().ShowChoice(rival.GetDisplayName(), "Story", IntelEngine.ArcText(id, "fight"), "Put up your fists", "Not now") != "Put up your fists"
+        IntelEngine.ArcAnswer(id, -1)
+        Return
+    EndIf
+    IntelEngine.ArcAnswer(id, -1)
+    If rival.IsDead() || rival.IsInCombat() || player.IsInCombat()
+        Return
+    EndIf
+    Keyword fight = Game.GetFormFromFile(BRAWL_EVENT, "Skyrim.esm") as Keyword
+    If fight == None
+        Return
+    EndIf
+    Core().SendTaskNarration(rival, "is challenged by " + player.GetDisplayName() + " to settle the quarrel with fists, here and now", player)
+    fight.SendStoryEvent(None, rival, None, 0, 0)
+    Core().DebugMsg("Arcs: #" + id + " brawl with " + rival.GetDisplayName() + " started")
+EndFunction
+
+Function WatchBrawl(Int id)
+    {Whether the feud's fight is over and who won: the game's brawl quest with them as the opponent, or a brawl of
+    SeverActions (its result is left on both fighters), begun since this fight became the step.}
+    Actor rival = IntelEngine.ArcForm(id, "who") as Actor
+    Actor player = Game.GetPlayer()
+    Float from = StorageUtil.GetFloatValue(self, "Intel_ArcFightFrom" + id, -1.0)
+    If rival == None || from < 0.0
+        Return
+    EndIf
+    Int result = 0
+    Quest brawl = Game.GetFormFromFile(BRAWL_QUEST, "Skyrim.esm") as Quest
+    If brawl != None && brawl.IsRunning()
+        ReferenceAlias opponent = brawl.GetAlias(0) as ReferenceAlias
+        If opponent != None && opponent.GetActorRef() == rival
+            If brawl.GetStageDone(15)
+                result = 1
+            ElseIf brawl.GetStageDone(180) || brawl.GetStageDone(150)
+                result = -1
+            EndIf
+        EndIf
+    EndIf
+    If result == 0 && StorageUtil.GetFloatValue(rival, "SeverBrawl_LastEndTime", -1.0) >= from
+        Int reason = StorageUtil.GetIntValue(rival, "SeverBrawl_LastEndReason", 0)
+        Actor winner = StorageUtil.GetFormValue(rival, "SeverBrawl_LastWinner") as Actor
+        Actor loser = StorageUtil.GetFormValue(rival, "SeverBrawl_LastLoser") as Actor
+        If (reason == 1 || reason == 2 || reason == 6) && winner == player && loser == rival
+            result = 1
+        ElseIf (reason == 1 || reason == 2 || reason == 6) && winner == rival && loser == player
+            result = -1
+        ElseIf reason == 4 && (winner == player || loser == player)
+            result = -1
+        EndIf
+    EndIf
+    If result != 0
+        IntelEngine.ArcBrawl(id, result)
+        StorageUtil.UnsetFloatValue(self, "Intel_ArcFightFrom" + id)
+    EndIf
 EndFunction
 
 ; ----------------------------------------------------------------------------------------------- the watch
@@ -238,6 +321,9 @@ Function Watch()
 EndFunction
 
 Function WatchOne(Int id)
+    If IntelEngine.ArcField(id, "kind") == KIND_BRAWL
+        WatchBrawl(id)
+    EndIf
     Int r = IntelEngine.ArcAdvance(id)
     If r == 0
         Return
@@ -257,6 +343,8 @@ Function WatchOne(Int id)
     EndIf
     If change != 0 || skipped > 0
         Settle(id, change, jq)
+    ElseIf Math.LogicalAnd(r, SIGNAL_CHOOSE) != 0 && IntelEngine.ArcField(id, "kind") == KIND_BRAWL
+        OfferFight(id)
     ElseIf Math.LogicalAnd(r, SIGNAL_CHOOSE) != 0
         OfferChoice(id, jq)
     ElseIf Math.LogicalAnd(r, SIGNAL_GIVE) != 0
@@ -270,7 +358,7 @@ Function Settle(Int id, Int r, Quest jq)
     {Nodes done now: their objectives completed, the log of the branch taken; the effect; then the next node, or the
     ending.}
     Int done = Math.LogicalAnd(r, 255)
-    Int ending = Math.LogicalAnd(Math.RightShift(r, 8), 255)
+    Int ending = Math.LogicalAnd(Math.RightShift(r, 8), 31)   ; bit 15: stayed on the step
     Int effect = Math.LogicalAnd(Math.RightShift(r, 16), 15)
     Int role = Math.LogicalAnd(Math.RightShift(r, 20), 15)
     Int nodes = IntelEngine.ArcField(id, "nodes")
@@ -290,6 +378,10 @@ Function Settle(Int id, Int r, Quest jq)
     EndIf
     If effect > 0
         DoEffect(id, effect, role)
+        Int effect2 = IntelEngine.ArcField(id, "effect2")
+        If effect2 > 0
+            DoEffect(id, effect2, IntelEngine.ArcField(id, "effect2role"))
+        EndIf
     EndIf
     If ending > 0
         Ended(id, ending, jq)
@@ -359,11 +451,13 @@ Function OfferChoice(Int id, Quest jq)
     String question = IntelEngine.ArcText(id, "question")
     String choice = ""
     If n == 3
-        If Core().ShowChoice(title, "Story", IntelEngine.ArcText(id, "ask"), "Yes", "Not now") != "Yes"
-            IntelEngine.ArcAnswer(id, -1)
-            Return
+        ; The popup's Escape is its last button, the do-nothing answer: three real answers never sit on one popup
+        ; (Escape chose "Stay out of it", and would have accused whoever was listed third). The third waits behind
+        ; "Something else", beside "Not now".
+        choice = Core().ShowChoice(title, "Story", question, shown[0], shown[1], "Something else")
+        If choice == "Something else"
+            choice = Core().ShowChoice(title, "Story", question, shown[2], "Not now")
         EndIf
-        choice = Core().ShowChoice(title, "Story", question, shown[0], shown[1], shown[2])
     ElseIf n == 2
         choice = Core().ShowChoice(title, "Story", question, shown[0], shown[1], "Not now")
     Else

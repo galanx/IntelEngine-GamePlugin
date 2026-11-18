@@ -666,6 +666,8 @@ Int Function ArcAdvance(Int id) Global Native
 Bool Function ArcAnswer(Int id, Int option) Global Native
 ; The prop of the current hand-over goes from the player to who the node gives it to.
 Bool Function ArcHandOver(Int id) Global Native
+; How the brawl of the arc's fight ended: 1 the player won, -1 lost (or it turned into a real fight).
+Bool Function ArcBrawl(Int id, Int result) Global Native
 ; The prop was put at this reference (a container, or the floor beside it).
 Function ArcPlanted(Int id, Int prop, ObjectReference akAt) Global Native
 Int Function ArcField(Int id, String field) Global Native
