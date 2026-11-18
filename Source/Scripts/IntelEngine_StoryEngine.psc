@@ -1931,6 +1931,37 @@ Bool Function DispatchArcOffer(Actor asker, Int arcId)
     Return true
 EndFunction
 
+Bool Function DispatchArcVisit(Actor who, Int arcId, String narration)
+    {A tale's visit step (IntelEngine_Arcs.Visit): its person comes to the player as a story visitor does
+    (seek_player); once there they have their say, and the talk is the step. False when they cannot come now (the
+    DLL asks again later).}
+    If who == None || arcId <= 0 || narration == ""
+        Return false
+    EndIf
+    String why = ""
+    If IsActive || ArrivalHandling
+        why = "another story visitor is on the way"
+    ElseIf who.IsDead() || who.IsInCombat() || who.IsPlayerTeammate()
+        why = "they cannot come now"
+    ElseIf IntelEngine.IsHighStatusNPC(who) || IntelEngine.IsJarl(who)
+        why = "a high-status NPC does not travel"
+    ElseIf !IntelEngine.LivingWorldMayMove(who, "quest")
+        why = "held by a running quest"
+    EndIf
+    If why != ""
+        Core.DebugMsg("Arcs: " + who.GetDisplayName() + " cannot visit for arc " + arcId + ": " + why)
+        Return false
+    EndIf
+    IntelEngine.RecordStoryDispatch("seek_player", who.GetDisplayName(), narration)
+    Core.InjectFact(who, narration)
+    ActiveStoryType = "seek_player"
+    If !DispatchToTarget(who, Game.GetPlayer(), narration, "story")
+        Return false
+    EndIf
+    Core.DebugMsg("Arcs: " + who.GetDisplayName() + " sets out to see the player (arc " + arcId + ")")
+    Return true
+EndFunction
+
 Function SignalArcAskerArrived(Actor npc)
     {The asker of a story arc reached the player (IntelEngine_Arcs.OnAskerArrived makes the offer).}
     Int arcOffered = StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0)

@@ -682,6 +682,10 @@ String Function ArcText(Int id, String field) Global Native
 Function ArcApplyTitles() Global Native
 ; Test hook: the next planned arc's thief, rival or killer is this person (when they may be cast).
 Function ArcDebugCast(Actor akActor) Global Native
+; Tales: the two holders whose names the journal log of a slot shows (the story so far, the ending), told again after
+; every load; and a tale asked of the dungeon master for this asker (its answer sends IntelEngine_ArcOffer).
+Function ArcSetHolders(Int slot, ObjectReference akTale, ObjectReference akClose) Global Native
+Bool Function ArcRequestTale(Actor akAsker) Global Native
 
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.

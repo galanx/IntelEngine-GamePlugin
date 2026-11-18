@@ -1,0 +1,27 @@
+{# IntelEngine tales: which of a story step's prepared outcomes a conversation turned into (TaleAuthor.cpp SendJudge).
+   Context: npc_name, player_name, goal (the step), transcript (the conversation's lines, oldest first), outcomes (key
+   o0..o2, text), allow_none (false once two readings found nothing: the closest outcome must be named). The keys o0,
+   o1, o2 and "none" are the contract with TaleAuthor.cpp. Without a decision provider the chat form answers
+   (intel_tale_turn_chat.prompt). #}
+[ state conversation ]
+{{ player_name }} has been talking with {{ npc_name }}. What {{ player_name }} set out to do: {{ goal }}
+
+{{ transcript }}
+[ end state ]
+
+[ question turn choice ]
+Read the conversation above. Which of these outcomes has it come to, going only by what was actually said?
+{% if allow_none %}
+If none of them has happened yet, answer none.
+{% else %}
+Name the outcome closest to where the conversation ended.
+{% endif %}
+[ criteria ]
+{% for o in outcomes %}
+{{ o.key }}: {{ o.text }}
+{% endfor %}
+{% if allow_none %}
+none: None of these has happened yet; the conversation has not come to it.
+{% endif %}
+[ end criteria ]
+[ end question ]
