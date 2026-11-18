@@ -49,6 +49,7 @@ Float RoadLastD        ; how far they were on the last look, while coming over
 Int RoadStalled        ; looks in a row they got no nearer
 Bool RoadJog           ; the package they come over with now (walk or jog, to re-aim)
 Bool CompanionPending  ; the companion has been told to speak and has not had their say yet
+Bool RoadGreetedAlready ; met at a dungeon: the lives' greeting was their greeting, the meeting does not give another
 Float RoadMetAt        ; when they stopped to talk (real time)
 Float RoadGreetAt      ; when the ally was last given their greeting
 Int RoadGreetTries
@@ -61,6 +62,7 @@ Int Property ROAD_JOINED = 5 AutoReadOnly
 Int Property ROAD_LEAVING = 6 AutoReadOnly
 Int Property PLACED_MET = 16 AutoReadOnly
 Int Property PLACED_INVITED = 32 AutoReadOnly
+Int Property PLACED_ATPLACE = 64 AutoReadOnly
 Int Property ENDING_DECLINED = 12 AutoReadOnly
 Int Property ENDING_LAPSED = 17 AutoReadOnly
 
@@ -441,8 +443,15 @@ EndFunction
 Function ReleaseRoad()
     IntelEngine_Core c = Core()
     If RoadVenture > 0 && c != None
-        LetGo(IntelEngine.QuestForm(RoadVenture, "ally") as Actor, c)
-        LetGo(IntelEngine.QuestForm(RoadVenture, "companion") as Actor, c)
+        Actor ally = IntelEngine.QuestForm(RoadVenture, "ally") as Actor
+        Actor companion = IntelEngine.QuestForm(RoadVenture, "companion") as Actor
+        If Math.LogicalAnd(IntelEngine.QuestField(RoadVenture, "placed"), PLACED_MET) != 0
+            ; They talked with the player just now: their own life does not greet the player again.
+            IntelEngine.LivingWorldMarkGreeted(ally)
+            IntelEngine.LivingWorldMarkGreeted(companion)
+        EndIf
+        LetGo(ally, c)
+        LetGo(companion, c)
     EndIf
     RoadVenture = 0
     RoadState = 0
@@ -610,6 +619,11 @@ Function WatchRoad()
                 c.DebugMsg("Quests: " + ally.GetDisplayName() + " has not had their say yet; the greeting is given again (" + RoadGreetTries + ")")
                 c.SendTaskNarration(ally, IntelEngine.QuestText(id, "roadnarration"), player)
             EndIf
+        ElseIf TalkIsOver(ally, companion) && now - RoadSince >= 25.0 && d <= 800.0 && Math.LogicalAnd(IntelEngine.QuestField(id, "placed"), PLACED_INVITED) == 0
+            ; The talk is over and the player is still standing with them: they ask, as anyone would, rather than
+            ; walk off. At Embershard the player said yes in words while the model chose an action that does not
+            ; exist; Jenassa walked into the mine alone and the venture lapsed (2026-11-18).
+            InviteAlong(ally)
         ElseIf TalkIsOver(ally, companion) && now - RoadSince >= 25.0 || d > 1200.0 || now - RoadSince > 180.0
             ObjectReference goal = Goal(id, ally)
             SetOff(ally, goal, c)
@@ -632,6 +646,8 @@ Function WatchRoad()
         EndIf
         If d > 5000.0
             RoadFar += WATCH_SECONDS
+        Else
+            RoadFar = 0.0
         EndIf
         If c.IsFollowingPlayer(ally) || (companion != None && c.IsFollowingPlayer(companion))
             TakePlayerAlong(ally)
@@ -639,8 +655,10 @@ Function WatchRoad()
             ; The player walks along with them: they turn and ask, as anyone would.
             c.SendTaskNarration(ally, "turns to " + player.GetDisplayName() + ", who has been walking along, and asks whether " + player.GetDisplayName() + " means to come all the way to " + IntelEngine.QuestText(id, "place"), player)
             InviteAlong(ally)
-        ElseIf RoadFar >= 60.0 || !ally.Is3DLoaded()
-            ; They went their way and the player theirs: nothing came of it (nobody asked, nobody refused).
+        ElseIf RoadFar >= 60.0
+            ; They went their way and the player theirs: nothing came of it (nobody asked, nobody refused). A minute
+            ; out of sight or far away, not the moment they step through a door: at a dungeon they go in, and a
+            ; player who follows them inside finds them there.
             IntelEngine.QuestEndPlanned(id, ENDING_LAPSED)
             ReleaseRoad()
         EndIf
@@ -657,11 +675,16 @@ Function Meet(Int id, Actor ally, Actor companion, IntelEngine_Core c)
     IntelEngine.QuestSetPlaced(id, PLACED_MET)
     RoadState = ROAD_TALKING
     RoadSince = Utility.GetCurrentRealTime()
-    RoadMetAt = RoadSince
     RoadGreetAt = RoadSince
     RoadGreetTries = 1
     ally.SetLookAt(player)
-    c.SendTaskNarration(ally, IntelEngine.QuestText(id, "roadnarration"), player)
+    If RoadGreetedAlready
+        ; Met at a dungeon: the lives' greeting started the talk already (RoadMetAt is when it came).
+        RoadGreetedAlready = false
+    Else
+        RoadMetAt = RoadSince
+        c.SendTaskNarration(ally, IntelEngine.QuestText(id, "roadnarration"), player)
+    EndIf
     If companion != None
         CompanionPending = true
         Int handle = ModEvent.Create("IntelEngine_QuestCompanionSpeaks")
@@ -711,14 +734,29 @@ Function MeetHere(Actor npc)
         Return
     EndIf
     IntelEngine.QuestVenturePlaced(id)
-    IntelEngine.QuestSetPlaced(id, PLACED_MET)
+    IntelEngine.QuestSetPlaced(id, PLACED_ATPLACE)
     OnTheRoad(npc, id)
     RoadVenture = id
     RoadHere = true
     RoadSpot = npc as ObjectReference
-    RoadState = ROAD_TALKING
+    ; They noticed the player from as far as 1200 units: they come over first, as on the road, and the lives'
+    ; greeting counts as theirs. Talking at that distance, the meeting took the player for gone and Jenassa walked
+    ; into the mine after 18 seconds (2026-11-18).
+    IntelEngine_Core c = Core()
+    ComeOver(npc, c)
+    Actor companion = IntelEngine.QuestForm(id, "companion") as Actor
+    If companion != None && !companion.IsDead() && companion.Is3DLoaded()
+        OnTheRoad(companion, id)
+        ComeOver(companion, c)
+    EndIf
+    RoadState = ROAD_COMING
     RoadSince = Utility.GetCurrentRealTime()
-    Core().DebugMsg("Quests: " + npc.GetDisplayName() + " met at " + IntelEngine.QuestText(id, "place") + " (venture " + id + ")")
+    RoadMetAt = RoadSince
+    RoadLastD = npc.GetDistance(Game.GetPlayer())
+    RoadStalled = 0
+    RoadJog = false
+    RoadGreetedAlready = true
+    c.DebugMsg("Quests: " + npc.GetDisplayName() + " met at " + IntelEngine.QuestText(id, "place") + " (venture " + id + ")")
 EndFunction
 
 Int Function Asking(Actor akNPC)
@@ -849,6 +887,7 @@ Function LeavePlayer(Int id, Actor npc)
     ElseIf !npc.IsDead()
         IntelEngine.QuestFollower(npc, false)
     EndIf
+    IntelEngine.LivingWorldMarkGreeted(npc)
     WalkOn(npc, c)
     c.DebugMsg("Quests: " + npc.GetDisplayName() + " goes their own way after venture " + id)
 EndFunction
@@ -981,6 +1020,11 @@ EndFunction
 Function DebugStopCasualFollow(Actor npc)
     {Test hook: ends a SeverActions casual follow (the one the test save carries on Olava the Feeble).}
     Core().DebugMsg("Quests: casual follow of " + npc.GetDisplayName() + " ended: " + IntelEngine.StopCasualFollow(npc))
+EndFunction
+
+Function DebugAdventure(Actor npc)
+    {Test hook: the former follower's next life step is an adventure at the nearest dungeon out of the player's sight.}
+    Core().DebugMsg("Quests: test: " + npc.GetDisplayName() + " sent adventuring at '" + IntelEngine.LivingWorldDebugAdventure(npc) + "'")
 EndFunction
 
 Function DebugMeetHere(Actor ally)

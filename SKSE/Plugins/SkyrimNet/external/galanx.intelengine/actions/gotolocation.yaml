@@ -105,6 +105,10 @@ eligibilityRules:
         arguments: ["currentActor"]
         comparisonOperator: "=="
         expectedValue: false
+      - decoratorName: get_intelengine_in_venture
+        arguments: ["currentActor"]
+        comparisonOperator: "is_empty"
+        expectedValue: ""
     logicalOperator: "AND"
     required: true
 
