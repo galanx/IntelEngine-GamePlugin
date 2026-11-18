@@ -43,7 +43,9 @@ The living world, by Galanx. People you know get on with their lives while you a
 - The Travel and Scheduling choices the dialogue model sees now say which is which: setting off now, even to wait somewhere ("go on ahead and wait for me at the inn"), is a trip; a plan is for a set later time. Asked to go ahead and wait, NPCs agreed and then chose neither.
 - With SeverActions, whose own descriptions send "going ahead to a place" to a "Journeys" entry that SeverActions does not have, the Travel choice now says it is that entry.
 - Times counted in words or past twelve are understood: "in two hours", "two hours from now", "in twenty minutes", "in 24 hours". They used to be read as no time at all, and a meeting then fell back to 6 PM ("in two hours" at dawn was a meeting that evening).
-- After a meeting is over, the NPC takes a new task again. Asked to wait somewhere else, Elrindir agreed and then stood where he was.
+- After a meeting is over, the NPC takes a new task again. Asked to wait somewhere else, Elrindir agreed and then stood where he was. The meeting is kept in their own history as done, not as "attempted".
+- An inn's bard sent somewhere stops his songs and goes. The game's bard quest plays one song after another while you are in the inn, and IntelEngine ended a song only when it caught him between two; while he sang he counted as talking, so the checks that would free him stood down. Mikael, sent to a meeting, played on past it.
+- A late NPC who still reached the meeting place before you is no longer said to have found you "already waiting": the scene is told you came later still.
 
 
 One timer fix, and the save converter moves to its own download. The DLL and ESP are unchanged from 3.8.1; four scripts changed (Core, Schedule, StoryEngine, Battle). Install over 3.8.0 or 3.8.1; saves and settings carry over.

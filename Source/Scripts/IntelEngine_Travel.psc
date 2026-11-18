@@ -933,7 +933,7 @@ Function HandleArrival(Int slot, Actor npc)
     ; "Prisoner arrived at Bannered Mare where Jenassa was waiting" (2026-11-18). 1: indoors, so the player was
     ; there first (they came in through the door); 2: outdoors, where they may have walked there together.
     ; Forgotten if the player leaves. ArrivalLine says it.
-    If !isMeetingArrival && !isSelfMotivated && playerCell != None && npc.GetParentCell() == playerCell
+    If !isSelfMotivated && playerCell != None && npc.GetParentCell() == playerCell
         If playerCell.IsInterior()
             StorageUtil.SetIntValue(npc, "Intel_PlayerWasThere", 1)
         ElseIf npc.GetDistance(player) < MEETING_PLAYER_PROXIMITY
@@ -945,7 +945,7 @@ Function HandleArrival(Int slot, Actor npc)
         If destRef != None
             ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destRef)
             If doorDest != None && doorDest.GetParentCell() == playerCell
-                If !isMeetingArrival && !isSelfMotivated
+                If !isSelfMotivated
                     StorageUtil.SetIntValue(npc, "Intel_PlayerWasThere", 1)   ; inside the building they came to
                 EndIf
                 ; Unlock the door so the NPC can walk through it
@@ -1215,7 +1215,13 @@ Function OnPlayerArrived(Int slot, Actor npc)
             ; NPC was significantly late getting to the meeting spot
             outcome = "npc_arrived_late"
             StorageUtil.SetFloatValue(npc, "Intel_MeetingLateHours", npcHoursLate)
-            Core.SendTaskNarration(npc, npcName + " arrived at " + meetDest + " about " + (npcHoursLate as Int) + " hours late. " + playerName + " was already waiting.", player)
+            ; Who was there first, as it happened: Mikael, held three hours by his songs, reached the inn before
+            ; the player did, and the scene was told the player "was already waiting" (2026-11-18).
+            If StorageUtil.GetIntValue(npc, "Intel_PlayerWasThere") > 0
+                Core.SendTaskNarration(npc, npcName + " arrived at " + meetDest + " about " + (npcHoursLate as Int) + " hours late. " + playerName + " was already waiting.", player)
+            Else
+                Core.SendTaskNarration(npc, npcName + " arrived at " + meetDest + " about " + (npcHoursLate as Int) + " hours late, and " + playerName + " came later still.", player)
+            EndIf
             Core.DebugMsg(npcName + ": NPC was " + (npcHoursLate as Int) + "h late to meeting")
         ElseIf playerLateness == "late"
             ; Player is significantly late (beyond grace period)
@@ -1236,6 +1242,9 @@ Function OnPlayerArrived(Int slot, Actor npc)
 
         ; Store structured outcome for prompts
         Core.StoreMeetingOutcome(npc, outcome, meetDest)
+        ; The meeting has happened. A task given during the linger that follows replaced it in the NPC's own
+        ; history as "Attempted a task involving Drunken Huntsman" (Mikael, 2026-11-18): it is done from here.
+        StorageUtil.SetStringValue(npc, "Intel_Result", "player_arrived")
 
         Core.NotifyPlayer(npcName + " met you at " + meetDest)
 
@@ -1357,6 +1366,10 @@ Function CheckIfStuck(Int slot, Actor npc)
     ; by design, not actually stuck. Reset the C++ counter so time spent
     ; talking/fighting doesn't accumulate toward a false stuck trigger.
     ; (A dialogue target alone does not count: SkyrimNet leaves it set for minutes. See Core.IsHeldByTalk.)
+    ; A bard performing counts as talking for the whole song: his songs are ended first.
+    If Core.ReleasePerformingBard(slot, npc)
+        Return
+    EndIf
     If npc.IsInCombat() || Core.IsHeldByTalk(npc)
         IntelEngine.ResetStuckSlot(slot, npc)
         Return
@@ -1519,6 +1532,11 @@ Bool Function CheckMeetingDeparture(Int slot, Actor npc)
     ; departure: the count starts again when they are free. It used to call the meeting off ("could not set
     ; out") fifteen seconds into a conversation that was going on when the hour came.
     ; (Really held by talk, that is: a dialogue target alone says nothing, see Core.IsHeldByTalk.)
+    ; A bard performing counts as talking for the whole song: his songs are ended first.
+    If Core.ReleasePerformingBard(slot, npc)
+        Core.InitializeDepartureTracking(slot, npc)
+        Return false
+    EndIf
     If npc.IsInCombat() || Core.IsHeldByTalk(npc)
         Core.InitializeDepartureTracking(slot, npc)
         Return false
