@@ -602,6 +602,31 @@ Bool Function StorylineSetAbout(Int id, String text) Global Native
 ; field: "about" (why it was asked), "reply" (the answer sent back), "note" (the reason for the last change); "" when none.
 String Function StorylineText(Int id, String field) Global Native
 
+; 4.0 quests (QuestBridge; docs/QUESTS.md in the native plugin). Templates: 1 keepsake, 2 bounty, 3 venture. Phases:
+; 0 planned, 1 open, 2 ended. Endings: 10 done, 11 kept, 12 declined, 13 ignored, 14 the giver died, 15 went alone,
+; 16 the ally died, 17 lapsed. Every step is a fact the DLL reads from the game; the scripts show and place.
+Int Function QuestPlanFor(Actor giver) Global Native
+Int Function QuestPlanVenture(Actor ally) Global Native
+Bool Function QuestAccept(Int id) Global Native
+Bool Function QuestDecline(Int id) Global Native
+Int[] Function QuestLapse() Global Native
+Int[] Function QuestOpenIds() Global Native
+Int Function QuestPlannedFor(Actor giver) Global Native
+; Reads the facts and moves the quest on: (ending * 256) + the bits of the steps done now; 0 = nothing changed.
+Int Function QuestAdvance(Int id) Global Native
+Bool Function QuestMayHandOver(Int id) Global Native
+Bool Function QuestHandOver(Int id) Global Native
+; field: "slot", "step", "steps", "phase", "ending", "template", "truth", "placed", "gold", "openstage", "endstage",
+; "crypt", "objective" (of the current step, -1 none), "objective<n>" and "log<n>" (of step n); -1 when none
+Int Function QuestField(Int id, String field) Global Native
+; form: "giver", "foe", "ally", "companion", "place", "anchor", "item", "holder", "marker" (of the current step)
+Form Function QuestForm(Int id, String field) Global Native
+; text: "stamp", "title", "foename", "narration", "prompt", "memory", "place", "itembase"
+String Function QuestText(Int id, String field) Global Native
+String Function QuestSetFoe(Int id, Actor foe) Global Native
+Function QuestSetPlaced(Int id, Int bits) Global Native
+Function QuestApplyTitles() Global Native
+
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.
 Function LivingWorldTrack() Global Native
