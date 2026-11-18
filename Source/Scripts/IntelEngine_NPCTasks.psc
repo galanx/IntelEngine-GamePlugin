@@ -259,7 +259,7 @@ Function StartTargetLinger(Actor target, Actor agent)
     Core.RemoveIntelPackages(target, false)
 
     ; Phase 1: Walk toward the player
-    Core.ReleaseFromBardHold(target)
+    Core.ReleaseFromBardHold(target, true)
     PO3_SKSEFunctions.SetLinkedRef(target, player as ObjectReference, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
@@ -1897,7 +1897,7 @@ Function BeginReturn(Int slot, Actor agent, Actor target, Actor player)
     ; Target pathfinds to player independently — same priority as agent.
     ; Must use PRIORITY_TRAVEL to override sandbox and other ambient packages.
     ; (Someone fetched from the bard's audience, or the bard himself, would otherwise stay put.)
-    Core.ReleaseFromBardHold(target)
+    Core.ReleaseFromBardHold(target, true)
     PO3_SKSEFunctions.SetLinkedRef(target, player, Core.IntelEngine_TravelTarget)
     If sameCell
         ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
@@ -2347,7 +2347,7 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
     ForgetLinger(target)
 
     ; Both NPCs walk to destination together
-    Core.ReleaseFromBardHold(target)
+    Core.ReleaseFromBardHold(target, true)
     PO3_SKSEFunctions.SetLinkedRef(target, destMarkerRef, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
@@ -2938,6 +2938,11 @@ Bool Function CheckDeparture(Int slot, Actor agent)
     ; departure: the count starts again when they are free. The task used to be called off ("was unable
     ; to carry out the task") fifteen seconds into a conversation that held them where they stood.
     ; (Really held by talk, that is: a dialogue target alone says nothing, see Core.IsHeldByTalk.)
+    ; A bard performing counts as talking for the whole song: his songs are ended first.
+    If Core.ReleasePerformingBard(slot, agent)
+        Core.InitializeDepartureTracking(slot, agent)
+        Return false
+    EndIf
     If agent.IsInCombat() || Core.IsHeldByTalk(agent)
         Core.InitializeDepartureTracking(slot, agent)
         Return false
@@ -2998,6 +3003,10 @@ Function CheckIfStuck(Int slot, Actor npc)
     ; The same while they are speaking: a SkyrimNet conversation sets no dialogue target, so an agent
     ; who stopped to answer was "stuck", narrated as stumbling and, further on, teleported.
     ; (A dialogue target alone does not count: SkyrimNet leaves it set for minutes. See Core.IsHeldByTalk.)
+    ; A bard performing counts as talking for the whole song: his songs are ended first.
+    If Core.ReleasePerformingBard(slot, npc)
+        Return
+    EndIf
     If npc.IsInCombat() || Core.IsHeldByTalk(npc)
         IntelEngine.ResetStuckSlot(slot, npc)
         Return

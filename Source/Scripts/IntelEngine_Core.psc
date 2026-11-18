@@ -753,7 +753,7 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
     ; Someone listening to the bard would stay seated until the song is over, and the bard himself would
     ; go on playing.
     StorageUtil.UnsetIntValue(akAgent, "Intel_BardReleases")
-    ReleaseFromBardHold(akAgent)
+    ReleaseFromBardHold(akAgent, true)
     ; When the task began, in real seconds (CancelCurrentTask: the NPC's own first reaction does not end it).
     StorageUtil.SetFloatValue(akAgent, "Intel_TaskStartedRT", Utility.GetCurrentRealTime())
 
@@ -2146,7 +2146,7 @@ Bool Function ReleaseFromBardAudience(Actor npc)
     Return released
 EndFunction
 
-Bool Function ReleaseBardFromSong(Actor npc)
+Bool Function ReleaseBardFromSong(Actor npc, Bool atTaskStart = false)
     {The inn's own bard is held by the scenes of the vanilla quest BardSongs for as long as the player is in
     the room: he walks to his spot and plays, one piece after another, and a scene beats any package override.
     A bard sent on an errand never left (Mikael in the Bannered Mare, 2026-11-13). The game's own way to free
@@ -2155,30 +2155,61 @@ Bool Function ReleaseBardFromSong(Actor npc)
     If npc == None
         Return false
     EndIf
-    Scene playing = npc.GetCurrentScene()
-    If playing == None
-        Return false
-    EndIf
     If _bardSongsQuest == None
         _bardSongsQuest = Game.GetFormFromFile(0x00074A55, "Skyrim.esm") as Quest
     EndIf
-    If _bardSongsQuest == None || playing.GetOwningQuest() != _bardSongsQuest
+    If _bardSongsQuest == None
         Return false
     EndIf
+    Scene playing = npc.GetCurrentScene()
+    Bool inSong = playing != None && playing.GetOwningQuest() == _bardSongsQuest
     BardSongsScript songs = _bardSongsQuest as BardSongsScript
-    If songs != None
-        songs.StopAllSongs()
+    If !inSong && !(atTaskStart && IsTheInnsBard(songs, npc))
+        Return false
     EndIf
-    If playing.IsPlaying()
+    If songs != None
+        songs.StopAllSongs()    ; also keeps the next piece from starting by itself
+    EndIf
+    If inSong && playing.IsPlaying()
         playing.Stop()          ; a second bard's pieces are not on that list
     EndIf
+    Return inSong || atTaskStart
+EndFunction
+
+Bool Function IsTheInnsBard(BardSongsScript songs, Actor npc)
+    {Is this the bard the game's song quest plays with? Between two pieces, or while he sings a SkyrimNet-voiced
+    song, the game reports no scene for him, and a task that began then left the songs going on: Mikael, sent to
+    a meeting, played on for half an hour past it (2026-11-18).}
+    If songs == None || npc == None
+        Return false
+    EndIf
+    Return (songs.BardSongs_Bard != None && songs.BardSongs_Bard.GetActorReference() == npc) \
+        || (songs.BardSongsInstrumental_Bard != None && songs.BardSongsInstrumental_Bard.GetActorReference() == npc)
+EndFunction
+
+Bool Function ReleasePerformingBard(Int slot, Actor npc)
+    {For the checks that stand down while an NPC is talking: a bard's song is a scene line, so a bard on a task
+    counts as talking for as long as he performs, and those checks never reached HeldByAnotherPackage, which
+    would have ended the song. Ends it first, a few times per task at most. True when he was performing.}
+    If npc == None || !npc.Is3DLoaded()
+        Return false
+    EndIf
+    Int releases = StorageUtil.GetIntValue(npc, "Intel_BardReleases")
+    If releases >= BARD_RELEASE_TRIES || !ReleaseBardFromSong(npc)
+        Return false
+    EndIf
+    StorageUtil.SetIntValue(npc, "Intel_BardReleases", releases + 1)
+    DebugMsg(npc.GetDisplayName() + " was performing as the bard -> the song is ended, the task goes on")
+    npc.EvaluatePackage()
+    IntelEngine.ResetStuckSlot(slot, npc)
     Return true
 EndFunction
 
-Int Function ReleaseFromBardHold(Actor npc)
+Int Function ReleaseFromBardHold(Actor npc, Bool atTaskStart = false)
     {Out of whatever a bard's performance has someone doing: 2 when they were the one performing, 1 when they
-    were listening, 0 when neither.}
-    If ReleaseBardFromSong(npc)
+    were listening, 0 when neither. atTaskStart: a task begins for them, so the inn's bard stops his songs even
+    when no piece is playing this moment.}
+    If ReleaseBardFromSong(npc, atTaskStart)
         Return 2
     EndIf
     If ReleaseFromBardAudience(npc)
