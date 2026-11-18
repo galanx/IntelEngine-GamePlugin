@@ -644,6 +644,9 @@ Function QuestDebugForceCompanion(Int mode) Global Native
 Function QuestDropCompanion(Int id) Global Native
 ; Part of a live quest: a giver on the way, a venture's ally or companion. Other systems leave them be.
 Bool Function QuestInvolves(Actor akActor) Global Native
+; Ends a casual follow of SeverActions (no roster entry, no teammate flag); true when one was ended. A roster
+; companion is never touched.
+Bool Function StopCasualFollow(Actor akActor) Global Native
 ; Makes them the player's follower (join) or lets them go: SeverActions when installed, else SkyrimNet's follow. The
 ; system's name, "" when none could be called.
 String Function QuestFollower(Actor npc, Bool join) Global Native

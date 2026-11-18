@@ -21,6 +21,7 @@ Nothing IntelEngine does takes more than about half a millisecond of one frame o
 - Road encounters no longer appear in plain view: the traveller is placed while unseen, farther spots are tried first, and the last resort is behind you.
 - A destination with "river", "lake" or "bath" in its name ("White River Watch", "Riverwood", "Lakeview Manor") no longer sends the NPC to the nearest water: a real place name is matched first.
 - The NPC social engine no longer sends someone away who is waiting by the road for you on a quest, and the hourly sweep of stray packages leaves them alone.
+- Someone IntelEngine escorts somewhere no longer goes back to following you afterwards because of a SeverActions follow started in an earlier conversation: the escort ends it (a follower of your roster is never touched).
 
 ### How the director chooses
 - Each candidate is judged on their own, from their own memories only: how strong a reason of their own they have to act now, and which kind of moment fits. Then the code picks one, and the dungeon master writes that one moment. Without a real reason nobody comes. With SkyrimNet's decision model set up, the judging runs there; otherwise the dialogue model does it. At Classic the single prompt of 3.8 decides, as before.

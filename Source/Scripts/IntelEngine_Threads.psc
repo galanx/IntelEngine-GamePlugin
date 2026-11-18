@@ -508,6 +508,14 @@ Function AskPlayerForHelp(Actor akNPC, String helpKind, String subject, String p
         Return
     EndIf
     Actor player = Game.GetPlayer()
+    ; Already on a venture with the player (IntelEngine_Quests): what they would ask is already happening. Told "will
+    ; come along", Jenassa asked to be escorted to the same fort, and that errand's follow outlived the venture
+    ; (2026-11-18).
+    If StorageUtil.GetIntValue(akNPC, "Intel_VentureFollower", 0) > 0 || IntelEngine.QuestVentureOf(akNPC) > 0
+        Core().DebugMsg("Storylines: " + akNPC.GetDisplayName() + " is on a venture with the player; no request opened")
+        Core().SendTransientEvent(akNPC, player, player.GetDisplayName() + " is already going with " + akNPC.GetDisplayName() + " on this venture; there is nothing more to ask.")
+        Return
+    EndIf
     Int request = 0
     Actor other = None
     ObjectReference destination = None

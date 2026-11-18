@@ -2339,6 +2339,12 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
         StorageUtil.SetIntValue(target, "Intel_WasAccompanying", 1)
         Core.DebugMsg(target.GetDisplayName() + " FollowPlayer package removed for escort")
     EndIf
+    ; The same for SeverActions' casual follow (StartFollowing, fired by the dialogue model): its packages come back
+    ; on every cell load, and Olava, walked home, went back to trailing the player for good (2026-11-18).
+    If IntelEngine.StopCasualFollow(target)
+        StorageUtil.SetIntValue(target, "Intel_WasAccompanying", 1)
+        Core.DebugMsg(target.GetDisplayName() + "'s SeverActions follow ended for the escort")
+    EndIf
 
     ; Remove sandbox from OnArrivedAtTarget before adding travel packages
     Core.RemoveIntelPackages(agent, false)
