@@ -197,7 +197,9 @@ Function Greet(Actor npc)
     {The player came upon someone living their own life: they notice, and SkyrimNet has them speak (their own
     life is in their prompt, so what they say fits it).}
     Actor player = Game.GetPlayer()
-    If npc.IsDead() || !npc.Is3DLoaded() || npc.IsInCombat() || player.IsInCombat() || !npc.HasLOS(player)
+    ; Close by, they notice the player whichever way they face (they hear them walk up): sight decided it at any
+    ; distance before, and Jenassa, her back to a rock 226 units from the player, never greeted at all (2026-11-18).
+    If npc.IsDead() || !npc.Is3DLoaded() || npc.IsInCombat() || player.IsInCombat() || (!npc.HasLOS(player) && npc.GetDistance(player) > 600.0)
         IntelEngine.LivingWorldOrderDone(false)
         Return
     EndIf

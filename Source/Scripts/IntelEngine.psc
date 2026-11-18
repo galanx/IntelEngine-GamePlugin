@@ -654,6 +654,10 @@ String Function QuestFollower(Actor npc, Bool join) Global Native
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.
 Function LivingWorldTrack() Global Native
+; Test hook: the next life order sends this former follower adventuring at the nearest dungeon the player cannot see.
+String Function LivingWorldDebugAdventure(Actor npc) Global Native
+; They have just been with the player: their own life does not greet the player again for its current step.
+Function LivingWorldMarkGreeted(Actor npc) Global Native
 ; The actor of the change that is out, None when there is none.
 Actor Function LivingWorldTakeOrder() Global Native
 ; Followers whose life the record keeps (with the player now or left behind), at most limit: held in the lives
