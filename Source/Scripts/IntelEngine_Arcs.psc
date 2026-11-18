@@ -17,6 +17,8 @@ Int Property EFFECT_JAIL = 2 AutoReadOnly
 Int Property EFFECT_SHAME = 3 AutoReadOnly
 Int Property EFFECT_PLAYERPAYS = 5 AutoReadOnly
 Int Property KIND_BRAWL = 5 AutoReadOnly
+Int Property PATTERN_MURDER = 3 AutoReadOnly
+Int Property GEM_RUBY = 0x00063B42 AutoReadOnly
 ; The game's own brawl (FavorDialogueScript.Brawl): a story event with the opponent, quest DGIntimidateQuest, stage 15
 ; when the opponent goes down, 180 when the player does, 150 when it turned into a real fight.
 Int Property BRAWL_EVENT = 0x00047AE2 AutoReadOnly
@@ -96,7 +98,23 @@ Int Function DebugArc(Actor asker, Int pattern = 0)
         IntelEngine.ArcDecline(id)
         Return 0
     EndIf
+    TheMurder(id)
     Return id
+EndFunction
+
+Function TheMurder(Int id)
+    {A murder's victim dies before the asker reaches the player: at home, out of anyone's sight, by the killer's hand
+    (the game's death reactions follow: mourning, the town's talk).}
+    If IntelEngine.ArcField(id, "pattern") != PATTERN_MURDER
+        Return
+    EndIf
+    Actor victim = IntelEngine.ArcStageVictim(id)
+    Actor killer = IntelEngine.ArcForm(id, "culprit") as Actor
+    If victim == None
+        Return
+    EndIf
+    victim.Kill(killer)
+    Core().DebugMsg("Arcs: #" + id + " " + victim.GetDisplayName() + " was killed at home")
 EndFunction
 
 Event OnAskerArrived(Form askerForm, Int id)
@@ -112,6 +130,16 @@ Event OnAskerArrived(Form askerForm, Int id)
     Quests().WaitForTheirSay(asker, 30.0)
     If IntelEngine.ArcField(id, "phase") != PHASE_PLANNED || asker.IsDead() || asker.IsInCombat()
         Return
+    EndIf
+    If IntelEngine.ArcField(id, "pattern") == PATTERN_MURDER
+        Actor victim = IntelEngine.ArcForm(id, "victim") as Actor
+        TheMurder(id)
+        If victim == None || !victim.IsDead()
+            ; The victim is alive where the player can see them: there is no murder to tell of. Nothing is offered.
+            IntelEngine.ArcDecline(id)
+            Core().DebugMsg("Arcs: #" + id + " the victim is still alive in sight; the murder is called off")
+            Return
+        EndIf
     EndIf
     String choice = Core().ShowChoice(asker.GetDisplayName(), "Quest offer", IntelEngine.ArcText(id, "prompt"), "I'll do it", "Not now")
     If IntelEngine.ArcField(id, "phase") != PHASE_PLANNED
@@ -172,6 +200,19 @@ Function Open(Int id)
         EndIf
         p += 1
     EndWhile
+    If IntelEngine.ArcField(id, "pattern") == PATTERN_MURDER
+        ; The victim's gem, still in the killer's pocket: found by picking it, or on their body.
+        Actor killer = IntelEngine.ArcForm(id, "culprit") as Actor
+        Form gem = IntelEngine.ArcForm(id, "prop1")
+        If killer != None && gem != None
+            ObjectReference stamped = Game.GetPlayer().PlaceAtMe(gem, 1, false, true)
+            If stamped != None
+                stamped.SetDisplayName(IntelEngine.ArcText(id, "prop1"), true)
+                killer.AddItem(stamped, 1, true)
+                IntelEngine.ArcPlanted(id, 1, killer)
+            EndIf
+        EndIf
+    EndIf
     jq.SetStage(IntelEngine.ArcField(id, "openstage"))
     ShowStep(id, jq)
     jq.SetActive(true)
@@ -571,7 +612,10 @@ Function Jail(Int id, Actor who)
         Core().DebugMsg("Arcs: #" + id + " no jail for " + who.GetDisplayName())
         Return
     EndIf
-    Core().SendTaskNarration(who, "is caught: " + Game.GetPlayer().GetDisplayName() + " is handing them over to the guard", Game.GetPlayer())
+    ; Told only when they are here to hear it (a killer named to the asker across town is not).
+    If who.Is3DLoaded() && who.GetDistance(Game.GetPlayer()) < 2000.0
+        Core().SendTaskNarration(who, "is caught: " + Game.GetPlayer().GetDisplayName() + " is handing them over to the guard", Game.GetPlayer())
+    EndIf
     StorageUtil.SetFormValue(who, "Intel_ArcJailAt", jailAt)
     StorageUtil.SetFormValue(who, "Intel_ArcJailOut", IntelEngine.ArcForm(id, "jailout"))
     StorageUtil.SetFloatValue(who, "Intel_ArcJailUntil", Utility.GetCurrentGameTime() + JAIL_DAYS)
