@@ -4252,7 +4252,7 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     EndIf
 EndFunction
 
-Function ReleaseStrandedCourier(Actor npc, Int slot, Int generation)
+Function ReleaseStrandedCourier(Actor npc, Int slot, Int dispatchGen)
     {The arrival handler came back from a wait (the pause before the offer, the offer itself) and found its
     quest gone: cancelled from the dashboard, expired, replaced. It used to just return. The courier then
     kept the "story" slot and the sandbox that pins them for the offer, with nothing left that would ever
@@ -4260,7 +4260,7 @@ Function ReleaseStrandedCourier(Actor npc, Int slot, Int generation)
     If npc == None
         return
     EndIf
-    Bool sameDispatch = ActiveStoryNPC == npc && DispatchGeneration == generation
+    Bool sameDispatch = ActiveStoryNPC == npc && DispatchGeneration == dispatchGen
     If slot >= 0 && Core.SlotHolds(slot, npc) && Core.SlotTaskTypes[slot] == "story" && (sameDispatch || ActiveStoryNPC != npc)
         StorageUtil.SetStringValue(npc, "Intel_Result", "abandoned")
         Core.ClearSlot(slot)
