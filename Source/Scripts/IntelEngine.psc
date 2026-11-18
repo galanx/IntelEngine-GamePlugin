@@ -672,12 +672,16 @@ Bool Function ArcHandOver(Int id) Global Native
 Bool Function ArcBrawl(Int id, Int result) Global Native
 ; A murder's victim, out of sight, taken home to be killed there; None when in sight, dead already, or no murder.
 Actor Function ArcStageVictim(Int id) Global Native
+; For this many seconds the arc's people speaking count as speaking with the player (a scene among them).
+Function ArcScene(Int id, Float seconds) Global Native
 ; The prop was put at this reference (a container, or the floor beside it).
 Function ArcPlanted(Int id, Int prop, ObjectReference akAt) Global Native
 Int Function ArcField(Int id, String field) Global Native
 Form Function ArcForm(Int id, String field) Global Native
 String Function ArcText(Int id, String field) Global Native
 Function ArcApplyTitles() Global Native
+; Test hook: the next planned arc's thief, rival or killer is this person (when they may be cast).
+Function ArcDebugCast(Actor akActor) Global Native
 
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.

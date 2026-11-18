@@ -18,6 +18,7 @@ Int Property EFFECT_SHAME = 3 AutoReadOnly
 Int Property EFFECT_PLAYERPAYS = 5 AutoReadOnly
 Int Property KIND_BRAWL = 5 AutoReadOnly
 Int Property PATTERN_MURDER = 3 AutoReadOnly
+Int Property PATTERN_FEUD = 2 AutoReadOnly
 Int Property GEM_RUBY = 0x00063B42 AutoReadOnly
 ; The game's own brawl (FavorDialogueScript.Brawl): a story event with the opponent, quest DGIntimidateQuest, stage 15
 ; when the opponent goes down, 180 when the player does, 150 when it turned into a real fight.
@@ -45,6 +46,7 @@ Float Property JAIL_DAYS = 2.0 AutoReadOnly
 ; Hidden, disabled references that lend the props' names to the journal: two per slot.
 ObjectReference[] NameHolders
 IntelEngine_Core CoreScript
+Bool Asking   ; an arc popup is up (or waiting its turn)
 
 ; ----------------------------------------------------------------------------------------------- starting
 
@@ -86,6 +88,12 @@ Quest Function JournalQuest(Int slot)
 EndFunction
 
 ; ----------------------------------------------------------------------------------------------- the offer
+
+Int Function DebugArcWith(Actor asker, Int pattern, Actor other)
+    {Test hook: DebugArc with the thief, the rival or the killer chosen.}
+    IntelEngine.ArcDebugCast(other)
+    Return DebugArc(asker, pattern)
+EndFunction
 
 Int Function DebugArc(Actor asker, Int pattern = 0)
     {Test hook (in-game tests): plans an arc with this asker as the director will and sends them to the player to ask;
@@ -234,6 +242,36 @@ Function Open(Int id)
     jq.SetStage(IntelEngine.ArcField(id, "openstage"))
     ShowStep(id, jq)
     jq.SetActive(true)
+    If IntelEngine.ArcField(id, "pattern") == PATTERN_FEUD
+        QuarrelHere(id)
+    EndIf
+EndFunction
+
+Function QuarrelHere(Int id)
+    {The rival is in the same room: no errand across it. The asker has it out with them there and then, in front of the
+    player, the rival answers, and the player settles it on the spot (the user, 2026-11-18: "when Carlotta was in the
+    same room, she could have settled things herself").}
+    Actor player = Game.GetPlayer()
+    Actor asker = IntelEngine.ArcForm(id, "asker") as Actor
+    Actor rival = IntelEngine.ArcForm(id, "rival") as Actor
+    If asker == None || rival == None || rival.IsDead() || !rival.Is3DLoaded()
+        Return
+    EndIf
+    If rival.GetParentCell() != player.GetParentCell() || rival.GetDistance(player) > 1500.0 || asker.GetDistance(player) > 1500.0
+        Return
+    EndIf
+    IntelEngine.ArcScene(id, 180.0)
+    Quests().WaitForSilence(asker, 15.0)
+    Core().SendTaskNarration(asker, "turns to " + rival.GetDisplayName() + ", who is right here, and has it out with them in front of " + player.GetDisplayName() + ": " + IntelEngine.ArcText(id, "grievance"), rival)
+    Quests().WaitForTheirSay(asker, 30.0)
+    Core().SendTaskNarration(rival, "answers " + asker.GetDisplayName() + " in front of " + player.GetDisplayName() + ", giving their own side of it", asker)
+    Core().DebugMsg("Arcs: #" + id + " the quarrel plays out in the room")
+    ; Once they have had it out, the player decides there and then (the watch has seen the rival's side by now).
+    Quests().WaitForTheirSay(rival, 30.0)
+    Utility.Wait(2.5)
+    If IntelEngine.ArcField(id, "phase") == PHASE_OPEN && IntelEngine.ArcField(id, "node") == 1
+        OfferChoice(id, JournalQuest(IntelEngine.ArcField(id, "slot")))
+    EndIf
 EndFunction
 
 Function Force(Quest jq, Int aliasIndex, ObjectReference ref)
@@ -280,6 +318,18 @@ EndFunction
 ; ----------------------------------------------------------------------------------------------- fights
 
 Function OfferFight(Int id)
+    {One arc popup at a time: a second one waited behind the first and asked again what was already decided
+    (2026-11-18). An answer to a step the story has left meanwhile is not taken.}
+    If Asking
+        Return
+    EndIf
+    Asking = true
+    Int node = IntelEngine.ArcField(id, "node")
+    OfferFightNow(id, node)
+    Asking = false
+EndFunction
+
+Function OfferFightNow(Int id, Int node)
     {A feud to settle with fists: the rival has just talked with the player, who may start the fight now. It is the
     game's own brawl (no weapons, no deaths, the guards look on).}
     Actor rival = IntelEngine.ArcForm(id, "who") as Actor
@@ -295,19 +345,38 @@ Function OfferFight(Int id)
         IntelEngine.ArcAnswer(id, -1)
         Return
     EndIf
-    If Core().ShowChoice(rival.GetDisplayName(), "Story", IntelEngine.ArcText(id, "fight"), "Put up your fists", "Not now") != "Put up your fists"
+    String fightAnswer = Core().ShowChoice(rival.GetDisplayName(), "Story", IntelEngine.ArcText(id, "fight"), "Put up your fists", "Not now")
+    If IntelEngine.ArcField(id, "node") != node || IntelEngine.ArcField(id, "phase") != PHASE_OPEN
+        Return
+    EndIf
+    If fightAnswer != "Put up your fists"
         IntelEngine.ArcAnswer(id, -1)
         Return
     EndIf
     IntelEngine.ArcAnswer(id, -1)
-    If rival.IsDead() || rival.IsInCombat() || player.IsInCombat()
+    BeginFight(id, rival)
+EndFunction
+
+Bool Function Fighting(Actor who)
+    {In a fight already: the game's brawl, one of SeverActions (its mirror on the fighter), or real combat.}
+    Quest brawl = Game.GetFormFromFile(BRAWL_QUEST, "Skyrim.esm") as Quest
+    Return (brawl != None && brawl.IsRunning()) || who.IsInCombat() || StorageUtil.GetFormValue(who, "SeverBrawl_Opponent") != None
+EndFunction
+
+Function BeginFight(Int id, Actor rival)
+    {The player against the rival, fists only, in the game's own brawl: its quest makes the player essential for the
+    fight, so losing means going down on one knee, never dying. A SeverActions brawl let a losing player be beaten to
+    death (2026-11-18), and calling it needed that mod. Never a second fight on top of one already running (a brawl
+    the rival's own model started in talk still counts: WatchBrawl reads it).}
+    Actor player = Game.GetPlayer()
+    If rival == None || rival.IsDead() || Fighting(rival) || Fighting(player)
         Return
     EndIf
     Keyword fight = Game.GetFormFromFile(BRAWL_EVENT, "Skyrim.esm") as Keyword
     If fight == None
         Return
     EndIf
-    Core().SendTaskNarration(rival, "is challenged by " + player.GetDisplayName() + " to settle the quarrel with fists, here and now", player)
+    Core().SendTaskNarration(rival, "squares up to " + player.GetDisplayName() + " to settle the quarrel with fists, here and now", player)
     fight.SendStoryEvent(None, rival, None, 0, 0)
     Core().DebugMsg("Arcs: #" + id + " brawl with " + rival.GetDisplayName() + " started")
 EndFunction
@@ -435,6 +504,16 @@ Function Settle(Int id, Int r, Quest jq)
     If logStage > 0 && jq != None
         jq.SetStage(logStage)
     EndIf
+    If ending == 0 && IntelEngine.ArcField(id, "kind") == KIND_BRAWL
+        ; Fists chosen with the rival in the room: the fight between the player and the rival begins now, owned by
+        ; the story. Left to talk, the rival's own model accepted a brawl with the asker instead, the player's punches
+        ; fell into someone else's fight, and the inn and the guard turned on the player (2026-11-18).
+        Actor rival = IntelEngine.ArcForm(id, "who") as Actor
+        Actor player = Game.GetPlayer()
+        If rival != None && rival.Is3DLoaded() && rival.GetParentCell() == player.GetParentCell() && rival.GetDistance(player) < 1500.0
+            BeginFight(id, rival)
+        EndIf
+    EndIf
     If effect > 0
         DoEffect(id, effect, role)
         Int effect2 = IntelEngine.ArcField(id, "effect2")
@@ -474,6 +553,18 @@ EndFunction
 ; ----------------------------------------------------------------------------------------------- choices and hand-overs
 
 Function OfferChoice(Int id, Quest jq)
+    {One arc popup at a time: a second one waited behind the first and asked again what was already decided
+    (2026-11-18). An answer to a step the story has left meanwhile is not taken.}
+    If Asking
+        Return
+    EndIf
+    Asking = true
+    Int node = IntelEngine.ArcField(id, "node")
+    OfferChoiceNow(id, jq, node)
+    Asking = false
+EndFunction
+
+Function OfferChoiceNow(Int id, Quest jq, Int node)
     {The node's person is right here and has just talked with the player: the player decides. With three answers a
     first popup asks whether to decide now (a popup holds three buttons at most); with two, "Not now" is the third.}
     Actor who = IntelEngine.ArcForm(id, "who") as Actor
@@ -530,6 +621,9 @@ Function OfferChoice(Int id, Quest jq)
         EndIf
         k += 1
     EndWhile
+    If IntelEngine.ArcField(id, "node") != node || IntelEngine.ArcField(id, "phase") != PHASE_OPEN
+        Return
+    EndIf
     IntelEngine.ArcAnswer(id, picked)
     If picked < 0
         Return
@@ -546,6 +640,18 @@ Function OfferChoice(Int id, Quest jq)
 EndFunction
 
 Function OfferGive(Int id, Quest jq)
+    {One arc popup at a time: a second one waited behind the first and asked again what was already decided
+    (2026-11-18). An answer to a step the story has left meanwhile is not taken.}
+    If Asking
+        Return
+    EndIf
+    Asking = true
+    Int node = IntelEngine.ArcField(id, "node")
+    OfferGiveNow(id, jq, node)
+    Asking = false
+EndFunction
+
+Function OfferGiveNow(Int id, Quest jq, Int node)
     {The prop is in the player's pack and the one it goes to has just talked with the player: the player may hand it
     over. The engine moves it; nothing said can.}
     Actor who = IntelEngine.ArcForm(id, "giveto") as Actor
@@ -554,6 +660,9 @@ Function OfferGive(Int id, Quest jq)
     EndIf
     Quests().WaitForSilence(who, 15.0)
     String choice = Core().ShowChoice(who.GetDisplayName(), "Hand over", IntelEngine.ArcText(id, "give"), "Hand it over", "Not yet")
+    If IntelEngine.ArcField(id, "node") != node || IntelEngine.ArcField(id, "phase") != PHASE_OPEN
+        Return
+    EndIf
     If choice != "Hand it over" || !IntelEngine.ArcHandOver(id)
         Return
     EndIf
