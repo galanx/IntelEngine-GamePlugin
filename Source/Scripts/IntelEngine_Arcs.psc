@@ -74,6 +74,7 @@ Function Begin()
         NameHolders = new ObjectReference[8]
     EndIf
     RegisterForModEvent("IntelEngine_ArcAskerArrived", "OnAskerArrived")
+    RegisterForModEvent("IntelEngine_ArcOffer", "OnArcOffer")
     RegisterForSingleUpdate(WATCH_SECONDS)
 EndFunction
 
@@ -95,7 +96,7 @@ Int Function DebugArc(Actor asker, Int pattern = 0)
     EndIf
     IntelEngine_Core c = Core()
     If c == None || c.StoryEngine == None || !c.StoryEngine.DispatchArcOffer(asker, id)
-        IntelEngine.ArcDecline(id)
+        IntelEngine.ArcDrop(id)
         Return 0
     EndIf
     TheMurder(id)
@@ -117,6 +118,23 @@ Function TheMurder(Int id)
     Core().DebugMsg("Arcs: #" + id + " " + victim.GetDisplayName() + " was killed at home")
 EndFunction
 
+Event OnArcOffer(String eventName, String strArg, Float numArg, Form sender)
+    {The director planned an arc (ArcBridge::PlanFor): its asker comes to the player as a story visitor; a murder's
+    victim dies now, out of sight.}
+    Int id = numArg as Int
+    Actor asker = sender as Actor
+    If id <= 0 || asker == None
+        Return
+    EndIf
+    IntelEngine_Core c = Core()
+    If !Enabled() || c.StoryEngine == None || !c.StoryEngine.DispatchArcOffer(asker, id)
+        ; Nobody comes, so nothing was offered: the plan is dropped and nobody remembers it.
+        IntelEngine.ArcDrop(id)
+        Return
+    EndIf
+    TheMurder(id)
+EndEvent
+
 Event OnAskerArrived(Form askerForm, Int id)
     {The asker reached the player and was told to speak (StoryEngine, seek_player arrival). Once their say is over, the
     player chooses in the popup.}
@@ -136,7 +154,7 @@ Event OnAskerArrived(Form askerForm, Int id)
         TheMurder(id)
         If victim == None || !victim.IsDead()
             ; The victim is alive where the player can see them: there is no murder to tell of. Nothing is offered.
-            IntelEngine.ArcDecline(id)
+            IntelEngine.ArcDrop(id)
             Core().DebugMsg("Arcs: #" + id + " the victim is still alive in sight; the murder is called off")
             Return
         EndIf
