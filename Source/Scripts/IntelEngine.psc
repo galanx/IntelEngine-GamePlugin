@@ -626,6 +626,10 @@ String Function QuestText(Int id, String field) Global Native
 String Function QuestSetFoe(Int id, Actor foe) Global Native
 Function QuestSetPlaced(Int id, Int bits) Global Native
 Function QuestApplyTitles() Global Native
+; A venture was put on the road: what the two remember of falling in together is written.
+Function QuestVenturePlaced(Int id) Global Native
+; Test hook: who a venture's ally travels with (0 by chance, 1 a follower type never travelled with, 2 another former follower, 3 alone).
+Function QuestDebugForceCompanion(Int mode) Global Native
 
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.
