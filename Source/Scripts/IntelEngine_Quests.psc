@@ -768,7 +768,7 @@ Function InviteAlong(Actor akNPC)
         Return
     EndIf
     If choice == "I'll come along"
-        JoinNow(id, akNPC, "hears that " + player.GetDisplayName() + " will come along, and leads the way")
+        JoinNow(id, akNPC, "hears that " + player.GetDisplayName() + " will come along to " + IntelEngine.QuestText(id, "place") + ", and now travels with " + player.GetDisplayName() + " as a companion")
     Else
         IntelEngine.QuestEndPlanned(id, ENDING_DECLINED)
         Core().SendTaskNarration(akNPC, "hears that " + player.GetDisplayName() + " will not come along", player)
@@ -976,6 +976,11 @@ Function DebugDismiss()
         EndIf
         i += 1
     EndWhile
+EndFunction
+
+Function DebugStopCasualFollow(Actor npc)
+    {Test hook: ends a SeverActions casual follow (the one the test save carries on Olava the Feeble).}
+    Core().DebugMsg("Quests: casual follow of " + npc.GetDisplayName() + " ended: " + IntelEngine.StopCasualFollow(npc))
 EndFunction
 
 Function DebugMeetHere(Actor ally)
