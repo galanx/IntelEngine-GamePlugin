@@ -4,6 +4,15 @@
 
 The living world, by Galanx. People you know get on with their lives while you are away, ask things of you that the journal keeps, and come back to what is still open between you. Six new settings under "Living world" decide how much of it you get; at "Classic" everything stays as it was in 3.8.
 
+### No stutter
+Nothing IntelEngine does takes more than about half a millisecond of one frame of play any more (measured on the test profile, every round logged):
+- The log is written by a thread of its own. Every line used to be written and flushed to disk on the thread that logged it, the game's own included; a director round alone logs some forty lines.
+- The director's look at everyone loaded, and the one for scenes between NPCs, are spread over several frames, at most half a millisecond of each. In one frame they took 2.5 ms and 2 ms on a small load order, and more the more people a load order puts in a town.
+- Item names are read once at the main menu. Asking someone for an item used to read every item name of the load order (11,000 on a small list), up to three times, inside one frame.
+- The places a follower's own life can go are read at the main menu, not on the first look after a save loads.
+- The story filters (block lists and white lists) are read on a worker thread before each round, not inside a frame every 30 seconds.
+- The 12 decision calls of a director round go out in parallel off the game's thread; in tests all were back within 0.7 seconds.
+
 ### The living world
 - "How alive the world is": Classic (as before 4.0), Rumors (the world moves on and you hear about it), Lives (the default: followers you left behind also live lives of their own).
 - Moments wait for a good time: arriving in a town or an inn, coming home, coming out of a dungeon, waking up. Loading a save is not an arrival. "How often something happens" sets about one notable moment every two game days (Calm), every game day (Normal) or twice a game day (Lively). The old clock is still there as a fallback and is paced the same way.
