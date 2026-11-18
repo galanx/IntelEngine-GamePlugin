@@ -206,4 +206,9 @@ Function Greet(Actor npc)
         SkyrimNetApi.DirectNarration(narration, npc, player)
     EndIf
     IntelEngine.LivingWorldOrderDone(true)
+    ; 4.0 quests: met at the dungeon of an adventure of their own, they may ask the player to clear it with them.
+    IntelEngine_Quests keeper = Quest.GetQuest("IntelEngine_QuestKeeper") as IntelEngine_Quests
+    If keeper != None
+        keeper.MeetHere(npc)
+    EndIf
 EndFunction
