@@ -33,6 +33,25 @@ ObjectReference[] NameHolders
 IntelEngine_Core CoreScript
 ; A venture planned while the player was indoors: placed on the road once they are out.
 Int PendingVenture
+; The venture on the road, not met yet: whether its people have recognised the player and are coming over.
+Int RoadVenture
+Bool RoadRecognised
+
+Float Property RECOGNISE_DISTANCE = 2500.0 AutoReadOnly   ; they see the player this far off and come over
+Float Property RECOGNISE_ANYWAY = 1000.0 AutoReadOnly     ; this close they notice whatever they are looking at
+Float Property CHASE_GIVE_UP = 120.0 AutoReadOnly         ; seconds of catching up before they let the player go
+
+; The ground the player has walked outdoors lately (every 400 units or more, the last 24 spots, one worldspace): a
+; venture is put on it, behind the player, where people really can walk. Placed a fixed distance ahead instead,
+; Jenassa stood inside a hillside by the river in Riverwood and never moved (2026-11-18).
+Float[] TrailX
+Float[] TrailY
+Float[] TrailZ
+Int TrailHead
+Int TrailCount
+WorldSpace TrailWorld
+Bool RoadChasing
+Float RoadChaseSince
 
 ; ----------------------------------------------------------------------------------------------- starting
 
@@ -57,6 +76,13 @@ Function Begin()
     If NameHolders.Length != SLOTS
         NameHolders = new ObjectReference[6]
     EndIf
+    If TrailX.Length != 24
+        TrailX = new Float[24]
+        TrailY = new Float[24]
+        TrailZ = new Float[24]
+    EndIf
+    TrailCount = 0
+    TrailHead = 0
     RegisterForModEvent("IntelEngine_QuestOffer", "OnQuestOffer")
     RegisterForModEvent("IntelEngine_QuestGiverArrived", "OnGiverArrived")
     RegisterForSingleUpdate(WATCH_SECONDS)
@@ -106,25 +132,306 @@ Bool Function PlaceVenture(Int id)
         Return false
     EndIf
     StorageUtil.SetIntValue(ally, "Intel_QuestOffer", id)
-    c.StoryEngine.PlaceRoadEncounter(ally, IntelEngine.QuestText(id, "roadnarration"), IntelEngine.QuestText(id, "place"))
+    Bool behind = PlaceOnTrail(ally)
+    If behind
+        ; On the road the player walked, behind them: they saw the player ahead and hurry to catch up. Kept as a
+        ; road traveller (the story engine greets the player when they are close, sends them on and home after).
+        ObjectReference goal = IntelEngine.ResolveAnyDestination(ally, IntelEngine.QuestText(id, "place"))
+        c.RemoveAllPackages(ally, false)
+        If goal != None
+            StorageUtil.SetFormValue(ally, "Intel_FakeEncounterDest", goal)
+        EndIf
+        StorageUtil.SetStringValue(ally, "Intel_FakeEncounterNarration", IntelEngine.QuestText(id, "roadcatchup"))
+        StorageUtil.SetFloatValue(ally, "Intel_FakeEncounterTime", Utility.GetCurrentGameTime())
+        StorageUtil.SetIntValue(ally, "Intel_FakeEncounterInteracted", 0)
+        If StorageUtil.IntListFind(player, "Intel_FakeEncounterNPCs", ally.GetFormID()) < 0
+            StorageUtil.IntListAdd(player, "Intel_FakeEncounterNPCs", ally.GetFormID())
+        EndIf
+        CatchUp(ally, c)
+        c.RequestTick(c.StoryEngine.MONITOR_INTERVAL)
+    Else
+        c.StoryEngine.PlaceRoadEncounter(ally, IntelEngine.QuestText(id, "roadnarration"), IntelEngine.QuestText(id, "place"))
+        ; On ground they can walk, as far as can be told without a trail.
+        PO3_SKSEFunctions.MoveToNearestNavmeshLocation(ally)
+    EndIf
     Actor companion = IntelEngine.QuestForm(id, "companion") as Actor
     ObjectReference dest = StorageUtil.GetFormValue(ally, "Intel_FakeEncounterDest") as ObjectReference
     If companion != None && !companion.IsDead()
+        ; Beside the ally, out of sight as they were placed. Kept as a road traveller of their own (the story engine's
+        ; road encounters), already walking: they stop when the ally greets the player, walk on with them when the
+        ; player goes, and go home after a day like any road traveller.
+        companion.SetAlpha(0.0, false)
+        c.RemoveAllPackages(companion, false)
         companion.MoveTo(ally, 120.0, 60.0, 0.0, false)
+        PO3_SKSEFunctions.MoveToNearestNavmeshLocation(companion)
+        companion.SetAlpha(1.0, false)
         If dest != None
+            StorageUtil.SetFormValue(companion, "Intel_FakeEncounterDest", dest)
+        EndIf
+        If behind
+            CatchUp(companion, c)
+        ElseIf dest != None
             PO3_SKSEFunctions.SetLinkedRef(companion, dest, c.IntelEngine_TravelTarget)
             ActorUtil.AddPackageOverride(companion, c.TravelPackage_Walk, c.PRIORITY_TRAVEL, 1)
-            companion.EvaluatePackage()
+        EndIf
+        companion.EvaluatePackage()
+        StorageUtil.SetStringValue(companion, "Intel_FakeEncounterNarration", CompanionNarration(id, companion))
+        StorageUtil.SetFloatValue(companion, "Intel_FakeEncounterTime", Utility.GetCurrentGameTime())
+        StorageUtil.SetIntValue(companion, "Intel_FakeEncounterInteracted", 2)
+        If StorageUtil.IntListFind(player, "Intel_FakeEncounterNPCs", companion.GetFormID()) < 0
+            StorageUtil.IntListAdd(player, "Intel_FakeEncounterNPCs", companion.GetFormID())
         EndIf
     EndIf
+    IntelEngine.QuestVenturePlaced(id)
+    RoadVenture = id
+    RoadRecognised = behind
+    RoadChasing = behind
+    RoadChaseSince = Utility.GetCurrentRealTime()
     IntelEngine.LivingWorldMomentDispatched(ally, "road_encounter")
     c.DebugMsg("Quests: " + ally.GetDisplayName() + " is on the road to " + IntelEngine.QuestText(id, "place") + " (venture " + id + ")")
     Return true
 EndFunction
 
-Int Function DebugVenture(Actor ally)
-    {Test hook: plans a venture for this former follower and puts them on the road ahead; the id, 0 when none fits.}
+Function RecordTrail()
+    {Where the player walks outdoors, every 400 units or more; a jump (fast travel, a door, a teleport) starts over.}
+    Actor player = Game.GetPlayer()
+    Cell here = player.GetParentCell()
+    If here == None || here.IsInterior() || TrailX.Length != 24
+        Return
+    EndIf
+    WorldSpace world = player.GetWorldSpace()
+    If world != TrailWorld
+        TrailWorld = world
+        TrailCount = 0
+    EndIf
+    Float x = player.GetPositionX()
+    Float y = player.GetPositionY()
+    Float z = player.GetPositionZ()
+    If TrailCount > 0
+        Int last = (TrailHead + 23) % 24
+        Float dx = x - TrailX[last]
+        Float dy = y - TrailY[last]
+        Float d = Math.Sqrt(dx * dx + dy * dy)
+        If d < 400.0
+            Return
+        EndIf
+        If d > 3000.0
+            TrailCount = 0
+        EndIf
+    EndIf
+    TrailX[TrailHead] = x
+    TrailY[TrailHead] = y
+    TrailZ[TrailHead] = z
+    TrailHead = (TrailHead + 1) % 24
+    If TrailCount < 24
+        TrailCount += 1
+    EndIf
+EndFunction
+
+Bool Function PlaceOnTrail(Actor npc)
+    {On a spot of the player's trail 2000 to 6000 units away that the player cannot see, the nearest such first.}
+    Actor player = Game.GetPlayer()
+    If TrailCount == 0 || player.GetWorldSpace() != TrailWorld
+        Return false
+    EndIf
+    Float px = player.GetPositionX()
+    Float py = player.GetPositionY()
+    Float pz = player.GetPositionZ()
+    IntelEngine_Core c = Core()
+    Int k = 1
+    While k <= TrailCount
+        Int i = (TrailHead - k + 48) % 24
+        Float dx = TrailX[i] - px
+        Float dy = TrailY[i] - py
+        Float d = Math.Sqrt(dx * dx + dy * dy)
+        If d >= 2000.0 && d <= 6000.0
+            npc.SetAlpha(0.0, false)
+            npc.MoveTo(player, dx, dy, TrailZ[i] - pz + 10.0, false)
+            Int waited = 0
+            While !npc.Is3DLoaded() && waited < 10
+                Utility.Wait(0.1)
+                waited += 1
+            EndWhile
+            If npc.Is3DLoaded() && !c.PlayerCanSee(npc)
+                npc.SetAlpha(1.0, false)
+                c.DebugMsg("Quests: " + npc.GetDisplayName() + " is on the road behind the player (" + (d as Int) + " units)")
+                Return true
+            EndIf
+        EndIf
+        k += 1
+    EndWhile
+    npc.SetAlpha(1.0, false)
+    Return false
+EndFunction
+
+Function CatchUp(Actor npc, IntelEngine_Core c)
+    {Hurry after the player (a jog), as someone does who saw a friend ahead on the road.}
+    ActorUtil.RemovePackageOverride(npc, c.TravelPackage_Walk)
+    PO3_SKSEFunctions.SetLinkedRef(npc, Game.GetPlayer() as ObjectReference, c.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(npc, c.TravelPackage_Jog, c.PRIORITY_TRAVEL, 1)
+    npc.EvaluatePackage()
+EndFunction
+
+Function GiveUpChase(IntelEngine_Core c)
+    {The player got away: they walk on to the place instead (and are road travellers as before).}
+    RoadChasing = false
+    Actor ally = IntelEngine.QuestForm(RoadVenture, "ally") as Actor
+    Actor companion = IntelEngine.QuestForm(RoadVenture, "companion") as Actor
+    Int n = 0
+    While n < 2
+        Actor npc = ally
+        If n == 1
+            npc = companion
+        EndIf
+        If npc != None
+            ActorUtil.RemovePackageOverride(npc, c.TravelPackage_Jog)
+            ObjectReference goal = StorageUtil.GetFormValue(npc, "Intel_FakeEncounterDest") as ObjectReference
+            If goal != None
+                PO3_SKSEFunctions.SetLinkedRef(npc, goal, c.IntelEngine_TravelTarget)
+                ActorUtil.AddPackageOverride(npc, c.TravelPackage_Walk, c.PRIORITY_TRAVEL, 1)
+            EndIf
+            npc.EvaluatePackage()
+        EndIf
+        n += 1
+    EndWhile
+    c.DebugMsg("Quests: the venture's people could not catch up with the player and walk on")
+    RoadVenture = 0
+EndFunction
+
+String Function CompanionNarration(Int id, Actor companion)
+    {What drives the companion to speak when the two stop: an old friend glad to see the player, or someone who has
+    never met them and travels with someone who has.}
+    If IntelEngine.NPCKnowsPlayer(companion)
+        Return IntelEngine.QuestText(id, "companionnarration")
+    EndIf
+    Return IntelEngine.QuestText(id, "companionstranger")
+EndFunction
+
+Function WatchRoad()
+    {The venture on the road: once its people see the player (in sight and near enough, or close by), they turn and
+    come over instead of walking on; the story engine's road encounter greets the player when they are there.}
+    If RoadVenture <= 0
+        Return
+    EndIf
+    If IntelEngine.QuestField(RoadVenture, "phase") != PHASE_PLANNED
+        RoadVenture = 0
+        Return
+    EndIf
+    Actor ally = IntelEngine.QuestForm(RoadVenture, "ally") as Actor
+    Actor player = Game.GetPlayer()
+    If RoadRecognised
+        IntelEngine_Core c0 = Core()
+        ; Come over and close enough: they greet the player even when the walk ended a little short of the story
+        ; engine's own greeting distance.
+        If ally != None && ally.Is3DLoaded() && StorageUtil.GetIntValue(ally, "Intel_FakeEncounterInteracted", 0) == 0 && ally.GetDistance(player) <= 450.0
+            StorageUtil.SetIntValue(ally, "Intel_FakeEncounterInteracted", 1)
+            RoadChasing = false
+            c0.StoryEngine.TriggerRoadEncounterGreeting(ally)
+        ElseIf RoadChasing && Utility.GetCurrentRealTime() - RoadChaseSince > CHASE_GIVE_UP
+            GiveUpChase(c0)
+        EndIf
+        Return
+    EndIf
+    If ally == None || !ally.Is3DLoaded() || ally.IsInCombat() || player.IsInCombat()
+        Return
+    EndIf
+    Cell here = ally.GetParentCell()
+    If here == None || here.IsInterior() || ally.GetWorldSpace() != player.GetWorldSpace()
+        Return
+    EndIf
+    Float distance = ally.GetDistance(player)
+    If distance > RECOGNISE_DISTANCE
+        Return
+    EndIf
+    If distance > RECOGNISE_ANYWAY && !ally.HasLOS(player)
+        Return
+    EndIf
+    RoadRecognised = true
+    IntelEngine_Core c = Core()
+    ComeOver(ally, c, false)
+    Actor companion = IntelEngine.QuestForm(RoadVenture, "companion") as Actor
+    If companion != None && companion.Is3DLoaded()
+        ComeOver(companion, c, true)
+    EndIf
+    c.DebugMsg("Quests: " + ally.GetDisplayName() + " recognises " + player.GetDisplayName() + " on the road and comes over (" + (distance as Int) + " units)")
+EndFunction
+
+Function ComeOver(Actor npc, IntelEngine_Core c, Bool stay)
+    {Turn from the road and walk to the player. The walk is taken off and put on again: a running travel package
+    keeps the target it started with, and only re-pointing its linked reference let Jenassa walk on (2026-11-18).
+    The one who comes along (stay) gets the linger instead, so they wait by the player once there: on a walk alone
+    Ugor arrived, the walk ended, and she went home.}
+    ActorUtil.RemovePackageOverride(npc, c.TravelPackage_Walk)
+    PO3_SKSEFunctions.SetLinkedRef(npc, Game.GetPlayer() as ObjectReference, c.IntelEngine_TravelTarget)
+    ; Another package than the walk they were on: the same one put back kept its old target, and Jenassa walked on
+    ; to White River Watch (2026-11-18). A jog: they hurry over.
+    If stay
+        ActorUtil.AddPackageOverride(npc, c.SandboxNearPlayerPackage, c.PRIORITY_SANDBOX, 1)
+    Else
+        ActorUtil.AddPackageOverride(npc, c.TravelPackage_Jog, c.PRIORITY_TRAVEL, 1)
+    EndIf
+    npc.EvaluatePackage()
+EndFunction
+
+Function CompanionStops(Int id)
+    {The ally greeted the player: whoever travels with them stops too, stands with them, and has their say once the
+    ally's line is over (one speaker at a time).}
+    Actor companion = IntelEngine.QuestForm(id, "companion") as Actor
+    Actor ally = IntelEngine.QuestForm(id, "ally") as Actor
+    Actor player = Game.GetPlayer()
+    IntelEngine_Core c = Core()
+    If companion == None || companion.IsDead() || !companion.Is3DLoaded() || c == None
+        Return
+    EndIf
+    ActorUtil.RemovePackageOverride(companion, c.TravelPackage_Walk)
+    ActorUtil.RemovePackageOverride(companion, c.TravelPackage_Jog)
+    PO3_SKSEFunctions.SetLinkedRef(companion, player as ObjectReference, c.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(companion, c.SandboxNearPlayerPackage, c.PRIORITY_SANDBOX, 1)
+    companion.EvaluatePackage()
+    StorageUtil.SetIntValue(companion, "Intel_FakeEncounterInteracted", 1)
+    StorageUtil.SetFloatValue(companion, "Intel_FakeEncounterGreetTime", Utility.GetCurrentRealTime())
+    StorageUtil.SetFloatValue(companion, "Intel_FakeEncounterElapsed", 0.0)
+    WaitForSilence(ally, 25.0)
+    companion.SetLookAt(player)
+    c.SendTaskNarration(companion, StorageUtil.GetStringValue(companion, "Intel_FakeEncounterNarration"), player)
+    WaitForTheirSay(companion, 25.0)
+EndFunction
+
+Function WaitForSilence(Actor npc, Float most)
+    {Until they have said everything: quiet for two and a half seconds. A reply comes in several lines and between
+    two of them nobody is talking, so "not talking now" let the popup cut Jenassa off and Lob never had his say
+    (2026-11-18). At most this long.}
+    Float waited = 0.0
+    While waited < most && npc != None && npc.Is3DLoaded()
+        Float since = IntelEngine.GetSecondsSinceNPCSpoke(npc)
+        If !IntelEngine.IsActorTalking(npc) && (since < 0.0 || since >= 2.5)
+            Return
+        EndIf
+        Utility.Wait(0.5)
+        waited += 0.5
+    EndWhile
+EndFunction
+
+Function WaitForTheirSay(Actor npc, Float most)
+    {After they were given something to say: until their reply has begun and ended, at most this long.}
+    Float waited = 0.0
+    While waited < most && npc != None && npc.Is3DLoaded()
+        Float since = IntelEngine.GetSecondsSinceNPCSpoke(npc)
+        If IntelEngine.IsActorTalking(npc) || (since >= 0.0 && since <= waited + 0.5)
+            WaitForSilence(npc, most - waited)
+            Return
+        EndIf
+        Utility.Wait(0.5)
+        waited += 0.5
+    EndWhile
+EndFunction
+
+Int Function DebugVenture(Actor ally, Int companionMode = 0)
+    {Test hook: plans a venture for this former follower and puts them on the road ahead; the id, 0 when none fits.
+    companionMode: 0 by chance, 1 a follower type the player never travelled with, 2 another former follower, 3 alone.}
+    IntelEngine.QuestDebugForceCompanion(companionMode)
     Int id = IntelEngine.QuestPlanVenture(ally)
+    IntelEngine.QuestDebugForceCompanion(0)
     If id > 0 && !PlaceVenture(id)
         PendingVenture = id
     EndIf
@@ -139,18 +446,26 @@ Event OnGiverArrived(Form giverForm, Int id)
     If giver == None || id <= 0 || IntelEngine.QuestField(id, "phase") != PHASE_PLANNED
         Return
     EndIf
-    ; Let them speak first: the popup never cuts a line off.
-    Utility.Wait(6.0)
-    Float waited = 0.0
-    While waited < 20.0 && giver.Is3DLoaded() && IntelEngine.IsActorTalking(giver)
-        Utility.Wait(0.5)
-        waited += 0.5
-    EndWhile
+    ; Let them have their say first: the popup never cuts a line off.
+    Utility.Wait(2.0)
+    WaitForTheirSay(giver, 30.0)
     If IntelEngine.QuestField(id, "phase") != PHASE_PLANNED || giver.IsDead() || giver.IsInCombat()
         Return
     EndIf
-    String prompt = IntelEngine.QuestText(id, "prompt")
     Bool venture = IntelEngine.QuestField(id, "template") == TPL_VENTURE
+    If venture
+        RoadVenture = 0
+        RoadChasing = false
+        ; The hurry is over: they stand with the player now (the story engine's linger), and later walk on with the
+        ; walk it gives back; a jog left on top of that would outrank it.
+        ActorUtil.RemovePackageOverride(giver, Core().TravelPackage_Jog)
+        giver.EvaluatePackage()
+        CompanionStops(id)
+        If IntelEngine.QuestField(id, "phase") != PHASE_PLANNED
+            Return
+        EndIf
+    EndIf
+    String prompt = IntelEngine.QuestText(id, "prompt")
     String yes = "I'll do it"
     String no = "Not now"
     String agreed = " will do it"
@@ -193,6 +508,7 @@ Function BeginVenture(Int id)
         c.StoryEngine.ClearRoadEncounterTravelState(ally)
     EndIf
     If c != None && c.StoryEngine != None && companion != None
+        c.StoryEngine.ForgetLingerActor(companion)
         c.StoryEngine.ClearRoadEncounterTravelState(companion)
     EndIf
     If t != None
@@ -392,6 +708,8 @@ Event OnUpdate()
 EndEvent
 
 Function Watch()
+    RecordTrail()
+    WatchRoad()
     If PendingVenture > 0
         If IntelEngine.QuestField(PendingVenture, "phase") != PHASE_PLANNED || PlaceVenture(PendingVenture)
             PendingVenture = 0
@@ -465,12 +783,7 @@ Function OfferHandOver(Int id, Quest jq)
     If giver == None
         Return
     EndIf
-    Float waited = 0.0
-    While waited < 15.0 && giver.Is3DLoaded() && IntelEngine.IsActorTalking(giver)
-        Utility.Wait(0.5)
-        waited += 0.5
-    EndWhile
-    String stamp = IntelEngine.QuestText(id, "stamp")
+    WaitForSilence(giver, 15.0)
     String choice = Core().ShowChoice(giver.GetDisplayName(), "Hand over", "Give the " + IntelEngine.QuestText(id, "itembase") + " back to " + giver.GetDisplayName() + "?", "Hand it over", "Not yet")
     If choice != "Hand it over" || !IntelEngine.QuestHandOver(id)
         Return
