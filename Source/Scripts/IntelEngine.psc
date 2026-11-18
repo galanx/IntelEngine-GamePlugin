@@ -656,6 +656,8 @@ String Function QuestFollower(Actor npc, Bool join) Global Native
 Int Function ArcPlan(Actor asker, Int pattern) Global Native
 Bool Function ArcAccept(Int id) Global Native
 Bool Function ArcDecline(Int id) Global Native
+; A planned arc that never reached the player: dropped without a memory.
+Bool Function ArcDrop(Int id) Global Native
 ; Planned arcs never offered in time (their ids).
 Int[] Function ArcLapse() Global Native
 Int[] Function ArcOpenIds() Global Native
