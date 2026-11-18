@@ -1,0 +1,20 @@
+{# IntelEngine tales, the chat form of decisions/intel_tale_turn.prompt: used when the player has no decision provider
+   set up in SkyrimNet. Same context (npc_name, player_name, goal, transcript, outcomes, allow_none) and the same
+   answer keys. #}
+[ system ]
+You read one conversation in a Skyrim story and say which prepared outcome it came to. Answer with ONLY a JSON object, nothing else.
+
+[ user ]
+{{ player_name }} has been talking with {{ npc_name }}. What {{ player_name }} set out to do: {{ goal }}
+
+{{ transcript }}
+
+Going only by what was actually said, which of these outcomes has the conversation come to?
+{% for o in outcomes %}
+- {{ o.key }}: {{ o.text }}
+{% endfor %}
+{% if allow_none %}- none: none of these has happened yet
+{% else %}Name the outcome closest to where the conversation ended; "none" is not allowed.
+{% endif %}
+
+Answer exactly like {{ "{" }}"turn":"o0"}

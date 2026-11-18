@@ -16,7 +16,11 @@ Int Property EFFECT_PAYGOLD = 1 AutoReadOnly
 Int Property EFFECT_JAIL = 2 AutoReadOnly
 Int Property EFFECT_SHAME = 3 AutoReadOnly
 Int Property EFFECT_PLAYERPAYS = 5 AutoReadOnly
+Int Property EFFECT_LEAVE = 6 AutoReadOnly
+Int Property EFFECT_BEFRIEND = 7 AutoReadOnly
+Int Property EFFECT_ESTRANGE = 8 AutoReadOnly
 Int Property KIND_BRAWL = 5 AutoReadOnly
+Int Property KIND_VISIT = 7 AutoReadOnly
 Int Property PATTERN_MURDER = 3 AutoReadOnly
 Int Property PATTERN_FEUD = 2 AutoReadOnly
 Int Property GEM_RUBY = 0x00063B42 AutoReadOnly
@@ -27,6 +31,10 @@ Int Property BRAWL_QUEST = 0x00047AE6 AutoReadOnly
 Int Property SIGNAL_PLANT = 16777216 AutoReadOnly    ; 1 << 24
 Int Property SIGNAL_CHOOSE = 33554432 AutoReadOnly   ; 1 << 25
 Int Property SIGNAL_GIVE = 67108864 AutoReadOnly     ; 1 << 26
+Int Property SIGNAL_VISIT = 32 AutoReadOnly          ; 1 << 5
+; A tale's journal log: two items of IntelEngine.esp per slot whose names the DLL writes (esp/EspBuilder AddTaleHolders).
+Int Property HOLDER_TEXT = 0x000058DD AutoReadOnly   ; IntelEngine_TaleText0..3
+Int Property HOLDER_CLOSE = 0x000058E1 AutoReadOnly  ; IntelEngine_TaleClose0..3
 ; Aliases of an arc's journal quest, in the order esp/EspBuilder makes them.
 Int Property ALIAS_ASKER = 0 AutoReadOnly
 Int Property ALIAS_CULPRIT = 1 AutoReadOnly
@@ -39,12 +47,18 @@ Int Property ALIAS_ITEM0 = 7 AutoReadOnly
 Int Property ALIAS_ITEM1 = 8 AutoReadOnly
 Int Property ALIAS_MARKER = 9 AutoReadOnly
 Int Property ALIAS_PLACE = 10 AutoReadOnly
+Int Property ALIAS_TALE = 11 AutoReadOnly
+Int Property ALIAS_CLOSE = 12 AutoReadOnly
+Int Property ROLES = 7 AutoReadOnly   ; the people of an arc, roles 1..7 in aliases 0..6
 
 Float Property WATCH_SECONDS = 2.0 AutoReadOnly
 Float Property JAIL_DAYS = 2.0 AutoReadOnly
+Float Property AWAY_DAYS = 3.0 AutoReadOnly
 
 ; Hidden, disabled references that lend the props' names to the journal: two per slot.
 ObjectReference[] NameHolders
+; A tale's two log holders per slot (the story so far, the ending).
+ObjectReference[] TaleHolders
 IntelEngine_Core CoreScript
 Bool Asking   ; an arc popup is up (or waiting its turn)
 
@@ -75,6 +89,19 @@ Function Begin()
     If NameHolders.Length != SLOTS * 2
         NameHolders = new ObjectReference[8]
     EndIf
+    If TaleHolders.Length != SLOTS * 2
+        TaleHolders = new ObjectReference[8]
+    EndIf
+    ; The DLL forgets the holders with every load (it keeps no references of its own): told again, and the journal's
+    ; texts written anew.
+    Int slot = 0
+    While slot < SLOTS
+        If TaleHolders[slot * 2] != None
+            IntelEngine.ArcSetHolders(slot, TaleHolders[slot * 2], TaleHolders[slot * 2 + 1])
+        EndIf
+        slot += 1
+    EndWhile
+    IntelEngine.ArcApplyTitles()
     RegisterForModEvent("IntelEngine_ArcAskerArrived", "OnAskerArrived")
     RegisterForModEvent("IntelEngine_ArcOffer", "OnArcOffer")
     RegisterForSingleUpdate(WATCH_SECONDS)
@@ -200,13 +227,12 @@ Function Open(Int id)
         Core().DebugMsg("Arcs: journal quest " + slot + " did not start")
     EndIf
     IntelEngine.ArcApplyTitles()
-    Force(jq, ALIAS_ASKER, IntelEngine.ArcForm(id, "asker") as ObjectReference)
-    Force(jq, ALIAS_CULPRIT, IntelEngine.ArcForm(id, "culprit") as ObjectReference)
-    Force(jq, ALIAS_WITNESS, IntelEngine.ArcForm(id, "witness") as ObjectReference)
-    Force(jq, ALIAS_RIVAL, IntelEngine.ArcForm(id, "rival") as ObjectReference)
-    Force(jq, ALIAS_VICTIM, IntelEngine.ArcForm(id, "victim") as ObjectReference)
-    Force(jq, ALIAS_SUSPECT2, IntelEngine.ArcForm(id, "suspect2") as ObjectReference)
-    Force(jq, ALIAS_SUSPECT3, IntelEngine.ArcForm(id, "suspect3") as ObjectReference)
+    ; Role r is in alias r - 1 (asker, culprit, witness, rival, victim, suspects; a tale's people in the order it cast them).
+    Int r = 1
+    While r <= ROLES
+        Force(jq, r - 1, IntelEngine.ArcForm(id, "role" + r) as ObjectReference)
+        r += 1
+    EndWhile
     Location place = IntelEngine.ArcForm(id, "place") as Location
     LocationAlias placeAlias = jq.GetAlias(ALIAS_PLACE) as LocationAlias
     If placeAlias != None && place != None
@@ -226,18 +252,24 @@ Function Open(Int id)
         EndIf
         p += 1
     EndWhile
-    If IntelEngine.ArcField(id, "pattern") == PATTERN_MURDER
-        ; The victim's gem, still in the killer's pocket: found by picking it, or on their body.
-        Actor killer = IntelEngine.ArcForm(id, "culprit") as Actor
-        Form gem = IntelEngine.ArcForm(id, "prop1")
-        If killer != None && gem != None
-            ObjectReference stamped = Game.GetPlayer().PlaceAtMe(gem, 1, false, true)
+    ; What someone carries from the start (the victim's gem in the killer's pocket, a tale's pocket): found by picking
+    ; it, or on their body.
+    p = 0
+    While p < 3
+        Actor carrier = IntelEngine.ArcForm(id, "pocket" + p) as Actor
+        Form carried = IntelEngine.ArcForm(id, "prop" + p)
+        If carrier != None && carried != None
+            ObjectReference stamped = Game.GetPlayer().PlaceAtMe(carried, 1, false, true)
             If stamped != None
-                stamped.SetDisplayName(IntelEngine.ArcText(id, "prop1"), true)
-                killer.AddItem(stamped, 1, true)
-                IntelEngine.ArcPlanted(id, 1, killer)
+                stamped.SetDisplayName(IntelEngine.ArcText(id, "prop" + p), true)
+                carrier.AddItem(stamped, 1, true)
+                IntelEngine.ArcPlanted(id, p, carrier)
             EndIf
         EndIf
+        p += 1
+    EndWhile
+    If IntelEngine.ArcField(id, "tale") == 1
+        MakeTaleHolders(slot, jq)
     EndIf
     jq.SetStage(IntelEngine.ArcField(id, "openstage"))
     ShowStep(id, jq)
@@ -245,6 +277,34 @@ Function Open(Int id)
     If IntelEngine.ArcField(id, "pattern") == PATTERN_FEUD
         QuarrelHere(id)
     EndIf
+EndFunction
+
+Function MakeTaleHolders(Int slot, Quest jq)
+    {A tale's log shows the story so far and its ending as the names of two items of this slot (the DLL writes them):
+    hidden, disabled references of them fill the Tale and Close aliases.}
+    Int k = 0
+    While k < 2
+        If TaleHolders[slot * 2 + k] != None
+            TaleHolders[slot * 2 + k].Delete()
+            TaleHolders[slot * 2 + k] = None
+        EndIf
+        Form base = None
+        If k == 0
+            base = Game.GetFormFromFile(HOLDER_TEXT + slot, "IntelEngine.esp")
+        Else
+            base = Game.GetFormFromFile(HOLDER_CLOSE + slot, "IntelEngine.esp")
+        EndIf
+        If base != None
+            ObjectReference holder = Game.GetPlayer().PlaceAtMe(base, 1, true, true)
+            If holder != None
+                holder.SetPosition(holder.GetPositionX(), holder.GetPositionY(), holder.GetPositionZ() - 10000.0)
+                TaleHolders[slot * 2 + k] = holder
+                Force(jq, ALIAS_TALE + k, holder)
+            EndIf
+        EndIf
+        k += 1
+    EndWhile
+    IntelEngine.ArcSetHolders(slot, TaleHolders[slot * 2], TaleHolders[slot * 2 + 1])
 EndFunction
 
 Function QuarrelHere(Int id)
@@ -446,6 +506,7 @@ Function Watch()
         i += 1
     EndWhile
     WatchJailed()
+    WatchAway()
 EndFunction
 
 Function WatchOne(Int id)
@@ -460,7 +521,11 @@ Function WatchOne(Int id)
     If Math.LogicalAnd(r, SIGNAL_PLANT) != 0
         Plant(id)
     EndIf
-    Int change = Math.LogicalAnd(r, 16777215)
+    If Math.LogicalAnd(r, SIGNAL_VISIT) != 0
+        Visit(id)
+    EndIf
+    ; Everything but the signals: the step done (bits 0-4), the ending, the effect.
+    Int change = Math.LogicalAnd(r, 16777215 - SIGNAL_VISIT)
     Int skipped = Math.LogicalAnd(Math.RightShift(r, 27), 15)
     If skipped > 0 && jq != None
         ; A node left by a shortcut (found before the witness was asked): its objective goes, it never happened.
@@ -485,24 +550,22 @@ EndFunction
 Function Settle(Int id, Int r, Quest jq)
     {Nodes done now: their objectives completed, the log of the branch taken; the effect; then the next node, or the
     ending.}
-    Int done = Math.LogicalAnd(r, 255)
+    Int done = Math.LogicalAnd(r, 31) - 1   ; the step done now, -1 = none
     Int ending = Math.LogicalAnd(Math.RightShift(r, 8), 31)   ; bit 15: stayed on the step
     Int effect = Math.LogicalAnd(Math.RightShift(r, 16), 15)
     Int role = Math.LogicalAnd(Math.RightShift(r, 20), 15)
-    Int nodes = IntelEngine.ArcField(id, "nodes")
-    Int i = 0
-    While i < nodes
-        If Math.LogicalAnd(done, Math.LeftShift(1, i)) != 0
-            Int objective = IntelEngine.ArcField(id, "objective" + i)
-            If jq != None && objective >= 0 && jq.IsObjectiveDisplayed(objective)
-                jq.SetObjectiveCompleted(objective, true)
-            EndIf
+    If done >= 0
+        Int objective = IntelEngine.ArcField(id, "objective" + done)
+        If jq != None && objective >= 0 && jq.IsObjectiveDisplayed(objective)
+            jq.SetObjectiveCompleted(objective, true)
         EndIf
-        i += 1
-    EndWhile
+    EndIf
     Int logStage = IntelEngine.ArcField(id, "log")
     If logStage > 0 && jq != None
         jq.SetStage(logStage)
+    EndIf
+    If IntelEngine.ArcField(id, "tale") == 1
+        IntelEngine.ArcApplyTitles()   ; the story so far, with the line of this step
     EndIf
     If ending == 0 && IntelEngine.ArcField(id, "kind") == KIND_BRAWL
         ; Fists chosen with the rival in the room: the fight between the player and the rival begins now, owned by
@@ -535,15 +598,17 @@ Function Ended(Int id, Int ending, Quest jq)
     EndIf
     Int objective = IntelEngine.ArcField(id, "objective")
     Int stage = IntelEngine.ArcField(id, "endstage")
-    Bool good = ending == ENDING_DONE || ending == ENDING_SETTLED || ending == ENDING_STAYEDOUT
+    Bool good = ending == ENDING_DONE || ending == ENDING_SETTLED || ending == ENDING_STAYEDOUT   ; a tale's "other" too
     ; The objective the player was on: failed when it did not end well (the node of the ending is completed by Settle).
     Int last = 0
-    While last < 12
+    While last < 32
         If jq.IsObjectiveDisplayed(last) && !jq.IsObjectiveCompleted(last) && !good
             jq.SetObjectiveFailed(last, true)
         EndIf
         last += 1
     EndWhile
+    ; A tale's ending line goes on its holder before the stage shows it.
+    IntelEngine.ArcApplyTitles()
     If stage > 0
         jq.SetStage(stage)
     EndIf
@@ -722,12 +787,88 @@ Function DoEffect(Int id, Int effect, Int role)
         Else
             Core().SendTaskNarration(target, "got it back, having already paid " + player.GetDisplayName() + " the " + gold + " gold promised", player)
         EndIf
-    ElseIf effect == EFFECT_PLAYERPAYS && gold > 0 && target != None
-        player.RemoveItem(septims, gold, true, target)
-        Core().NotifyPlayer("You gave " + target.GetDisplayName() + " " + gold + " gold.")
+    ElseIf effect == EFFECT_PLAYERPAYS && target != None
+        ; A tale's own price, else the reward's worth (a feud bought off).
+        Int price = IntelEngine.ArcField(id, "price")
+        If price > 0
+            player.RemoveItem(septims, price, true, target)
+            Core().NotifyPlayer("You gave " + target.GetDisplayName() + " " + price + " gold.")
+        EndIf
     ElseIf effect == EFFECT_JAIL && target != None
         Jail(id, target)
+    ElseIf effect == EFFECT_LEAVE && target != None
+        SendAway(id, target)
+    ElseIf (effect == EFFECT_BEFRIEND || effect == EFFECT_ESTRANGE) && target != None
+        Actor other = IntelEngine.ArcForm(id, "role" + IntelEngine.ArcField(id, "bondwith")) as Actor
+        If other != None && other != target && !other.IsDead()
+            ; The game's own ties: friends greet each other as friends; rivals never come to blows over it.
+            Int rank = 1
+            If effect == EFFECT_ESTRANGE
+                rank = -1
+            EndIf
+            target.SetRelationshipRank(other, rank)
+            other.SetRelationshipRank(target, rank)
+            Core().DebugMsg("Arcs: #" + id + " " + target.GetDisplayName() + " and " + other.GetDisplayName() + " are now at rank " + rank)
+        EndIf
     EndIf
+EndFunction
+
+Function Visit(Int id)
+    {A tale's visit: the step's person comes to the player. Already here, they speak up; else they set out the way a
+    story visitor does. Asked again by the DLL a couple of game hours later if they could not come.}
+    Actor who = IntelEngine.ArcForm(id, "who") as Actor
+    Actor player = Game.GetPlayer()
+    If who == None || who.IsDead() || who.IsInCombat()
+        Return
+    EndIf
+    String words = IntelEngine.ArcText(id, "visitwords")
+    If who.Is3DLoaded() && who.GetParentCell() == player.GetParentCell() && who.GetDistance(player) < 1500.0
+        Quests().WaitForSilence(who, 15.0)
+        Core().SendTaskNarration(who, "comes over to " + player.GetDisplayName() + ": " + IntelEngine.ArcText(id, "goal"), player)
+        Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " is here and comes over")
+        Return
+    EndIf
+    IntelEngine_Core c = Core()
+    If c == None || c.StoryEngine == None || !c.StoryEngine.DispatchArcVisit(who, id, words)
+        Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " cannot come now")
+    EndIf
+EndFunction
+
+; Gone from town for a while (a tale's "leave"): once nobody sees it, they are away (disabled) for a few days, then
+; back where the game keeps them.
+
+Function SendAway(Int id, Actor who)
+    If who.Is3DLoaded() && who.GetDistance(Game.GetPlayer()) < 2000.0
+        Core().SendTaskNarration(who, "makes ready to leave town for a while", Game.GetPlayer())
+    EndIf
+    StorageUtil.SetFloatValue(who, "Intel_ArcAwayUntil", Utility.GetCurrentGameTime() + AWAY_DAYS)
+    StorageUtil.SetIntValue(who, "Intel_ArcAway", 0)
+    StorageUtil.FormListAdd(self, "Intel_ArcAwayList", who, false)
+EndFunction
+
+Function WatchAway()
+    Int i = StorageUtil.FormListCount(self, "Intel_ArcAwayList") - 1
+    While i >= 0
+        Actor who = StorageUtil.FormListGet(self, "Intel_ArcAwayList", i) as Actor
+        If who == None || who.IsDead()
+            StorageUtil.FormListRemoveAt(self, "Intel_ArcAwayList", i)
+        ElseIf StorageUtil.GetIntValue(who, "Intel_ArcAway", 0) == 0
+            If Unseen(who)
+                who.Disable()
+                StorageUtil.SetIntValue(who, "Intel_ArcAway", 1)
+                Core().DebugMsg("Arcs: " + who.GetDisplayName() + " has left town")
+            EndIf
+        ElseIf Utility.GetCurrentGameTime() >= StorageUtil.GetFloatValue(who, "Intel_ArcAwayUntil")
+            who.MoveToMyEditorLocation()
+            who.Enable()
+            who.EvaluatePackage()
+            StorageUtil.UnsetIntValue(who, "Intel_ArcAway")
+            StorageUtil.UnsetFloatValue(who, "Intel_ArcAwayUntil")
+            StorageUtil.FormListRemoveAt(self, "Intel_ArcAwayList", i)
+            Core().DebugMsg("Arcs: " + who.GetDisplayName() + " is back in town")
+        EndIf
+        i -= 1
+    EndWhile
 EndFunction
 
 ; Taken by the guard: once nobody sees it happen, they are in the hold's jail for a couple of days, then let out
