@@ -4252,6 +4252,7 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     EndIf
 EndFunction
 
+; Not "generation": that spelling hides the Sparks bolt (RunPexStringCaseCheck.py, galanx/IntelEngine-GamePlugin#35).
 Function ReleaseStrandedCourier(Actor npc, Int slot, Int dispatchGen)
     {The arrival handler came back from a wait (the pause before the offer, the offer itself) and found its
     quest gone: cancelled from the dashboard, expired, replaced. It used to just return. The courier then
