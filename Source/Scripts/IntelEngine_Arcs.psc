@@ -22,6 +22,7 @@ Int Property EFFECT_ESTRANGE = 8 AutoReadOnly
 Int Property EFFECT_GIVEITEM = 9 AutoReadOnly
 Int Property EFFECT_CLOSER = 10 AutoReadOnly
 Int Property EFFECT_APART = 11 AutoReadOnly
+Int Property EFFECT_REMEDY = 12 AutoReadOnly
 Int Property KIND_BRAWL = 5 AutoReadOnly
 Int Property KIND_VISIT = 7 AutoReadOnly
 Int Property KIND_STALK = 12 AutoReadOnly
@@ -1609,6 +1610,8 @@ Function DoEffect(Int id, Int effect, Int role)
         SendAway(id, target)
     ElseIf effect == EFFECT_GIVEITEM
         GiveProp(id, IntelEngine.ArcField(id, "effectprop"), target)
+    ElseIf effect == EFFECT_REMEDY
+        GiveRemedy(id, IntelEngine.ArcField(id, "effectprop"), target)
     ElseIf (effect == EFFECT_BEFRIEND || effect == EFFECT_ESTRANGE) && target != None
         Actor other = IntelEngine.ArcForm(id, "role" + IntelEngine.ArcField(id, "bondwith")) as Actor
         If other != None && other != target && !other.IsDead()
@@ -1755,6 +1758,21 @@ Function PlaceClues(Int id)
         EndIf
         k += 1
     EndWhile
+EndFunction
+
+Function GiveRemedy(Int id, Int site, Actor giver)
+    {The player named rightly what killed someone: the one who heard it gives what they have against what lives in
+    that place (the DLL knows what that is: the game's own potions and scrolls). Two of it, into the player's hands,
+    and the giver knows they gave it.}
+    Form remedy = IntelEngine.ArcForm(id, "remedy" + site)
+    If remedy == None || giver == None || giver.IsDead()
+        Return
+    EndIf
+    Actor player = Game.GetPlayer()
+    player.AddItem(remedy, 2, true)
+    Core().NotifyPlayer(giver.GetDisplayName() + " gave you " + remedy.GetName() + " (2).")
+    Core().SendTaskNarration(giver, "hands " + player.GetDisplayName() + " two of " + remedy.GetName() + ", all they have against what did it", player)
+    Core().DebugMsg("Arcs: #" + id + " " + giver.GetDisplayName() + " gives the player " + remedy.GetName() + " (named rightly what did it)")
 EndFunction
 
 Function ReleaseClues(Int id)
