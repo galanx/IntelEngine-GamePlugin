@@ -102,6 +102,11 @@ Stories of several steps among the people of a town, with real clues in real poc
 - An inn's bard sent somewhere stops his songs and goes. The game's bard quest plays one song after another while you are in the inn, and IntelEngine ended a song only when it caught him between two; while he sang he counted as talking, so the checks that would free him stood down. Mikael, sent to a meeting, played on past it. (A song SkyrimNet's own bard action has him perform, and the inn's conversations SkyrimNet keeps him in, still hold him until they end.)
 - A late NPC who still reached the meeting place before you is no longer said to have found you "already waiting": the scene is told you came later still.
 
+### Fixes to 3.8
+- A new game no longer leaves IntelEngine stuck at start-up. On some new games started on 3.8.2 the dashboard said "settings not available" and the IntelEngine MCM page froze: the scheduling script called the main script while it was still starting, and each waited for the other. It no longer calls anything while starting; its timer is set a moment later by the start-up routine, as on every load. Reported by LouisCCW; the cause was found by Gerkinfeltser from a stack dump. A save already stuck this way may not recover: start a new game on this version.
+- Sparks and other lightning bolts are visible again (invisible since 3.8.0; the spell still did its damage). The game keeps one spelling of every name, whatever its case, and the first one loaded wins. The lightning mesh looks up "Generation" exactly, and a script parameter called "generation" took its place. The parameter has another name now. Reported by Cannottell-wq; the cause was found by Gerkinfeltser. Restart the game fully after updating. If bolts stay invisible, another mod in the load order has the same kind of name.
+
+## 3.8.2 — 2026-11-14
 
 One timer fix, and the save converter moves to its own download. The DLL and ESP are unchanged from 3.8.1; four scripts changed (Core, Schedule, StoryEngine, Battle). Install over 3.8.0 or 3.8.1; saves and settings carry over.
 

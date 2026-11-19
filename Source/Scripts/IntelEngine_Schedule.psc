@@ -63,8 +63,10 @@ Int Property MAX_SCHEDULED = 10 AutoReadOnly
 ; =============================================================================
 
 Event OnInit()
+    ; Nothing here may call another script: an OnInit that waits on Core while Core's first Maintenance waits for
+    ; this OnInit to finish left the whole quest stuck on new games (3.8.2; dashboard empty, MCM frozen). The
+    ; game-time tick is asked for by RestartMonitoring, which Maintenance calls on the first load too.
     InitializeScheduleArrays()
-    Core.RequestGameTimeTick(1.0)  ; Check every game hour
 EndEvent
 
 ; NOTE: Quest scripts do NOT receive OnPlayerLoadGame events.
