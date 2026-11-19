@@ -12,6 +12,7 @@ Nothing IntelEngine does takes more than about half a millisecond of one frame o
 - The places a follower's own life can go are read at the main menu, not on the first look after a save loads.
 - The story filters (block lists and white lists) are read on a worker thread before each round, not inside a frame every 30 seconds.
 - The 12 decision calls of a director round go out in parallel off the game's thread; in tests all were back within 0.7 seconds.
+- The look IntelEngine takes at each open story and quest every two seconds is timed where it runs. If one ever takes half a millisecond or more, IntelEngine.log says so at once, and the slowest of every 150 is logged, so a slow load order can be seen instead of guessed at.
 
 ### The living world
 - "How alive the world is": Classic (as before 4.0), Rumors (the world moves on and you hear about it), Lives (the default: followers you left behind also live lives of their own).

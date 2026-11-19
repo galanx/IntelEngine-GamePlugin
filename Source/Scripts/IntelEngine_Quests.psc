@@ -23,6 +23,7 @@ Int Property ALIAS_FOE = 1 AutoReadOnly
 Int Property ALIAS_ALLY = 2 AutoReadOnly
 Int Property ALIAS_ITEM = 3 AutoReadOnly
 Int Property ALIAS_MARKER = 4 AutoReadOnly
+Int Property SIGNAL_MARKER = 1073741824 AutoReadOnly   ; 1 << 30 from QuestAdvance: only the step's marker has moved
 Int Property ALIAS_PLACE = 5 AutoReadOnly
 Int Property ALIAS_COMPANION = 6 AutoReadOnly
 
@@ -1375,31 +1376,22 @@ Function WatchOne(Int id)
     Int r = IntelEngine.QuestAdvance(id)
     If r != 0
         Settle(id, r, jq)
-    Else
-        KeepMarker(id, jq)
-        If IntelEngine.QuestMayHandOver(id)
-            OfferHandOver(id, jq)
-        EndIf
-    EndIf
-EndFunction
-
-Function KeepMarker(Int id, Quest jq)
-    {The marker stays on what the step is about, asked again on every look: what it stood on may be gone by now (a
-    body cleared away, the foe not in the game yet when the step was shown), and a marker on nothing reads as a
-    broken quest.}
-    If jq == None || IntelEngine.QuestField(id, "objective") < 0
-        Return
-    EndIf
-    ReferenceAlias a = jq.GetAlias(ALIAS_MARKER) as ReferenceAlias
-    ObjectReference now = IntelEngine.QuestForm(id, "marker") as ObjectReference
-    If a != None && now != None && a.GetReference() != now
-        ShowStep(id, jq)
+    ElseIf IntelEngine.QuestMayHandOver(id)
+        OfferHandOver(id, jq)
     EndIf
 EndFunction
 
 Function Settle(Int id, Int r, Quest jq)
     {Steps done now: their objectives completed (those that were shown), the log of the furthest one; then the next
     step, or the ending.}
+    If r == SIGNAL_MARKER
+        ; Nothing was done: what the step's marker stood on is no longer there (a body cleared away, someone gone
+        ; from the game), and the DLL, which looks at it inside the look it makes anyway, names another. Set anew.
+        If jq != None
+            ShowStep(id, jq)
+        EndIf
+        Return
+    EndIf
     Int done = Math.LogicalAnd(r, 255)
     Int ending = r / 256
     Int steps = IntelEngine.QuestField(id, "steps")
