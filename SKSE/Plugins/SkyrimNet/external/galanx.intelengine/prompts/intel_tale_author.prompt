@@ -66,7 +66,7 @@ Every step has "id" and "goal" (the journal objective, short, naming people: "As
 - Everywhere else write {player} for {{ player_name }}. Never write "the player".
 - "memories" of an ending: first person of each person, naming {player}, what they will remember.
 - "rumor": what the town hears, or "" for a private matter.
-- "offer.words": what drives {{ asker_name }} to come, said as a narration of their state ("{{ asker_name }} comes to {player}, pale and angry: ..."); "offer.ask": one sentence of what they ask; "offer.journal": the journal's first line.
+- "offer.words": what drives {{ asker_name }} to come, said as a narration of their state ("{{ asker_name }} comes to {player}, pale and angry: ..."); "offer.ask": one sentence of what they ask, in their own voice ("I", "me", "my", never their own name); "offer.journal": the journal's first line.
 - "reward": gold, near {{ reward }}; "days": 1 to 7, how long the matter can wait.
 
 # The answer (this shape, with your own story)
