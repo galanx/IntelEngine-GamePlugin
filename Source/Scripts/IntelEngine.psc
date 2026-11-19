@@ -766,6 +766,8 @@ Bool Function LivingWorldMayMove(Actor npc, String storyType) Global Native
 ; Held by the game right now, at every level of the living world: in a scene, or the target of an objective the
 ; player has open. Such a person takes no task and is sent nowhere.
 Bool Function LivingWorldQuestHolds(Actor npc) Global Native
+; Another mod's scene with the player in it has begun (true) or ended (false): nobody comes to the player meanwhile.
+Function LivingWorldSceneBusy(Bool busy) Global Native
 
 ; 4.0: a place named in SkyrimNet (the player's /mark and Places page, a pack's, another mod's travel markers): a
 ; persistent reference in its cell or worldspace, None when the destination names no such place. The NPC's own
