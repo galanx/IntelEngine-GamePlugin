@@ -150,6 +150,14 @@ Int Function DebugArcWith(Actor asker, Int pattern, Actor other)
     Return DebugArc(asker, pattern)
 EndFunction
 
+Bool Function DebugRescue(Actor asker)
+    {Test hook: a rescue is asked for, as the old dungeon master's quest of that name does (a story about someone
+    close to the asker who is held at a place near their town, or nothing).}
+    Bool ok = IntelEngine.ArcRequestRescue(asker)
+    Core().DebugMsg("Arcs: a rescue asked for " + asker.GetDisplayName() + ": " + ok)
+    Return ok
+EndFunction
+
 Bool Function DebugTale(Actor asker)
     {Test hook (in-game tests): asks the dungeon master for a tale with this asker, as the director does; the offer
     comes once it is written (IntelEngine_ArcOffer). False when none can be asked for now.}
@@ -1697,9 +1705,14 @@ Function PlaceCaptive(Int id)
         Return
     EndIf
     CaptiveTries = 0
+    ; A prisoner of the place before they stand in it: put there first and made one a moment later, the bandits
+    ; beside them had already drawn on a stranger, and went on striking after the faction was set (played at White
+    ; River Watch, 2026-11-19: two of them had him at half his health within twenty seconds).
+    HoldCaptive(who)
     who.MoveTo(anchor, 110.0, 80.0, 0.0)
     who.Enable()
-    HoldCaptive(who)
+    who.SetRestrained(true)
+    BindCaptive(who)
     StorageUtil.SetIntValue(who, "Intel_ArcCaptiveAt", CAPTIVE_BOUND)
     IntelEngine.ArcCaptive(id, CAPTIVE_BOUND)
     Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " is held at the heart of " + IntelEngine.ArcText(id, "captiveplace"))
@@ -1839,7 +1852,14 @@ Function WatchCaptives()
                     If who.Is3DLoaded() && who.GetDistance(player) < 2000.0
                         Core().SendTaskNarration(who, "is out and safe, parts from " + player.GetDisplayName() + " here and sets off for home", player)
                     EndIf
-                    Quests().WalkOn(who, Core())
+                    If who.Is3DLoaded()
+                        Quests().WalkOn(who, Core())
+                    Else
+                        ; The player went on without them (fast travel, a long way ahead): nobody sees them, so they are
+                        ; simply home, instead of standing where they were left.
+                        who.MoveToMyEditorLocation()
+                        who.EvaluatePackage()
+                    EndIf
                     IntelEngine.ArcCaptive(id, CAPTIVE_HOME)
                     ForgetCaptive(who, i)
                     Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " parts from the player and walks home")
