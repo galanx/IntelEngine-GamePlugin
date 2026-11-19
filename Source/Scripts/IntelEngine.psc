@@ -699,6 +699,11 @@ Function ArcThugPlaced(Int id, Int k, Actor akThug) Global Native
 Function ArcAmbushDone(Int id, Int what) Global Native
 ; Out in the wilds: outdoors and nowhere people live (no town, farm, inn or home): where an ambush may wait.
 Bool Function ArcInWilds(ObjectReference akRef) Global Native
+; Test hook: how far the director's distance rule takes someone to be (0 here, 1 the same hold, 2 another hold), plus
+; 10 when they are close to the player. Logged too.
+Int Function ArcDebugReach(Actor akActor) Global Native
+; The offer of someone who came from another hold could not go out now: tried again in an hour.
+Function ArcOfferLater(Int id) Global Native
 ; Test hook: a tale as the director asks for one, with the asker's own reason, coming to the player from afar.
 Bool Function ArcRequestTaleWhy(Actor akAsker, String why) Global Native
 ; A tale's "give": its prop goes from where it was put to the player; false when it was never put anywhere.

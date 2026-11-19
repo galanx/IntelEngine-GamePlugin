@@ -146,6 +146,11 @@ Bool Function DebugTale(Actor asker)
     Return IntelEngine.ArcRequestTale(asker)
 EndFunction
 
+Int Function DebugReach(Actor who)
+    {Test hook: how the director's distance rule sees this person (the log says it in words).}
+    Return IntelEngine.ArcDebugReach(who)
+EndFunction
+
 Bool Function DebugTaleWhy(Actor asker, String why)
     {Test hook: a tale as the director asks for one: the asker's own reason, and they come to the player wherever the
     player is.}
@@ -198,6 +203,12 @@ Event OnArcOffer(String eventName, String strArg, Float numArg, Form sender)
     EndIf
     IntelEngine_Core c = Core()
     If !Enabled() || c.StoryEngine == None || !c.StoryEngine.DispatchArcOffer(asker, id)
+        If IntelEngine.ArcField(id, "camefar") == 1
+            ; Someone who came all the way from another hold does not turn back because the moment was wrong (another
+            ; visitor on the way): they wait an hour and try again, while their story stands.
+            IntelEngine.ArcOfferLater(id)
+            Return
+        EndIf
         ; Nobody comes, so nothing was offered: the plan is dropped and nobody remembers it.
         IntelEngine.ArcDrop(id)
         Return
