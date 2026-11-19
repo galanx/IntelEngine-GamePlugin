@@ -132,6 +132,7 @@ Function Begin()
     RegisterForModEvent("ostim_thread_start", "OnOtherSceneStart")
     RegisterForModEvent("ostim_thread_end", "OnOtherSceneEnd")
     RegisterForModEvent("IntelEngine_ArcOffer", "OnArcOffer")
+    RegisterForModEvent("IntelEngine_ArcUntie", "OnArcUntie")
     RegisterForSingleUpdate(WATCH_SECONDS)
 EndFunction
 
@@ -229,6 +230,12 @@ Event OnOtherSceneEnd(String eventName, String strArg, Float numArg, Form sender
     If numArg as Int == 0
         IntelEngine.LivingWorldSceneBusy(false)
     EndIf
+EndEvent
+
+Event OnArcUntie(String eventName, String strArg, Float numArg, Form sender)
+    {The player cut someone loose whom a story held bound (they activated them; the DLL hears it, ArcBridge::Activated):
+    the bonds come off now, not at the next look.}
+    WatchCaptives()
 EndEvent
 
 Event OnArcOffer(String eventName, String strArg, Float numArg, Form sender)
@@ -1732,6 +1739,9 @@ Function HoldCaptive(Actor who)
     EndIf
     who.StopCombat()
     who.SetRestrained(true)
+    ; The player's hand on them cuts them loose (the DLL hears the activation): the game's own answer to it (its
+    ; dialogue menu) stays away meanwhile.
+    who.BlockActivation(true)
     who.EvaluatePackage()
     BindCaptive(who)
 EndFunction
@@ -1749,6 +1759,7 @@ Function UnholdCaptive(Actor who, Bool keepSafe)
     {The bonds come off. keepSafe: still the place's prisoner in its people's eyes and still not able to die (walking
     out with the player); else everything the story put on them is taken off.}
     who.SetRestrained(false)
+    who.BlockActivation(false)
     If who.Is3DLoaded()
         Debug.SendAnimationEvent(who, "IdleForceDefaultState")
     EndIf
@@ -1771,6 +1782,7 @@ EndFunction
 Function ForgetCaptive(Actor who, Int i)
     StorageUtil.UnsetIntValue(who, "Intel_ArcCaptive")
     StorageUtil.UnsetIntValue(who, "Intel_ArcCaptiveAt")
+    StorageUtil.UnsetIntValue(who, "Intel_ArcCaptiveHint")
     StorageUtil.UnsetFloatValue(who, "Intel_ArcCaptiveFreed")
     StorageUtil.FormListRemoveAt(self, "Intel_ArcCaptives", i)
 EndFunction
@@ -1785,6 +1797,7 @@ Function WatchCaptives()
         If who == None
             StorageUtil.FormListRemoveAt(self, "Intel_ArcCaptives", i)
         ElseIf who.IsDead()
+            who.BlockActivation(false)
             ForgetCaptive(who, i)
         Else
             Int id = StorageUtil.GetIntValue(who, "Intel_ArcCaptive", 0)
@@ -1815,7 +1828,7 @@ Function WatchCaptives()
                 EndIf
             ElseIf at == CAPTIVE_BOUND
                 If IntelEngine.ArcField(id, "captivestate") == CAPTIVE_FREED
-                    ; The story's step is done: the player stands by them. Untied, and with the player from here.
+                    ; The player has cut them loose with their own hand. Untied, and with the player from here.
                     UnholdCaptive(who, true)
                     IntelEngine_Threads t = Threads()
                     If t != None
@@ -1838,6 +1851,11 @@ Function WatchCaptives()
                     BindCaptive(who)   ; come into the game anew: the pose again
                 ElseIf !who.Is3DLoaded()
                     StorageUtil.UnsetFloatValue(who, "Intel_ArcCaptiveBound")
+                ElseIf StorageUtil.GetIntValue(who, "Intel_ArcCaptiveHint", 0) == 0 && who.GetParentCell() == player.GetParentCell() && who.GetDistance(player) < 500.0
+                    ; Beside them for the first time: what the player's hand does here (the crosshair still says "Talk").
+                    StorageUtil.SetIntValue(who, "Intel_ArcCaptiveHint", 1)
+                    Debug.Notification(who.GetDisplayName() + " is bound. Activate to cut the bonds.")
+                    Core().DebugMsg("Arcs: #" + id + " the player stands by " + who.GetDisplayName() + ", bound: told that a hand on them cuts them loose")
                 EndIf
             ElseIf at == CAPTIVE_FREED
                 Float since = (Utility.GetCurrentGameTime() - StorageUtil.GetFloatValue(who, "Intel_ArcCaptiveFreed", 0.0)) * 24.0
