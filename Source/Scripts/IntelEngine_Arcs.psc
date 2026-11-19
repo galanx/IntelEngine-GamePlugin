@@ -960,13 +960,20 @@ Function WatchAway()
                 Core().DebugMsg("Arcs: " + who.GetDisplayName() + " has left town")
             EndIf
         ElseIf Utility.GetCurrentGameTime() >= StorageUtil.GetFloatValue(who, "Intel_ArcAwayUntil")
+            ; Back where the game keeps them, but never appearing in front of the player: while the player is in that
+            ; room, or near that spot outdoors, they stay away a little longer.
             who.MoveToMyEditorLocation()
-            who.Enable()
-            who.EvaluatePackage()
-            StorageUtil.UnsetIntValue(who, "Intel_ArcAway")
-            StorageUtil.UnsetFloatValue(who, "Intel_ArcAwayUntil")
-            StorageUtil.FormListRemoveAt(self, "Intel_ArcAwayList", i)
-            Core().DebugMsg("Arcs: " + who.GetDisplayName() + " is back in town")
+            Actor player = Game.GetPlayer()
+            Cell there = who.GetParentCell()
+            Bool inSight = there != None && there == player.GetParentCell() && (there.IsInterior() || who.GetDistance(player) < 4000.0)
+            If !inSight
+                who.Enable()
+                who.EvaluatePackage()
+                StorageUtil.UnsetIntValue(who, "Intel_ArcAway")
+                StorageUtil.UnsetFloatValue(who, "Intel_ArcAwayUntil")
+                StorageUtil.FormListRemoveAt(self, "Intel_ArcAwayList", i)
+                Core().DebugMsg("Arcs: " + who.GetDisplayName() + " is back in town")
+            EndIf
         EndIf
         i -= 1
     EndWhile
