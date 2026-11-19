@@ -164,6 +164,10 @@ Float Property QUEST_GUIDE_RESUME_DIST = 800.0 AutoReadOnly
 Float Property QUEST_GUIDE_TIMEOUT_HOURS = 5.0 AutoReadOnly
 Float Property LINGER_TIMEOUT_SECONDS = 180.0 AutoReadOnly
 Float Property LINGER_AFTER_TALK_SECONDS = 60.0 AutoReadOnly
+; A visitor whose business is settled (VisitOver) leaves this long after the last word between them and the player.
+Float Property LEAVE_AFTER_TALK_SECONDS = 6.0 AutoReadOnly
+; Within this of the player, a story's asker looks whether someone the story is about stands with the player.
+Float Property COMPANY_LOOK_DISTANCE = 1400.0 AutoReadOnly
 {A visiting story NPC stays at least this long after their last spoken line (see CheckStoryLingerCleanup).}
 Float Property SOCIAL_HOLD_PAIR_DISTANCE = 600.0 AutoReadOnly
 Float Property ENCOUNTER_RESUME_DISTANCE = 1500.0 AutoReadOnly
@@ -205,6 +209,7 @@ Float Property FACTION_AMBUSH_ENDING_MAX = 600.0 AutoReadOnly      ; real second
 Float Property SOCIAL_SCENE_HOLD_SECONDS = 45.0 AutoReadOnly       ; two NPCs stay together this long after their scene was narrated
 Float Property STORY_WALK_DISTANCE = 1200.0 AutoReadOnly           ; a visitor walks the last stretch to the player instead of jogging
 Bool StoryWalkingLastStretch = false                               ; the active story NPC is on the walk package (see ReapplyTravelPackage)
+Bool ActiveStoryHurries = false                                    ; the active story NPC has truly been looking for the player (else they walk)
 
 ; === Faction Battle Constants ===
 Float Property BATTLE_DELAY_MIN_DAYS = 0.015 AutoReadOnly       ; ~22s at timescale 20
@@ -1920,6 +1925,8 @@ Bool Function DispatchArcOffer(Actor asker, Int arcId)
     IntelEngine.NotifyStoryTypePicked("quest")
     IntelEngine.RecordStoryDispatch("quest", asker.GetDisplayName(), narration)
     IntelEngine.LivingWorldMomentDispatched(asker, "quest")
+    StorageUtil.UnsetIntValue(asker, "Intel_StoryLeaves")
+    Core.RememberWhereFrom(asker)
     StorageUtil.SetIntValue(asker, "Intel_ArcOffer", arcId)
     Core.InjectFact(asker, narration)
     ActiveStoryType = "seek_player"
@@ -1954,6 +1961,8 @@ Bool Function DispatchArcVisit(Actor who, Int arcId, String narration)
     EndIf
     IntelEngine.RecordStoryDispatch("seek_player", who.GetDisplayName(), narration)
     Core.InjectFact(who, narration)
+    StorageUtil.UnsetIntValue(who, "Intel_StoryLeaves")
+    Core.RememberWhereFrom(who)
     ActiveStoryType = "seek_player"
     If !DispatchToTarget(who, Game.GetPlayer(), narration, "story")
         Return false
@@ -2004,6 +2013,34 @@ Bool Function DispatchArcStalk(Actor who, Int arcId, String narration)
     StorageUtil.SetFloatValue(who, "Intel_SneakStartTime", Utility.GetCurrentRealTime())
     Core.DebugMsg("Arcs: " + who.GetDisplayName() + " shadows the player (arc " + arcId + ")")
     Return true
+EndFunction
+
+Bool Function TalkOver(Actor npc)
+    {Nobody is speaking between this visitor and the player any more, by what was actually said (SkyrimNet's own
+    account): no line of theirs is being said or on its way, their last one is a while ago, and the player has said
+    nothing for a little longer (an answer takes a few seconds to begin). Not by the dialogue target: many people
+    carry one for minutes after the last word.}
+    If IntelEngine.IsNPCSpeechPending(npc)
+        Return false
+    EndIf
+    Float theirs = IntelEngine.GetSecondsSinceNPCSpoke(npc)
+    Float mine = IntelEngine.GetSecondsSincePlayerSpoke()
+    Return (theirs < 0.0 || theirs >= LEAVE_AFTER_TALK_SECONDS) && (mine < 0.0 || mine >= LEAVE_AFTER_TALK_SECONDS * 2.0)
+EndFunction
+
+Function VisitOver(Actor npc)
+    {A story visitor's business with the player is settled (their offer was answered, their part of the talk is done):
+    they do not stand about for the rest of the visit. Once the talk between the two has ended they take their leave
+    and walk back where they came from (CheckStoryLingerCleanup, Core.WalkBack).}
+    If npc == None
+        Return
+    EndIf
+    If StorageUtil.FormListFind(Game.GetPlayer(), "Intel_StoryLingerActors", npc as Form) >= 0
+        StorageUtil.SetIntValue(npc, "Intel_StoryLeaves", 1)
+    Else
+        ; Not held by a visit (any more): nothing keeps them, they only need a way to go.
+        Core.WalkBack(npc)
+    EndIf
 EndFunction
 
 Function SignalArcAskerArrived(Actor npc)
@@ -2437,6 +2474,8 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     StorageUtil.SetIntValue(npc, "Intel_IsStoryDispatch", 1)
     StorageUtil.SetStringValue(npc, "Intel_StoryNarration", narration)
 
+    StorageUtil.UnsetFloatValue(npc, "Intel_WalkStartDist")
+    ActiveStoryHurries = target == Game.GetPlayer() && IntelEngine.ArcHurries(StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0), npc)
     ReapplyTravelPackage(npc, true)
     If !IsActive || ActiveStoryNPC != npc || DispatchGeneration != claimedGeneration
         ; Already allocated: do not let callers roll back a replacement's payload/quest.
@@ -2920,6 +2959,11 @@ Function CheckStoryLingerCleanup()
                     timedOut = false
                 EndIf
             EndIf
+            ; Their business with the player is settled (VisitOver): once nobody is speaking any more, they go.
+            Bool leaves = StorageUtil.GetIntValue(npc, "Intel_StoryLeaves") == 1
+            If leaves && !timedOut && TalkOver(npc)
+                timedOut = true
+            EndIf
             ; Grace period: don't check distance for the first 30 seconds so
             ; NPCs that start far away (e.g. rescued victims) can pathfind to the player
             Bool shouldRelease = elapsed > 30.0 && Core.ShouldReleaseLinger(npc)
@@ -2956,6 +3000,10 @@ Function CheckStoryLingerCleanup()
                 ; remove from this list, and the index then pointed at somebody else, who was dropped from
                 ; the linger with the sandbox still on them.
                 StorageUtil.FormListRemove(player, "Intel_StoryLingerActors", npc as Form, true)
+                StorageUtil.UnsetIntValue(npc, "Intel_StoryLeaves")
+                If leaves && !takenOver
+                    Core.WalkBack(npc)
+                EndIf
             EndIf
         EndIf
         i -= 1
@@ -3224,6 +3272,30 @@ Function CheckStoryNPCArrival()
     If storyType == "ambush_combat"
         CheckAmbushCombat()
         return
+    EndIf
+
+    ; === Not in front of the people the story is about ===
+    If arrivalTarget == player && HeldBackByCompany(storyNPC, claimedGeneration, storyType)
+        return
+    EndIf
+
+    ; === Someone coming at a walk does not chase the player across the world ===
+    If arrivalTarget == player && !ActiveStoryHurries && StoryComesAtAWalk(storyType)
+        Bool gone = IntelEngine.ArcReachOf(storyNPC) >= 1
+        Bool sameSpace = storyNPC.GetParentCell() == player.GetParentCell() || (!storyNPC.IsInInterior() && !player.IsInInterior())
+        If !gone && storyNPC.Is3DLoaded() && sameSpace
+            Float nearest = StorageUtil.GetFloatValue(storyNPC, "Intel_WalkStartDist", -1.0)
+            Float off = storyNPC.GetDistance(player)
+            If nearest < 0.0 || off < nearest
+                StorageUtil.SetFloatValue(storyNPC, "Intel_WalkStartDist", off)   ; measured from the nearest they got
+            ElseIf off > nearest + 2500.0 && off > 3500.0
+                gone = true   ; the player walked off faster than they follow
+            EndIf
+        EndIf
+        If gone
+            DeferStory(storyNPC, claimedGeneration, storyType)
+            return
+        EndIf
     EndIf
 
     ; === Ambush/Stalker sneak monitoring (overrides normal arrival) ===
@@ -3650,6 +3722,9 @@ Function OnStoryNPCArrived()
     Actor claimedNPC = ActiveStoryNPC
     Int claimedGeneration = DispatchGeneration
     String claimedType = ActiveStoryType
+    If HeldBackByCompany(claimedNPC, claimedGeneration, claimedType)
+        return
+    EndIf
     ; Latch before side effects or latent calls so concurrent callback/poll stacks cannot both handle arrival.
     ArrivalHandling = true
     If ActiveStoryType == "message" || ActiveStoryType == "quest"
@@ -6550,6 +6625,78 @@ EndFunction
 ; TRAVEL PACKAGE
 ; =============================================================================
 
+Bool Function StoryComesAtAWalk(String storyType)
+    {The kinds of moment in which someone comes to the player with something to say (not the hostile ones, not a
+    guide leading the way).}
+    return storyType == "seek_player" || storyType == "informant" || storyType == "message" || storyType == "quest" || storyType == "road_encounter"
+EndFunction
+
+Bool Function LetsItBe(Actor npc)
+    {True (and the visit is called off until they next meet) when this is the story's visitor coming to the player at
+    a walk and the player is no longer where they are. Asked wherever such a visitor would otherwise be set down near
+    the player.}
+    If !IsActive || ActiveStoryNPC != npc || ActiveStoryHurries || !StoryComesAtAWalk(ActiveStoryType)
+        Return false
+    EndIf
+    If IntelEngine.ArcReachOf(npc) < 1
+        Return false
+    EndIf
+    DeferStory(npc, DispatchGeneration, ActiveStoryType)
+    Return true
+EndFunction
+
+Bool Function HeldBackByCompany(Actor npc, Int claimedGeneration, String storyType)
+    {True (and the visit is called off for now) when this visitor is bringing a story to the player and someone that
+    story is about stands with the player: they turn back before they are close and wait for a moment when the two
+    are apart (the user, 2026-11-19: Sven brought his trouble "while Faendal was standing beside me all the time").}
+    Int arc = StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0)
+    Actor player = Game.GetPlayer()
+    If arc <= 0 || npc == None || !npc.Is3DLoaded()
+        Return false
+    EndIf
+    If npc.GetParentCell() != player.GetParentCell() && (npc.IsInInterior() || player.IsInInterior())
+        Return false
+    EndIf
+    If npc.GetDistance(player) > COMPANY_LOOK_DISTANCE || IntelEngine.ArcCompany(arc) == None
+        Return false
+    EndIf
+    DeferStory(npc, claimedGeneration, storyType, true)
+    Return true
+EndFunction
+
+Function DeferStory(Actor npc, Int claimedGeneration, String storyType, Bool company = false)
+    {They were on their way to the player at a walk and the player is gone (left the place, or walked off faster than
+    they follow): they let it be and go back to their day. A story they were bringing keeps until the two next meet.
+    company: they turned back because someone the story is about stands with the player.}
+    Int arc = StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0)
+    If company
+        Core.DebugMsg("Story [" + storyType + "]: " + npc.GetDisplayName() + " holds back (someone of the story is with the player): it waits until they are apart")
+    Else
+        Core.DebugMsg("Story [" + storyType + "]: " + npc.GetDisplayName() + " could not reach the player (gone): it waits until they next meet")
+    EndIf
+    StorageUtil.UnsetFloatValue(npc, "Intel_WalkStartDist")
+    Int slot = Core.FindSlotByAgent(npc)
+    If (slot >= 0) && StillOwns(npc, claimedGeneration, storyType)
+        Core.ClearSlot(slot)
+    EndIf
+    Core.RemoveIntelPackages(npc)
+    If StillOwns(npc, claimedGeneration, storyType)
+        CleanupStoryDispatch()
+        Core.ReleaseLinger(npc)
+    EndIf
+    If arc > 0
+        StorageUtil.UnsetIntValue(npc, "Intel_ArcOffer")
+        If company
+            IntelEngine.ArcOfferHeldBack(arc)
+        Else
+            IntelEngine.ArcOfferDeferred(arc)
+        EndIf
+    EndIf
+    If company
+        Core.WalkBack(npc)
+    EndIf
+EndFunction
+
 Bool Function StoryTypeJogs(String storyType)
     {The story types whose NPC travels on the jog package (the sneaking ones use the stalk package, and an
     attacker's charge is meant to be fast all the way).}
@@ -6594,6 +6741,13 @@ Function ReapplyTravelPackage(Actor npc, Bool starting = false)
     If travelPkg == Core.TravelPackage_Jog && StoryTypeJogs(ActiveStoryType) && ShouldWalkLastStretch(npc, target)
         travelPkg = Core.TravelPackage_Walk
         StoryWalkingLastStretch = true
+    EndIf
+    ; Someone coming to the player with something to say comes at a walk, as people do. Only those who have truly
+    ; been looking for the player hurry (the user, 2026-11-19: "Maybe the running should be reduced to walking so it
+    ; looks less targeted and more natural... Running into the player is only by people who have genuinely been
+    ; looking for him, missed him or who want to kill him").
+    If travelPkg == Core.TravelPackage_Jog && target == Game.GetPlayer() && StoryComesAtAWalk(ActiveStoryType) && !ActiveStoryHurries
+        travelPkg = Core.TravelPackage_Walk
     EndIf
 
     If starting

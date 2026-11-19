@@ -16,7 +16,13 @@ with ONLY one JSON object, nothing before or after it.
 # The town: {{ town }}{% if hold %} ({{ hold }}){% endif %}
 
 {{ player_name }} is a {{ player_race }} {{ player_sex }}, level {{ player_level }}. {{ asker_name }} ({{ asker }}) is about to come to {{ player_name }} and ask for help. Write that story.
-{% if exists("why") %}
+{% if exists("asker_knows") %}{% if asker_knows == "stranger" %}
+{{ asker_name }} has never met {{ player_name }} and has heard nothing of them. They turn to {{ player_name }} only because {{ player_name }} happens to be right there and looks like someone who could help (a traveller, armed, no part of the town's quarrels): offer.words and offer.ask must show exactly that, a stranger taking a chance on a stranger. They did not seek {{ player_name }} out and know nothing about them.
+{% else if asker_knows == "heard" %}
+{{ asker_name }} has not spoken with {{ player_name }} before, but the town talks of what {{ player_name }} did here: that is why they turn to {{ player_name }}, and they say so.
+{% else %}
+{{ asker_name }} and {{ player_name }} have had to do with each other before; they come as someone who knows {{ player_name }}.
+{% endif %}{% endif %}{% if exists("why") %}
 
 # Why this story begins now
 {{ asker_name }} has a real reason of their own to come to {{ player_name }} now. Here is what is known of them; the story must grow from it (a promise, a debt, a worry, a grudge, news, trouble only {{ player_name }} can help with), never from nothing:
@@ -28,7 +34,7 @@ with ONLY one JSON object, nothing before or after it.
 
 # The people you may use (by key)
 {% for p in people %}
-- {{ p.key }}: {{ p.name }}, {{ p.sex }}, {{ p.race }}; {{ p.work }}. Temperament: {{ p.temperament }}. Home: {{ p.home }}.{% if length(p.may) > 0 %} May: {% for m in p.may %}{{ m }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if length(p.ties) > 0 %} Ties: {% for t in p.ties %}{{ t }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if existsIn(p, "quest") %} Bound to a quest of the game not done yet ({{ p.quest }}): never touch their past, secret or fate from it.{% endif %}{% if existsIn(p, "office") %} Holds office in the hold and has a part in Skyrim's own story: a matter may be brought before them, they may judge, advise or refuse; never the guilty one, never corrupt, never deceived into harm, nothing about them changed.{% endif %}{% if existsIn(p, "old") %} An old companion of {{ player_name }}'s, not of this town: {{ p.old }} A story may lead {{ player_name }} to them where they are now, or have them seek {{ player_name }} out ("visit"); never jailed, sent away, fought or robbed.{% endif %}{% if existsIn(p, "about") %}
+- {{ p.key }}: {{ p.name }}, {{ p.sex }}, {{ p.race }}; {{ p.work }}. Temperament: {{ p.temperament }}. Home: {{ p.home }}.{% if length(p.may) > 0 %} May: {% for m in p.may %}{{ m }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if length(p.ties) > 0 %} Ties: {% for t in p.ties %}{{ t }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if existsIn(p, "quest") %} Has a part in a quest of the game not finished ({{ p.quest }}): keep clear of that quest's whole matter; never touch their past, secret or fate from it.{% endif %}{% if existsIn(p, "quest_done") %} Quests of the game {{ player_name }} has finished with them: {{ p.quest_done }}; a story may grow out of how those ended.{% endif %}{% if existsIn(p, "favours") %} The game's own errands with them: {{ p.favours }}; never retell one.{% endif %}{% if existsIn(p, "office") %} Holds office in the hold and has a part in Skyrim's own story: a matter may be brought before them, they may judge, advise or refuse; never the guilty one, never corrupt, never deceived into harm, nothing about them changed.{% endif %}{% if existsIn(p, "old") %} An old companion of {{ player_name }}'s, not of this town: {{ p.old }} A story may lead {{ player_name }} to them where they are now, or have them seek {{ player_name }} out ("visit"); never jailed, sent away, fought or robbed.{% endif %}{% if existsIn(p, "about") %}
   About them: {{ p.about }}{% endif %}
 {% endfor %}
 
@@ -59,6 +65,7 @@ with ONLY one JSON object, nothing before or after it.
 - Draw the premise from these people, for example (never copy, and never the same as a story told before): a debt called in, a secret courtship, a forged letter, a business undercut by a rival, a missing relative or friend, an old crime coming to light, a lie told to protect someone, a wager gone too far, an inheritance quarrel, a broken engagement, a merchant cheating the town, someone informing for one side of the war, a quarrel between two families, a vow someone cannot keep, a temple matter of faith, a deserter hiding, a grudge from the war, someone being blackmailed.
 - Lean toward {{ lean }}, unless the people here make something else far better. Crime, romance (words only, adults only), family, politics, secrets, debts, faith, jealousy, redemption, grief, rivalry: draw it from who these people really are.
 - Cast by fit. Everyone acts true to their work, temperament, ties and what is said about them: a law-abiding person never steals; a coward never fights; an innkeeper, a merchant or a priest never brawls; family protects family. Use the ties the game gives (rivals, foes, lovers, family): they are canon, and the story must agree with them.
+- Never retell a quest of the game. You know Skyrim's own quests and errands for these people (their letters, heirlooms, debts and feuds as the game itself tells them): a story here must not use the same premise, the same object or the same errand, under any name (no letter passed between Faendal, Sven and Camilla; no golden claw for Lucan). A quest of the game that is finished may be built on: what came of it, who was left hurt or grateful, what it set in motion. One that is not finished is left alone entirely. Everything else is yours to invent from who these people are.
 - Never touch the main stories of Skyrim or the player's quests above. None of these people dies or is hurt beyond a fistfight (the master of a place and hired men are nobody of the town), no children, nothing explicit.
 - 3 to 7 steps. At least one real choice with weight, and branches that lead to different endings. Prepare every likely way the talk can go: each talk step lists 2 or 3 outcomes.
 {% if not bar_places %}
@@ -75,7 +82,7 @@ with ONLY one JSON object, nothing before or after it.
 - "talk": {{ player_name }} talks with someone ("with"). The engine reads the real conversation afterwards and decides which outcome happened, so write each outcome's "if" as something that person could say or concede, and write their truth so that each outcome is believable (say what makes them give in or hold firm).
 - "find": an item ("item") hidden at someone's home or in someone's pocket must be found. The player searches, picks a pocket, or asks.
 - "give": hand an item ("item") to someone ("to").
-- "choose": {{ player_name }} decides, in front of someone ("with"): "question" and 2 or 3 "options" ({"say", "then", "journal", "effect"}). One option may have "persuade": true (needs Speech) with "else" (where it goes when it fails, or "stay") and "else_journal".
+- "choose": {{ player_name }} decides, in front of someone ("with"): "question" (at most 140 characters) and 2 or 3 "options" ({"say", "then", "journal", "effect"}; each "say" a short answer in {{ player_name }}'s own voice, at most 110 characters). One option may have "persuade": true (needs Speech) with "else" (where it goes when it fails, or "stay") and "else_journal".
 - "visit": someone ("with") comes to {{ player_name }} and they talk (use it after a "wait" or when someone seeks the player out); "why": what brings them, from their own side, as a narration ("Brenuin comes to {player} with the money in a pouch, ready to make amends").
 - "wait": time passes ("hours", 1 to 72), for a debt to come due, a letter to arrive, someone to make up their mind.
 {% if not bar_brawl %}
@@ -101,7 +108,7 @@ Every step has "id" and "goal" (the journal objective, short, naming people: "As
 - Everywhere else write {player} for {{ player_name }}. Never write "the player".
 - "memories" of an ending: first person of each person, naming {player}, what they will remember.
 - "rumor": what the town hears, or "" for a private matter.
-- "offer.words": what drives {{ asker_name }} to come, said as a narration of their state ("{{ asker_name }} comes to {player}, pale and angry: ..."); "offer.ask": one sentence of what they ask, in their own voice ("I", "me", "my", never their own name); "offer.journal": the journal's first line.
+- "offer.words": what drives {{ asker_name }} to come, said as a narration of their state ("{{ asker_name }} comes to {player}, pale and angry: ..."); "offer.ask": one short sentence of what they ask (at most 180 characters: it is shown in a small box), in their own voice ("I", "me", "my", never their own name); "offer.journal": the journal's first line.
 - "reward": gold, near {{ reward }}; "days": 1 to 7, how long the matter can wait.
 
 # The answer (this shape, with your own story)

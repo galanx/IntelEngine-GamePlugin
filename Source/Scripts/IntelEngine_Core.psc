@@ -1585,6 +1585,69 @@ Function LetFinishSpeaking(Actor npc)
     EndWhile
 EndFunction
 
+Function RememberWhereFrom(Actor npc)
+    {Someone sets out to see the player: the spot they leave from is kept (their own marker), so that they can walk
+    back there when the visit is over (WalkBack).}
+    ObjectReference marker = PlaceMarkerOf(npc)
+    If marker != None
+        marker.MoveTo(npc)
+        StorageUtil.SetIntValue(npc, "Intel_CameFrom", 1)
+    EndIf
+EndFunction
+
+Function WalkBack(Actor npc)
+    {Their visit to the player is over (the offer was answered, or they thought better of speaking): they walk back
+    to where they came from instead of standing about beside the player (the user, 2026-11-19: "When declining
+    Faendal's quest, he doesn't walk away"). Where they came from is beside the player anyway: home instead. The
+    game's own packages take over again once they are there, or out of sight (CheckWalkHomeActors).}
+    Actor player = Game.GetPlayer()
+    Bool known = StorageUtil.GetIntValue(npc, "Intel_CameFrom") == 1
+    StorageUtil.UnsetIntValue(npc, "Intel_CameFrom")
+    If npc == None || npc.IsDead() || !npc.Is3DLoaded() || npc.IsInCombat() || npc.IsPlayerTeammate() || IsFollowingPlayer(npc)
+        Return
+    EndIf
+    If FindSlotByActor(npc) >= 0 || TakenOverElsewhere(npc) || StorageUtil.FormListFind(self, "Intel_WalkHomeActors", npc as Form) >= 0
+        Return
+    EndIf
+    ObjectReference dest = None
+    If known
+        dest = StorageUtil.GetFormValue(npc, "Intel_PlaceMarker") as ObjectReference
+        If dest != None && !AwayFromPlayer(dest, player)
+            dest = None
+        EndIf
+    EndIf
+    If dest == None
+        dest = IntelEngine.ResolveAnyDestination(npc, "home")
+        If dest == None
+            dest = IntelEngine.GetEditorLocationRef(npc)
+        EndIf
+        If dest != None && !AwayFromPlayer(dest, player)
+            dest = None
+        EndIf
+    EndIf
+    If dest == None
+        DebugMsg("Walk back: " + npc.GetDisplayName() + " belongs right here; left to their day")
+        Return
+    EndIf
+    PO3_SKSEFunctions.SetLinkedRef(npc, dest, IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(npc, TravelPackage_Walk, PRIORITY_TRAVEL, 1)
+    TrackWalkHome(npc)
+    npc.EvaluatePackage()
+    DebugMsg("Walk back: " + npc.GetDisplayName() + " takes their leave and walks back")
+EndFunction
+
+Bool Function AwayFromPlayer(ObjectReference place, Actor player)
+    {Far enough from the player that walking there is leaving: another room, or a good stretch off outdoors.}
+    If place == None || player == None
+        Return false
+    EndIf
+    If place.GetParentCell() != player.GetParentCell() && (place.IsInInterior() || player.IsInInterior())
+        Return true
+    EndIf
+    Float off = place.GetDistance(player)
+    Return off <= 0.0 || off > 1200.0
+EndFunction
+
 Function TrackWalkHome(Actor npc)
     StorageUtil.SetFloatValue(npc, "Intel_WalkHomeUntil", Utility.GetCurrentGameTime() + WALK_HOME_MAX_HOURS / 24.0)
     ; Remember where home is: the linked ref can later belong to something else that took the NPC over.
@@ -2008,6 +2071,12 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
         StorageUtil.SetFloatValue(npc, "Intel_OffscreenDiagAt", now)
     EndIf
     If status == 1
+        ; Someone who was walking over to the player and whom the player has left behind (another town, another hold)
+        ; is never set down beside the player there: they let it be until the two next meet (Faendal of Riverwood
+        ; stood behind the player in an inn at Whiterun a minute and a half after the player left, 2026-11-19).
+        If StoryEngine != None && StoryEngine.LetsItBe(npc)
+            Return false
+        EndIf
         DebugMsg("[diag:arrival] " + npc.GetDisplayName() + " off-screen arrival " + IntelEngine.DescribeDistance(npc, dest))
         If PlaceForUnseenArrival(npc, dest)
             ; The destination is where the player is standing: the NPC was put at the way in and walks the
