@@ -1375,8 +1375,25 @@ Function WatchOne(Int id)
     Int r = IntelEngine.QuestAdvance(id)
     If r != 0
         Settle(id, r, jq)
-    ElseIf IntelEngine.QuestMayHandOver(id)
-        OfferHandOver(id, jq)
+    Else
+        KeepMarker(id, jq)
+        If IntelEngine.QuestMayHandOver(id)
+            OfferHandOver(id, jq)
+        EndIf
+    EndIf
+EndFunction
+
+Function KeepMarker(Int id, Quest jq)
+    {The marker stays on what the step is about, asked again on every look: what it stood on may be gone by now (a
+    body cleared away, the foe not in the game yet when the step was shown), and a marker on nothing reads as a
+    broken quest.}
+    If jq == None || IntelEngine.QuestField(id, "objective") < 0
+        Return
+    EndIf
+    ReferenceAlias a = jq.GetAlias(ALIAS_MARKER) as ReferenceAlias
+    ObjectReference now = IntelEngine.QuestForm(id, "marker") as ObjectReference
+    If a != None && now != None && a.GetReference() != now
+        ShowStep(id, jq)
     EndIf
 EndFunction
 
