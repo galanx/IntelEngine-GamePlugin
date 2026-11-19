@@ -23,6 +23,13 @@ with ONLY one JSON object, nothing before or after it.
   About them: {{ p.about }}{% endif %}
 {% endfor %}
 
+# Places out in the world the story may lead to (by key)
+{% if length(places) > 0 %}{% for d in places %}
+- {{ d.key }}: {{ d.name }}, {{ d.what }}, {{ d.far }}; at its heart: {{ d.heart }}.{% if d.cleared %} Cleared once already; something new has moved in.{% endif %}
+{% endfor %}{% else %}
+- none near enough
+{% endif %}
+
 # Items a story may turn on (use the names exactly)
 {% for i in items %}{{ i }}{% if not loop.is_last %}, {% endif %}{% endfor %}
 
@@ -45,6 +52,7 @@ with ONLY one JSON object, nothing before or after it.
 - Cast by fit. Everyone acts true to their work, temperament, ties and what is said about them: a law-abiding person never steals; a coward never fights; an innkeeper, a merchant or a priest never brawls; family protects family. Use the ties the game gives (rivals, foes, lovers, family): they are canon, and the story must agree with them.
 - Never touch the main stories of Skyrim or the player's quests above. Nobody dies, nobody is hurt beyond a fistfight, no children, nothing explicit.
 - 3 to 7 steps. At least one real choice with weight, and branches that lead to different endings. Prepare every likely way the talk can go: each talk step lists 2 or 3 outcomes.
+- A story worth living sends {{ player_name }} out of town when it fits: into a ruin for what was lost there, after a bandit chief who robbed someone, into a tomb for a proof, a beast's den that took a man's brother. Mix town and adventure; a story need not stay in town, nor leave it.
 - Consequences that last: people become friends or rivals, someone leaves town for a while, someone is taken by the guard, gold changes hands.
 - Its turn must differ from every story told before: if one turned on the asker being at fault, this one must not; vary who hides what, and why.
 - A story told before may get a sequel when its ending left something open and these people are part of it: the same people, a new turn, never the same shape again.
@@ -58,6 +66,9 @@ with ONLY one JSON object, nothing before or after it.
 - "wait": time passes ("hours", 1 to 72), for a debt to come due, a letter to arrive, someone to make up their mind.
 - "brawl": a fistfight with someone ("with") who "would settle a matter with fists"; "won" and "lost" each {"then", "journal"}.
 - "go": {{ player_name }} goes to someone's home ("to": "home of pX").
+- "delve": {{ player_name }} goes into a place out in the world ("place": "dX") and reaches its depths.
+- "slay": {{ player_name }} kills what waits at the heart of a place ("place": "dX"); "boss": its name in the story ("Grelka the Silent", "the Widow of Mzinchaleft"). It is always the kind the list says lives there.
+- At most two places in a story. An item may be "hidden": "at" with "of": "dX": the place's boss carries it.
 Every step has "id" and "goal" (the journal objective, short, naming people: "Ask Brenuin where he was that night"). Branches go with "then": a step id, or "end:good", "end:bad", "end:other". Every branch may have "journal" (one line of {{ player_name }}'s journal, first person, past tense) and "effect": "pay", "jail pX", "leave pX", "befriend pX pY", "estrange pX pY", "player pays pX N", or "give iN" (the step's person hands the item to {{ player_name }}: use it on every outcome where someone gives something up, or the item stays where it is). Only people who "may be taken by the guard or leave town" can be jailed or sent away; never the asker.
 
 # Words

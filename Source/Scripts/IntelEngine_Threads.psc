@@ -206,7 +206,11 @@ EndFunction
 
 Function DropNameHolder(Int slot)
     If NameHolders.Length == SLOTS && NameHolders[slot] != None
-        NameHolders[slot].Delete()
+        ObjectReference holder = NameHolders[slot]
+        ; Only a hidden holder: a stale handle may name something else by now (the game reuses deleted references' ids).
+        If holder.IsDisabled() && (holder as Actor) == None
+            holder.Delete()
+        EndIf
         NameHolders[slot] = None
     EndIf
 EndFunction

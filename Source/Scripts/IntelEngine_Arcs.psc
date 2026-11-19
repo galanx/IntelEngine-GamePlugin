@@ -34,6 +34,7 @@ Int Property SIGNAL_CHOOSE = 33554432 AutoReadOnly   ; 1 << 25
 Int Property SIGNAL_GIVE = 67108864 AutoReadOnly     ; 1 << 26
 Int Property SIGNAL_VISIT = 32 AutoReadOnly          ; 1 << 5
 Int Property SIGNAL_LINGER = 64 AutoReadOnly         ; 1 << 6
+Int Property SIGNAL_GANG = 128 AutoReadOnly          ; 1 << 7
 Int Property LINGER_QUIET_SECONDS = 60 AutoReadOnly  ; a talk gone quiet this long: they go back to their day
 ; A tale's journal log: two items of IntelEngine.esp per slot whose names the DLL writes (esp/EspBuilder AddTaleHolders).
 Int Property HOLDER_TEXT = 0x000058DD AutoReadOnly   ; IntelEngine_TaleText0..3
@@ -284,6 +285,7 @@ Function Open(Int id)
     EndWhile
     If IntelEngine.ArcField(id, "tale") == 1
         MakeTaleHolders(slot, jq)
+        PlaceBosses(id)   ; after the holders: the places' masters are made last
     EndIf
     jq.SetStage(IntelEngine.ArcField(id, "openstage"))
     ShowStep(id, jq)
@@ -299,7 +301,7 @@ Function MakeTaleHolders(Int slot, Quest jq)
     Int k = 0
     While k < 2
         If TaleHolders[slot * 2 + k] != None
-            TaleHolders[slot * 2 + k].Delete()
+            DeleteHolder(TaleHolders[slot * 2 + k])
             TaleHolders[slot * 2 + k] = None
         EndIf
         Form base = None
@@ -319,6 +321,59 @@ Function MakeTaleHolders(Int slot, Quest jq)
         k += 1
     EndWhile
     IntelEngine.ArcSetHolders(slot, TaleHolders[slot * 2], TaleHolders[slot * 2 + 1])
+EndFunction
+
+Function PlaceBosses(Int id)
+    {A tale's places out in the world: the master each one's story needs, of the place's own kind, at its heart. Placed
+    while nobody is there (the place need not be loaded); named as the story names them.}
+    Int s = 0
+    While s < 2
+        Form base = IntelEngine.ArcForm(id, "bossbase" + s)
+        ObjectReference anchor = IntelEngine.ArcForm(id, "siteanchor" + s) as ObjectReference
+        If base != None && anchor != None
+            Actor boss = anchor.PlaceAtMe(base, 1, true, false) as Actor
+            If boss != None
+                String name = IntelEngine.ArcText(id, "bossname" + s)
+                If name != ""
+                    boss.SetDisplayName(name, true)
+                EndIf
+            EndIf
+            IntelEngine.ArcBossPlaced(id, s, boss)
+        EndIf
+        s += 1
+    EndWhile
+EndFunction
+
+Function PlaceGang(Int id)
+    {A place the player emptied before: two of its kind come back with the story's master, near its heart, once it is
+    loaded.}
+    Int s = IntelEngine.ArcField(id, "gangsite")
+    ObjectReference anchor = IntelEngine.ArcForm(id, "siteanchor" + s) as ObjectReference
+    Int k = 0
+    While k < 2 && anchor != None
+        Form base = IntelEngine.ArcForm(id, "gangbase" + k)
+        If base != None
+            ObjectReference one = anchor.PlaceAtMe(base, 1, false, false)
+            If one != None
+                Float dx = 220.0
+                If k == 1
+                    dx = -220.0
+                EndIf
+                one.MoveTo(anchor, dx, 160.0, 0.0)
+            EndIf
+        EndIf
+        k += 1
+    EndWhile
+    IntelEngine.ArcGangPlaced(id)
+EndFunction
+
+Function DeleteHolder(ObjectReference holder)
+    {A holder is a hidden, disabled item reference: a handle kept from another time that now names something else (the
+    game gives a deleted reference's id to the next one it makes) is never deleted with it. A boss the story had just
+    placed vanished that way (2026-11-19).}
+    If holder != None && holder.IsDisabled() && (holder as Actor) == None
+        holder.Delete()
+    EndIf
 EndFunction
 
 Function QuarrelHere(Int id)
@@ -364,7 +419,7 @@ Function DropNameHolders(Int slot)
     Int p = 0
     While p < 2
         If NameHolders.Length == SLOTS * 2 && NameHolders[slot * 2 + p] != None
-            NameHolders[slot * 2 + p].Delete()
+            DeleteHolder(NameHolders[slot * 2 + p])
             NameHolders[slot * 2 + p] = None
         EndIf
         p += 1
@@ -608,8 +663,11 @@ Function WatchOne(Int id)
     If Math.LogicalAnd(r, SIGNAL_LINGER) != 0
         StartLinger(id)
     EndIf
+    If Math.LogicalAnd(r, SIGNAL_GANG) != 0
+        PlaceGang(id)
+    EndIf
     ; Everything but the signals: the step done (bits 0-4), the ending, the effect.
-    Int change = Math.LogicalAnd(r, 16777215 - SIGNAL_VISIT - SIGNAL_LINGER)
+    Int change = Math.LogicalAnd(r, 16777215 - SIGNAL_VISIT - SIGNAL_LINGER - SIGNAL_GANG)
     Int skipped = Math.LogicalAnd(Math.RightShift(r, 27), 15)
     If skipped > 0 && jq != None
         ; A node left by a shortcut (found before the witness was asked): its objective goes, it never happened.
