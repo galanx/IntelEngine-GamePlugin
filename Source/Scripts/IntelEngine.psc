@@ -704,6 +704,19 @@ Bool Function ArcInWilds(ObjectReference akRef) Global Native
 Int Function ArcDebugReach(Actor akActor) Global Native
 ; The offer of someone who came from another hold could not go out now: tried again in an hour.
 Function ArcOfferLater(Int id) Global Native
+; The asker set out at a walk and the player was gone before they got there: the offer goes out when they next meet.
+Function ArcOfferDeferred(Int id) Global Native
+; Someone of this story (not its asker) who stands beside the player right now, or None: nobody brings their trouble
+; to the player in front of the people it is about.
+Actor Function ArcCompany(Int id) Global Native
+; The asker held back for that reason: the story waits until the two are apart (a far-comer tries again in an hour).
+Function ArcOfferHeldBack(Int id) Global Native
+; Whether someone coming to the player has truly been looking for them (and so hurries): close to the player, come all
+; the way from another hold (not someone who merely failed to reach them once). id: their arc when they bring one,
+; else 0.
+Bool Function ArcHurries(Int id, Actor akActor) Global Native
+; How far someone is from the player: 0 loaded or of the player's own settlement, 1 the same hold, 2 another hold.
+Int Function ArcReachOf(Actor akActor) Global Native
 ; Test hook: a tale as the director asks for one, with the asker's own reason, coming to the player from afar.
 Bool Function ArcRequestTaleWhy(Actor akAsker, String why) Global Native
 ; A tale's "give": its prop goes from where it was put to the player; false when it was never put anywhere.

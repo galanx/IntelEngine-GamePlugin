@@ -244,12 +244,22 @@ Event OnAskerArrived(Form askerForm, Int id)
     If IntelEngine.ArcField(id, "phase") != PHASE_PLANNED
         Return
     EndIf
+    Bool stays = false
     If choice == "I'll do it" && IntelEngine.ArcAccept(id)
         Core().SendTaskNarration(asker, "was told that " + player.GetDisplayName() + " will do it", player)
         Open(id)
+        ; The first thing to do is with the asker themselves: they stay for it.
+        stays = (IntelEngine.ArcForm(id, "who") as Actor) == asker
     Else
         IntelEngine.ArcDecline(id)
         Core().SendTaskNarration(asker, "was told that " + player.GetDisplayName() + " will not do it", player)
+    EndIf
+    ; The answer is given: once they have said their word to it, they take their leave and walk back where they came
+    ; from, instead of standing beside the player for the rest of the visit.
+    If !stays && Core().StoryEngine != None
+        Utility.Wait(2.0)
+        Quests().WaitForTheirSay(asker, 25.0)
+        Core().StoryEngine.VisitOver(asker)
     EndIf
 EndEvent
 
@@ -1154,6 +1164,15 @@ Function Settle(Int id, Int r, Quest jq)
     {Nodes done now: their objectives completed, the log of the branch taken; the effect; then the next node, or the
     ending.}
     Int done = Math.LogicalAnd(r, 31) - 1   ; the step done now, -1 = none
+    ; Someone who came to the player for a step of this story: that step is over, so is their visit.
+    String visitorKey = "Intel_ArcVisitor" + IntelEngine.ArcField(id, "slot")
+    Actor visitor = StorageUtil.GetFormValue(self, visitorKey) as Actor
+    If visitor != None && (done >= 0 || Math.LogicalAnd(Math.RightShift(r, 8), 31) != 0)
+        StorageUtil.UnsetFormValue(self, visitorKey)
+        If Core().StoryEngine != None && (IntelEngine.ArcForm(id, "who") as Actor) != visitor
+            Core().StoryEngine.VisitOver(visitor)
+        EndIf
+    EndIf
     Int ending = Math.LogicalAnd(Math.RightShift(r, 8), 31)   ; bit 15: stayed on the step
     Int effect = Math.LogicalAnd(Math.RightShift(r, 16), 15)
     Int role = Math.LogicalAnd(Math.RightShift(r, 20), 15)
@@ -1478,6 +1497,8 @@ Function Visit(Int id)
     IntelEngine_Core c = Core()
     If c == None || c.StoryEngine == None || !c.StoryEngine.DispatchArcVisit(who, id, words)
         Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " cannot come now")
+    Else
+        StorageUtil.SetFormValue(self, "Intel_ArcVisitor" + IntelEngine.ArcField(id, "slot"), who)
     EndIf
 EndFunction
 
