@@ -133,6 +133,7 @@ Function Begin()
     RegisterForModEvent("ostim_thread_end", "OnOtherSceneEnd")
     RegisterForModEvent("IntelEngine_ArcOffer", "OnArcOffer")
     RegisterForModEvent("IntelEngine_ArcUntie", "OnArcUntie")
+    RegisterForModEvent("IntelEngine_ArcClue", "OnArcClue")
     RegisterForSingleUpdate(WATCH_SECONDS)
 EndFunction
 
@@ -156,6 +157,14 @@ Bool Function DebugRescue(Actor asker)
     close to the asker who is held at a place near their town, or nothing).}
     Bool ok = IntelEngine.ArcRequestRescue(asker)
     Core().DebugMsg("Arcs: a rescue asked for " + asker.GetDisplayName() + ": " + ok)
+    Return ok
+EndFunction
+
+Bool Function DebugHunt(Actor asker)
+    {Test hook: a hunt is asked for (a story about what is killing people near the asker's town: what was left of a
+    victim to look at, and what did it to face), or nothing.}
+    Bool ok = IntelEngine.ArcRequestHunt(asker)
+    Core().DebugMsg("Arcs: a hunt asked for " + asker.GetDisplayName() + ": " + ok)
     Return ok
 EndFunction
 
@@ -229,6 +238,29 @@ EndEvent
 Event OnOtherSceneEnd(String eventName, String strArg, Float numArg, Form sender)
     If numArg as Int == 0
         IntelEngine.LivingWorldSceneBusy(false)
+    EndIf
+EndEvent
+
+Event OnArcClue(String eventName, String strArg, Float numArg, Form sender)
+    {The player looked closely at what a story left outside a place (their hand on it; the DLL hears it,
+    ArcBridge::Activated): what they see there, in the story's own words. After that it is theirs to search like any
+    other of the dead. The step is done by the watch, whenever the story comes to it.}
+    Int id = numArg as Int
+    Int k = strArg as Int
+    ObjectReference lies = sender as ObjectReference
+    If lies != None
+        lies.BlockActivation(false)
+    EndIf
+    String seen = IntelEngine.ArcText(id, "cluetext" + k)
+    Core().DebugMsg("Arcs: #" + id + " the player looked at what was left (" + k + "): " + seen)
+    If seen != "" && lies != None
+        ; IntelEngine's own window, like every other moment of a story (the game's plain message box showed no words
+        ; at all in the test profile). Looked at, the dead can be searched like any other.
+        ; "Stand up" last: that is what Esc answers.
+        String answer = Core().ShowChoice(lies.GetDisplayName(), "What you see", seen, "Search the body", "Stand up")
+        If answer == "Search the body"
+            lies.Activate(Game.GetPlayer())
+        EndIf
     EndIf
 EndEvent
 
@@ -958,6 +990,19 @@ Function DropNameHolders(Int slot)
     EndWhile
 EndFunction
 
+Function MoveMarker(Int id, Quest jq)
+    {The journal's marker goes where the step's marker is now, without a word on the screen: the compass follows the
+    alias by itself.}
+    If jq == None || IntelEngine.ArcField(id, "objective") < 0
+        Return
+    EndIf
+    ObjectReference now = IntelEngine.ArcForm(id, "marker") as ObjectReference
+    ReferenceAlias a = jq.GetAlias(ALIAS_MARKER) as ReferenceAlias
+    If a != None && a.GetReference() != now
+        Force(jq, ALIAS_MARKER, now)
+    EndIf
+EndFunction
+
 Function ShowStep(Int id, Quest jq)
     {The objective of the node the player is on, its marker on what the node is about. A node come back to (proof
     still wanted) shows its objective again.}
@@ -1259,8 +1304,12 @@ Function WatchOne(Int id)
         ; the step has moved (onto the place, off it while inside, onto the heart or the master).
         PlaceBosses(id)
         PlaceCaptive(id)
+        PlaceClues(id)
         If jq != None && Math.LogicalAnd(r, 31) == 0
-            ShowStep(id, jq)
+            ; Only the marker: the objective is on the screen already. Showing the step anew here put the quest's
+            ; name and objective up again every time a marker moved or something was laid out in the world (the
+            ; user, 2026-11-19: "The quest title appeared multiple times").
+            MoveMarker(id, jq)
         EndIf
     EndIf
     If Math.LogicalAnd(r, SIGNAL_AMBUSH) != 0
@@ -1345,6 +1394,7 @@ EndFunction
 Function Ended(Int id, Int ending, Quest jq)
     {The ending's log entry completes or fails the journal quest. Memories and what the town hears are the DLL's.}
     CallOff(id, false)   ; men of an ambush still waiting somewhere unseen have no errand left
+    ReleaseClues(id)
     If jq == None
         Return
     EndIf
@@ -1660,6 +1710,64 @@ Int Property CAPTIVE_HOME = 4 AutoReadOnly
 Float Property CAPTIVE_PART_HOURS = 3.0 AutoReadOnly   ; with the player at most this long after being freed
 
 Int CaptiveTries = 0
+Int ClueTries = 0
+
+Function PlaceClues(Int id)
+    {What a tale leaves outside a place to be looked at closely (what was left of a victim: one of the game's hunters,
+    or a beast of the farms and woods). Laid a few steps from the place's marker on the map, which stands by its way
+    in, once that ground is in the game; dead from the first, and while the player is still a way off where that can
+    be helped (a few looks; then it has to be). The player's hand on it is theirs to look, not to search, until they
+    have looked (the DLL changes the crosshair's word).}
+    Actor player = Game.GetPlayer()
+    Int k = 0
+    While k < 2
+        Form base = IntelEngine.ArcForm(id, "cluebase" + k)
+        ObjectReference anchor = IntelEngine.ArcForm(id, "clueanchor" + k) as ObjectReference
+        If base != None && anchor != None
+            Cell there = anchor.GetParentCell()
+            If there != None && there.IsAttached()
+                If player.GetDistance(anchor) < 2500.0 && ClueTries < 8
+                    ClueTries += 1
+                Else
+                    ClueTries = 0
+                    ; Right at the marker: that is where a traveller arrives, so it is ground one can stand on (a
+                    ; few steps to the side, the first one lay inside a rock face). Dead only once it is really in
+                    ; the game: killed a moment sooner, the body was there and could not be seen (played 2026-11-19).
+                    Actor lies = anchor.PlaceAtMe(base, 1, false, false) as Actor
+                    If lies != None
+                        Int waited = 0
+                        While !lies.Is3DLoaded() && waited < 30
+                            Utility.Wait(0.1)
+                            waited += 1
+                        EndWhile
+                        lies.KillSilent()
+                        lies.BlockActivation(true)
+                        ; The name the story gives the dead one, so that the crosshair and the window say who lies there.
+                        String named = IntelEngine.ArcText(id, "cluename" + k)
+                        If named != ""
+                            lies.SetDisplayName(named, true)
+                        EndIf
+                        Core().DebugMsg("Arcs: #" + id + " " + lies.GetDisplayName() + " lies dead outside the place, to be looked at")
+                    EndIf
+                    IntelEngine.ArcCluePlaced(id, k, lies)
+                EndIf
+            EndIf
+        EndIf
+        k += 1
+    EndWhile
+EndFunction
+
+Function ReleaseClues(Int id)
+    {A story is over: what it left to be looked at is an ordinary body again, whether anyone looked or not.}
+    Int k = 0
+    While k < 2
+        ObjectReference lies = IntelEngine.ArcForm(id, "clue" + k) as ObjectReference
+        If lies != None
+            lies.BlockActivation(false)
+        EndIf
+        k += 1
+    EndWhile
+EndFunction
 
 Faction Function PrisonerFaction()
     Return Game.GetFormFromFile(0x000AA784, "Skyrim.esm") as Faction

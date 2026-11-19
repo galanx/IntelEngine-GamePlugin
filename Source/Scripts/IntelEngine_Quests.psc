@@ -1387,8 +1387,10 @@ Function Settle(Int id, Int r, Quest jq)
     If r == SIGNAL_MARKER
         ; Nothing was done: what the step's marker stood on is no longer there (a body cleared away, someone gone
         ; from the game), and the DLL, which looks at it inside the look it makes anyway, names another. Set anew.
-        If jq != None
-            ShowStep(id, jq)
+        If jq != None && IntelEngine.QuestField(id, "objective") >= 0
+            ; The alias alone: the objective is on the screen already, and showing it anew would put the quest's
+            ; name up again each time.
+            Force(jq, ALIAS_MARKER, IntelEngine.QuestForm(id, "marker") as ObjectReference)
         EndIf
         Return
     EndIf

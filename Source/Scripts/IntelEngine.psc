@@ -696,6 +696,10 @@ Function ArcBossPlaced(Int id, Int site, Actor akBoss) Global Native
 Function ArcCaptive(Int id, Int captiveState) Global Native
 ; A rescue asked for: a tale about someone held at a place near the giver's town is written, or nothing (false).
 Bool Function ArcRequestRescue(Actor akGiver) Global Native
+; What a tale leaves outside a place to be looked at closely (a victim's remains): the script laid it there.
+Function ArcCluePlaced(Int id, Int clue, ObjectReference akLies) Global Native
+; A hunt asked for: a tale about what is killing people near the giver's town is written, or nothing (false).
+Bool Function ArcRequestHunt(Actor akGiver) Global Native
 Function ArcGangPlaced(Int id) Global Native
 ; A tale's ambush: one of its men placed (k = 0 leads), and what a look asked of the script done (1 placed, 2 they
 ; struck, 3 called off unseen).
