@@ -28,7 +28,7 @@ with ONLY one JSON object, nothing before or after it.
 
 # The people you may use (by key)
 {% for p in people %}
-- {{ p.key }}: {{ p.name }}, {{ p.sex }}, {{ p.race }}; {{ p.work }}. Temperament: {{ p.temperament }}. Home: {{ p.home }}.{% if length(p.may) > 0 %} May: {% for m in p.may %}{{ m }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if length(p.ties) > 0 %} Ties: {% for t in p.ties %}{{ t }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if existsIn(p, "quest") %} Bound to a quest of the game not done yet ({{ p.quest }}): never touch their past, secret or fate from it.{% endif %}{% if existsIn(p, "about") %}
+- {{ p.key }}: {{ p.name }}, {{ p.sex }}, {{ p.race }}; {{ p.work }}. Temperament: {{ p.temperament }}. Home: {{ p.home }}.{% if length(p.may) > 0 %} May: {% for m in p.may %}{{ m }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if length(p.ties) > 0 %} Ties: {% for t in p.ties %}{{ t }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if existsIn(p, "quest") %} Bound to a quest of the game not done yet ({{ p.quest }}): never touch their past, secret or fate from it.{% endif %}{% if existsIn(p, "office") %} Holds office in the hold and has a part in Skyrim's own story: a matter may be brought before them, they may judge, advise or refuse; never the guilty one, never corrupt, never deceived into harm, nothing about them changed.{% endif %}{% if existsIn(p, "old") %} An old companion of {{ player_name }}'s, not of this town: {{ p.old }} A story may lead {{ player_name }} to them where they are now, or have them seek {{ player_name }} out ("visit"); never jailed, sent away, fought or robbed.{% endif %}{% if existsIn(p, "about") %}
   About them: {{ p.about }}{% endif %}
 {% endfor %}
 
@@ -66,6 +66,7 @@ with ONLY one JSON object, nothing before or after it.
 {% else %}
 - This story stays among people, in town: the last ones led far enough out into the world.
 {% endif %}
+- When an old companion of {{ player_name }}'s is listed and the story has a real place for them (they know something, are owed something, are in trouble, crossed the same people out on their own road), give them a part: a reunion with a purpose, never filler.
 - Consequences that last: people become friends or rivals, someone leaves town for a while, someone is taken by the guard, gold changes hands.
 - Its turn must differ from every story told before: if one turned on the asker being at fault, this one must not; vary who hides what, and why.
 - A story told before may get a sequel when its ending left something open and these people are part of it: the same people, a new turn, never the same shape again.
