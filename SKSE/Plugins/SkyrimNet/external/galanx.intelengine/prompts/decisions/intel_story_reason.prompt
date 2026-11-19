@@ -13,7 +13,7 @@
 
 [ question reason choice ]
 Judge {{ name }} alone, from `candidate`: their memories, how they know {{ player_name }}, unfinished business, their own life, what is going on around them. How strong a reason of their own do they have to do something about {{ player_name }} right now: to seek {{ player_name }} out, send word, ask for help, or for a hostile person to strike?
-A reason must come from something real in their own context: a promise, a debt, a worry, news that concerns {{ player_name }}, trouble only {{ player_name }} can help with, a grudge. Being friendly, being nearby, or having met once is no reason. Time apart is a reason only together with a bond that would make them miss {{ player_name }}.
+A reason must come from something real in their own context: a promise, a debt, a worry, news that concerns {{ player_name }}, trouble only {{ player_name }} can help with, a grudge. Being friendly, being nearby, or having met once is no reason. Time apart is a reason only together with a bond that would make them miss {{ player_name }}.{% if exists("distance") %} {{ name }} {{ distance }}: weigh the reason against that road. Nobody travels for hours over something that can wait until {{ player_name }} next comes by, and nobody crosses Skyrim for anything less than what they would truly drop their life for.{% endif %}
 [ criteria ]
 none: Nothing ties them to {{ player_name }} right now.
 idle: They might chat if they ran into {{ player_name }}, but nothing needs doing.
