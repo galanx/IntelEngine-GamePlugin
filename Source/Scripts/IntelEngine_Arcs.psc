@@ -132,6 +132,12 @@ Bool Function DebugTale(Actor asker)
     Return IntelEngine.ArcRequestTale(asker)
 EndFunction
 
+Bool Function DebugTaleWhy(Actor asker, String why)
+    {Test hook: a tale as the director asks for one: the asker's own reason, and they come to the player wherever the
+    player is.}
+    Return IntelEngine.ArcRequestTaleWhy(asker, why)
+EndFunction
+
 Bool Function DebugTaleFile(Actor asker, String path)
     {Test hook: a tale written by hand (JSON at an absolute path), cast from the asker's town and offered like any other.}
     Return IntelEngine.ArcDebugTaleFile(asker, path)

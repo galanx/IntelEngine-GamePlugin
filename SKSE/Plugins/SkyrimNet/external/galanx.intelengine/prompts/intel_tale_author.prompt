@@ -16,6 +16,15 @@ with ONLY one JSON object, nothing before or after it.
 # The town: {{ town }}{% if hold %} ({{ hold }}){% endif %}
 
 {{ player_name }} is a {{ player_race }} {{ player_sex }}, level {{ player_level }}. {{ asker_name }} ({{ asker }}) is about to come to {{ player_name }} and ask for help. Write that story.
+{% if exists("why") %}
+
+# Why this story begins now
+{{ asker_name }} has a real reason of their own to come to {{ player_name }} now. Here is what is known of them; the story must grow from it (a promise, a debt, a worry, a grudge, news, trouble only {{ player_name }} can help with), never from nothing:
+{{ why }}
+{% endif %}{% if exists("player_where") %}
+
+{{ asker_name }} travels to find {{ player_name }}{% if player_where != "" %}, who is at {{ player_where }}{% endif %}: offer.words is how they arrive and why they came all that way. The story's people and places are those of {{ asker_name }}'s own town and hold.
+{% endif %}
 
 # The people you may use (by key)
 {% for p in people %}
