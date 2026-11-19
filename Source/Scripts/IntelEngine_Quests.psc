@@ -993,6 +993,73 @@ Function WaitForQuiet(Actor npc, Float most, Float quiet)
     EndWhile
 EndFunction
 
+; Test help: the player goes somewhere by the game's own pathfinding, as an NPC would (along roads, around rocks and
+; trees), so a test sees what a player on the road sees instead of being teleported into a rock face (the user,
+; 2026-11-19). Never used in play.
+
+ObjectReference DebugWalkGoal
+ObjectReference DebugWalkMark
+Float DebugWalkSpeed
+Int DebugWalkTurn
+
+Function DebugWalkTo(ObjectReference to, Bool run = true)
+    {The player walks (or jogs) to this reference; DebugWalkStop gives the controls back before they arrive.}
+    If to == None
+        Return
+    EndIf
+    DebugWalkGoal = to
+    DebugWalkSpeed = 0.5
+    If run
+        DebugWalkSpeed = 1.0
+    EndIf
+    ; On its own thread: the walk takes as long as the way is.
+    RegisterForModEvent("IntelEngine_DebugWalk", "OnDebugWalk")
+    SendModEvent("IntelEngine_DebugWalk")
+EndFunction
+
+Function DebugWalkToXY(Float x, Float y, Bool run = true)
+    {To a point of the worldspace the player is in, within the loaded ground (farther off: give a reference).}
+    Actor player = Game.GetPlayer()
+    If DebugWalkMark == None
+        DebugWalkMark = player.PlaceAtMe(Game.GetFormFromFile(0x0000003B, "Skyrim.esm"), 1, true, false)
+    EndIf
+    DebugWalkMark.MoveTo(player, x - player.GetPositionX(), y - player.GetPositionY(), 0.0)
+    PO3_SKSEFunctions.MoveToNearestNavmeshLocation(DebugWalkMark)
+    DebugWalkTo(DebugWalkMark, run)
+EndFunction
+
+Event OnDebugWalk(String eventName, String strArg, Float numArg, Form sender)
+    Actor player = Game.GetPlayer()
+    DebugWalkTurn += 1
+    Int mine = DebugWalkTurn
+    Game.SetPlayerAIDriven(true)
+    ; One call of the game's pathing ends after a couple of minutes on a long way: on again from where it stopped,
+    ; until the goal is near, nothing more is gained, or DebugWalkStop.
+    Bool going = true
+    While going && DebugWalkTurn == mine
+        Float x0 = player.GetPositionX()
+        Float y0 = player.GetPositionY()
+        player.PathToReference(DebugWalkGoal, DebugWalkSpeed)
+        Float dx = player.GetPositionX() - x0
+        Float dy = player.GetPositionY() - y0
+        Bool near = DebugWalkGoal.Is3DLoaded() && player.GetDistance(DebugWalkGoal) < 300.0
+        going = !near && Math.Sqrt(dx * dx + dy * dy) > 200.0
+    EndWhile
+    If DebugWalkTurn == mine
+        Game.SetPlayerAIDriven(false)
+        If DebugWalkGoal.Is3DLoaded()
+            Core().DebugMsg("Quests: the test walk ended " + (player.GetDistance(DebugWalkGoal) as Int) + " units from its goal")
+        Else
+            Core().DebugMsg("Quests: the test walk ended; its goal is not in the loaded ground")
+        EndIf
+    EndIf
+EndEvent
+
+Function DebugWalkStop()
+    DebugWalkTurn += 1
+    Game.SetPlayerAIDriven(false)
+EndFunction
+
 Int Function DebugVenture(Actor ally, Int companionMode = 0)
     {Test hook: plans a venture for this former follower and puts them ahead of the player; the id, 0 when none fits.
     companionMode: 0 by chance, 1 a follower type the player never travelled with, 2 another former follower, 3 alone.}

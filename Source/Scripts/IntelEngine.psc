@@ -613,6 +613,8 @@ Int Function QuestPlanVentureHere(Actor ally) Global Native
 ObjectReference[] Function QuestSpotsAhead(Float dx, Float dy) Global Native
 ; Points on the ground ahead (the navmesh, roads first): x, y, z triples, best first.
 Float[] Function QuestGroundAhead(Float dx, Float dy) Global Native
+; The same, on roads only (an ambush waits on the road itself).
+Float[] Function QuestRoadAhead(Float dx, Float dy) Global Native
 ; The planned venture this actor is the ally or companion of, 0 = none.
 Int Function QuestVentureOf(Actor actor) Global Native
 ; A planned quest ends before it was taken on: 12 declined, 15 went alone, 17 nothing came of it.
