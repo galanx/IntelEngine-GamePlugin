@@ -502,10 +502,10 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         true if fetch task started successfully
     }
 
-    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    ; Carriage drivers are never sent on errands (see Core.IsUnsuitableTaskAgent).
     If Core.IsUnsuitableTaskAgent(akAgent)
         If akAgent != None
-            Core.DebugMsg("FetchNPC: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+            Core.DebugMsg("FetchNPC: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver)")
         EndIf
         Return false
     EndIf
@@ -724,10 +724,10 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         true if delivery task started
     }
 
-    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    ; Carriage drivers are never sent on errands (see Core.IsUnsuitableTaskAgent).
     If Core.IsUnsuitableTaskAgent(akAgent)
         If akAgent != None
-            Core.DebugMsg("DeliverMessage: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+            Core.DebugMsg("DeliverMessage: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver)")
         EndIf
         Return false
     EndIf
@@ -901,10 +901,10 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
         true if search task started successfully
     }
 
-    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    ; Carriage drivers are never sent on errands (see Core.IsUnsuitableTaskAgent).
     If Core.IsUnsuitableTaskAgent(akAgent)
         If akAgent != None
-            Core.DebugMsg("SearchForActor: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+            Core.DebugMsg("SearchForActor: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver)")
         EndIf
         Return false
     EndIf
@@ -1068,10 +1068,10 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
         true if escort task started successfully
     }
 
-    ; Carriage drivers and children are never sent on errands (see Core.IsUnsuitableTaskAgent).
+    ; Carriage drivers are never sent on errands (see Core.IsUnsuitableTaskAgent).
     If Core.IsUnsuitableTaskAgent(akAgent)
         If akAgent != None
-            Core.DebugMsg("EscortTarget: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+            Core.DebugMsg("EscortTarget: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver)")
         EndIf
         Return false
     EndIf
@@ -1091,6 +1091,15 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     If akAgent.IsDead() || akAgent.IsInCombat()
         Core.DebugMsg("EscortTarget: Agent dead or in combat")
         Return false
+    EndIf
+
+    ; "Take me to X": models pick EscortTarget with the player as target despite the action rules. The name
+    ; lookup below never returns the player, so it grabbed an NPC whose name merely contains the player's
+    ; (a summoned "Shadow <player name>" across the map) and walked off to it. Lead the player instead.
+    Actor player = Game.GetPlayer()
+    If targetName == player.GetDisplayName() || targetName == player.GetActorBase().GetName()
+        Core.DebugMsg("EscortTarget: target is the player, leading them there via GoToLocation")
+        Return Travel.GoToLocation(akAgent, destination, 0, 1, false, taskOrigin)
     EndIf
 
     ; Duplicate action guard
