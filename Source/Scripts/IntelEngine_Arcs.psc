@@ -128,6 +128,9 @@ Function Begin()
     EndWhile
     IntelEngine.ArcApplyTitles()
     RegisterForModEvent("IntelEngine_ArcAskerArrived", "OnAskerArrived")
+    ; OStim's own events, heard softly (nothing happens without OStim): while the player's scene runs, nobody comes.
+    RegisterForModEvent("ostim_thread_start", "OnOtherSceneStart")
+    RegisterForModEvent("ostim_thread_end", "OnOtherSceneEnd")
     RegisterForModEvent("IntelEngine_ArcOffer", "OnArcOffer")
     RegisterForSingleUpdate(WATCH_SECONDS)
 EndFunction
@@ -206,6 +209,19 @@ Function TheMurder(Int id)
     victim.Kill(killer)
     Core().DebugMsg("Arcs: #" + id + " " + victim.GetDisplayName() + " was killed at home")
 EndFunction
+
+Event OnOtherSceneStart(String eventName, String strArg, Float numArg, Form sender)
+    {OStim: a scene has begun; thread 0 is always the player's.}
+    If numArg as Int == 0
+        IntelEngine.LivingWorldSceneBusy(true)
+    EndIf
+EndEvent
+
+Event OnOtherSceneEnd(String eventName, String strArg, Float numArg, Form sender)
+    If numArg as Int == 0
+        IntelEngine.LivingWorldSceneBusy(false)
+    EndIf
+EndEvent
 
 Event OnArcOffer(String eventName, String strArg, Float numArg, Form sender)
     {The director planned an arc (ArcBridge::PlanFor): its asker comes to the player as a story visitor; a murder's
