@@ -1669,6 +1669,10 @@ Bool Function OwnsPackagesOf(Actor npc)
     ; A road meeting of a venture (IntelEngine_Quests) gives its people packages without a task slot; the sweep took
     ; Jenassa's and Vilkas' off on the road (2026-11-18). Its mark is trusted while the venture is live, and for a
     ; little while after it ended (they walk off and are let go once out of sight); a mark left behind stops counting.
+    ; The men of a tale's ambush come to the player on our jog package (IntelEngine_Arcs.ComeAt).
+    If StorageUtil.GetIntValue(npc, "Intel_ArcThug", 0) > 0
+        Return true
+    EndIf
     Int venture = StorageUtil.GetIntValue(npc, "Intel_RoadVenture", 0)
     If venture > 0
         Int phase = IntelEngine.QuestField(venture, "phase")
