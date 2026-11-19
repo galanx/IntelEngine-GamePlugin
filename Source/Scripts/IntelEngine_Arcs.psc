@@ -35,6 +35,10 @@ Int Property SIGNAL_GIVE = 67108864 AutoReadOnly     ; 1 << 26
 Int Property SIGNAL_VISIT = 32 AutoReadOnly          ; 1 << 5
 Int Property SIGNAL_LINGER = 64 AutoReadOnly         ; 1 << 6
 Int Property SIGNAL_GANG = 128 AutoReadOnly          ; 1 << 7
+Int Property SIGNAL_AMBUSH = 8192 AutoReadOnly       ; 1 << 13: the ambush has work for the script (ArcField "ambushdo")
+Int Property AMBUSH_PLACE = 1 AutoReadOnly
+Int Property AMBUSH_STRIKE = 2 AutoReadOnly
+Int Property AMBUSH_CALLOFF = 3 AutoReadOnly
 Int Property LINGER_QUIET_SECONDS = 60 AutoReadOnly  ; a talk gone quiet this long: they go back to their day
 ; A tale's journal log: two items of IntelEngine.esp per slot whose names the DLL writes (esp/EspBuilder AddTaleHolders).
 Int Property HOLDER_TEXT = 0x000058DD AutoReadOnly   ; IntelEngine_TaleText0..3
@@ -373,6 +377,186 @@ Function PlaceGang(Int id)
     IntelEngine.ArcGangPlaced(id)
 EndFunction
 
+; ----------------------------------------------------------------------------------------------- an ambush
+; Hired men sent by someone of a tale: they wait on the player's way ahead, out of sight, step out when the player
+; comes near (their leader has a word first), and fight. The game's own Hired Thugs, leveled to the player. Only out in
+; the wilds (the DLL's InTheWilds), so no guard or townsfolk joins in, and they strike first: no crime to defend oneself.
+
+Function Ambush(Int id)
+    Int what = IntelEngine.ArcField(id, "ambushdo")
+    If what == AMBUSH_PLACE
+        PlaceAmbush(id)
+    ElseIf what == AMBUSH_STRIKE
+        Strike(id)
+    ElseIf what == AMBUSH_CALLOFF
+        CallOff(id, true)
+    EndIf
+EndFunction
+
+Function PlaceAmbush(Int id)
+    {On ground ahead on the player's way that the player cannot see and where nobody lives; they are made behind the
+    player, where nobody is looking, and moved there unseen. No such ground now: tried again a little later; after a
+    couple of tries they come at the player from close behind instead.}
+    Actor player = Game.GetPlayer()
+    IntelEngine_Core c = Core()
+    IntelEngine_Quests q = Quests()
+    Int count = IntelEngine.ArcField(id, "thugs")
+    Cell here = player.GetParentCell()
+    Bool behind = false
+    Int placed = 0
+    If c != None && q != None && count > 0 && here != None && !here.IsInterior() && !player.IsInCombat()
+        Float tx = q.TrailDX()
+        Float ty = q.TrailDY()
+        If tx == 0.0 && ty == 0.0
+            ; Standing still: the way they face (angle 0 is north, +y, turning clockwise).
+            tx = Math.Sin(player.GetAngleZ())
+            ty = Math.Cos(player.GetAngleZ())
+        EndIf
+        Float span = Math.Sqrt(tx * tx + ty * ty)
+        Float[] ahead = IntelEngine.QuestGroundAhead(tx, ty)
+        ; The ground is read a moment apart (each read stays under half a millisecond of the game's frame).
+        Utility.Wait(0.1)
+        Float[] back = IntelEngine.QuestGroundAhead(0.0 - tx, 0.0 - ty)
+        ObjectReference mark = player.PlaceAtMe(Game.GetFormFromFile(0x0000003B, "Skyrim.esm"), 1, false, false)
+        If back.Length >= 3
+            mark.MoveTo(player, back[0] - player.GetPositionX(), back[1] - player.GetPositionY(), back[2] - player.GetPositionZ() + 20.0)
+        Else
+            mark.MoveTo(player, 0.0 - 1600.0 * tx / span, 0.0 - 1600.0 * ty / span, 50.0)
+        EndIf
+        String why = IntelEngine.ArcText(id, "thugwhy")
+        String name = IntelEngine.ArcText(id, "thugname")
+        Bool fromBehind = IntelEngine.ArcField(id, "ambushtries") >= 2
+        Actor leader = None
+        Int spot = -1        ; the ground point ahead the leader waits on (the others on it too)
+        Bool given = false   ; no ground for them now: nobody is placed
+        Int k = 0
+        While k < count && !given
+            Form base = IntelEngine.ArcForm(id, "thugbase" + k)
+            Actor t = None
+            If base != None
+                t = mark.PlaceAtMe(base, 1, false, false) as Actor
+            EndIf
+            If t != None
+                Int waited = 0
+                While !t.Is3DLoaded() && waited < 30
+                    Utility.Wait(0.1)
+                    waited += 1
+                EndWhile
+                t.SetAlpha(0.0, false)
+                If leader == None
+                    Bool hidden = false
+                    Int i = 0
+                    While !hidden && i + 2 < ahead.Length
+                        hidden = q.PutUnseen(t, player, ahead[i] - player.GetPositionX(), ahead[i + 1] - player.GetPositionY(), ahead[i + 2] - player.GetPositionZ() + 20.0)
+                        hidden = hidden && IntelEngine.ArcInWilds(t)
+                        If hidden
+                            spot = i
+                        EndIf
+                        i += 3
+                    EndWhile
+                    If !hidden && fromBehind
+                        ; Close behind the player, out of view: they come running.
+                        q.PutUnseen(t, player, 0.0 - 1600.0 * tx / span, 0.0 - 1600.0 * ty / span, 0.0)
+                        behind = true
+                        hidden = true
+                    EndIf
+                    If hidden
+                        leader = t
+                        If name != ""
+                            t.SetDisplayName(name, true)
+                        EndIf
+                    Else
+                        t.Disable()
+                        t.Delete()
+                        t = None
+                        given = true
+                    EndIf
+                ElseIf spot >= 0
+                    ; On the leader's own ground, a step to the side: placed beside the leader, the nearest
+                    ; navmesh could be down a slope (one landed 1800 units off, 2026-11-19).
+                    q.PutUnseen(t, player, ahead[spot] - player.GetPositionX() + 140.0 * k - 210.0, ahead[spot + 1] - player.GetPositionY() - 100.0, ahead[spot + 2] - player.GetPositionZ() + 20.0)
+                Else
+                    q.PutUnseen(t, leader, 140.0 * k - 210.0, -100.0)   ; beside the leader, behind the player
+                EndIf
+                If t != None
+                    t.SetAlpha(1.0, false)
+                    If why != ""
+                        c.InjectFact(t, why)
+                    EndIf
+                    IntelEngine.ArcThugPlaced(id, k, t)
+                    placed += 1
+                EndIf
+            EndIf
+            k += 1
+        EndWhile
+        mark.Delete()
+    EndIf
+    IntelEngine.ArcAmbushDone(id, AMBUSH_PLACE)
+    If placed > 0 && c != None
+        If behind
+            c.DebugMsg("Arcs: #" + id + " " + placed + " hired men come at the player from behind (no ground ahead out of sight)")
+            Strike(id)
+        Else
+            c.DebugMsg("Arcs: #" + id + " " + placed + " hired men wait ahead on the player's way")
+        EndIf
+    EndIf
+EndFunction
+
+Function Strike(Int id)
+    {The player has come near: the leader steps out and has a word (SkyrimNet gives the line, from what the men know
+    of their errand), then they fight. The first time only; again (they lost the player) or already fighting: straight
+    to it.}
+    Actor player = Game.GetPlayer()
+    Actor leader = IntelEngine.ArcForm(id, "thug0") as Actor
+    ; A fight with a wolf that crossed their road is no reason to skip the leader's word (Brannoc, 2026-11-19); one
+    ; with the player already is.
+    If IntelEngine.ArcField(id, "struck") == 0 && leader != None && !leader.IsDead() && leader.GetCombatTarget() != player && leader.Is3DLoaded() && leader.GetDistance(player) < 2500.0
+        Core().SendTaskNarration(leader, "steps out onto the road to bar " + player.GetDisplayName() + "'s way, weapon drawn, the others close behind", player)
+        ; The leader has their say before steel is drawn (they charged two seconds into Brannoc's threat, 2026-11-19):
+        ; the line is on its way within a few seconds, then until it is said, at most fifteen; a blow ends it at once.
+        IntelEngine_Quests q = Quests()
+        Float waited = 0.0
+        While waited < 15.0 && leader.GetCombatTarget() != player && !leader.IsDead() && (waited < 4.0 || (q != None && q.Speaking(leader)))
+            Utility.Wait(0.5)
+            waited += 0.5
+        EndWhile
+    EndIf
+    ; Cutthroats from now on (the game's bandits: no crime to fight them), who go for the player on sight and keep
+    ; after the player: told to fight from a distance alone, a leader 2900 units off never took it up (2026-11-19).
+    Faction bandits = Game.GetFormFromFile(0x0001BCC0, "Skyrim.esm") as Faction
+    Int k = 0
+    While k < 3
+        Actor t = IntelEngine.ArcForm(id, "thug" + k) as Actor
+        If t != None && !t.IsDead()
+            If bandits != None
+                t.AddToFaction(bandits)
+            EndIf
+            t.SetActorValue("Aggression", 2.0)
+            t.StartCombat(player)
+            Utility.Wait(0.3)
+        EndIf
+        k += 1
+    EndWhile
+    IntelEngine.ArcAmbushDone(id, AMBUSH_STRIKE)
+EndFunction
+
+Function CallOff(Int id, Bool answer)
+    {The player got away (or the story is over): the men still alive and out of sight leave the world, unseen.}
+    Actor player = Game.GetPlayer()
+    Int k = 0
+    While k < 3
+        Actor t = IntelEngine.ArcForm(id, "thug" + k) as Actor
+        If t != None && !t.IsDead() && (!t.Is3DLoaded() || (t.GetDistance(player) > 8000.0 && !Core().PlayerCanSee(t)))
+            t.Disable()
+            t.Delete()
+        EndIf
+        k += 1
+    EndWhile
+    If answer
+        IntelEngine.ArcAmbushDone(id, AMBUSH_CALLOFF)
+    EndIf
+EndFunction
+
 Function DeleteHolder(ObjectReference holder)
     {A holder is a hidden, disabled item reference: a handle kept from another time that now names something else (the
     game gives a deleted reference's id to the next one it makes) is never deleted with it. A boss the story had just
@@ -672,8 +856,11 @@ Function WatchOne(Int id)
     If Math.LogicalAnd(r, SIGNAL_GANG) != 0
         PlaceGang(id)
     EndIf
+    If Math.LogicalAnd(r, SIGNAL_AMBUSH) != 0
+        Ambush(id)
+    EndIf
     ; Everything but the signals: the step done (bits 0-4), the ending, the effect.
-    Int change = Math.LogicalAnd(r, 16777215 - SIGNAL_VISIT - SIGNAL_LINGER - SIGNAL_GANG)
+    Int change = Math.LogicalAnd(r, 16777215 - SIGNAL_VISIT - SIGNAL_LINGER - SIGNAL_GANG - SIGNAL_AMBUSH)
     Int skipped = Math.LogicalAnd(Math.RightShift(r, 27), 15)
     If skipped > 0 && jq != None
         ; A node left by a shortcut (found before the witness was asked): its objective goes, it never happened.
@@ -741,6 +928,7 @@ EndFunction
 
 Function Ended(Int id, Int ending, Quest jq)
     {The ending's log entry completes or fails the journal quest. Memories and what the town hears are the DLL's.}
+    CallOff(id, false)   ; men of an ambush still waiting somewhere unseen have no errand left
     If jq == None
         Return
     EndIf
