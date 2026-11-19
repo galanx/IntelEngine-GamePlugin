@@ -49,6 +49,11 @@ They are wed, with a child coming or children already. This is a story of the ho
 {% endif %}
 Rules for this story: {{ player_name }} can always say no kindly, at more than one point. A kind no ("you are a dear friend, nothing more", "I need time") ends it without bitterness and changes nothing between them as friends: that branch carries no effect at all. Where the two come closer, the branch carries "effect": "closer {{ asker }}". Only where {{ player_name }} was cruel or careless with them (a lie, mockery, walking off without a word) does it carry "effect": "apart {{ asker }}". Nothing is paid for a story like this: nobody promises gold for it, in offer.ask or anywhere ("reward" and "pay" are ignored); what is gained is each other. Tell it in words and gestures only: a hand held, an embrace, a kiss at most, and the story ends at the door. Only grown people have any part in it.
 {% endif %}
+{% if must_mystery %}
+
+# Something is killing near {{ town }}
+This story is a hunt. People, or their beasts, have been found dead out by one of the places below, and in {{ town }} nobody knows what did it, or someone knows and is not saying. {{ asker_name }} has a reason of their own to want it found out (kin, a debt, guilt, fear for someone still alive). It goes: people first (who found the dead, who saw something that night, who is lying about where they were); then what was left of a victim, outside the place ("examine", with a "clue" taken from that place's signs); then what did it, faced in that place ("slay" there); then people again, because what {{ player_name }} found out there overturns something that was said in town, and the story ends on a choice that costs someone. Nothing before the "examine" names what did it: not the offer, not a witness (they tell what they saw and feared, and may be wrong), not a goal. {{ player_name }} is to work it out from what they see.
+{% endif %}
 {% if must_captive %}
 
 # Someone has been taken
@@ -63,7 +68,7 @@ This story is about someone of {{ town }} who is held at one of the places below
 
 # Places out in the world the story may lead to (by key)
 {% if length(places) > 0 %}{% for d in places %}
-- {{ d.key }}: {{ d.name }}, {{ d.what }}, {{ d.far }}; at its heart: {{ d.heart }}.{% if d.cleared %} Cleared once already; something new has moved in.{% endif %}{% if d.holds %} Someone may be held here.{% endif %}
+- {{ d.key }}: {{ d.name }}, {{ d.what }}, {{ d.far }}; at its heart: {{ d.heart }}.{% if d.cleared %} Cleared once already; something new has moved in.{% endif %}{% if d.holds %} Someone may be held here.{% endif %}{% if d.outside and not bar_examine %} What lives here leaves these signs on those it kills: {{ d.signs }}.{% endif %}
 {% endfor %}{% else %}
 - none near enough
 {% endif %}
@@ -124,6 +129,9 @@ This story is about someone of {{ town }} who is held at one of the places below
 - At most two places in a story. An item may be "hidden": "at" with "of": "dX": the place's boss carries it.
 {% if not bar_captive %}
 - "free": someone of the story is held at a place. Mark them in "people" with "held": "dX": only someone whose line says they "may be held", only at a place where "someone may be held"; one person at most, never the one who asks. They were taken a short while ago (hours, a night: nobody says days), where no one saw it. {{ player_name }} frees them by finding them at the heart of that place and cutting them loose ("who": "pX"); until that step they cannot be met, talked to or searched, and the people of the place do them no harm. Once free they come out with {{ player_name }}, so the very next step may be a "talk" with them there and then, and later steps find them back home. Put a "delve" or a "slay" for that place before it when the way to them is a fight. Their truth says how they really came to be there, who is to blame, and what they will not go back to; it should differ from what {{ asker_name }} believes, and whatever a later talk with them may turn on (a name, a place, a sum) must stand in it word for word. The one held is someone {{ asker_name }} has a real tie to (a line that says "Close to", or a tie by the list); when it is someone else, the story says plainly why their fate is {{ asker_name }}'s to care about (a debt, a witness, guilt): never a stranger for no reason.
+{% endif %}
+{% if not bar_examine %}
+- "examine": what was left of a victim lies outside a place ("place": "dX", one whose line gives its signs), and {{ player_name }} looks at it closely. "what": one of "a hunter" (a man), "a cow", "a horse", "a goat", "a deer". "name": the dead one's name when the story gives them one ("Torvald"; leave it out for a beast): the body carries it. "clue": what {{ player_name }} sees on it, one or two plain sentences, taken from that place's signs and from nothing else; it never names what did it, and it is true (a clue may be puzzling, never false). The body lies there whole and clothed: a clue speaks of wounds, colour, smell and what clings to it, never of anything missing or torn off. What did it is what lives in that place, so a later step is the "slay" there. At most two in a story. Its "journal" line is what {{ player_name }} makes of it in their own words.
 {% endif %}
 {% endif %}
 {% if not bar_stalk %}
