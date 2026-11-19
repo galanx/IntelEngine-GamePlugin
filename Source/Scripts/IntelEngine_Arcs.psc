@@ -19,6 +19,7 @@ Int Property EFFECT_PLAYERPAYS = 5 AutoReadOnly
 Int Property EFFECT_LEAVE = 6 AutoReadOnly
 Int Property EFFECT_BEFRIEND = 7 AutoReadOnly
 Int Property EFFECT_ESTRANGE = 8 AutoReadOnly
+Int Property EFFECT_GIVEITEM = 9 AutoReadOnly
 Int Property KIND_BRAWL = 5 AutoReadOnly
 Int Property KIND_VISIT = 7 AutoReadOnly
 Int Property PATTERN_MURDER = 3 AutoReadOnly
@@ -120,6 +121,17 @@ Int Function DebugArcWith(Actor asker, Int pattern, Actor other)
     {Test hook: DebugArc with the thief, the rival or the killer chosen.}
     IntelEngine.ArcDebugCast(other)
     Return DebugArc(asker, pattern)
+EndFunction
+
+Bool Function DebugTale(Actor asker)
+    {Test hook (in-game tests): asks the dungeon master for a tale with this asker, as the director does; the offer
+    comes once it is written (IntelEngine_ArcOffer). False when none can be asked for now.}
+    Return IntelEngine.ArcRequestTale(asker)
+EndFunction
+
+Bool Function DebugTaleFile(Actor asker, String path)
+    {Test hook: a tale written by hand (JSON at an absolute path), cast from the asker's town and offered like any other.}
+    Return IntelEngine.ArcDebugTaleFile(asker, path)
 EndFunction
 
 Int Function DebugArc(Actor asker, Int pattern = 0)
@@ -602,6 +614,10 @@ Function Ended(Int id, Int ending, Quest jq)
     ; The objective the player was on: failed when it did not end well (the node of the ending is completed by Settle).
     Int last = 0
     While last < 32
+        ; Objectives 0..11 (the patterns') and 20..31 (a tale's steps); there are none between.
+        If last == 12
+            last = 20
+        EndIf
         If jq.IsObjectiveDisplayed(last) && !jq.IsObjectiveCompleted(last) && !good
             jq.SetObjectiveFailed(last, true)
         EndIf
@@ -798,6 +814,8 @@ Function DoEffect(Int id, Int effect, Int role)
         Jail(id, target)
     ElseIf effect == EFFECT_LEAVE && target != None
         SendAway(id, target)
+    ElseIf effect == EFFECT_GIVEITEM
+        GiveProp(id, IntelEngine.ArcField(id, "effectprop"), target)
     ElseIf (effect == EFFECT_BEFRIEND || effect == EFFECT_ESTRANGE) && target != None
         Actor other = IntelEngine.ArcForm(id, "role" + IntelEngine.ArcField(id, "bondwith")) as Actor
         If other != None && other != target && !other.IsDead()
@@ -811,6 +829,31 @@ Function DoEffect(Int id, Int effect, Int role)
             Core().DebugMsg("Arcs: #" + id + " " + target.GetDisplayName() + " and " + other.GetDisplayName() + " are now at rank " + rank)
         EndIf
     EndIf
+EndFunction
+
+Function GiveProp(Int id, Int p, Actor giver)
+    {A tale's "give": someone hands the story's item over (a confession, a bargain). It comes from wherever it was put;
+    never put anywhere yet (the player never went where it was hidden), it is made in the player's hands.}
+    Actor player = Game.GetPlayer()
+    If !IntelEngine.ArcFetchProp(id, p)
+        Form base = IntelEngine.ArcForm(id, "prop" + p)
+        If base == None
+            Return
+        EndIf
+        ObjectReference stamped = player.PlaceAtMe(base, 1, false, true)
+        If stamped == None
+            Return
+        EndIf
+        stamped.SetDisplayName(IntelEngine.ArcText(id, "prop" + p), true)
+        player.AddItem(stamped, 1, true)
+        IntelEngine.ArcPlanted(id, p, player)
+    EndIf
+    String who = "Someone"
+    If giver != None
+        who = giver.GetDisplayName()
+        Core().SendTaskNarration(giver, "hands " + IntelEngine.ArcText(id, "prop" + p) + " over to " + player.GetDisplayName(), player)
+    EndIf
+    Core().NotifyPlayer(who + " gave you " + IntelEngine.ArcText(id, "prop" + p) + ".")
 EndFunction
 
 Function Visit(Int id)

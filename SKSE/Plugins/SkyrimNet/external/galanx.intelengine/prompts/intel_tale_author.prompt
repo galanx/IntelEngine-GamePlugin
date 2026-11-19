@@ -19,7 +19,7 @@ with ONLY one JSON object, nothing before or after it.
 
 # The people you may use (by key)
 {% for p in people %}
-- {{ p.key }}: {{ p.name }}, {{ p.sex }}, {{ p.race }}; {{ p.work }}. Temperament: {{ p.temperament }}. Home: {{ p.home }}.{% if length(p.may) > 0 %} May: {% for m in p.may %}{{ m }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if length(p.ties) > 0 %} Ties: {% for t in p.ties %}{{ t }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if existsIn(p, "about") %}
+- {{ p.key }}: {{ p.name }}, {{ p.sex }}, {{ p.race }}; {{ p.work }}. Temperament: {{ p.temperament }}. Home: {{ p.home }}.{% if length(p.may) > 0 %} May: {% for m in p.may %}{{ m }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if length(p.ties) > 0 %} Ties: {% for t in p.ties %}{{ t }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if existsIn(p, "quest") %} Bound to a quest of the game not done yet ({{ p.quest }}): never touch their past, secret or fate from it.{% endif %}{% if existsIn(p, "about") %}
   About them: {{ p.about }}{% endif %}
 {% endfor %}
 
@@ -49,11 +49,11 @@ with ONLY one JSON object, nothing before or after it.
 - "find": an item ("item") hidden at someone's home or in someone's pocket must be found. The player searches, picks a pocket, or asks.
 - "give": hand an item ("item") to someone ("to").
 - "choose": {{ player_name }} decides, in front of someone ("with"): "question" and 2 or 3 "options" ({"say", "then", "journal", "effect"}). One option may have "persuade": true (needs Speech) with "else" (where it goes when it fails, or "stay") and "else_journal".
-- "visit": someone ("with") comes to {{ player_name }} and they talk (use it after a "wait" or when someone seeks the player out).
+- "visit": someone ("with") comes to {{ player_name }} and they talk (use it after a "wait" or when someone seeks the player out); "why": what brings them, from their own side, as a narration ("Brenuin comes to {player} with the money in a pouch, ready to make amends").
 - "wait": time passes ("hours", 1 to 72), for a debt to come due, a letter to arrive, someone to make up their mind.
 - "brawl": a fistfight with someone ("with") who "would settle a matter with fists"; "won" and "lost" each {"then", "journal"}.
 - "go": {{ player_name }} goes to someone's home ("to": "home of pX").
-Every step has "id" and "goal" (the journal objective, short, naming people: "Ask Brenuin where he was that night"). Branches go with "then": a step id, or "end:good", "end:bad", "end:other". Every branch may have "journal" (one line of {{ player_name }}'s journal, first person, past tense) and "effect": "pay", "jail pX", "leave pX", "befriend pX pY", "estrange pX pY", or "player pays pX N". Only people who "may be taken by the guard or leave town" can be jailed or sent away; never the asker.
+Every step has "id" and "goal" (the journal objective, short, naming people: "Ask Brenuin where he was that night"). Branches go with "then": a step id, or "end:good", "end:bad", "end:other". Every branch may have "journal" (one line of {{ player_name }}'s journal, first person, past tense) and "effect": "pay", "jail pX", "leave pX", "befriend pX pY", "estrange pX pY", "player pays pX N", or "give iN" (the step's person hands the item to {{ player_name }}: use it on every outcome where someone gives something up, or the item stays where it is). Only people who "may be taken by the guard or leave town" can be jailed or sent away; never the asker.
 
 # Words
 - "truth" of each person: first person, what they know, want, hide, and what they say when asked; 2 to 5 sentences.
@@ -65,7 +65,7 @@ Every step has "id" and "goal" (the journal objective, short, naming people: "As
 - "reward": gold, near {{ reward }}; "days": 1 to 7, how long the matter can wait.
 
 # The answer (this shape, with your own story)
-{"title": "...", "genre": "...", "premise": "the hidden truth in one or two sentences",
+ {"title": "...", "genre": "...", "premise": "the hidden truth in one or two sentences",
  "people": [{"who": "{{ asker }}", "part": "the one who asks", "truth": "..."}, {"who": "p2", "part": "...", "truth": "..."}],
  "items": [{"id": "i1", "item": "<a name from the list>", "name": "<its story name, e.g. Ysolda's Mother's Ring>", "hidden": "home" or "pocket", "of": "p2"}],
  "offer": {"words": "...", "ask": "...", "journal": "...", "reward": {{ reward }}, "days": 3},

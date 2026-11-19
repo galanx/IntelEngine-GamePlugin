@@ -686,6 +686,10 @@ Function ArcDebugCast(Actor akActor) Global Native
 ; every load; and a tale asked of the dungeon master for this asker (its answer sends IntelEngine_ArcOffer).
 Function ArcSetHolders(Int slot, ObjectReference akTale, ObjectReference akClose) Global Native
 Bool Function ArcRequestTale(Actor akAsker) Global Native
+; A tale's "give": its prop goes from where it was put to the player; false when it was never put anywhere.
+Bool Function ArcFetchProp(Int id, Int prop) Global Native
+; Test hook: a hand-written tale (JSON file, absolute path) for this asker.
+Bool Function ArcDebugTaleFile(Actor akAsker, String path) Global Native
 
 ; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
 ; Track: see who follows, who was left behind, who is on an errand, and plan the next change.
