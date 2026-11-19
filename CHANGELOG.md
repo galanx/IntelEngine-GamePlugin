@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.8.3 — 2026-11-19
+
+Four fixes. The DLL and four scripts changed (NPCTasks, StoryEngine, Core, Travel); the ESP is unchanged. Install over 3.8.0, 3.8.1 or 3.8.2; saves and settings carry over.
+
+- NPCs can travel to SkyrimNet's Named Places. SkyrimNet already offered them to the AI as destinations ("Kitchen"), but IntelEngine could not find them, so an NPC sent to one went nowhere or somewhere else. A Named Place is now looked up by its exact name first. Needs SkyrimNet v1.0.0-rc1 or newer; on older versions nothing changes.
+- "Take me to …" no longer sends the NPC after someone else. Asked to take you somewhere, the AI sometimes picked the escort action with you as the one to escort, and the NPC set off toward another character whose name contains yours. The NPC now heads to the place and waits for you there.
+- Sparks bolts are visible again. A word in one IntelEngine script clashed with a name the game's lightning effect looks up, and the bolt drew nothing (galanx/IntelEngine-GamePlugin#35).
+- Children run errands again. The task check turned them away from errands and fetch tasks; carriage drivers are still never sent. By Galanx.
+
 ## 3.8.2 — 2026-11-14
 
 One timer fix, and the save converter moves to its own download. The DLL and ESP are unchanged from 3.8.1; four scripts changed (Core, Schedule, StoryEngine, Battle). Install over 3.8.0 or 3.8.1; saves and settings carry over.
