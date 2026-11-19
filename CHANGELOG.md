@@ -2,8 +2,9 @@
 
 ## 3.8.3 — 2026-11-19
 
-Four fixes. The DLL and four scripts changed (NPCTasks, StoryEngine, Core, Travel); the ESP is unchanged. Install over 3.8.0, 3.8.1 or 3.8.2; saves and settings carry over.
+Five fixes. The DLL and five scripts changed (NPCTasks, StoryEngine, Core, Travel, Schedule); the ESP is unchanged. Install over 3.8.0, 3.8.1 or 3.8.2; saves and settings carry over.
 
+- A new game no longer gets stuck at start-up. On 3.8.2, a new game could leave two IntelEngine scripts waiting on each other forever: the dashboard tabs said "settings not available" and the IntelEngine MCM page froze. Saves started on 3.8.1 or earlier were not affected. A save that already got stuck stays stuck after updating, because the frozen script is stored in the save: back up the save, disable IntelEngine, load it and save under a new name, remove the leftover IntelEngine scripts with ReSaver, then enable 3.8.3 and load the cleaned save. IntelEngine's own settings and history for that playthrough start fresh.
 - NPCs can travel to SkyrimNet's Named Places. SkyrimNet already offered them to the AI as destinations ("Kitchen"), but IntelEngine could not find them, so an NPC sent to one went nowhere or somewhere else. A Named Place is now looked up by its exact name first. Needs SkyrimNet v1.0.0-rc1 or newer; on older versions nothing changes.
 - "Take me to …" no longer sends the NPC after someone else. Asked to take you somewhere, the AI sometimes picked the escort action with you as the one to escort, and the NPC set off toward another character whose name contains yours. The NPC now heads to the place and waits for you there.
 - Sparks bolts are visible again. A word in one IntelEngine script clashed with a name the game's lightning effect looks up, and the bolt drew nothing (galanx/IntelEngine-GamePlugin#35).
