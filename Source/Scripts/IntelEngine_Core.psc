@@ -1666,6 +1666,13 @@ Function EndWalkHome(Actor npc, Bool removeOverride)
     StorageUtil.FormListRemove(self, "Intel_WalkHomeActors", npc as Form, true)
 EndFunction
 
+Bool Function WalkHomePending()
+    {Someone is on a walk home or back (WalkBack, the walk home after a task): the story engine keeps its short tick
+    while that is so, so the walk's package comes off the moment they are there. It used to come off with the hourly
+    sweep: Faendal stood rooted at the spot he had walked back to for two and a half minutes (test game, 2026-11-19).}
+    Return StorageUtil.FormListCount(self, "Intel_WalkHomeActors") > 0
+EndFunction
+
 Function CheckWalkHomeActors()
     {Take the walk-home override off again: at home, out of sight, recruited, on a new task, or after the limit.}
     Int i = StorageUtil.FormListCount(self, "Intel_WalkHomeActors") - 1

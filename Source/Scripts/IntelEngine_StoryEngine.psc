@@ -165,7 +165,7 @@ Float Property QUEST_GUIDE_TIMEOUT_HOURS = 5.0 AutoReadOnly
 Float Property LINGER_TIMEOUT_SECONDS = 180.0 AutoReadOnly
 Float Property LINGER_AFTER_TALK_SECONDS = 60.0 AutoReadOnly
 ; A visitor whose business is settled (VisitOver) leaves this long after the last word between them and the player.
-Float Property LEAVE_AFTER_TALK_SECONDS = 6.0 AutoReadOnly
+Float Property LEAVE_AFTER_TALK_SECONDS = 8.0 AutoReadOnly
 ; Within this of the player, a story's asker looks whether someone the story is about stands with the player.
 Float Property COMPANY_LOOK_DISTANCE = 1400.0 AutoReadOnly
 {A visiting story NPC stays at least this long after their last spoken line (see CheckStoryLingerCleanup).}
@@ -575,7 +575,8 @@ EndEvent
 Event OnUpdate()
     ; Register FIRST so the loop survives even if processing errors out.
     ; (Same pattern as Travel.OnUpdate — timer chain must never break.)
-    Bool needsRealTime = IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive
+    Bool walkers = Core.WalkHomePending()
+    Bool needsRealTime = IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive || walkers
     If needsRealTime
         Core.RequestTick(MONITOR_INTERVAL)
     EndIf
@@ -583,6 +584,10 @@ Event OnUpdate()
     CheckRoadEncounterProximity()
     CheckStoryLingerCleanup()
     CheckFactionAmbushCleanup()
+    If walkers
+        ; Someone walking home or back: their day goes on the moment they are there, not at the next hourly sweep.
+        Core.CheckWalkHomeActors()
+    EndIf
     Core.SweepIfDue()
 
 
@@ -605,7 +610,7 @@ Event OnUpdate()
 
     ; If processing above created new work (e.g. FinishArrivalWithLinger added linger NPCs),
     ; ensure real-time monitoring is running even if we skipped it above.
-    If !needsRealTime && (IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive)
+    If !needsRealTime && (IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive || Core.WalkHomePending())
         Core.RequestTick(MONITOR_INTERVAL)
     ElseIf !needsRealTime
         ; Idle: only keep the real-time backup poll alive. Calling StartScheduler here re-registered the
@@ -645,7 +650,7 @@ Event OnUpdate()
     ; Belt-and-suspenders: if nothing needs real-time AND this OnUpdate was the last one
     ; (needsRealTime was true at the top but everything got cleaned up during processing),
     ; ensure game-time scheduling is alive.
-    If needsRealTime && !IsActive && !IsNPCStoryActive && !HasLingerNPCs() && !QuestActive && !FactionAmbushActive
+    If needsRealTime && !IsActive && !IsNPCStoryActive && !HasLingerNPCs() && !QuestActive && !FactionAmbushActive && !Core.WalkHomePending()
         Core.DebugMsg("Story: OnUpdate - transitioning real-time to game-time (all flags cleared). Calling StartScheduler.")
         StartScheduler()
         Core.DebugMsg("Story: OnUpdate - StartScheduler returned after transition")

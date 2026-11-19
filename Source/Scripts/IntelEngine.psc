@@ -709,6 +709,8 @@ Function ArcOfferDeferred(Int id) Global Native
 ; Someone of this story (not its asker) who stands beside the player right now, or None: nobody brings their trouble
 ; to the player in front of the people it is about.
 Actor Function ArcCompany(Int id) Global Native
+; How far a line said to the player carries (SkyrimNet's interaction distance): the measure of "stands with the player".
+Function ArcEarshot(Float units) Global Native
 ; The asker held back for that reason: the story waits until the two are apart (a far-comer tries again in an hour).
 Function ArcOfferHeldBack(Int id) Global Native
 ; Whether someone coming to the player has truly been looking for them (and so hurries): close to the player, come all
