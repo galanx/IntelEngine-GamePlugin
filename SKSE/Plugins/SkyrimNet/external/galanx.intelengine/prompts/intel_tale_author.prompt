@@ -38,6 +38,9 @@ with ONLY one JSON object, nothing before or after it.
 
 # What makes a good story here
 - A hidden truth that differs from what {{ asker_name }} believes, found out step by step. At least one turn the player does not see coming.
+- {{ asker_name }} need not be the wronged one: they may be guilty and want help hiding it, caught between two people they love, asking on someone else's behalf, or after something they should not have.
+- Most stories need no item at all; use one only when the story truly turns on it. Never another lost or stolen keepsake unless these people make it unavoidable.
+- Draw the premise from these people, for example (never copy, and never the same as a story told before): a debt called in, a secret courtship, a forged letter, a business undercut by a rival, a missing relative or friend, an old crime coming to light, a lie told to protect someone, a wager gone too far, an inheritance quarrel, a broken engagement, a merchant cheating the town, someone informing for one side of the war, a quarrel between two families, a vow someone cannot keep, a temple matter of faith, a deserter hiding, a grudge from the war, someone being blackmailed.
 - Lean toward {{ lean }}, unless the people here make something else far better. Crime, romance (words only, adults only), family, politics, secrets, debts, faith, jealousy, redemption, grief, rivalry: draw it from who these people really are.
 - Cast by fit. Everyone acts true to their work, temperament, ties and what is said about them: a law-abiding person never steals; a coward never fights; an innkeeper, a merchant or a priest never brawls; family protects family. Use the ties the game gives (rivals, foes, lovers, family): they are canon, and the story must agree with them.
 - Never touch the main stories of Skyrim or the player's quests above. Nobody dies, nobody is hurt beyond a fistfight, no children, nothing explicit.
@@ -69,7 +72,7 @@ Every step has "id" and "goal" (the journal objective, short, naming people: "As
 # The answer (this shape, with your own story)
  {"title": "...", "genre": "...", "premise": "the hidden truth in one or two sentences",
  "people": [{"who": "{{ asker }}", "part": "the one who asks", "truth": "..."}, {"who": "p2", "part": "...", "truth": "..."}],
- "items": [{"id": "i1", "item": "<a name from the list>", "name": "<its story name, e.g. Ysolda's Mother's Ring>", "hidden": "home" or "pocket", "of": "p2"}],
+ "items": [] or [{"id": "i1", "item": "<a name from the list>", "name": "<its name in the story>", "hidden": "home" or "pocket", "of": "p2"}],
  "offer": {"words": "...", "ask": "...", "journal": "...", "reward": {{ reward }}, "days": 3},
  "steps": [
   {"id": "s1", "do": "talk", "with": "p2", "goal": "...", "outcomes": [{"if": "...", "then": "s2", "journal": "..."}, {"if": "...", "then": "s3", "journal": "..."}]},
