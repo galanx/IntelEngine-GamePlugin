@@ -159,6 +159,7 @@ A message delivered at the right time. If the message includes a meeting request
 Send any NPC to a destination right now. The location resolver understands:
 
 - **Named places** — Whiterun, Dragonsreach, Bannered Mare, the Drunken Huntsman
+- **SkyrimNet Named Places** — places defined in SkyrimNet's Named Places, such as a "Kitchen", matched by exact name first (needs SkyrimNet v1.0.0-rc1 or newer)
 - **Relative directions** — upstairs, downstairs, outside, inside, the back room
 - **Fuzzy matching** — typos and partial names still resolve (*"Bannred Mare"* finds the Bannered Mare)
 - **Contextual resolution** — *"go upstairs"* scans doors by Z-axis, *"go outside"* identifies exterior doors
