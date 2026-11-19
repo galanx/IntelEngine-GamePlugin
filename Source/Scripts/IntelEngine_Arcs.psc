@@ -1740,7 +1740,8 @@ Function HoldCaptive(Actor who)
     who.StopCombat()
     who.SetRestrained(true)
     ; The player's hand on them cuts them loose (the DLL hears the activation): the game's own answer to it (its
-    ; dialogue menu) stays away meanwhile.
+    ; dialogue menu) stays away meanwhile. The crosshair says "Cut loose" on them where it would say "Talk": the
+    ; DLL's doing (ArcBridge.cpp, NpcActivateText), since a script cannot change that word.
     who.BlockActivation(true)
     who.EvaluatePackage()
     BindCaptive(who)
@@ -1782,7 +1783,6 @@ EndFunction
 Function ForgetCaptive(Actor who, Int i)
     StorageUtil.UnsetIntValue(who, "Intel_ArcCaptive")
     StorageUtil.UnsetIntValue(who, "Intel_ArcCaptiveAt")
-    StorageUtil.UnsetIntValue(who, "Intel_ArcCaptiveHint")
     StorageUtil.UnsetFloatValue(who, "Intel_ArcCaptiveFreed")
     StorageUtil.FormListRemoveAt(self, "Intel_ArcCaptives", i)
 EndFunction
@@ -1851,11 +1851,6 @@ Function WatchCaptives()
                     BindCaptive(who)   ; come into the game anew: the pose again
                 ElseIf !who.Is3DLoaded()
                     StorageUtil.UnsetFloatValue(who, "Intel_ArcCaptiveBound")
-                ElseIf StorageUtil.GetIntValue(who, "Intel_ArcCaptiveHint", 0) == 0 && who.GetParentCell() == player.GetParentCell() && who.GetDistance(player) < 500.0
-                    ; Beside them for the first time: what the player's hand does here (the crosshair still says "Talk").
-                    StorageUtil.SetIntValue(who, "Intel_ArcCaptiveHint", 1)
-                    Debug.Notification(who.GetDisplayName() + " is bound. Activate to cut the bonds.")
-                    Core().DebugMsg("Arcs: #" + id + " the player stands by " + who.GetDisplayName() + ", bound: told that a hand on them cuts them loose")
                 EndIf
             ElseIf at == CAPTIVE_FREED
                 Float since = (Utility.GetCurrentGameTime() - StorageUtil.GetFloatValue(who, "Intel_ArcCaptiveFreed", 0.0)) * 24.0
