@@ -131,6 +131,15 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
         Return false
     EndIf
 
+    ; A place nobody can find is no place to meet: said now, before the player is asked and before anyone is told
+    ; it is agreed. It used to be put in the calendar and announced, and only fell through when the hour came ("I get
+    ; the popup but nothing gets scheduled"; "meet Dromeda at . I should already be there").
+    If destination != "none" && IntelEngine.ResolveAnyDestination(akNPC, destination) == None && IntelEngine.ResolveSkyrimNetPlace(akNPC, destination) == None
+        Core.DebugMsg("Schedule: no meeting for " + akNPC.GetDisplayName() + ": '" + destination + "' is no place that can be found")
+        Core.TellFailure(akNPC, akNPC.GetDisplayName() + " does not know a place called '" + destination + "' to meet at: nothing was arranged.")
+        Return false
+    EndIf
+
     ; Shared scheduling scaffolding: time parse ? MCM confirm ? override ? allocate
     String meetingDescription = "meet"
     If destination != "none"
@@ -295,6 +304,13 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     ; Parse time condition
     Float targetHour = IntelEngine.ParseTimeCondition(timeCondition)
     If targetHour < 0.0
+        If timeCondition != ""
+            ; A time was named and could not be read: nothing is arranged, and they are told. It used to become "this
+            ; evening" without a word, in the popup and in the calendar ("tomorrow at 10 am" fell back to the evening).
+            Core.DebugMsg("Schedule: the time '" + timeCondition + "' could not be read: nothing arranged")
+            Core.TellFailure(akNPC, akNPC.GetDisplayName() + " could not make out when that was meant to be (\"" + timeCondition + "\"): nothing was arranged.")
+            Return -1
+        EndIf
         targetHour = HOUR_EVENING
     EndIf
     Float currentHour = GetCurrentGameHour()

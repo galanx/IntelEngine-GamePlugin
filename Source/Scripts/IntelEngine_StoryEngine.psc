@@ -561,6 +561,8 @@ Event OnUpdateGameTime()
     CheckStoryLingerCleanup()
     ; Check rescued NPC deaths on game-time tick (no need for real-time polling)
     CheckRescuedNPCDeaths()
+    ; Nobody is left seeking the player for a story that ended.
+    SweepOrphanStorySlots(false)
     ; Re-kick real-time monitoring if linger NPCs still exist
     If HasLingerNPCs()
         Core.RequestTick(MONITOR_INTERVAL)
@@ -883,9 +885,46 @@ Event OnLivingWorldSeam(String eventName, String strArg, Float numArg, Form send
     Core.DebugMsg("Story: seam " + seam + " - the dungeon master looks now")
     LastStoryTickTime = 0.0
     SeamApproved = true
+    SweepOrphanStorySlots(true)
     TickScheduler()
     SeamApproved = false
 EndEvent
+
+Function SweepOrphanStorySlots(Bool atLoad)
+    {A "story" slot nobody watches any more: its story is over, or the game's record of the slots and this script's
+    disagree after a load. Its NPC kept the jog-to-the-player package and went on seeking the player across cells for
+    good ("General Tullius follows me out to Riverwood", ended only by Clear in the menu). Whoever holds such a slot
+    and has no part in a story that is running is given back: at once on a load, else when seen so twice (a dispatch
+    that is just beginning has its slot a moment before its story).}
+    If Core == None
+        return
+    EndIf
+    Int i = 0
+    While i < Core.SlotStates.Length
+        If Core.SlotStates[i] != 0 && Core.SlotTaskTypes[i] == "story"
+            ReferenceAlias slotAlias = Core.GetAgentAlias(i)
+            Actor agent = None
+            If slotAlias != None
+                agent = slotAlias.GetActorReference()
+            EndIf
+            If agent != None && HoldsActor(agent)
+                StorageUtil.UnsetIntValue(agent, "Intel_StoryOrphan")
+            ElseIf agent == None || atLoad || StorageUtil.GetIntValue(agent, "Intel_StoryOrphan", 0) == 1
+                If agent != None
+                    StorageUtil.UnsetIntValue(agent, "Intel_StoryOrphan")
+                    Core.DebugMsg("Story: slot " + i + " kept " + agent.GetDisplayName() + " for a story that is over -> given back")
+                EndIf
+                Core.ClearSlot(i)
+                If agent != None && !agent.IsDead()
+                    Core.ReleaseLinger(agent)
+                EndIf
+            Else
+                StorageUtil.SetIntValue(agent, "Intel_StoryOrphan", 1)
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+EndFunction
 
 Int ArrivalPendingGeneration = 0
 
@@ -2401,6 +2440,15 @@ EndFunction
 
 Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String slotTaskType, String taskOrigin = "Story engine")
     Actor player = Game.GetPlayer()
+    ; The people of the game's carriages and ferries, and anyone a scene or the player's own quest holds right now,
+    ; are never sent anywhere. The dialogue actions had this rule; the dungeon master's dispatches did not, and a cart
+    ; driver sent to the player stood beside his cart with a walk package nobody could take off.
+    If Core.IsUnsuitableTaskAgent(npc)
+        If npc != None
+            Core.DebugMsg("Story: " + npc.GetDisplayName() + " is not sent anywhere (a driver or ferryman, or held by a scene or a quest)")
+        EndIf
+        return false
+    EndIf
 
     ; === Player home knocking prompt ===
     If target == player && !IsNPCToNPCType() && IntelEngine.IsPlayerInOwnHome()
@@ -3727,11 +3775,14 @@ Function OnStoryNPCArrived()
     Actor claimedNPC = ActiveStoryNPC
     Int claimedGeneration = DispatchGeneration
     String claimedType = ActiveStoryType
+    ; Latched before anything that takes time: the check for company reads the game several times, and the arrival
+    ; event and the three-second poll, both on their way here, each passed the line above in that gap and both spoke
+    ; ("seek player fired twice", "delivered a message ... triggers response twice").
+    ArrivalHandling = true
     If HeldBackByCompany(claimedNPC, claimedGeneration, claimedType)
+        ArrivalHandling = false
         return
     EndIf
-    ; Latch before side effects or latent calls so concurrent callback/poll stacks cannot both handle arrival.
-    ArrivalHandling = true
     If ActiveStoryType == "message" || ActiveStoryType == "quest"
         IsActive = false
     EndIf
@@ -4010,6 +4061,12 @@ EndFunction
 
 Function HandleFactionAmbushDispatch(String narration, String response)
     {Faction group ambush — spawn 3-7 hostile soldiers from a faction near the player.}
+    ; Politics switched off means nothing political happens: this ran on (a battle set before the switch, a
+    ; skirmish, an ambush of a faction's men) and people met soldiers and assassins "with politics off".
+    If !IntelEngine.IsPoliticsEnabled()
+        Core.DebugMsg("Story DM: no faction ambush: politics is switched off")
+        return
+    EndIf
     String factionId = ExtractJsonField(response, "ambushFaction")
     String countStr = ExtractJsonField(response, "ambushCount")
 
@@ -4414,6 +4471,26 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     If questSubTypeStr == ""
         questSubTypeStr = "combat"
     EndIf
+    ; A rescue is a story of the town about someone held at a place near it, written and run by the story engine
+    ; (IntelEngine_Arcs: taken out of sight, bound at the heart of the place, freed by reaching them, home on their own
+    ; feet), or nothing at all. The rescue of 3.8 below still runs at the Classic level only: it teleported the victim
+    ; in view, beat them into bleedout, and left a hostage nobody could find ("after clearing it out, I can't find the
+    ; hostage anywhere"; "the location is inaccessible").
+    If (questSubTypeStr == "rescue" || questSubTypeStr == "faction_rescue") && LivingWorldLevel > 0
+        Actor rescueGiver = npc
+        If senderName != ""
+            Actor named = IntelEngine.FindNPCByName(senderName)
+            If named != None && !named.IsDead()
+                rescueGiver = named
+            EndIf
+        EndIf
+        If rescueGiver != None && IntelEngine.ArcRequestRescue(rescueGiver)
+            Core.DebugMsg("Story DM: quest/rescue -- a story about someone held is being written for " + rescueGiver.GetDisplayName())
+        Else
+            Core.DebugMsg("Story DM: quest/rescue -- no such story fits now (no place near that keeps prisoners, nobody who may be held, or another story is under way)")
+        EndIf
+        return
+    EndIf
     Actor departureNPC = npc
     String departureFact = ""
     Bool calmCourier = false
@@ -4520,6 +4597,11 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     EndIf
     If IntelEngine.IsLocationNonCombative(questDest)
         Core.DebugMsg("Story DM: quest location '" + questLocationStr + "' is non-combative (temple/castle/guild) - rejecting")
+        return
+    EndIf
+    ; A dragon fights under the open sky ("told to fight a dragon INSIDE FORT GREYMOOR").
+    If enemyType == "dragon" && questDest.GetParentCell() != None && questDest.GetParentCell().IsInterior()
+        Core.DebugMsg("Story DM: quest rejected -- a dragon at '" + questLocationStr + "', which is indoors")
         return
     EndIf
 
@@ -4687,6 +4769,7 @@ EndFunction
 
 ; The last parameter must not be called "generation": as a bare name it replaces the game's own "Generation",
 ; which the lightning bolt mesh looks up by exact case, and Sparks bolts turn invisible (3.8.0 to 3.8.2).
+; (SKSE/tests/RunPexStringCaseCheck.py holds every compiled script to it; galanx/IntelEngine-GamePlugin#35.)
 Function ReleaseStrandedCourier(Actor npc, Int slot, Int dispatchGen)
     {The arrival handler came back from a wait (the pause before the offer, the offer itself) and found its
     quest gone: cancelled from the dashboard, expired, replaced. It used to just return. The courier then
@@ -4784,9 +4867,6 @@ Function OnQuestNPCArrived()
     EndIf
     If QuestGiver != ActiveStoryNPC
         Core.InjectFact(ActiveStoryNPC, "was sent to deliver a plea for help from " + QuestGiver.GetDisplayName() + " about " + QuestEnemyType + " trouble near " + questLoc)
-    EndIf
-    If QuestSubType == "rescue" && QuestVictimNPC != None
-        Core.InjectFact(QuestVictimNPC, "was captured by " + QuestEnemyType + " near " + questLoc + " and held against my will")
     EndIf
     QuestCourierPending = false
     ; Remove the pinning sandbox before showing dialog (travel/linger packages get applied after)
@@ -5104,6 +5184,9 @@ Function RememberVictimEssential(Actor victim)
     recorded our own "essential" as the original state, which left the NPC unkillable after the quest.}
     If victim != None && StorageUtil.GetIntValue(victim, "Intel_WasEssential", -1) < 0
         StorageUtil.SetIntValue(victim, "Intel_WasEssential", victim.IsEssential() as Int)
+        ; Taken now, and only now do they know it: the memory used to be written when the quest was offered, so
+        ; someone who was never touched (the player said no) remembered a captivity that never was.
+        Core.InjectFact(victim, "was captured by " + QuestEnemyType + " near " + QuestLocationName + " and held against my will")
     EndIf
 EndFunction
 
@@ -5307,7 +5390,11 @@ Function CheckQuestProximity()
                     QuestEnemiesSpawned = true
                     Core.DebugMsg("Story [quest/" + QuestSubType + "]: spawned " + QuestSpawnCount + " " + QuestEnemyType + " at boss room")
                 Else
-                    Core.DebugMsg("Story [quest]: WARNING - no enemies spawned at boss room, falling back to deferred")
+                    ; Nobody could be put there (an enemy kind the game has no list for). The quest used to hang here
+                    ; for good: nothing was "spawned", so nothing could ever be "cleared" ("the quest won't register as
+                    ; completed"). It counts as placed, with nobody to fight: reaching the place ends it.
+                    QuestEnemiesSpawned = true
+                    Core.DebugMsg("Story [quest]: WARNING - no enemies could be placed at the boss room; reaching it completes the quest")
                 EndIf
             EndIf
             return  ; Pre-placed quests don't use the proximity-based spawn path below
@@ -5684,6 +5771,10 @@ Function SpawnQuestEnemies()
         return
     EndIf
 
+    ; A dragon is never put indoors: while the player is inside, it waits (no attempt is counted).
+    If QuestEnemyType == "dragon" && Game.GetPlayer().IsInInterior()
+        return
+    EndIf
     QuestSpawnAttempts += 1
 
     ; Determine spawn anchors. Rescue uses SEPARATE anchors for victim (deep) and
@@ -6261,7 +6352,7 @@ Function CleanupQuest()
             EndIf
         EndIf
         ; If victim was NOT freed by the player, they "escaped"
-        If !QuestVictimFreed
+        If !QuestVictimFreed && victimWasTaken
             Core.InjectFact(QuestVictimNPC, "managed to escape " + QuestEnemyType + " captivity at " + QuestLocationName + " on my own")
         EndIf
         If victimWasTaken

@@ -104,6 +104,12 @@ Float Property ManifestCleanupDelay = 90.0 Auto Hidden  ; real seconds before cl
 ; =============================================================================
 
 Function ScheduleBattle(String factionA, String factionB, Int warId, Float gameTime)
+    ; Politics switched off means nothing political happens: this ran on (a battle set before the switch, a
+    ; skirmish, an ambush of a faction's men) and people met soldiers and assassins "with politics off".
+    If !IntelEngine.IsPoliticsEnabled()
+        Core.DebugMsg("Battle: not scheduled: politics is switched off")
+        return
+    EndIf
     If BattleScheduled || IntelEngine.IsBattleActive()
         Core.DebugMsg("Battle: Cannot schedule - already scheduled or active")
         return
@@ -469,6 +475,12 @@ EndEvent
 ; Start a battle immediately (no schedule delay). Used by quest-dispatched
 ; faction_battle where the player has already traveled to the location.
 Function StartBattleImmediate(String factionA, String factionB, Int warId)
+    ; Politics switched off means nothing political happens: this ran on (a battle set before the switch, a
+    ; skirmish, an ambush of a faction's men) and people met soldiers and assassins "with politics off".
+    If !IntelEngine.IsPoliticsEnabled()
+        Core.DebugMsg("Battle: not started: politics is switched off")
+        return
+    EndIf
     If IntelEngine.IsBattleActive()
         Core.DebugMsg("Battle: Cannot start immediate - already active")
         return
@@ -1728,6 +1740,12 @@ EndFunction
 ; =============================================================================
 
 Function ManifestEvent(String manifestJson)
+    ; Politics switched off means nothing political happens: this ran on (a battle set before the switch, a
+    ; skirmish, an ambush of a faction's men) and people met soldiers and assassins "with politics off".
+    If !IntelEngine.IsPoliticsEnabled()
+        Core.DebugMsg("Battle: no event shown: politics is switched off")
+        return
+    EndIf
     ; Guard: no active battle or manifestation
     ; Safety: if ManifestActive is stuck for > 2 minutes (stale save state), force-clear it
     If ManifestActive
