@@ -213,7 +213,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
 
     ; Carriage drivers and children are never sent travelling (see Core.IsUnsuitableTaskAgent).
     If Core.IsUnsuitableTaskAgent(akNPC)
-        Core.DebugMsg("GoToLocation: " + akNPC.GetDisplayName() + " is not sent on tasks (carriage driver or child)")
+        Core.DebugMsg("GoToLocation: " + akNPC.GetDisplayName() + " is not sent on tasks (carriage driver)")
         Return false
     EndIf
 
