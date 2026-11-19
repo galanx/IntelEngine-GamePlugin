@@ -531,6 +531,10 @@ Function StartLinger(Int id)
     Actor who = IntelEngine.ArcForm(id, "who") as Actor
     IntelEngine_Core c = Core()
     If who == None || c == None || who.IsDead() || who.IsInCombat() || who.IsPlayerTeammate() || who.GetCurrentScene() != None
+        ; In a scene of the game (a preacher's sermon, a bard's song): the scene keeps them where they belong.
+        If who != None && c != None
+            c.DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " is not held back (in a scene, a fight or following)")
+        EndIf
         IntelEngine.ArcLingerOver(id)
         Return
     EndIf
@@ -557,8 +561,18 @@ Function WatchLinger()
         If !over
             over = IntelEngine.ArcField(id, "phase") != PHASE_OPEN || IntelEngine.ArcForm(id, "who") != who
         EndIf
+        Bool bored = false
         If !over
-            over = IntelEngine.ArcField(id, "quiet") > LINGER_QUIET_SECONDS || Core().ShouldReleaseLinger(who)
+            If Core().ShouldReleaseLinger(who)
+                over = true
+            ElseIf IntelEngine.ArcField(id, "quiet") > LINGER_QUIET_SECONDS
+                ; The player is still here but has said nothing for a while: they say so and go back to their day.
+                over = true
+                bored = true
+            EndIf
+        EndIf
+        If bored && who.Is3DLoaded()
+            Core().SendTaskNarration(who, "has waited a while with nothing more said, and goes back to what they were doing", Game.GetPlayer())
         EndIf
         If over
             If who != None
