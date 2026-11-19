@@ -61,7 +61,11 @@ with ONLY one JSON object, nothing before or after it.
 - Cast by fit. Everyone acts true to their work, temperament, ties and what is said about them: a law-abiding person never steals; a coward never fights; an innkeeper, a merchant or a priest never brawls; family protects family. Use the ties the game gives (rivals, foes, lovers, family): they are canon, and the story must agree with them.
 - Never touch the main stories of Skyrim or the player's quests above. None of these people dies or is hurt beyond a fistfight (the master of a place and hired men are nobody of the town), no children, nothing explicit.
 - 3 to 7 steps. At least one real choice with weight, and branches that lead to different endings. Prepare every likely way the talk can go: each talk step lists 2 or 3 outcomes.
+{% if not bar_places %}
 - A story worth living sends {{ player_name }} out of town when it fits: into a ruin for what was lost there, after a bandit chief who robbed someone, into a tomb for a proof, a beast's den that took a man's brother. Mix town and adventure; a story need not stay in town, nor leave it.
+{% else %}
+- This story stays among people, in town: the last ones led far enough out into the world.
+{% endif %}
 - Consequences that last: people become friends or rivals, someone leaves town for a while, someone is taken by the guard, gold changes hands.
 - Its turn must differ from every story told before: if one turned on the asker being at fault, this one must not; vary who hides what, and why.
 - A story told before may get a sequel when its ending left something open and these people are part of it: the same people, a new turn, never the same shape again.
@@ -73,12 +77,21 @@ with ONLY one JSON object, nothing before or after it.
 - "choose": {{ player_name }} decides, in front of someone ("with"): "question" and 2 or 3 "options" ({"say", "then", "journal", "effect"}). One option may have "persuade": true (needs Speech) with "else" (where it goes when it fails, or "stay") and "else_journal".
 - "visit": someone ("with") comes to {{ player_name }} and they talk (use it after a "wait" or when someone seeks the player out); "why": what brings them, from their own side, as a narration ("Brenuin comes to {player} with the money in a pouch, ready to make amends").
 - "wait": time passes ("hours", 1 to 72), for a debt to come due, a letter to arrive, someone to make up their mind.
+{% if not bar_brawl %}
 - "brawl": a fistfight with someone ("with") who "would settle a matter with fists"; "won" and "lost" each {"then", "journal"}.
+{% endif %}
 - "go": {{ player_name }} goes to someone's home ("to": "home of pX").
+{% if not bar_places %}
 - "delve": {{ player_name }} goes into a place out in the world ("place": "dX") and reaches its depths.
 - "slay": {{ player_name }} kills what waits at the heart of a place ("place": "dX"); "boss": its name in the story ("Grelka the Silent", "the Widow of Mzinchaleft"). It is always the kind the list says lives there.
 - At most two places in a story. An item may be "hidden": "at" with "of": "dX": the place's boss carries it.
-- "ambush": someone of the story ("by"; leave it out while nobody knows who sent them) has paid men to waylay {{ player_name }} on the road. "why": what the men were paid to do, in their own terms ("keep {player} from reaching Embershard Mine", "take back the letter {player} carries"); "leader": their leader's name, if it matters. They fall on {{ player_name }} out in the wilds, never in town; the step is done when they are dead. Its "goal" is what {{ player_name }} is doing out there ("Take the road to Riverwood", "Watch my back on the way to the mine"), so the step before it sends {{ player_name }} out of town. Only someone with a real reason and the means hires blades: a rival with something to hide, a crook about to be found out; never a kind soul. At most one ambush in a story. An item may be "hidden": "ambush": their leader carries it (a token or gold of whoever paid them), found on the body.
+{% endif %}
+{% if not bar_stalk %}
+- "stalk": someone ("by", never the one who asks) shadows {{ player_name }} from a distance, out of doors: too afraid, ashamed or wary to come up, or sent to watch. "why": what makes them follow and what they dare not say, as a narration ("Sigrid has trailed {player} since the market, twisting her apron, a warning on her lips she is afraid to give"). When {{ player_name }} notices and turns on them, or after a while when they gather their courage, they speak; follow it with the "talk" or "choose" this meeting is for. Use it for someone who has a real reason not to come openly.
+{% endif %}
+{% if not bar_ambush %}
+- "ambush": someone of the story ("by"; leave it out while nobody knows who sent them) has paid men to waylay {{ player_name }} on the road. "why": what the men were paid to do, in their own terms ("keep {player} from reaching Embershard Mine", "take back the letter {player} carries"); "leader": their leader's name, if it matters. They come up to {{ player_name }} out in the wilds, never in town, and their leader has a word first. Three ways on, and the story must be worth following down each: "then" when {{ player_name }} kills them; "lost": {"then", "journal"} when they beat {{ player_name }} down (nobody dies of it: they take what they came for and leave, and the story goes on from that loss, a setback and never a dead end); and "outcomes": up to two things {{ player_name }} might talk them into, each {"if", "then", "journal", "effect"} ("if": what the leader settles for, such as "takes more gold from {player} than he was paid and names who sent him"; "effect" may be "player pays 150" or "give iN"). The engine reads the real talk with the leader to see whether it came to one of them. Its "goal" is what {{ player_name }} is doing out there ("Take the road to Riverwood"), so the step before it sends {{ player_name }} out of town. Only someone with a real reason and the means hires blades: a rival with something to hide, a crook about to be found out; never a kind soul. At most one ambush in a story. An item may be "hidden": "ambush": their leader carries it (a token or gold of whoever paid them), found on the body, or handed over with "give iN"; on "lost" it leaves with them.
+{% endif %}
 Every step has "id" and "goal" (the journal objective, short, naming people: "Ask Brenuin where he was that night"). Branches go with "then": a step id, or "end:good", "end:bad", "end:other". Every branch may have "journal" (one line of {{ player_name }}'s journal, first person, past tense) and "effect": "pay", "jail pX", "leave pX", "befriend pX pY", "estrange pX pY", "player pays pX N", or "give iN" (the step's person hands the item to {{ player_name }}: use it on every outcome where someone gives something up, or the item stays where it is). Only people who "may be taken by the guard or leave town" can be jailed or sent away; never the asker.
 
 # Words

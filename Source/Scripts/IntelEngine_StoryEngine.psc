@@ -1962,6 +1962,50 @@ Bool Function DispatchArcVisit(Actor who, Int arcId, String narration)
     Return true
 EndFunction
 
+Float Property ARC_STALK_SECONDS = 75.0 AutoReadOnly   ; a tale's stalker comes forward after this long unnoticed
+
+Bool Function DispatchArcStalk(Actor who, Int arcId, String narration)
+    {A tale's stalk step (IntelEngine_Arcs.Visit): its person shadows the player out of doors, sneaking, holding back
+    when the player stops. Caught (the player notices them), or after a while unnoticed when they gather their courage
+    and come forward, they have their say, and the talk is the step. False when they cannot now (the DLL asks again).}
+    If who == None || arcId <= 0 || narration == ""
+        Return false
+    EndIf
+    Actor player = Game.GetPlayer()
+    String why = ""
+    If IsActive || ArrivalHandling
+        why = "another story visitor is on the way"
+    ElseIf who.IsDead() || who.IsInCombat() || who.IsPlayerTeammate()
+        why = "they cannot come now"
+    ElseIf IntelEngine.IsHighStatusNPC(who) || IntelEngine.IsJarl(who)
+        why = "a high-status NPC does not trail anyone"
+    ElseIf !IntelEngine.LivingWorldMayMove(who, "quest")
+        why = "held by a running quest"
+    ElseIf player.GetParentCell() == None || player.GetParentCell().IsInterior()
+        why = "the player is indoors"
+    EndIf
+    If why != ""
+        Core.DebugMsg("Arcs: " + who.GetDisplayName() + " cannot shadow the player for arc " + arcId + ": " + why)
+        Return false
+    EndIf
+    IntelEngine.RecordStoryDispatch("stalker", who.GetDisplayName(), narration)
+    Core.InjectFact(who, narration)
+    ActiveStoryType = "stalker"
+    Int claimedGeneration = DispatchGeneration + 1
+    If !DispatchToTarget(who, player, narration, "story")
+        Return false
+    EndIf
+    If !StillOwns(who, claimedGeneration, "stalker")
+        Return false
+    EndIf
+    StorageUtil.SetIntValue(who, "Intel_ArcStalk", arcId)
+    StorageUtil.SetIntValue(who, "Intel_SneakPhase", 1)
+    ReapplyTravelPackage(who)
+    StorageUtil.SetFloatValue(who, "Intel_SneakStartTime", Utility.GetCurrentRealTime())
+    Core.DebugMsg("Arcs: " + who.GetDisplayName() + " shadows the player (arc " + arcId + ")")
+    Return true
+EndFunction
+
 Function SignalArcAskerArrived(Actor npc)
     {The asker of a story arc reached the player (IntelEngine_Arcs.OnAskerArrived makes the offer).}
     Int arcOffered = StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0)
@@ -3250,7 +3294,42 @@ Function CheckStoryNPCArrival()
                 EndIf
             Else
                 ; Stalker: detected by engine stealth system OR proximity failsafe (<400u)
-                If storyNPC.IsDetectedBy(player) || sneakDist <= 400.0
+                Bool seen = storyNPC.IsDetectedBy(player) || sneakDist <= 400.0
+                ; A tale's stalker: caught by the player's eye from afar, or unnoticed long enough to gather their
+                ; courage (what they have to say is the story's next step: it is never lost because the player did
+                ; not look back), they stand up and walk over, and say it face to face. Sven whispered his confession
+                ; from a thousand units off and the meeting never counted (2026-11-19).
+                If StorageUtil.GetIntValue(storyNPC, "Intel_ArcStalk", 0) > 0
+                    If sneakPhase == 3
+                        If sneakDist <= 350.0
+                            OnStalkerDetected(StorageUtil.GetIntValue(storyNPC, "Intel_ArcStalkCaught", 0) == 0)
+                        EndIf
+                        return
+                    EndIf
+                    Bool nerve = sneakStart > 0.0 && (Utility.GetCurrentRealTime() - sneakStart) > ARC_STALK_SECONDS && sneakDist <= 1500.0
+                    If seen || nerve
+                        If sneakDist <= 350.0
+                            OnStalkerDetected(!seen)
+                            return
+                        EndIf
+                        If storyNPC.IsSneaking()
+                            storyNPC.StartSneaking()
+                        EndIf
+                        Debug.SendAnimationEvent(storyNPC, "sneakStop")
+                        StorageUtil.SetIntValue(storyNPC, "Intel_SneakPhase", 3)
+                        If seen
+                            StorageUtil.SetIntValue(storyNPC, "Intel_ArcStalkCaught", 1)
+                        EndIf
+                        ActorUtil.RemovePackageOverride(storyNPC, Core.TravelPackage_Stalk)
+                        PO3_SKSEFunctions.SetLinkedRef(storyNPC, player as ObjectReference, Core.IntelEngine_TravelTarget)
+                        ActorUtil.AddPackageOverride(storyNPC, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+                        storyNPC.EvaluatePackage()
+                        Core.DebugMsg("Story [stalker]: " + storyNPC.GetDisplayName() + " stands up and walks over (seen " + seen + ")")
+                    EndIf
+                    If sneakPhase == 3 || seen || nerve
+                        return
+                    EndIf
+                ElseIf seen
                     OnStalkerDetected()
                     return
                 EndIf
@@ -4193,8 +4272,8 @@ Function OnAmbushYield()
     FinishArrivalWithLinger(yieldedNPC, Game.GetPlayer() as ObjectReference)
 EndFunction
 
-Function OnStalkerDetected()
-    {Stalker detected by player: stop sneaking, narrate caught, linger for dialogue.
+Function OnStalkerDetected(Bool cameForward = false)
+    {Stalker detected by player (or, a tale's, come forward on their own): stop sneaking, narrate, linger for dialogue.
     No flee phase — TranslateTo ignores navmesh and breaks immersion.}
     String playerName = Game.GetPlayer().GetDisplayName()
     String npcName = ActiveStoryNPC.GetDisplayName()
@@ -4206,7 +4285,14 @@ Function OnStalkerDetected()
     Debug.SendAnimationEvent(ActiveStoryNPC, "sneakStop")
 
     ; Caught fact for SkyrimNet dialogue context (flustered/embarrassed)
-    Core.InjectFact(ActiveStoryNPC, "was caught secretly following " + playerName)
+    StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_ArcStalk")
+    StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_ArcStalkCaught")
+    ActorUtil.RemovePackageOverride(ActiveStoryNPC, Core.TravelPackage_Walk)
+    If cameForward
+        Core.InjectFact(ActiveStoryNPC, "had been following " + playerName + " at a distance, and has now come forward to speak")
+    Else
+        Core.InjectFact(ActiveStoryNPC, "was caught secretly following " + playerName)
+    EndIf
     Core.SendTaskNarration(ActiveStoryNPC, ActiveNarration, Game.GetPlayer())
 
     ; Distinct post-detection outcome; narration above remains the dialogue driver.

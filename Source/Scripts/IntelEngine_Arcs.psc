@@ -22,6 +22,7 @@ Int Property EFFECT_ESTRANGE = 8 AutoReadOnly
 Int Property EFFECT_GIVEITEM = 9 AutoReadOnly
 Int Property KIND_BRAWL = 5 AutoReadOnly
 Int Property KIND_VISIT = 7 AutoReadOnly
+Int Property KIND_STALK = 12 AutoReadOnly
 Int Property PATTERN_MURDER = 3 AutoReadOnly
 Int Property PATTERN_FEUD = 2 AutoReadOnly
 Int Property GEM_RUBY = 0x00063B42 AutoReadOnly
@@ -40,6 +41,9 @@ Int Property AMBUSH_PLACE = 1 AutoReadOnly
 Int Property AMBUSH_STRIKE = 2 AutoReadOnly
 Int Property AMBUSH_CALLOFF = 3 AutoReadOnly
 Int Property AMBUSH_CHASE = 4 AutoReadOnly
+Int Property AMBUSH_FIGHT = 5 AutoReadOnly
+Int Property AMBUSH_STANDDOWN = 6 AutoReadOnly
+Int Property KIND_AMBUSH = 11 AutoReadOnly
 Int Property LINGER_QUIET_SECONDS = 60 AutoReadOnly  ; a talk gone quiet this long: they go back to their day
 ; A tale's journal log: two items of IntelEngine.esp per slot whose names the DLL writes (esp/EspBuilder AddTaleHolders).
 Int Property HOLDER_TEXT = 0x000058DD AutoReadOnly   ; IntelEngine_TaleText0..3
@@ -393,7 +397,11 @@ Function Ambush(Int id)
     If what == AMBUSH_PLACE
         PlaceAmbush(id)
     ElseIf what == AMBUSH_STRIKE
-        Strike(id)
+        StepOut(id)
+    ElseIf what == AMBUSH_FIGHT
+        Fight(id)
+    ElseIf what == AMBUSH_STANDDOWN
+        StandDown(id)
     ElseIf what == AMBUSH_CALLOFF
         CallOff(id, true)
     ElseIf what == AMBUSH_CHASE
@@ -548,53 +556,79 @@ Function StopComing(Actor t)
     IntelEngine_Core c = Core()
     If t != None && c != None
         ActorUtil.RemovePackageOverride(t, c.TravelPackage_Jog)
+        ActorUtil.RemovePackageOverride(t, c.TravelPackage_Walk)
+        ActorUtil.RemovePackageOverride(t, c.SandboxNearPlayerPackage)
         PO3_SKSEFunctions.SetLinkedRef(t, None, c.IntelEngine_TravelTarget)
     EndIf
 EndFunction
 
 Function Chase(Int id)
-    {They come after the player: from behind when no stretch of road ahead was out of sight, or down the road when the
-    player did not come their way.}
+    {They come after the player: from behind when no stretch of road ahead was out of sight, down the road when the
+    player did not come their way, or back at the player when something drew them off.}
     ComeAt(id)
     IntelEngine.ArcAmbushDone(id, AMBUSH_CHASE)
     Core().DebugMsg("Arcs: #" + id + " the hired men come after the player")
 EndFunction
 
-Function Strike(Int id)
+Function StepOut(Int id)
     {The player is near: the leader has a word as they come up (SkyrimNet gives the line, from what the men know of
-    their errand), then they fight. The first time only; again (they lost the player), or the player struck first:
-    straight to it.}
+    their errand and what they would settle for). They stop a few steps short. Nothing else yet: the player may
+    answer, and the DLL reads what comes of it (ArcBridge::Parley); it says when they fall on the player.}
+    Actor player = Game.GetPlayer()
+    IntelEngine_Core c = Core()
+    IntelEngine_Quests q = Quests()
+    Actor leader = IntelEngine.ArcForm(id, "thug0") as Actor
+    If leader != None && !leader.IsDead() && c != None
+        ; Alone or with others: said as it is (a lone man spoke of "my lads", 2026-11-19).
+        String company = ", alone, weapon drawn"
+        If MenStanding(id) > 1
+            company = " with the others, weapon drawn"
+        EndIf
+        If IntelEngine.ArcField(id, "ambushchase") == 1
+            c.SendTaskNarration(leader, "has come after " + player.GetDisplayName() + " and closes in" + company, player)
+        Else
+            c.SendTaskNarration(leader, "steps out onto the road ahead of " + player.GetDisplayName() + " and comes on" + company, player)
+        EndIf
+        ComeAt(id, true)
+    EndIf
+    IntelEngine.ArcAmbushDone(id, AMBUSH_STRIKE)
+    ; They stop a few steps short of the player and stand there, facing them (walked on, they pressed up against the
+    ; player's shoulder, 2026-11-19).
+    Float waited = 0.0
+    While waited < 12.0 && leader != None && !leader.IsDead() && !leader.IsInCombat() && leader.GetDistance(player) > 380.0
+        Utility.Wait(0.25)
+        waited += 0.25
+    EndWhile
+    Int k = 0
+    While k < 3 && q != None && c != None
+        Actor t = IntelEngine.ArcForm(id, "thug" + k) as Actor
+        If t != None && !t.IsDead() && !t.IsInCombat()
+            q.Linger(t, c)
+            t.SetLookAt(player)
+        EndIf
+        k += 1
+    EndWhile
+EndFunction
+
+Function Fight(Int id)
+    {They fall on the player: after the leader's word when nothing came of it, at once when the player struck first,
+    again whenever they lost the player. Cutthroats from now on (the game's bandits: no crime to fight them), who go
+    for the player on sight: told to fight from a distance alone, a leader 2900 units off never took it up
+    (2026-11-19).}
     Actor player = Game.GetPlayer()
     IntelEngine_Core c = Core()
     Actor leader = IntelEngine.ArcForm(id, "thug0") as Actor
-    ; A fight with a wolf that crossed their road is no reason to skip the leader's word (Brannoc, 2026-11-19); one
-    ; with the player already is.
-    If IntelEngine.ArcField(id, "struck") == 0 && leader != None && !leader.IsDead() && leader.GetCombatTarget() != player && leader.Is3DLoaded() && leader.GetDistance(player) < 2500.0
-        If IntelEngine.ArcField(id, "ambushchase") == 1
-            c.SendTaskNarration(leader, "has come after " + player.GetDisplayName() + " with the others and closes in, weapon drawn", player)
-        Else
-            c.SendTaskNarration(leader, "steps out onto the road ahead of " + player.GetDisplayName() + " and comes on with the others, weapon drawn", player)
-            ComeAt(id, true)
-        EndIf
-        ; The leader has their say before they fall on the player (they charged two seconds into Brannoc's threat,
-        ; 2026-11-19): the line is on its way within a few seconds, then until it is said. It may wait its turn behind
-        ; other lines (eighteen seconds behind the player character's own remarks), so at most twenty-five; a blow
-        ; ends the wait at once.
-        IntelEngine_Quests q = Quests()
-        Float waited = 0.0
-        While waited < 25.0 && leader.GetCombatTarget() != player && !leader.IsDead() && (waited < 4.0 || (q != None && q.Speaking(leader)))
-            Utility.Wait(0.5)
-            waited += 0.5
-        EndWhile
+    If IntelEngine.ArcField(id, "ambushshort") == 1 && leader != None && !leader.IsDead() && c != None
+        c.SendTaskNarration(leader, "finds " + player.GetDisplayName() + "'s purse too light for what was offered, and has had enough of talk", player)
     EndIf
-    ; Cutthroats from now on (the game's bandits: no crime to fight them), who go for the player on sight and keep
-    ; after the player: told to fight from a distance alone, a leader 2900 units off never took it up (2026-11-19).
+    GuardPlayer(id)
     Faction bandits = Game.GetFormFromFile(0x0001BCC0, "Skyrim.esm") as Faction
     Int k = 0
     While k < 3
         Actor t = IntelEngine.ArcForm(id, "thug" + k) as Actor
         If t != None && !t.IsDead()
             StopComing(t)
+            t.ClearLookAt()
             If bandits != None
                 t.AddToFaction(bandits)
             EndIf
@@ -605,7 +639,142 @@ Function Strike(Int id)
         EndIf
         k += 1
     EndWhile
-    IntelEngine.ArcAmbushDone(id, AMBUSH_STRIKE)
+    IntelEngine.ArcAmbushDone(id, AMBUSH_FIGHT)
+EndFunction
+
+Function StandDown(Int id)
+    {The men stand down and leave: the player is beaten (they take what they came for), or they were talked out of
+    it. They walk back toward whoever sent them and are gone once nobody sees it (WatchLeavers).}
+    Actor player = Game.GetPlayer()
+    IntelEngine_Core c = Core()
+    Int why = IntelEngine.ArcField(id, "ambushend")
+    Actor leader = IntelEngine.ArcForm(id, "thug0") as Actor
+    Actor sender = IntelEngine.ArcForm(id, "thugsender") as Actor
+    Faction bandits = Game.GetFormFromFile(0x0001BCC0, "Skyrim.esm") as Faction
+    Int k = 0
+    While k < 3 && c != None
+        Actor t = IntelEngine.ArcForm(id, "thug" + k) as Actor
+        If t != None && !t.IsDead()
+            If bandits != None
+                t.RemoveFromFaction(bandits)
+            EndIf
+            t.SetActorValue("Aggression", 0.0)
+            t.StopCombat()
+            t.ClearLookAt()
+            StopComing(t)
+            If sender != None
+                PO3_SKSEFunctions.SetLinkedRef(t, sender as ObjectReference, c.IntelEngine_TravelTarget)
+                ActorUtil.AddPackageOverride(t, c.TravelPackage_Walk, c.PRIORITY_TRAVEL, 1)
+            EndIf
+            t.EvaluatePackage()
+            t.SheatheWeapon()
+            StorageUtil.FormListAdd(self, "Intel_ArcLeavers", t, false)
+        EndIf
+        k += 1
+    EndWhile
+    player.StopCombatAlarm()
+    If why == 1
+        ; Beaten: the player comes round a few moments after they have gone (WatchGuard).
+        StorageUtil.SetFloatValue(self, "Intel_ArcGuardDown", Utility.GetCurrentRealTime())
+    EndIf
+    If leader != None && !leader.IsDead() && leader.Is3DLoaded() && c != None
+        Bool others = StorageUtil.FormListCount(self, "Intel_ArcLeavers") > 1
+        If why == 1 && others
+            c.SendTaskNarration(leader, "stands over " + player.GetDisplayName() + ", beaten to the ground, takes what they came for and leaves with the others", player)
+        ElseIf why == 1
+            c.SendTaskNarration(leader, "stands over " + player.GetDisplayName() + ", beaten to the ground, takes what was wanted and leaves", player)
+        ElseIf others
+            c.SendTaskNarration(leader, "calls the others off: it is settled with " + player.GetDisplayName() + ", and they leave", player)
+        Else
+            c.SendTaskNarration(leader, "puts the weapon away: it is settled with " + player.GetDisplayName() + ", and leaves", player)
+        EndIf
+    EndIf
+    IntelEngine.ArcAmbushDone(id, AMBUSH_STANDDOWN)
+    If c != None
+        c.DebugMsg("Arcs: #" + id + " the hired men stand down and leave (" + why + ")")
+    EndIf
+EndFunction
+
+Int Function MenStanding(Int id)
+    Int n = 0
+    Int k = 0
+    While k < 3
+        Actor t = IntelEngine.ArcForm(id, "thug" + k) as Actor
+        If t != None && !t.IsDead()
+            n += 1
+        EndIf
+        k += 1
+    EndWhile
+    Return n
+EndFunction
+
+Function WatchLeavers()
+    {Men of an ambush who stood down: gone from the world once nobody can see it.}
+    Int i = StorageUtil.FormListCount(self, "Intel_ArcLeavers") - 1
+    If i < 0
+        Return
+    EndIf
+    Actor player = Game.GetPlayer()
+    IntelEngine_Core c = Core()
+    While i >= 0
+        Actor t = StorageUtil.FormListGet(self, "Intel_ArcLeavers", i) as Actor
+        Bool gone = t == None || t.IsDead() || t.IsDisabled()
+        If !gone && (!t.Is3DLoaded() || (t.GetDistance(player) > 3000.0 && c != None && !c.PlayerCanSee(t)))
+            StorageUtil.UnsetIntValue(t, "Intel_ArcThug")
+            t.Disable()
+            t.Delete()
+            gone = true
+        EndIf
+        If gone
+            StorageUtil.FormListRemoveAt(self, "Intel_ArcLeavers", i)
+        EndIf
+        i -= 1
+    EndWhile
+EndFunction
+
+; While the men of an ambush are on the player, the player is beaten down instead of killed (the game's own way: an
+; essential actor goes to their knees), so that losing is a turn of the story and not a reload. Only when the story
+; has a way on for a beaten player, only when nothing else already keeps the player alive (another mod's own
+; defeat), and never longer than the fight.
+
+Function GuardPlayer(Int id)
+    If IntelEngine.ArcField(id, "ambushlost") != 1
+        Return
+    EndIf
+    ActorBase who = Game.GetPlayer().GetActorBase()
+    If StorageUtil.GetIntValue(self, "Intel_ArcGuard", 0) > 0
+        StorageUtil.SetIntValue(self, "Intel_ArcGuard", id)
+    ElseIf !who.IsEssential()
+        who.SetEssential(true)
+        StorageUtil.SetIntValue(self, "Intel_ArcGuard", id)
+        Core().DebugMsg("Arcs: #" + id + " the player cannot be killed while the hired men are on them")
+    EndIf
+EndFunction
+
+Function WatchGuard()
+    Int id = StorageUtil.GetIntValue(self, "Intel_ArcGuard", 0)
+    If id <= 0
+        Return
+    EndIf
+    Actor player = Game.GetPlayer()
+    Bool fight = IntelEngine.ArcField(id, "phase") == PHASE_OPEN && IntelEngine.ArcField(id, "kind") == KIND_AMBUSH && IntelEngine.ArcField(id, "struck") == 1
+    If !fight && player.IsBleedingOut()
+        ; Beaten and left there: the player comes round once the men have had time to go (left alone, the health
+        ; stayed below nothing and the player on their knees, 2026-11-19).
+        Float down = StorageUtil.GetFloatValue(self, "Intel_ArcGuardDown", 0.0)
+        Float now = Utility.GetCurrentRealTime()
+        If down <= 0.0 || now < down || now - down >= 6.0
+            Float health = player.GetActorValue("Health")
+            If health < 25.0
+                player.RestoreActorValue("Health", 25.0 - health)
+            EndIf
+        EndIf
+    ElseIf !fight
+        player.GetActorBase().SetEssential(false)
+        StorageUtil.UnsetIntValue(self, "Intel_ArcGuard")
+        StorageUtil.UnsetFloatValue(self, "Intel_ArcGuardDown")
+        Core().DebugMsg("Arcs: #" + id + " the fight with the hired men is over: the player is mortal again")
+    EndIf
 EndFunction
 
 Function CallOff(Int id, Bool answer)
@@ -616,7 +785,7 @@ Function CallOff(Int id, Bool answer)
     Int k = 0
     While k < 3
         Actor t = IntelEngine.ArcForm(id, "thug" + k) as Actor
-        If t != None && !t.IsDead()
+        If t != None && !t.IsDead() && StorageUtil.FormListFind(self, "Intel_ArcLeavers", t) < 0
             If !t.Is3DLoaded() || (t.GetDistance(player) > 3000.0 && c != None && !c.PlayerCanSee(t))
                 StorageUtil.UnsetIntValue(t, "Intel_ArcThug")
                 t.Disable()
@@ -853,6 +1022,8 @@ Function Watch()
     WatchJailed()
     WatchAway()
     WatchLinger()
+    WatchLeavers()
+    WatchGuard()
 EndFunction
 
 ; Staying with the player while they talk: the person of an arc's step keeps near the player (the linger package of
@@ -1197,6 +1368,9 @@ Function DoEffect(Int id, Int effect, Int role)
     Actor player = Game.GetPlayer()
     Actor asker = IntelEngine.ArcForm(id, "asker") as Actor
     Actor target = IntelEngine.ArcForm(id, "role" + role) as Actor
+    If target == None && effect == EFFECT_PLAYERPAYS
+        target = IntelEngine.ArcForm(id, "thug0") as Actor   ; the men's leader is paid off
+    EndIf
     Int gold = IntelEngine.ArcField(id, "gold")
     Form septims = Game.GetFormFromFile(0x0000000F, "Skyrim.esm")
     If effect == EFFECT_PAYGOLD && gold > 0 && target != None
@@ -1275,6 +1449,15 @@ Function Visit(Int id)
         Return
     EndIf
     String words = IntelEngine.ArcText(id, "visitwords")
+    If IntelEngine.ArcField(id, "kind") == KIND_STALK
+        ; A tale's stalk step: they shadow the player from a distance until caught or coming forward (the story
+        ; engine's stalker, with the tale's own reason).
+        IntelEngine_Core sc = Core()
+        If sc == None || sc.StoryEngine == None || !sc.StoryEngine.DispatchArcStalk(who, id, words)
+            Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " cannot shadow the player now")
+        EndIf
+        Return
+    EndIf
     If who.Is3DLoaded() && who.GetParentCell() == player.GetParentCell() && who.GetDistance(player) < 1500.0
         Quests().WaitForSilence(who, 15.0)
         Core().SendTaskNarration(who, "comes over to " + player.GetDisplayName() + ": " + IntelEngine.ArcText(id, "goal"), player)
