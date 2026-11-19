@@ -711,6 +711,11 @@ Function ArcOfferDeferred(Int id) Global Native
 Actor Function ArcCompany(Int id) Global Native
 ; How far a line said to the player carries (SkyrimNet's interaction distance): the measure of "stands with the player".
 Function ArcEarshot(Float units) Global Native
+; What only scripts can read of what stands between someone and the player (other mods keep it in script storage).
+Function ArcHeart(Actor who, Int sparked, Int stance, Int withChild, Bool childIsPlayers, Int children, Bool playersChild) Global Native
+; The game's relationship rank after a story brought someone and the player a step closer, or apart (never beyond
+; friendship either way: Hearts.h).
+Int Function ArcRankAfter(Int rank, Bool closer) Global Native
 ; The asker held back for that reason: the story waits until the two are apart (a far-comer tries again in an hour).
 Function ArcOfferHeldBack(Int id) Global Native
 ; Whether someone coming to the player has truly been looking for them (and so hurries): close to the player, come all

@@ -20,6 +20,8 @@ Int Property EFFECT_LEAVE = 6 AutoReadOnly
 Int Property EFFECT_BEFRIEND = 7 AutoReadOnly
 Int Property EFFECT_ESTRANGE = 8 AutoReadOnly
 Int Property EFFECT_GIVEITEM = 9 AutoReadOnly
+Int Property EFFECT_CLOSER = 10 AutoReadOnly
+Int Property EFFECT_APART = 11 AutoReadOnly
 Int Property KIND_BRAWL = 5 AutoReadOnly
 Int Property KIND_VISIT = 7 AutoReadOnly
 Int Property KIND_STALK = 12 AutoReadOnly
@@ -1025,8 +1027,52 @@ Event OnUpdate()
 EndEvent
 
 Int earshotLooks = 0
+Int heartAt = 0
+
+Function TellHearts()
+    {What stands between the player and the people a relationship mod tracks is kept in that mod's own script storage:
+    read here, a few people a look, and told to the DLL (HeartBridge), which reads the rest (factions, the game's
+    ranks) itself. Without such a mod the list is empty and nothing happens. Soft reads only: a key that is not
+    there reads as nothing.}
+    Int total = StorageUtil.FormListCount(None, "SNRom_Roster")
+    If total <= 0
+        Return
+    EndIf
+    If heartAt >= total
+        heartAt = 0
+    EndIf
+    Actor player = Game.GetPlayer()
+    String playerName = player.GetDisplayName()
+    Int looked = 0
+    While looked < 4 && heartAt < total
+        Actor who = StorageUtil.FormListGet(None, "SNRom_Roster", heartAt) as Actor
+        If who != None
+            ; With child, as SeverActions mirrors Fertility Mode for the women near the player.
+            String carrying = StorageUtil.GetStringValue(who, "SkyrimNet_FM_State")
+            Int withChild = 0
+            If carrying == "first_trimester"
+                withChild = 1
+            ElseIf carrying == "second_trimester"
+                withChild = 2
+            ElseIf carrying == "third_trimester"
+                withChild = 3
+            EndIf
+            String father = StorageUtil.GetStringValue(who, "SkyrimNet_FM_Father")
+            Int children = StorageUtil.GetIntValue(who, "SNKin_ChildrenByPlayer")
+            Int listed = StorageUtil.FormListCount(who, "SNKin_ChildrenByPlayer")
+            If listed > children
+                children = listed
+            EndIf
+            IntelEngine.ArcHeart(who, StorageUtil.GetIntValue(who, "SNRom_Sparked"), StorageUtil.GetIntValue(who, "SNRom_PlayerStance"), \
+                withChild, withChild > 0 && father != "" && father == playerName, children, StorageUtil.GetIntValue(who, "SNKin_IsPlayerChild") == 1)
+        EndIf
+        heartAt += 1
+        looked += 1
+    EndWhile
+EndFunction
 
 Function Watch()
+    TellHearts()
     ; How far speech carries is SkyrimNet's setting (and whisper mode changes it): told to the engine on the first look
     ; and about once a minute.
     If earshotLooks <= 0
@@ -1451,6 +1497,17 @@ Function DoEffect(Int id, Int effect, Int role)
             other.SetRelationshipRank(target, rank)
             Core().DebugMsg("Arcs: #" + id + " " + target.GetDisplayName() + " and " + other.GetDisplayName() + " are now at rank " + rank)
         EndIf
+    ElseIf (effect == EFFECT_CLOSER || effect == EFFECT_APART) && target != None && !target.IsDead()
+        ; Someone and the player, a step closer or apart, as the game itself keeps it: friends greet as friends and
+        ; share what is theirs. Never beyond friendship either way (the DLL's rule): what lies beyond is the
+        ; player's own doing, and a relationship mod's to keep. Such a mod hears of it through what both remember
+        ; of the story's ending; nothing of its state is written here.
+        Int rank = target.GetRelationshipRank(player)
+        Int after = IntelEngine.ArcRankAfter(rank, effect == EFFECT_CLOSER)
+        If after != rank
+            target.SetRelationshipRank(player, after)
+        EndIf
+        Core().DebugMsg("Arcs: #" + id + " " + target.GetDisplayName() + " and the player: rank " + rank + " -> " + after)
     EndIf
 EndFunction
 
