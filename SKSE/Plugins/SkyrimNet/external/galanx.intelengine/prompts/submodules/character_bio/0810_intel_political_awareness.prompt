@@ -19,7 +19,8 @@
 {% set hasPlayerStanding = false %}
 {% if (isFactionLeader or isFactionMember) and existsIn(polState, "player_standings") %}{% for ps in polState.player_standings %}{% if ps.faction_id == myFactionId %}{% set hasPlayerStanding = true %}{% endif %}{% endfor %}{% endif %}
 {% if length(relevantEvents) > 0 or length(relevantRelations) > 0 or hasPlayerStanding %}
-## Political Awareness
+## Political Awareness{% if existsIn(polState, "civil_war") and polState.civil_war != "" %}
+{{ replace(polState.civil_war, "{player}", player.name) }}{% endif %}
 {% if myFactionName != "" %}
 {{ npcName }}{% if isFactionLeader %} is a leader of{% elif isFactionMember %} is a member of{% else %} is currently in the territory of{% endif %} {{ myFactionName }}.
 {% endif %}

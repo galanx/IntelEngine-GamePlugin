@@ -692,6 +692,10 @@ Bool Function ArcRequestTale(Actor akAsker) Global Native
 Function ArcLingerOver(Int id) Global Native
 ; A tale's places out in the world: the script places their masters and company (PlaceAtMe resolves leveled lists).
 Function ArcBossPlaced(Int id, Int site, Actor akBoss) Global Native
+; Someone held at a place for a tale: the script says where they stand (1 away, 2 bound at the heart, 4 gone home).
+Function ArcCaptive(Int id, Int captiveState) Global Native
+; A rescue asked for: a tale about someone held at a place near the giver's town is written, or nothing (false).
+Bool Function ArcRequestRescue(Actor akGiver) Global Native
 Function ArcGangPlaced(Int id) Global Native
 ; A tale's ambush: one of its men placed (k = 0 leads), and what a look asked of the script done (1 placed, 2 they
 ; struck, 3 called off unseen).
@@ -759,6 +763,9 @@ String Function LivingWorldDescribe(Actor npc) Global Native
 ; May this kind of story moment move this NPC? ("NPCs of running quests may move"; the target of an objective the
 ; player has open never moves; "message" always may, the sender stays and a courier goes)
 Bool Function LivingWorldMayMove(Actor npc, String storyType) Global Native
+; Held by the game right now, at every level of the living world: in a scene, or the target of an objective the
+; player has open. Such a person takes no task and is sent nowhere.
+Bool Function LivingWorldQuestHolds(Actor npc) Global Native
 
 ; 4.0: a place named in SkyrimNet (the player's /mark and Places page, a pack's, another mod's travel markers): a
 ; persistent reference in its cell or worldspace, None when the destination names no such place. The NPC's own

@@ -553,9 +553,9 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         ; NPC not found - describe the situation, let NPC decide their response
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
+            Core.TellFailure(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
+            Core.TellFailure(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -567,7 +567,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     EndIf
 
     If targetNPC.IsDisabled()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
         Return false
     EndIf
 
@@ -593,13 +593,13 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     ; of their own would, and the carriage service is broken from then on (see Core.IsUnsuitableTaskAgent).
     If Core.IsCarriageDriver(targetNPC)
         Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " is a carriage driver - not fetched")
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to fetch " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " was asked to fetch " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
         Return false
     EndIf
 
     ; A slot has to be there: a free one, or the one this agent's current task gives up.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -625,7 +625,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     ; Find free slot
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -800,7 +800,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     ; A slot has to be there: a free one, or the one this agent's current task gives up. Checked before
     ; that task is called off: with no slot to be had it was cancelled for nothing.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -810,7 +810,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     ; Find slot
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -949,9 +949,9 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     If targetNPC == None
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
+            Core.TellFailure(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
+            Core.TellFailure(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -962,7 +962,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     EndIf
 
     If targetNPC.IsDisabled()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
         Return false
     EndIf
 
@@ -978,7 +978,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
 
     ; A slot has to be there: a free one, or the one this agent's current task gives up.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -991,7 +991,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     ; Find free slot
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -1093,6 +1093,15 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
         Return false
     EndIf
 
+    ; "Take me to X": models pick EscortTarget with the player as target despite the action rules. The name
+    ; lookup below never returns the player, so it grabbed an NPC whose name merely contains the player's
+    ; (a summoned "Shadow <player name>" across the map) and walked off to it. Lead the player instead.
+    Actor player = Game.GetPlayer()
+    If targetName == player.GetDisplayName() || targetName == player.GetActorBase().GetName()
+        Core.DebugMsg("EscortTarget: target is the player, leading them there via GoToLocation")
+        Return Travel.GoToLocation(akAgent, destination, 0, 1, false, taskOrigin)
+    EndIf
+
     ; Duplicate action guard
     If Core.IsDuplicateTask(akAgent, "escort_target", targetName)
         Return false
@@ -1122,9 +1131,9 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     If targetNPC == None
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
+            Core.TellFailure(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
+            Core.TellFailure(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -1136,7 +1145,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     EndIf
 
     If targetNPC.IsDisabled()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
         Return false
     EndIf
 
@@ -1164,7 +1173,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     ; A carriage driver is not walked away from the cart (see FetchNPC).
     If Core.IsCarriageDriver(targetNPC)
         Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is a carriage driver - not escorted")
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " was asked to escort " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
         Return false
     EndIf
 
@@ -1173,13 +1182,13 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     If destination == "home"
         destMarkerRef = IntelEngine.ResolveAnyDestination(targetNPC, "home")
         If destMarkerRef == None
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not figure out where " + targetNPC.GetDisplayName() + " lives.")
+            Core.TellFailure(akAgent, akAgent.GetDisplayName() + " could not figure out where " + targetNPC.GetDisplayName() + " lives.")
             Return false
         EndIf
     Else
         destMarkerRef = Core.ResolveTravelTarget(akAgent, destination)
         If destMarkerRef == None
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " does not know where " + destination + " is.")
+            Core.TellFailure(akAgent, akAgent.GetDisplayName() + " does not know where " + destination + " is.")
             Return false
         EndIf
     EndIf
@@ -1194,7 +1203,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
 
     ; A slot has to be there: a free one, or the one this agent's current task gives up.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -1218,7 +1227,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     ; Find free slot
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 

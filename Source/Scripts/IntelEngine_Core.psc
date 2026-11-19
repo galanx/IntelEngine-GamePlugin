@@ -834,6 +834,13 @@ Event OnSkyrimNetPackageRemoved(String eventName, String strArg, Float numArg, F
         Return
     EndIf
     If FindSlotByAgent(npc) < 0
+        ; No task of their own: the one fetched or escorted in somebody else's, or packages left on them with no
+        ; slot at all. Removed all the same, instead of the row coming straight back.
+        Int theirs = FindSlotByActor(npc)
+        If theirs >= 0
+            ClearSlot(theirs)
+        EndIf
+        ReleaseAgent(npc, -1)
         Return
     EndIf
     DebugMsg(npc.GetDisplayName() + ": task row removed on SkyrimNet's package page - cancelling the task")
@@ -892,6 +899,7 @@ Function ReleaseAgent(Actor agent, Int slot)
 
     ; Clear travel/navigation data
     StorageUtil.UnsetFormValue(agent, "Intel_DestMarker")
+    StorageUtil.UnsetFormValue(agent, "Intel_TravelFromCell")
     StorageUtil.UnsetFormValue(agent, "Intel_ReturnMarker")
     StorageUtil.UnsetFormValue(agent, "Intel_CurrentWaypoint")
     StorageUtil.UnsetFloatValue(agent, "Intel_TaskStartTime")
@@ -1496,12 +1504,26 @@ Float Property PROMPT_SECONDS_TASK = 20.0 AutoReadOnly
 Faction _carriageSystemFaction
 Faction _currentFollowerFaction
 Faction _severFollowingFaction
+Faction _jobCarriageFaction
+Faction _ferrySystemFaction
+Faction _ownCarriageFaction
 Bool _softFormsResolved = false
 
 Function ResolveSoftForms()
     {Forms of the base game and of other mods, looked up once per load. None when the mod is not installed.}
     _carriageSystemFaction = Game.GetFormFromFile(0x00017F04, "Skyrim.esm") as Faction      ; CarriageSystemFaction
     _currentFollowerFaction = Game.GetFormFromFile(0x0005C84E, "Skyrim.esm") as Faction     ; CurrentFollowerFaction
+    ; The other people of the game's travel services (read from the game's files, 2026-11-19): the ferrymen of
+    ; Dawnguard have a faction of their own, so "the Dawnstar ferry" was never covered by the carriage one.
+    _jobCarriageFaction = Game.GetFormFromFile(0x000DDDA8, "Skyrim.esm") as Faction         ; JobCarriageFaction
+    _ferrySystemFaction = None
+    If Game.IsPluginInstalled("Dawnguard.esm")
+        _ferrySystemFaction = Game.GetFormFromFile(0x00016849, "Dawnguard.esm") as Faction  ; DLC1FerrySystemFaction
+    EndIf
+    _ownCarriageFaction = None
+    If Game.IsPluginInstalled("HearthFires.esm")
+        _ownCarriageFaction = Game.GetFormFromFile(0x00007890, "HearthFires.esm") as Faction ; BYOHCarriageDriverFaction
+    EndIf
     _severFollowingFaction = None
     If Game.IsPluginInstalled("SeverActions.esp")
         _severFollowingFaction = Game.GetFormFromFile(0x000F0809, "SeverActions.esp") as Faction   ; SeverActions_ActivelyFollowing
@@ -1547,7 +1569,37 @@ Bool Function IsUnsuitableTaskAgent(Actor npc)
     If _carriageSystemFaction && npc.IsInFaction(_carriageSystemFaction)
         Return true
     EndIf
+    If (_jobCarriageFaction && npc.IsInFaction(_jobCarriageFaction)) || (_ferrySystemFaction && npc.IsInFaction(_ferrySystemFaction)) \
+        || (_ownCarriageFaction && npc.IsInFaction(_ownCarriageFaction))
+        Return true
+    EndIf
+    ; Held by the game right now: in the middle of a scene, or a quest of the player's whose shown objective points at
+    ; them. A package put on them then stalls that quest ("Neloth disappeared and the quest stalled": a travel task the
+    ; dialogue model had given him in the middle of The Path of Knowledge). Someone travelling with the player is the
+    ; player's to send.
+    If !npc.IsPlayerTeammate() && IntelEngine.LivingWorldQuestHolds(npc)
+        Return true
+    EndIf
     Return false
+EndFunction
+
+Function TellFailure(Actor npc, String msgText, Actor akTarget = None)
+    {A task that could not even begin (a place nobody knows, a person who cannot be found, no free hands) is told to
+    the NPC once. Told again within two minutes of the last such failure it is only written to the log: the
+    narration gives the dialogue model a turn, the model tries the same thing again, and the two went round and
+    round ("Endaron does not know where interrogation chamber is", over a hundred calls in forty seconds, a
+    dollar in half a minute).}
+    If npc == None
+        Return
+    EndIf
+    Float now = Utility.GetCurrentRealTime()
+    Float last = StorageUtil.GetFloatValue(npc, "Intel_FailAt", -100000.0)
+    StorageUtil.SetFloatValue(npc, "Intel_FailAt", now)
+    If now >= last && now - last < 120.0   ; two minutes of real time
+        DebugMsg("Not told again (the same kind of failure " + ((now - last) as Int) + " s ago): " + msgText)
+        Return
+    EndIf
+    SendTaskNarration(npc, msgText, akTarget)
 EndFunction
 
 Float Property SPEECH_GRACE_SECONDS = 7.0 AutoReadOnly
@@ -1885,9 +1937,17 @@ Function DismissFollowerForTask(Actor npc)
     first, then evaluate. This prevents a brief gap where the NPC has no overrides
     and reverts to default AI.}
 
-    ; Clear ALL package overrides from all sources
-    ActorUtil.ClearPackageOverride(npc)
-    DebugMsg("Cleared all package overrides for " + npc.GetDisplayName())
+    ; What makes them follow the player is taken off by name: SkyrimNet's own follow, SeverActions' casual follow, and
+    ; anything of IntelEngine's still on them. Every other mod's package overrides stay where they are. All of them
+    ; used to be wiped here (ActorUtil.ClearPackageOverride), which cost other mods their own data: Nether's Follower
+    ; Framework lost the "home base" it keeps as such an override (GitHub #38).
+    If SkyrimNetApi.HasPackage(npc, "FollowPlayer") == 1
+        SkyrimNetApi.UnregisterPackage(npc, "FollowPlayer")
+        StorageUtil.SetIntValue(npc, "Intel_WasAccompanying", 1)
+        DebugMsg(npc.GetDisplayName() + ": SkyrimNet's FollowPlayer package removed for the task")
+    EndIf
+    IntelEngine.StopCasualFollow(npc)
+    RemoveIntelPackages(npc, false)
 
     ; Also clear vanilla follower state so the engine doesn't re-apply follow AI
     If npc.IsPlayerTeammate()
@@ -2808,6 +2868,10 @@ Function InjectGossip(Actor akGiver, Actor akReceiver, String gossipText)
     If akGiver == None || akReceiver == None || gossipText == ""
         Return
     EndIf
+    ; The dead neither tell nor hear ("three long-dead followers" kept turning up in gossip).
+    If akGiver.IsDead() || akReceiver.IsDead()
+        Return
+    EndIf
 
     Float currentTime = Utility.GetCurrentGameTime()
     String giverName = akGiver.GetDisplayName()
@@ -3514,13 +3578,18 @@ Event OnDashboardRemovePackages(String eventName, String strArg, Float numArg, F
     Actor npc = Game.GetForm(formId) as Actor
     If npc != None
         DebugMsg("Dashboard: Removing packages from " + npc.GetDisplayName())
-        ; Clear slot if NPC is in one (prevents orphaned "Travelling" entries)
+        ; Clear the slot they are in: their own, or, for the one who is fetched or escorted, their agent's (as long
+        ; as that task lives its handler puts the package back on them, and the row stayed at "Removing..." for good).
         Int slot = FindSlotByAgent(npc)
+        If slot < 0
+            slot = FindSlotByActor(npc)
+        EndIf
         If slot >= 0
             ClearSlot(slot)
-        Else
-            RemoveIntelPackages(npc)
         EndIf
+        ; And whatever is still on them without a slot (a slot left half finished, a walk home): packages, linked
+        ; refs, the task's keys.
+        ReleaseAgent(npc, -1)
         ; Clean up story/social dispatch if this NPC was the active dispatch target
         If StoryEngine.ActiveStoryNPC == npc
             StoryEngine.CleanupStoryDispatch()

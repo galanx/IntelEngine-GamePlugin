@@ -247,7 +247,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     ObjectReference destMarker = ResolveDestination(akNPC, destination)
     If destMarker == None
         ; Couldn't resolve - describe the situation factually
-        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " was asked to travel to '" + destination + "' but a route could not be determined.")
+        Core.TellFailure(akNPC, akNPC.GetDisplayName() + " was asked to travel to '" + destination + "' but a route could not be determined.")
         Return false
     EndIf
     ; Read at once: the next resolution (for any NPC) replaces it, and the prompt below can take a while.
@@ -256,7 +256,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     ; A slot has to be there: a free one, or the one this NPC's current task gives up.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akNPC) < 0
         Core.DebugMsg("GoToLocation: No free slots")
-        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
+        Core.TellFailure(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
         Return false
     EndIf
 
@@ -281,7 +281,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
         Core.DebugMsg("GoToLocation: No free slots")
-        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
+        Core.TellFailure(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
         Return false
     EndIf
 
@@ -307,6 +307,8 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
 
     ; Store destination marker
     StorageUtil.SetFormValue(akNPC, "Intel_DestMarker", destMarker)
+    ; Where they set out from: someone sent out of the room the player is in is not brought back into it on arrival.
+    StorageUtil.SetFormValue(akNPC, "Intel_TravelFromCell", akNPC.GetParentCell())
 
     ; Asked in conversation: let them finish the sentence before they turn and go. A scheduled trip starts
     ; on the clock, not on a spoken line, so it sets off at once.
@@ -944,7 +946,9 @@ Function HandleArrival(Int slot, Actor npc)
         ObjectReference destRef = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
         If destRef != None
             ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destRef)
-            If doorDest != None && doorDest.GetParentCell() == playerCell
+            ; Not for someone who set out from this very room: they were sent out of it ("get lost", "wait
+            ; outside"), reached the door, and were walked straight back in to the player.
+            If doorDest != None && doorDest.GetParentCell() == playerCell && (StorageUtil.GetFormValue(npc, "Intel_TravelFromCell") as Cell) != playerCell
                 If !isSelfMotivated
                     StorageUtil.SetIntValue(npc, "Intel_PlayerWasThere", 1)   ; inside the building they came to
                 EndIf
@@ -1115,7 +1119,7 @@ Function CheckWaiting(Int slot, Actor npc)
                 Cell pCell = player.GetParentCell()
                 If pCell != None && pCell.IsInterior()
                     ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destMarker)
-                    If doorDest != None && doorDest.GetParentCell() == pCell
+                    If doorDest != None && doorDest.GetParentCell() == pCell && (StorageUtil.GetFormValue(npc, "Intel_TravelFromCell") as Cell) != pCell
                         If npc.GetParentCell() != pCell && StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
                             IntelEngine.SetHomeDoorAccessForCell(pCell.GetFormID(), true)
                             StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", pCell.GetFormID())

@@ -71,6 +71,8 @@ Match conflict events to the faction's type:
 
 ## Lore & Geography
 
+**Skyrim's own civil war is the game's to decide, not yours.** `civil_war` in the state above says how it stands right now, as fact. Never write an event that contradicts it: no surrender, victory, peace treaty, alliance or trade pact between the Empire and the Stormcloaks that it does not state; no fighting between them while it says a truce holds or the war is over; no war or open break between the Empire and the Thalmor while it says the Concordat binds them (spying, pressure and quarrels over Talos are theirs; open war is not). Pairs the state marks `war_possible: false` never go to war.
+
 Each faction controls a specific hold. Events should reflect geographic reality:
 - **Imperial Legion** controls Solitude. Their patrols cover western Skyrim and trade routes through Haafingar.
 - **Stormcloaks** control Windhelm and eastern Skyrim. Windhelm is their fortified capital — they have no need for "safehouses" there.

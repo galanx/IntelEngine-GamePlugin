@@ -93,6 +93,10 @@ IntelEngine_Quests Function Quests()
     Return Quest.GetQuest("IntelEngine_QuestKeeper") as IntelEngine_Quests
 EndFunction
 
+IntelEngine_Threads Function Threads()
+    Return Quest.GetQuest("IntelEngine_Threads") as IntelEngine_Threads
+EndFunction
+
 Bool Function Enabled()
     IntelEngine_Core c = Core()
     Return c != None && c.StoryEngine != None && c.StoryEngine.LivingWorldLevel > 0
@@ -224,6 +228,7 @@ Event OnArcOffer(String eventName, String strArg, Float numArg, Form sender)
         Return
     EndIf
     TheMurder(id)
+    TakeCaptive(id)
 EndEvent
 
 Event OnAskerArrived(Form askerForm, Int id)
@@ -238,6 +243,15 @@ Event OnAskerArrived(Form askerForm, Int id)
     Utility.Wait(2.0)
     Quests().WaitForTheirSay(asker, 30.0)
     If IntelEngine.ArcField(id, "phase") != PHASE_PLANNED || asker.IsDead() || asker.IsInCombat()
+        Return
+    EndIf
+    If !CaptiveGone(id)
+        ; The one said to be held stands where the player can see them: nothing is offered, and nobody remembers it.
+        IntelEngine.ArcDrop(id)
+        Core().DebugMsg("Arcs: #" + id + " the one to be held is still in sight; the story is called off")
+        If Core().StoryEngine != None
+            Core().StoryEngine.VisitOver(asker)
+        EndIf
         Return
     EndIf
     If IntelEngine.ArcField(id, "pattern") == PATTERN_MURDER
@@ -337,6 +351,7 @@ Function Open(Int id)
     If IntelEngine.ArcField(id, "tale") == 1
         MakeTaleHolders(slot, jq)
         PlaceBosses(id)   ; after the holders: the places' masters are made last
+        PlaceCaptive(id)  ; only when the heart of their place is in the game already (the player stands in it)
     EndIf
     jq.SetStage(IntelEngine.ArcField(id, "openstage"))
     ShowStep(id, jq)
@@ -1115,6 +1130,7 @@ Function Watch()
     EndWhile
     WatchJailed()
     WatchAway()
+    WatchCaptives()
     WatchLinger()
     WatchLeavers()
     WatchGuard()
@@ -1211,6 +1227,7 @@ Function WatchOne(Int id)
         ; The heart of a place is in the game only now (the player has come that far), or the journal's marker for
         ; the step has moved (onto the place, off it while inside, onto the heart or the master).
         PlaceBosses(id)
+        PlaceCaptive(id)
         If jq != None && Math.LogicalAnd(r, 31) == 0
             ShowStep(id, jq)
         EndIf
@@ -1592,6 +1609,229 @@ Function Visit(Int id)
     Else
         StorageUtil.SetFormValue(self, "Intel_ArcVisitor" + IntelEngine.ArcField(id, "slot"), who)
     EndIf
+EndFunction
+
+; ----------------------------------------------------------------------------------------------- someone held at a place
+; A tale may have one of its people held at a place out in the world (bandits, Forsworn, necromancers, vampires,
+; hagravens, Falmer): taken out of anyone's sight before the asker has come, away from the game until the player has
+; come as far as the heart of that place, bound there, freed by the player reaching them, and then with the player
+; until they are out under the open sky, where they part and walk home. While held they are in the game's own faction
+; for a dungeon's prisoners (Skyrim.esm dunPrisonerFaction, a friend of every such place's people, so nobody there
+; harms them) and cannot die; all of it is taken off again when they part, or when the story ends without them.
+; The 3.8 rescue quest did this by teleporting the victim in view and beating them into bleedout, and left them where
+; they were when anything went wrong.
+
+Int Property CAPTIVE_TOTAKE = 0 AutoReadOnly
+Int Property CAPTIVE_AWAY = 1 AutoReadOnly
+Int Property CAPTIVE_BOUND = 2 AutoReadOnly
+Int Property CAPTIVE_FREED = 3 AutoReadOnly
+Int Property CAPTIVE_HOME = 4 AutoReadOnly
+Float Property CAPTIVE_PART_HOURS = 3.0 AutoReadOnly   ; with the player at most this long after being freed
+
+Int CaptiveTries = 0
+
+Faction Function PrisonerFaction()
+    Return Game.GetFormFromFile(0x000AA784, "Skyrim.esm") as Faction
+EndFunction
+
+Function TakeCaptive(Int id)
+    {The story's asker is on the way: whoever is held in it leaves the game now, where nobody sees it.}
+    Actor who = IntelEngine.ArcForm(id, "captive") as Actor
+    If who == None || who.IsDead() || StorageUtil.GetIntValue(who, "Intel_ArcCaptive", 0) == id
+        Return
+    EndIf
+    StorageUtil.SetIntValue(who, "Intel_ArcCaptive", id)
+    StorageUtil.SetIntValue(who, "Intel_ArcCaptiveAt", CAPTIVE_TOTAKE)
+    StorageUtil.FormListAdd(self, "Intel_ArcCaptives", who, false)
+    WatchCaptives()
+EndFunction
+
+Bool Function CaptiveGone(Int id)
+    {True when nobody is held in this story, or the one held is out of the game by now. False: they stand where the
+    player may see them, and the asker's word that they were taken would be a lie in plain sight.}
+    Actor who = IntelEngine.ArcForm(id, "captive") as Actor
+    If who == None
+        Return true
+    EndIf
+    TakeCaptive(id)
+    Return StorageUtil.GetIntValue(who, "Intel_ArcCaptiveAt", CAPTIVE_TOTAKE) >= CAPTIVE_AWAY
+EndFunction
+
+Function PlaceCaptive(Int id)
+    {The heart of the place is in the game (the player has come that far): the one held there is put beside it, bound,
+    out of the player's view where that can be helped.}
+    Actor who = IntelEngine.ArcForm(id, "captive") as Actor
+    If who == None || who.IsDead() || StorageUtil.GetIntValue(who, "Intel_ArcCaptive", 0) != id
+        Return
+    EndIf
+    If StorageUtil.GetIntValue(who, "Intel_ArcCaptiveAt", CAPTIVE_TOTAKE) != CAPTIVE_AWAY
+        Return
+    EndIf
+    ObjectReference anchor = IntelEngine.ArcForm(id, "captiveanchor") as ObjectReference
+    If anchor == None
+        Return
+    EndIf
+    Cell there = anchor.GetParentCell()
+    If there == None || !there.IsAttached()
+        Return
+    EndIf
+    Actor player = Game.GetPlayer()
+    If there == player.GetParentCell() && player.GetDistance(anchor) < 1500.0 && player.HasLOS(anchor) && CaptiveTries < 8
+        CaptiveTries += 1
+        Return
+    EndIf
+    CaptiveTries = 0
+    who.MoveTo(anchor, 110.0, 80.0, 0.0)
+    who.Enable()
+    HoldCaptive(who)
+    StorageUtil.SetIntValue(who, "Intel_ArcCaptiveAt", CAPTIVE_BOUND)
+    IntelEngine.ArcCaptive(id, CAPTIVE_BOUND)
+    Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " is held at the heart of " + IntelEngine.ArcText(id, "captiveplace"))
+EndFunction
+
+Function HoldCaptive(Actor who)
+    {Bound, safe from the people of the place, and not able to die while the story has them.}
+    ActorBase base = who.GetActorBase()
+    If StorageUtil.GetIntValue(who, "Intel_ArcCaptiveEss", -1) < 0
+        StorageUtil.SetIntValue(who, "Intel_ArcCaptiveEss", base.IsEssential() as Int)
+    EndIf
+    base.SetEssential(true)
+    Faction prisoners = PrisonerFaction()
+    If prisoners != None && StorageUtil.GetIntValue(who, "Intel_ArcCaptiveFac", -1) < 0
+        StorageUtil.SetIntValue(who, "Intel_ArcCaptiveFac", who.IsInFaction(prisoners) as Int)
+        who.AddToFaction(prisoners)
+    EndIf
+    who.StopCombat()
+    who.SetRestrained(true)
+    who.EvaluatePackage()
+    BindCaptive(who)
+EndFunction
+
+Function BindCaptive(Actor who)
+    {On their knees, hands bound: the game's own pose for a prisoner. Asked for whenever they come into the game anew
+    (a pose is not kept across a load or a change of cell).}
+    If who.Is3DLoaded()
+        Debug.SendAnimationEvent(who, "IdleBoundKneesStart")
+        StorageUtil.SetFloatValue(who, "Intel_ArcCaptiveBound", Utility.GetCurrentRealTime())
+    EndIf
+EndFunction
+
+Function UnholdCaptive(Actor who, Bool keepSafe)
+    {The bonds come off. keepSafe: still the place's prisoner in its people's eyes and still not able to die (walking
+    out with the player); else everything the story put on them is taken off.}
+    who.SetRestrained(false)
+    If who.Is3DLoaded()
+        Debug.SendAnimationEvent(who, "IdleForceDefaultState")
+    EndIf
+    StorageUtil.UnsetFloatValue(who, "Intel_ArcCaptiveBound")
+    If !keepSafe
+        Faction prisoners = PrisonerFaction()
+        If prisoners != None && StorageUtil.GetIntValue(who, "Intel_ArcCaptiveFac", -1) == 0
+            who.RemoveFromFaction(prisoners)
+        EndIf
+        StorageUtil.UnsetIntValue(who, "Intel_ArcCaptiveFac")
+        Int was = StorageUtil.GetIntValue(who, "Intel_ArcCaptiveEss", -1)
+        If was == 0
+            who.GetActorBase().SetEssential(false)
+        EndIf
+        StorageUtil.UnsetIntValue(who, "Intel_ArcCaptiveEss")
+    EndIf
+    who.EvaluatePackage()
+EndFunction
+
+Function ForgetCaptive(Actor who, Int i)
+    StorageUtil.UnsetIntValue(who, "Intel_ArcCaptive")
+    StorageUtil.UnsetIntValue(who, "Intel_ArcCaptiveAt")
+    StorageUtil.UnsetFloatValue(who, "Intel_ArcCaptiveFreed")
+    StorageUtil.FormListRemoveAt(self, "Intel_ArcCaptives", i)
+EndFunction
+
+Function WatchCaptives()
+    {Every look: whoever a story holds is moved on by what is true now. A story that ended, was turned down or never
+    came lets go of them, and they are home again without anyone seeing how.}
+    Int i = StorageUtil.FormListCount(self, "Intel_ArcCaptives") - 1
+    Actor player = Game.GetPlayer()
+    While i >= 0
+        Actor who = StorageUtil.FormListGet(self, "Intel_ArcCaptives", i) as Actor
+        If who == None
+            StorageUtil.FormListRemoveAt(self, "Intel_ArcCaptives", i)
+        ElseIf who.IsDead()
+            ForgetCaptive(who, i)
+        Else
+            Int id = StorageUtil.GetIntValue(who, "Intel_ArcCaptive", 0)
+            Int at = StorageUtil.GetIntValue(who, "Intel_ArcCaptiveAt", CAPTIVE_TOTAKE)
+            Int phase = IntelEngine.ArcField(id, "phase")   ; -1 dropped, 0 planned, 1 open, 2 ended
+            Bool live = phase == PHASE_PLANNED || phase == PHASE_OPEN
+            If at == CAPTIVE_TOTAKE
+                If !live
+                    ForgetCaptive(who, i)   ; never taken: nothing to undo
+                ElseIf Unseen(who)
+                    who.Disable()
+                    StorageUtil.SetIntValue(who, "Intel_ArcCaptiveAt", CAPTIVE_AWAY)
+                    IntelEngine.ArcCaptive(id, CAPTIVE_AWAY)
+                    Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " has been taken (away from the game)")
+                EndIf
+            ElseIf at == CAPTIVE_AWAY
+                If !live
+                    ; Back where the game keeps them, never appearing in front of the player.
+                    who.MoveToMyEditorLocation()
+                    Cell home = who.GetParentCell()
+                    Bool inSight = home != None && home == player.GetParentCell() && (home.IsInterior() || who.GetDistance(player) < 4000.0)
+                    If !inSight
+                        who.Enable()
+                        who.EvaluatePackage()
+                        ForgetCaptive(who, i)
+                        Core().DebugMsg("Arcs: " + who.GetDisplayName() + " is back home (the story that had them taken is over)")
+                    EndIf
+                EndIf
+            ElseIf at == CAPTIVE_BOUND
+                If IntelEngine.ArcField(id, "captivestate") == CAPTIVE_FREED
+                    ; The story's step is done: the player stands by them. Untied, and with the player from here.
+                    UnholdCaptive(who, true)
+                    IntelEngine_Threads t = Threads()
+                    If t != None
+                        t.Follow(who, true)
+                    EndIf
+                    StorageUtil.SetIntValue(who, "Intel_ArcCaptiveAt", CAPTIVE_FREED)
+                    StorageUtil.SetFloatValue(who, "Intel_ArcCaptiveFreed", Utility.GetCurrentGameTime())
+                    Core().SendTaskNarration(who, "has been found and untied by " + player.GetDisplayName() + " at " + IntelEngine.ArcText(id, "captiveplace") + ", and keeps close to " + player.GetDisplayName() + " on the way out", player)
+                    Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " is free and follows the player out")
+                ElseIf !live
+                    ; The story ended with them still held (given up, too late): they are home again, unseen.
+                    If Unseen(who)
+                        UnholdCaptive(who, false)
+                        who.MoveToMyEditorLocation()
+                        who.EvaluatePackage()
+                        ForgetCaptive(who, i)
+                        Core().DebugMsg("Arcs: " + who.GetDisplayName() + " is back home (the story that held them is over)")
+                    EndIf
+                ElseIf who.Is3DLoaded() && StorageUtil.GetFloatValue(who, "Intel_ArcCaptiveBound", -1.0) < 0.0
+                    BindCaptive(who)   ; come into the game anew: the pose again
+                ElseIf !who.Is3DLoaded()
+                    StorageUtil.UnsetFloatValue(who, "Intel_ArcCaptiveBound")
+                EndIf
+            ElseIf at == CAPTIVE_FREED
+                Float since = (Utility.GetCurrentGameTime() - StorageUtil.GetFloatValue(who, "Intel_ArcCaptiveFreed", 0.0)) * 24.0
+                Bool talking = (IntelEngine.ArcForm(id, "who") as Actor) == who && phase == PHASE_OPEN
+                If (IntelEngine.ArcField(id, "captiveout") == 1 && !talking && !player.IsInCombat()) || since > CAPTIVE_PART_HOURS || phase < 0
+                    ; Out under the open sky (or it has been long enough): they part here and walk home.
+                    IntelEngine_Threads t = Threads()
+                    If t != None
+                        t.Follow(who, false)
+                    EndIf
+                    UnholdCaptive(who, false)
+                    If who.Is3DLoaded() && who.GetDistance(player) < 2000.0
+                        Core().SendTaskNarration(who, "is out and safe, parts from " + player.GetDisplayName() + " here and sets off for home", player)
+                    EndIf
+                    Quests().WalkOn(who, Core())
+                    IntelEngine.ArcCaptive(id, CAPTIVE_HOME)
+                    ForgetCaptive(who, i)
+                    Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " parts from the player and walks home")
+                EndIf
+            EndIf
+        EndIf
+        i -= 1
+    EndWhile
 EndFunction
 
 ; Gone from town for a while (a tale's "leave"): once nobody sees it, they are away (disabled) for a few days, then
