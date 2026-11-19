@@ -38,6 +38,7 @@ Int Property SIGNAL_GIVE = 67108864 AutoReadOnly     ; 1 << 26
 Int Property SIGNAL_VISIT = 32 AutoReadOnly          ; 1 << 5
 Int Property SIGNAL_LINGER = 64 AutoReadOnly         ; 1 << 6
 Int Property SIGNAL_GANG = 128 AutoReadOnly          ; 1 << 7
+Int Property SIGNAL_PLACE = 16384 AutoReadOnly       ; 1 << 14: a place's heart came into the game, or its marker moved
 Int Property SIGNAL_AMBUSH = 8192 AutoReadOnly       ; 1 << 13: the ambush has work for the script (ArcField "ambushdo")
 Int Property AMBUSH_PLACE = 1 AutoReadOnly
 Int Property AMBUSH_STRIKE = 2 AutoReadOnly
@@ -157,6 +158,13 @@ Bool Function DebugTaleWhy(Actor asker, String why)
     {Test hook: a tale as the director asks for one: the asker's own reason, and they come to the player wherever the
     player is.}
     Return IntelEngine.ArcRequestTaleWhy(asker, why)
+EndFunction
+
+Function DebugHeart(Actor who, Int sparked, Int stance)
+    {Test hook: tells the DLL what a relationship mod would keep about this person and the player (something of the
+    heart on their side, the player's answer to it: -1, 0, 1), without touching any mod's records. Someone such a
+    mod tracks is told again from its own records within a minute.}
+    IntelEngine.ArcHeart(who, sparked, stance, 0, false, 0, false)
 EndFunction
 
 Bool Function DebugTaleFile(Actor asker, String path)
@@ -366,6 +374,8 @@ Function MakeTaleHolders(Int slot, Quest jq)
     IntelEngine.ArcSetHolders(slot, TaleHolders[slot * 2], TaleHolders[slot * 2 + 1])
 EndFunction
 
+Int BossTries = 0
+
 Function PlaceBosses(Int id)
     {A tale's places out in the world: the master each one's story needs, of the place's own kind, at its heart. Placed
     while nobody is there (the place need not be loaded); named as the story names them.}
@@ -374,14 +384,22 @@ Function PlaceBosses(Int id)
         Form base = IntelEngine.ArcForm(id, "bossbase" + s)
         ObjectReference anchor = IntelEngine.ArcForm(id, "siteanchor" + s) as ObjectReference
         If base != None && anchor != None
-            Actor boss = anchor.PlaceAtMe(base, 1, true, false) as Actor
-            If boss != None
-                String name = IntelEngine.ArcText(id, "bossname" + s)
-                If name != ""
-                    boss.SetDisplayName(name, true)
+            ; Where the heart only came into the game with the player already in the same hall, the master is not
+            ; put down in plain view as long as that can be helped (a few looks; then it has to be).
+            Actor player = Game.GetPlayer()
+            If anchor.GetParentCell() == player.GetParentCell() && player.GetDistance(anchor) < 1500.0 && player.HasLOS(anchor) && BossTries < 8
+                BossTries += 1
+            Else
+                BossTries = 0
+                Actor boss = anchor.PlaceAtMe(base, 1, true, false) as Actor
+                If boss != None
+                    String name = IntelEngine.ArcText(id, "bossname" + s)
+                    If name != ""
+                        boss.SetDisplayName(name, true)
+                    EndIf
                 EndIf
+                IntelEngine.ArcBossPlaced(id, s, boss)
             EndIf
-            IntelEngine.ArcBossPlaced(id, s, boss)
         EndIf
         s += 1
     EndWhile
@@ -1189,11 +1207,19 @@ Function WatchOne(Int id)
     If Math.LogicalAnd(r, SIGNAL_GANG) != 0
         PlaceGang(id)
     EndIf
+    If Math.LogicalAnd(r, SIGNAL_PLACE) != 0
+        ; The heart of a place is in the game only now (the player has come that far), or the journal's marker for
+        ; the step has moved (onto the place, off it while inside, onto the heart or the master).
+        PlaceBosses(id)
+        If jq != None && Math.LogicalAnd(r, 31) == 0
+            ShowStep(id, jq)
+        EndIf
+    EndIf
     If Math.LogicalAnd(r, SIGNAL_AMBUSH) != 0
         Ambush(id)
     EndIf
     ; Everything but the signals: the step done (bits 0-4), the ending, the effect.
-    Int change = Math.LogicalAnd(r, 16777215 - SIGNAL_VISIT - SIGNAL_LINGER - SIGNAL_GANG - SIGNAL_AMBUSH)
+    Int change = Math.LogicalAnd(r, 16777215 - SIGNAL_VISIT - SIGNAL_LINGER - SIGNAL_GANG - SIGNAL_AMBUSH - SIGNAL_PLACE)
     Int skipped = Math.LogicalAnd(Math.RightShift(r, 27), 15)
     If skipped > 0 && jq != None
         ; A node left by a shortcut (found before the witness was asked): its objective goes, it never happened.
