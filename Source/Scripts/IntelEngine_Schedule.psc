@@ -64,7 +64,9 @@ Int Property MAX_SCHEDULED = 10 AutoReadOnly
 
 Event OnInit()
     InitializeScheduleArrays()
-    Core.RequestGameTimeTick(1.0)  ; Check every game hour
+    ; Never call another script here. On a new game Core.Maintenance can already be waiting for this OnInit
+    ; (Schedule.RestartMonitoring); a call back into Core then never returns and the whole quest hangs.
+    ; RestartMonitoring starts the timer instead (RegisterForNextDispatch).
 EndEvent
 
 ; NOTE: Quest scripts do NOT receive OnPlayerLoadGame events.
