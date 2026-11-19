@@ -33,6 +33,8 @@ Int Property SIGNAL_PLANT = 16777216 AutoReadOnly    ; 1 << 24
 Int Property SIGNAL_CHOOSE = 33554432 AutoReadOnly   ; 1 << 25
 Int Property SIGNAL_GIVE = 67108864 AutoReadOnly     ; 1 << 26
 Int Property SIGNAL_VISIT = 32 AutoReadOnly          ; 1 << 5
+Int Property SIGNAL_LINGER = 64 AutoReadOnly         ; 1 << 6
+Int Property LINGER_QUIET_SECONDS = 60 AutoReadOnly  ; a talk gone quiet this long: they go back to their day
 ; A tale's journal log: two items of IntelEngine.esp per slot whose names the DLL writes (esp/EspBuilder AddTaleHolders).
 Int Property HOLDER_TEXT = 0x000058DD AutoReadOnly   ; IntelEngine_TaleText0..3
 Int Property HOLDER_CLOSE = 0x000058E1 AutoReadOnly  ; IntelEngine_TaleClose0..3
@@ -519,6 +521,59 @@ Function Watch()
     EndWhile
     WatchJailed()
     WatchAway()
+    WatchLinger()
+EndFunction
+
+; Staying with the player while they talk: the person of an arc's step keeps near the player (the linger package of
+; IntelEngine's quests) until the talk goes quiet for a minute, the player walks away, or the step moves on.
+
+Function StartLinger(Int id)
+    Actor who = IntelEngine.ArcForm(id, "who") as Actor
+    IntelEngine_Core c = Core()
+    If who == None || c == None || who.IsDead() || who.IsInCombat() || who.IsPlayerTeammate() || who.GetCurrentScene() != None
+        IntelEngine.ArcLingerOver(id)
+        Return
+    EndIf
+    If c.FindSlotByActor(who) >= 0 || c.IsFollowingPlayer(who)
+        ; An errand of IntelEngine's, or following the player: their own packages already keep them right.
+        IntelEngine.ArcLingerOver(id)
+        Return
+    EndIf
+    Quests().Linger(who, c)
+    StorageUtil.SetIntValue(who, "Intel_ArcLingerArc", id)
+    StorageUtil.FormListAdd(self, "Intel_ArcLinger", who, false)
+    c.DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " stays with the player while they talk")
+EndFunction
+
+Function WatchLinger()
+    Int i = StorageUtil.FormListCount(self, "Intel_ArcLinger") - 1
+    While i >= 0
+        Actor who = StorageUtil.FormListGet(self, "Intel_ArcLinger", i) as Actor
+        Int id = 0
+        If who != None
+            id = StorageUtil.GetIntValue(who, "Intel_ArcLingerArc", 0)
+        EndIf
+        Bool over = who == None || who.IsDead() || id <= 0
+        If !over
+            over = IntelEngine.ArcField(id, "phase") != PHASE_OPEN || IntelEngine.ArcForm(id, "who") != who
+        EndIf
+        If !over
+            over = IntelEngine.ArcField(id, "quiet") > LINGER_QUIET_SECONDS || Core().ShouldReleaseLinger(who)
+        EndIf
+        If over
+            If who != None
+                StorageUtil.UnsetIntValue(who, "Intel_ArcLingerArc")
+                If !who.IsDead()
+                    Core().ReleaseLinger(who)
+                EndIf
+            EndIf
+            StorageUtil.FormListRemoveAt(self, "Intel_ArcLinger", i)
+            If id > 0
+                IntelEngine.ArcLingerOver(id)
+            EndIf
+        EndIf
+        i -= 1
+    EndWhile
 EndFunction
 
 Function WatchOne(Int id)
@@ -536,8 +591,11 @@ Function WatchOne(Int id)
     If Math.LogicalAnd(r, SIGNAL_VISIT) != 0
         Visit(id)
     EndIf
+    If Math.LogicalAnd(r, SIGNAL_LINGER) != 0
+        StartLinger(id)
+    EndIf
     ; Everything but the signals: the step done (bits 0-4), the ending, the effect.
-    Int change = Math.LogicalAnd(r, 16777215 - SIGNAL_VISIT)
+    Int change = Math.LogicalAnd(r, 16777215 - SIGNAL_VISIT - SIGNAL_LINGER)
     Int skipped = Math.LogicalAnd(Math.RightShift(r, 27), 15)
     If skipped > 0 && jq != None
         ; A node left by a shortcut (found before the witness was asked): its objective goes, it never happened.

@@ -686,6 +686,8 @@ Function ArcDebugCast(Actor akActor) Global Native
 ; every load; and a tale asked of the dungeon master for this asker (its answer sends IntelEngine_ArcOffer).
 Function ArcSetHolders(Int slot, ObjectReference akTale, ObjectReference akClose) Global Native
 Bool Function ArcRequestTale(Actor akAsker) Global Native
+; The script let an arc step's person go after lingering with the player.
+Function ArcLingerOver(Int id) Global Native
 ; A tale's "give": its prop goes from where it was put to the player; false when it was never put anywhere.
 Bool Function ArcFetchProp(Int id, Int prop) Global Native
 ; Test hook: a hand-written tale (JSON file, absolute path) for this asker.

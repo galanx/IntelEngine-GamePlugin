@@ -43,6 +43,8 @@ with ONLY one JSON object, nothing before or after it.
 - Never touch the main stories of Skyrim or the player's quests above. Nobody dies, nobody is hurt beyond a fistfight, no children, nothing explicit.
 - 3 to 7 steps. At least one real choice with weight, and branches that lead to different endings. Prepare every likely way the talk can go: each talk step lists 2 or 3 outcomes.
 - Consequences that last: people become friends or rivals, someone leaves town for a while, someone is taken by the guard, gold changes hands.
+- Its turn must differ from every story told before: if one turned on the asker being at fault, this one must not; vary who hides what, and why.
+- A story told before may get a sequel when its ending left something open and these people are part of it: the same people, a new turn, never the same shape again.
 
 # The steps you can use ("do")
 - "talk": {{ player_name }} talks with someone ("with"). The engine reads the real conversation afterwards and decides which outcome happened, so write each outcome's "if" as something that person could say or concede, and write their truth so that each outcome is believable (say what makes them give in or hold firm).
