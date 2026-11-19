@@ -1024,7 +1024,16 @@ Event OnUpdate()
     RegisterForSingleUpdate(WATCH_SECONDS)
 EndEvent
 
+Int earshotLooks = 0
+
 Function Watch()
+    ; How far speech carries is SkyrimNet's setting (and whisper mode changes it): told to the engine on the first look
+    ; and about once a minute.
+    If earshotLooks <= 0
+        earshotLooks = 30
+        IntelEngine.ArcEarshot(SkyrimNetApi.GetConfigFloat("game", "interaction.maxDistance", 1600.0))
+    EndIf
+    earshotLooks -= 1
     Int[] lapsed = IntelEngine.ArcLapse()
     Int i = 0
     While i < lapsed.Length
