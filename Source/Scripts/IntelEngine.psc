@@ -699,7 +699,13 @@ Bool Function ArcRequestRescue(Actor akGiver) Global Native
 ; What a tale leaves outside a place to be looked at closely (a victim's remains): the script laid it there.
 Function ArcCluePlaced(Int id, Int clue, ObjectReference akLies) Global Native
 ; A hunt asked for: a tale about what is killing people near the giver's town is written, or nothing (false).
-Bool Function ArcRequestHunt(Actor akGiver) Global Native
+Bool Function ArcRequestHunt(Actor akGiver, Bool abRumored = false) Global Native
+; The talk of the day (RumorBridge): who would pass it on where the player stands (the innkeeper, a server, the
+; bard; None at a bad moment), and what they bring up unasked (counted as told; "" when nothing is worth a word).
+Actor Function RumorPublican() Global Native
+String Function RumorBringUp(Actor akTeller) Global Native
+; Test hook: something goes round the hold the player is in (with akLead: trouble, and they are the one to go to).
+Int Function RumorDebugNote(String asText, Actor akLead, Float afWeight) Global Native
 Function ArcGangPlaced(Int id) Global Native
 ; A tale's ambush: one of its men placed (k = 0 leads), and what a look asked of the script done (1 placed, 2 they
 ; struck, 3 called off unseen).
@@ -720,7 +726,7 @@ Actor Function ArcCompany(Int id) Global Native
 ; How far a line said to the player carries (SkyrimNet's interaction distance): the measure of "stands with the player".
 Function ArcEarshot(Float units) Global Native
 ; What only scripts can read of what stands between someone and the player (other mods keep it in script storage).
-Function ArcHeart(Actor who, Int sparked, Int stance, Int withChild, Bool childIsPlayers, Int children, Bool playersChild) Global Native
+Function ArcHeart(Actor who, Int sparked, Int stance, Int withChild, Bool childIsPlayers, Int children, Bool playersChild, Float refusedAt = -1.0) Global Native
 ; The game's relationship rank after a story brought someone and the player a step closer, or apart (never beyond
 ; friendship either way: Hearts.h).
 Int Function ArcRankAfter(Int rank, Bool closer) Global Native
