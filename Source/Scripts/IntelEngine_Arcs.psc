@@ -179,6 +179,12 @@ Bool Function DebugHuntRumored(Actor asker)
     Return ok
 EndFunction
 
+Function DebugSetOut(Int id)
+    {Test hook: the asker of a story that began as talk sets out to find someone at the next look (whatever the hour,
+    and whether or not they are the kind to).}
+    IntelEngine.ArcDebugSetOut(id)
+EndFunction
+
 Function DebugBringUp()
     {Test hook: whoever keeps the place the player stands in brings up the talk of the day now.}
     BringUpRumor(true)
@@ -362,13 +368,86 @@ Event OnArcOffer(String eventName, String strArg, Float numArg, Form sender)
             IntelEngine.ArcOfferLater(id)
             Return
         EndIf
+        If IntelEngine.ArcField(id, "rumored") == 1
+            ; Their trouble is talk in town already: it is not forgotten because this was the wrong moment to come.
+            ; It waits for the next meeting, as before they set out.
+            IntelEngine.ArcOfferDeferred(id)
+            Return
+        EndIf
         ; Nobody comes, so nothing was offered: the plan is dropped and nobody remembers it.
         IntelEngine.ArcDrop(id)
         Return
     EndIf
     TheMurder(id)
     TakeCaptive(id)
+    If IntelEngine.ArcField(id, "asksaround") == 1
+        AskAround(id, asker)
+    EndIf
 EndEvent
+
+Function AskAround(Int id, Actor asker)
+    {The asker of a story that began as talk in town is on their way to the player (the user, 2026-11-20: "we may
+    sometimes witness people asking around for help until they reach you"). Before they come up to the player they
+    stop someone who stands near and ask them, in sight of the player: someone looking for help, not someone looking
+    for the player. One person, a short question, then they go on. Nothing happens when nobody stands near, when they
+    are at the player's side already, or when the visit ends some other way first.}
+    Actor player = Game.GetPlayer()
+    Float until = Utility.GetCurrentRealTime() + 240.0
+    While Utility.GetCurrentRealTime() < until
+        Utility.Wait(0.5)
+        If IntelEngine.ArcField(id, "phase") != PHASE_PLANNED || asker.IsDead() || asker.IsInCombat() \
+            || StorageUtil.GetIntValue(asker, "Intel_ArcOffer", 0) != id
+            Return
+        EndIf
+        If asker.Is3DLoaded() && player.Is3DLoaded() && asker.GetParentCell() != None \
+            && (asker.GetParentCell() == player.GetParentCell() || (!asker.IsInInterior() && !player.IsInInterior()))
+            Float d = asker.GetDistance(player)
+            If d < 450.0
+                Return   ; they are there: no detour now
+            EndIf
+            If d < 2400.0
+                Actor other = IntelEngine.ArcBystander(id, asker)
+                If other != None
+                    ; Their road leads to that person first: the same travel as before with another end (the order that
+                    ; walks them to the player stays in force, so walking there by any other means is pulled straight
+                    ; back: played 2026-11-20). While it ends at the bystander they stay with them, and walk along if the
+                    ; other walks.
+                    Keyword road = Core().IntelEngine_TravelTarget
+                    PO3_SKSEFunctions.SetLinkedRef(asker, other, road)
+                    asker.EvaluatePackage()
+                    Int steps = 0
+                    While steps < 60 && asker.GetDistance(other) > 230.0 && StorageUtil.GetIntValue(asker, "Intel_ArcOffer", 0) == id && !asker.IsInCombat()
+                        Utility.Wait(0.5)
+                        steps += 1
+                    EndWhile
+                    If StorageUtil.GetIntValue(asker, "Intel_ArcOffer", 0) != id
+                        Return   ; the visit ended meanwhile: whoever ended it took their travel off
+                    EndIf
+                    If asker.GetDistance(other) <= 320.0 && !asker.IsInCombat()
+                        asker.SetLookAt(other)
+                        Core().SendTaskNarration(asker, "has been asking around for help and now stops " + other.GetDisplayName() \
+                            + " in passing to ask, briefly and in their own words, whether they know of anyone who would take this on: \"" \
+                            + IntelEngine.ArcText(id, "askaround") + "\" A short question to someone in the street, not the whole tale", other)
+                        Core().DebugMsg("Arcs: #" + id + " " + asker.GetDisplayName() + " asks " + other.GetDisplayName() + " first, on the way to the player")
+                        Utility.Wait(2.0)
+                        Quests().WaitForTheirSay(asker, 20.0)
+                        Utility.Wait(1.5)
+                        Quests().WaitForTheirSay(other, 12.0)
+                        asker.ClearLookAt()
+                    Else
+                        Core().DebugMsg("Arcs: #" + id + " " + asker.GetDisplayName() + " could not get to " + other.GetDisplayName() + ": on to the player")
+                    EndIf
+                    ; And on to the player, if the visit still stands.
+                    If StorageUtil.GetIntValue(asker, "Intel_ArcOffer", 0) == id
+                        PO3_SKSEFunctions.SetLinkedRef(asker, player, road)
+                        asker.EvaluatePackage()
+                    EndIf
+                    Return
+                EndIf
+            EndIf
+        EndIf
+    EndWhile
+EndFunction
 
 Event OnAskerArrived(Form askerForm, Int id)
     {The asker reached the player and was told to speak (StoryEngine, seek_player arrival). Once their say is over, the

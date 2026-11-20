@@ -735,6 +735,10 @@ Actor Function ArcCompany(Int id) Global Native
 Function ArcEarshot(Float units) Global Native
 ; The "Stories" switch: off, no new story of the town begins (ArcBridge::Pace); those open go on to their end.
 Function ArcStoriesOn(Bool on) Global Native
+; A story that began as talk in town: someone near its asker whom they stop and ask on their way to the player, or
+; None; and the test hook that makes the asker set out at the next look.
+Actor Function ArcBystander(Int id, Actor akAsker) Global Native
+Function ArcDebugSetOut(Int id) Global Native
 ; What only scripts can read of what stands between someone and the player (other mods keep it in script storage).
 Function ArcHeart(Actor who, Int sparked, Int stance, Int withChild, Bool childIsPlayers, Int children, Bool playersChild, Float refusedAt = -1.0) Global Native
 ; The game's relationship rank after a story brought someone and the player a step closer, or apart (never beyond
