@@ -86,6 +86,13 @@ Int OID_DangerAllowAll
 Int OID_DangerBlockCivilians
 Int OID_DangerFollowersOnly
 Int OID_DangerBlockAll
+; 4.0 living world
+Int OID_LWLevel
+Int OID_LWInterruptions
+Int OID_LWQuestNpcs
+Int OID_LWPacing
+Int OID_LWWaitDays
+Int OID_LWLifeDays
 Int OID_HomeAllowAll
 Int OID_HomeBlockCivilians
 Int OID_HomeFollowersOnly
@@ -436,6 +443,18 @@ Function ShowSettingsPage()
     OID_StoryEngineCooldown = -1
 
     AddEmptyOption()
+    ; 4.0. Spelled like the heading on SkyrimNet's settings page; no other string of the mod has these words.
+    AddHeaderOption("Living world")
+    If Core != None && Core.StoryEngine != None
+        OID_LWLevel = AddTextOption("How alive the world is", LivingWorldLabel(0, Core.StoryEngine.LivingWorldLevel))
+        OID_LWInterruptions = AddTextOption("Interruptions at bad moments", LivingWorldLabel(1, Core.StoryEngine.LivingWorldInterruptions))
+        OID_LWQuestNpcs = AddTextOption("NPCs of running quests may move", LivingWorldLabel(2, Core.StoryEngine.LivingWorldQuestNpcs))
+        OID_LWPacing = AddTextOption("How often something happens", LivingWorldLabel(3, Core.StoryEngine.LivingWorldPacing))
+        OID_LWWaitDays = AddSliderOption("A follower told to wait waits (days)", Core.StoryEngine.LivingWorldWaitDays, "{0}")
+        OID_LWLifeDays = AddSliderOption("A follower left behind moves on after (days)", Core.StoryEngine.LivingWorldLifeDays, "{0}")
+    EndIf
+
+    AddEmptyOption()
     AddHeaderOption("NPCs sent into dangerous places")
 
     Int dangerPolicy = 1
@@ -702,6 +721,64 @@ Function ShowHoldRestrictionsPage()
     OID_HoldQuestLocalAll = AddToggleOption("Same town (everyone)", pQuest == 6)
 EndFunction
 
+String Function LivingWorldLabel(Int which, Int index)
+    {The choice names of the four living-world settings, as on SkyrimNet's settings page.}
+    If which == 0
+        If index == 0
+            Return "Classic"
+        ElseIf index == 1
+            Return "Rumors"
+        EndIf
+        Return "Lives"
+    ElseIf which == 1
+        If index == 0
+            Return "Never"
+        ElseIf index == 1
+            Return "Only when urgent"
+        EndIf
+        Return "Realistic"
+    ElseIf which == 2
+        If index == 0
+            Return "Never"
+        ElseIf index == 1
+            Return "For important reasons"
+        EndIf
+        Return "Freely"
+    EndIf
+    If index == 0
+        Return "Calm"
+    ElseIf index == 1
+        Return "Normal"
+    EndIf
+    Return "Lively"
+EndFunction
+
+Function CycleLivingWorld(Int optionId)
+    {Click to go to the next choice of a living-world setting.}
+    If Core == None || Core.StoryEngine == None
+        Return
+    EndIf
+    Int which = 0
+    String settingKey = "livingWorldLevel"
+    Int value = Core.StoryEngine.LivingWorldLevel
+    If optionId == OID_LWInterruptions
+        which = 1
+        settingKey = "livingWorldInterruptions"
+        value = Core.StoryEngine.LivingWorldInterruptions
+    ElseIf optionId == OID_LWQuestNpcs
+        which = 2
+        settingKey = "livingWorldQuestNpcs"
+        value = Core.StoryEngine.LivingWorldQuestNpcs
+    ElseIf optionId == OID_LWPacing
+        which = 3
+        settingKey = "livingWorldPacing"
+        value = Core.StoryEngine.LivingWorldPacing
+    EndIf
+    value = (value + 1) % 3
+    Core.StoryEngine.SetLivingWorldSetting(settingKey, value as Float)
+    SetTextOptionValue(optionId, LivingWorldLabel(which, value))
+EndFunction
+
 String Function ConfirmModeLabel(Int mode)
     If mode == 0
         return "Disabled"
@@ -903,6 +980,8 @@ Event OnOptionSelect(Int optionId)
         Core.SetSettingBool("Intel_MCM_DebugMode", newVal)
         SetToggleOptionValue(OID_DebugMode, newVal)
 
+    ElseIf optionId == OID_LWLevel || optionId == OID_LWInterruptions || optionId == OID_LWQuestNpcs || optionId == OID_LWPacing
+        CycleLivingWorld(optionId)
     ElseIf optionId == OID_ConfirmGoToLocation
         CycleConfirmMode(optionId, "GoToLocation")
     ElseIf optionId == OID_ConfirmDeliverMessage
@@ -1139,6 +1218,26 @@ Event OnOptionSliderOpen(Int optionId)
         SetSliderDialogDefaultValue(24.0)
         SetSliderDialogRange(6.0, 72.0)
         SetSliderDialogInterval(6.0)
+    ElseIf optionId == OID_LWWaitDays || optionId == OID_LWLifeDays
+        Float lwDays = 30.0
+        Float lwDefault = 30.0
+        Float lwMax = 120.0
+        If optionId == OID_LWLifeDays
+            lwDays = 7.0
+            lwDefault = 7.0
+            lwMax = 60.0
+        EndIf
+        If Core != None && Core.StoryEngine != None
+            If optionId == OID_LWWaitDays
+                lwDays = Core.StoryEngine.LivingWorldWaitDays
+            Else
+                lwDays = Core.StoryEngine.LivingWorldLifeDays
+            EndIf
+        EndIf
+        SetSliderDialogStartValue(lwDays)
+        SetSliderDialogDefaultValue(lwDefault)
+        SetSliderDialogRange(1.0, lwMax)
+        SetSliderDialogInterval(1.0)
     ElseIf optionId == OID_StoryLongAbsence
         Float currentValue = 3.0
         If Core != None && Core.StoryEngine != None
@@ -1224,6 +1323,15 @@ Event OnOptionSliderAccept(Int optionId, Float sliderValue)
     ElseIf optionId == OID_StoryEngineCooldown
         Core.SetStoryCooldown(sliderValue)
         SetSliderOptionValue(OID_StoryEngineCooldown, sliderValue, "{0}")
+    ElseIf optionId == OID_LWWaitDays || optionId == OID_LWLifeDays
+        If Core != None && Core.StoryEngine != None
+            If optionId == OID_LWWaitDays
+                Core.StoryEngine.SetLivingWorldSetting("livingWorldWaitDays", sliderValue)
+            Else
+                Core.StoryEngine.SetLivingWorldSetting("livingWorldLifeDays", sliderValue)
+            EndIf
+        EndIf
+        SetSliderOptionValue(optionId, sliderValue, "{0}")
     ElseIf optionId == OID_StoryLongAbsence
         If Core != None && Core.StoryEngine != None
             Core.StoryEngine.LongAbsenceDaysConfig = sliderValue
@@ -1262,7 +1370,19 @@ Event OnOptionMenuAccept(Int optionId, Int index)
 EndEvent
 
 Event OnOptionHighlight(Int optionId)
-    If optionId == OID_DebugMode
+    If optionId == OID_LWLevel
+        SetInfoText("Click to cycle. Classic: as before 4.0. Rumors: the world moves on while you are away and you hear about it, but followers you left wait where you left them. Lives: followers you left behind live lives of their own (work at an inn, an adventure, a trip) and you can come upon them later; people close to you miss you while you are away.")
+    ElseIf optionId == OID_LWInterruptions
+        SetInfoText("Click to cycle. Whether someone may turn up during a fight, a conversation, a scene or a menu: never, only for something urgent, or now and then, as in real life.")
+    ElseIf optionId == OID_LWQuestNpcs
+        SetInfoText("Click to cycle. Whether NPCs who take part in a running quest may travel or move for a story. The target of an objective you have open never moves.")
+    ElseIf optionId == OID_LWPacing
+        SetInfoText("Click to cycle. About one notable moment every two game days, every game day, or twice a game day. Moments wait for a good time: arriving in a town or an inn, coming home, leaving a dungeon, waking up.")
+    ElseIf optionId == OID_LWWaitDays
+        SetInfoText("How long after you told a follower to wait they start a life of their own, once their follower mod lets them go. While it still holds them, they keep waiting.")
+    ElseIf optionId == OID_LWLifeDays
+        SetInfoText("How long a follower you dismissed stays where you left them before starting a life of their own.")
+    ElseIf optionId == OID_DebugMode
         SetInfoText("Shows what IntelEngine does as notices on screen. The Papyrus log has it either way. For more in the DLL's own log (IntelEngine.log), set DebugLevel=4 in IntelEngine.ini.")
     ElseIf optionId == OID_MaxTasks
         SetInfoText("Maximum number of NPCs that can be on tasks at once.")

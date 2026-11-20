@@ -15,6 +15,10 @@ description: >
   warn someone, or relay information. Use DeliverMessage instead. Examples that are NOT travel:
   "go tell Alvor...", "warn Adrianne...", "let Nazeem know...", "go find Lydia and tell her..."
 
+  DO NOT USE THIS ACTION when the player asks you to bring someone back, even when a place is named:
+  "fetch Olfina from the Bannered Mare", "get Alvor from the forge", "bring Ysolda here from the market"
+  are FetchPerson. The place only says where that person is; you are not asked to stay there.
+
   DESTINATION must be one of these two categories:
 
   A) SEMANTIC KEYWORDS — use ONLY these exact words in English (never translate these keywords):
@@ -28,7 +32,7 @@ description: >
   B) NAMED SKYRIM LOCATIONS — any real location that exists in the game world.
   Copy the place name EXACTLY as it appears in the game/context, in the game's language.
   NEVER translate place names. Use context names, not English names recalled from Skyrim lore.
-  Nearby place names (context only, not a guarantee that IE can resolve every name):
+  Named places nearby (rooms and spots people have named; you can go to these by their name):
   {% for place in get_place_names("nearby") %}{{ place }}; {% endfor %}
   The location MUST actually exist in Skyrim. Do NOT invent location names.
 
@@ -47,6 +51,8 @@ description: >
   - You are CURRENTLY fetching someone (FetchPerson), escorting someone (EscortTarget),
     or searching for someone (SearchForActor). Complete or cancel your current task first.
     Do NOT interrupt an active travel task with a new GoToLocation.
+  GOING TOGETHER: when several of you are told to go somewhere (e.g. "Lydia, Uthgerd, wait for me at the
+  Bannered Mare"), one of you uses this action and names the others in companions, so you travel as a group.
 
 questEditorId: IntelEngine
 scriptName: IntelEngine_Travel
@@ -63,6 +69,7 @@ parameterMapping:
       - A semantic keyword from list A: "home", "upstairs", "downstairs", "outside", "inside",
         "the kitchen", "the bedroom", "the cellar", "<Name>'s house"
       - OR a real Skyrim place name copied EXACTLY from the game/context, in the game's language.
+      - OR a named place from the list above (a room or spot someone named), by its name.
       NEVER translate place names; the semantic keywords in list A stay English.
       NEVER use a person's name alone. NEVER invent locations. NEVER use vague descriptions.
   - type: dynamic
@@ -81,6 +88,12 @@ parameterMapping:
   - type: static
     value: "SkyrimNet dialogue action"
     name: taskOrigin
+  - type: dynamic
+    name: companions
+    description: >
+      Others who were told to go there too, by name and separated by commas (e.g. "Uthgerd the Unbroken,
+      Lydia"): only people who are here with you. They come along at your pace and you arrive together.
+      "none" when you go alone.
 
 eligibilityRules:
   - conditions:
@@ -92,6 +105,14 @@ eligibilityRules:
         arguments: ["currentActor"]
         comparisonOperator: "=="
         expectedValue: false
+      - decoratorName: get_intelengine_in_venture
+        arguments: ["currentActor"]
+        comparisonOperator: "is_empty"
+        expectedValue: ""
+      - decoratorName: get_intelengine_arc
+        arguments: ["currentActor"]
+        comparisonOperator: "is_empty"
+        expectedValue: ""
     logicalOperator: "AND"
     required: true
 

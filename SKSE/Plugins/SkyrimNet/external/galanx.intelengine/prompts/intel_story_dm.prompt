@@ -17,6 +17,10 @@ Study the candidate pool below. Each NPC has a bio, archetype, location, distanc
 {{ candidatePool }}
 
 {# Recent gossip is rendered in the candidatePool by C++ BuildDungeonMasterContext #}
+{% if decided_npc and decided_npc != "" %}
+## Already Decided
+The director has weighed every candidate on their own: {{ decided_npc }} has a reason of their own to act now, and the moment is a `{{ decided_type }}`. Write exactly that moment, with {{ decided_npc }} as "npc" (or as the sender, where the type sends someone else). Find their reason in their own memories, unfinished business and what is going on, and keep it true to them, as big or as small as it really is. Answer "should_act": true. The rules further below about being selective, rejecting and varying the dispatches are for choosing; the choice is made, so do not reject it.
+{% endif %}
 
 ## Available Story Types
 
@@ -115,6 +119,7 @@ NPC asks the player for help at a specific location.
 - Two delivery modes for non-faction sub-types:
   A) COURIER: "npc" = messenger, "sender" = quest giver. MANDATORY for high-status NPCs (Jarls, stewards, court wizards, housecarls, Companions leaders).
   B) DIRECT: "npc" = quest giver, "sender" = "". ONLY for common people who would realistically travel.
+  C) PUBLIC PLEA: a candidate with a `Here:` line is in the same place as {{ playerName }} right now and may give a `quest` only (DIRECT, "sender" = ""). They cry out to everyone around for help, then turn to {{ playerName }}: write "narration" and "msgContent" as that outburst ("Please, someone, bandits took my daughter to Fort Greymoor!"). Ordinary people in trouble; use it now and then, never twice in a row.
 - Faction sub-types (faction_combat, faction_rescue, faction_battle): leave BOTH "npc" and "sender" EMPTY. These do NOT require a candidate from the pool — the system auto-selects a faction courier. Judge these purely on the Political Climate (active wars, hostile factions, recent events) and whether the timing makes sense. Don't force a faction quest just because candidates aren't compelling — but don't skip one just because no candidate fits either.
 - "msgContent" = why they need help. "questLocation" = a REAL Skyrim location. "enemyType" = "bandit", "draugr", or "dragon" (non-faction) or "faction:FactionId" (faction sub-types).
 - STRONGLY prefer locations with dungeon interiors over purely exterior camps.

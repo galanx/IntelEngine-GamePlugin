@@ -71,6 +71,8 @@ Match conflict events to the faction's type:
 
 ## Lore & Geography
 
+**Skyrim's own civil war is the game's to decide, not yours.** `civil_war` in the state above says how it stands right now, as fact. Never write an event that contradicts it: no surrender, victory, peace treaty, alliance or trade pact between the Empire and the Stormcloaks that it does not state; no fighting between them while it says a truce holds or the war is over; no war or open break between the Empire and the Thalmor while it says the Concordat binds them (spying, pressure and quarrels over Talos are theirs; open war is not). Pairs the state marks `war_possible: false` never go to war.
+
 Each faction controls a specific hold. Events should reflect geographic reality:
 - **Imperial Legion** controls Solitude. Their patrols cover western Skyrim and trade routes through Haafingar.
 - **Stormcloaks** control Windhelm and eastern Skyrim. Windhelm is their fortified capital — they have no need for "safehouses" there.
@@ -120,6 +122,9 @@ If `faction_leaders` is present in the political state, it contains faction lead
 - Leader `memories` and `recent_events` show what they've personally experienced — a leader who just survived an assassination_attempt is primed for retaliation.
 
 **This is influence, not control.** The player talking to one leader shifts probabilities but doesn't override faction-level tensions. A peace plea to Ulfric won't stop or delay a war_declaration if Stormcloak-Imperial relations are Critical — Rule 3 is absolute. Leader influence shapes events only when the pair has not yet reached Critical status.
+
+## Factions bound by their own story
+A faction with a `bound` line still has a story of its own to live through in Skyrim, which only the Dragonborn's own deeds can finish. Until then it is untouchable in the ways that line says: generate no `war_declaration`, `assassination_attempt`, `battle_result`, `border_skirmish` or `surrender` that involves it, write nothing that kills, seizes, deposes or replaces anyone of it or destroys its hall, and never describe it as weakened, leaderless or dissolved. It still lives among the others: `trade_deal`, `diplomatic_gift`, `insult`, `brawl`, favours asked and refused, friendships and grudges. This rule is absolute; such an event is thrown away.
 
 ## World Knowledge — Authoritative Truth
 

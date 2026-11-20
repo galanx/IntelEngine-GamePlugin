@@ -50,6 +50,15 @@ Float Property SNEAK_TIMEOUT_SECONDS = 300.0 AutoReadOnly
 ; === Configurable (MCM) ===
 Float Property MaxTravelDaysConfig = 1.0 Auto Hidden
 Float Property LongAbsenceDaysConfig = 3.0 Auto Hidden
+
+; 4.0 living world settings, as on SkyrimNet's settings page (indexes of the choices there). The DLL gets them on load
+; and on every change (PushLivingWorldSettings).
+Int Property LivingWorldLevel = 2 Auto Hidden            ; 0 Classic, 1 Rumors, 2 Lives
+Int Property LivingWorldInterruptions = 1 Auto Hidden    ; 0 Never, 1 Only when urgent, 2 Realistic
+Int Property LivingWorldQuestNpcs = 1 Auto Hidden        ; 0 Never, 1 For important reasons, 2 Freely
+Int Property LivingWorldPacing = 1 Auto Hidden           ; 0 Calm, 1 Normal, 2 Lively
+Float Property LivingWorldWaitDays = 30.0 Auto Hidden
+Float Property LivingWorldLifeDays = 7.0 Auto Hidden
 String Property ExcludedTypesConfig = "" Auto Hidden
 Bool Property AllowStuckTeleport = true Auto Hidden
 Int Property DangerZonePolicy = 1 Auto Hidden
@@ -155,6 +164,10 @@ Float Property QUEST_GUIDE_RESUME_DIST = 800.0 AutoReadOnly
 Float Property QUEST_GUIDE_TIMEOUT_HOURS = 5.0 AutoReadOnly
 Float Property LINGER_TIMEOUT_SECONDS = 180.0 AutoReadOnly
 Float Property LINGER_AFTER_TALK_SECONDS = 60.0 AutoReadOnly
+; A visitor whose business is settled (VisitOver) leaves this long after the last word between them and the player.
+Float Property LEAVE_AFTER_TALK_SECONDS = 8.0 AutoReadOnly
+; Within this of the player, a story's asker looks whether someone the story is about stands with the player.
+Float Property COMPANY_LOOK_DISTANCE = 1400.0 AutoReadOnly
 {A visiting story NPC stays at least this long after their last spoken line (see CheckStoryLingerCleanup).}
 Float Property SOCIAL_HOLD_PAIR_DISTANCE = 600.0 AutoReadOnly
 Float Property ENCOUNTER_RESUME_DISTANCE = 1500.0 AutoReadOnly
@@ -196,6 +209,7 @@ Float Property FACTION_AMBUSH_ENDING_MAX = 600.0 AutoReadOnly      ; real second
 Float Property SOCIAL_SCENE_HOLD_SECONDS = 45.0 AutoReadOnly       ; two NPCs stay together this long after their scene was narrated
 Float Property STORY_WALK_DISTANCE = 1200.0 AutoReadOnly           ; a visitor walks the last stretch to the player instead of jogging
 Bool StoryWalkingLastStretch = false                               ; the active story NPC is on the walk package (see ReapplyTravelPackage)
+Bool ActiveStoryHurries = false                                    ; the active story NPC has truly been looking for the player (else they walk)
 
 ; === Faction Battle Constants ===
 Float Property BATTLE_DELAY_MIN_DAYS = 0.015 AutoReadOnly       ; ~22s at timescale 20
@@ -234,6 +248,9 @@ Int Property QUEST_OBJECTIVE_ID = 0 AutoReadOnly
 ; =============================================================================
 
 Function StartScheduler()
+    ; 4.0: the player arriving somewhere that suits a moment (a town, an inn, home, out of a dungeon, waking up)
+    RegisterForModEvent("IntelEngine_Seam", "OnLivingWorldSeam")
+    PushLivingWorldSettings()
     ; StoryEngine asks for the shared game-time timer for Story, NPC and Politics (Core.RequestGameTimeTick
     ; keeps the soonest of its, Schedule's and Battle's requests). Always register the timer even if Story DM is disabled — other systems may be active.
     ; Each system self-gates via its own enabled check.
@@ -544,6 +561,8 @@ Event OnUpdateGameTime()
     CheckStoryLingerCleanup()
     ; Check rescued NPC deaths on game-time tick (no need for real-time polling)
     CheckRescuedNPCDeaths()
+    ; Nobody is left seeking the player for a story that ended.
+    SweepOrphanStorySlots(false)
     ; Re-kick real-time monitoring if linger NPCs still exist
     If HasLingerNPCs()
         Core.RequestTick(MONITOR_INTERVAL)
@@ -558,7 +577,8 @@ EndEvent
 Event OnUpdate()
     ; Register FIRST so the loop survives even if processing errors out.
     ; (Same pattern as Travel.OnUpdate — timer chain must never break.)
-    Bool needsRealTime = IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive
+    Bool walkers = Core.WalkHomePending()
+    Bool needsRealTime = IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive || walkers
     If needsRealTime
         Core.RequestTick(MONITOR_INTERVAL)
     EndIf
@@ -566,6 +586,10 @@ Event OnUpdate()
     CheckRoadEncounterProximity()
     CheckStoryLingerCleanup()
     CheckFactionAmbushCleanup()
+    If walkers
+        ; Someone walking home or back: their day goes on the moment they are there, not at the next hourly sweep.
+        Core.CheckWalkHomeActors()
+    EndIf
     Core.SweepIfDue()
 
 
@@ -588,7 +612,7 @@ Event OnUpdate()
 
     ; If processing above created new work (e.g. FinishArrivalWithLinger added linger NPCs),
     ; ensure real-time monitoring is running even if we skipped it above.
-    If !needsRealTime && (IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive)
+    If !needsRealTime && (IsActive || IsNPCStoryActive || HasLingerNPCs() || QuestActive || FactionAmbushActive || Core.WalkHomePending())
         Core.RequestTick(MONITOR_INTERVAL)
     ElseIf !needsRealTime
         ; Idle: only keep the real-time backup poll alive. Calling StartScheduler here re-registered the
@@ -628,7 +652,7 @@ Event OnUpdate()
     ; Belt-and-suspenders: if nothing needs real-time AND this OnUpdate was the last one
     ; (needsRealTime was true at the top but everything got cleaned up during processing),
     ; ensure game-time scheduling is alive.
-    If needsRealTime && !IsActive && !IsNPCStoryActive && !HasLingerNPCs() && !QuestActive && !FactionAmbushActive
+    If needsRealTime && !IsActive && !IsNPCStoryActive && !HasLingerNPCs() && !QuestActive && !FactionAmbushActive && !Core.WalkHomePending()
         Core.DebugMsg("Story: OnUpdate - transitioning real-time to game-time (all flags cleared). Calling StartScheduler.")
         StartScheduler()
         Core.DebugMsg("Story: OnUpdate - StartScheduler returned after transition")
@@ -762,6 +786,11 @@ Function TickScheduler()
     ArrivalPendingSince = 0.0
 
     If !IsActive
+        ; 4.0: the director paces moments (a budget, a rest after a big one, bad moments). A seam has asked it already.
+        If !SeamApproved && !IntelEngine.LivingWorldMayDeliver(0, false)
+            Core.DebugMsg("Story: TickScheduler - the director holds this clock tick back")
+            return
+        EndIf
         Actor player = Game.GetPlayer()
         If !player.IsInCombat()
             String excludeList = BuildExcludeList(player)
@@ -809,6 +838,94 @@ Function TickScheduler()
 EndFunction
 
 Float ArrivalPendingSince = 0.0
+Bool SeamApproved = false
+
+Function PushLivingWorldSettings()
+    IntelEngine.SetLivingWorldSettings(LivingWorldLevel, LivingWorldInterruptions, LivingWorldQuestNpcs, LivingWorldPacing, \
+        LivingWorldWaitDays, LivingWorldLifeDays)
+EndFunction
+
+Function SetLivingWorldSetting(String settingKey, Float value)
+    {One living-world setting from the settings page, the dashboard or the MCM; the choices clamp to 0..2.}
+    Int choice = value as Int
+    If choice < 0
+        choice = 0
+    ElseIf choice > 2
+        choice = 2
+    EndIf
+    If settingKey == "livingWorldLevel"
+        LivingWorldLevel = choice
+    ElseIf settingKey == "livingWorldInterruptions"
+        LivingWorldInterruptions = choice
+    ElseIf settingKey == "livingWorldQuestNpcs"
+        LivingWorldQuestNpcs = choice
+    ElseIf settingKey == "livingWorldPacing"
+        LivingWorldPacing = choice
+    ElseIf settingKey == "livingWorldWaitDays" && value >= 1.0
+        LivingWorldWaitDays = value
+    ElseIf settingKey == "livingWorldLifeDays" && value >= 1.0
+        LivingWorldLifeDays = value
+    EndIf
+    PushLivingWorldSettings()
+EndFunction
+
+Event OnLivingWorldSeam(String eventName, String strArg, Float numArg, Form sender)
+    {4.0: the player arrived somewhere that suits a moment. If the director lets one land now, the dungeon master
+    looks at once instead of waiting for its clock (at most once a game hour).}
+    If Core == None || !Core.IsStoryEngineEnabled() || IsActive || ArrivalHandling
+        Return
+    EndIf
+    If (Utility.GetCurrentGameTime() - LastStoryTickTime) * 24.0 < 1.0
+        Return
+    EndIf
+    Int seam = numArg as Int
+    If !IntelEngine.LivingWorldMayDeliver(seam, false)
+        Return
+    EndIf
+    Core.DebugMsg("Story: seam " + seam + " - the dungeon master looks now")
+    LastStoryTickTime = 0.0
+    SeamApproved = true
+    SweepOrphanStorySlots(true)
+    TickScheduler()
+    SeamApproved = false
+EndEvent
+
+Function SweepOrphanStorySlots(Bool atLoad)
+    {A "story" slot nobody watches any more: its story is over, or the game's record of the slots and this script's
+    disagree after a load. Its NPC kept the jog-to-the-player package and went on seeking the player across cells for
+    good ("General Tullius follows me out to Riverwood", ended only by Clear in the menu). Whoever holds such a slot
+    and has no part in a story that is running is given back: at once on a load, else when seen so twice (a dispatch
+    that is just beginning has its slot a moment before its story).}
+    If Core == None
+        return
+    EndIf
+    Int i = 0
+    While i < Core.SlotStates.Length
+        If Core.SlotStates[i] != 0 && Core.SlotTaskTypes[i] == "story"
+            ReferenceAlias slotAlias = Core.GetAgentAlias(i)
+            Actor agent = None
+            If slotAlias != None
+                agent = slotAlias.GetActorReference()
+            EndIf
+            If agent != None && HoldsActor(agent)
+                StorageUtil.UnsetIntValue(agent, "Intel_StoryOrphan")
+            ElseIf agent == None || atLoad || StorageUtil.GetIntValue(agent, "Intel_StoryOrphan", 0) == 1
+                If agent != None
+                    StorageUtil.UnsetIntValue(agent, "Intel_StoryOrphan")
+                    Core.DebugMsg("Story: slot " + i + " kept " + agent.GetDisplayName() + " for a story that is over -> given back")
+                EndIf
+                Core.ClearSlot(i)
+                If agent != None && !agent.IsDead()
+                    Core.ReleaseLinger(agent)
+                EndIf
+            Else
+                StorageUtil.SetIntValue(agent, "Intel_StoryOrphan", 1)
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+EndFunction
+
 Int ArrivalPendingGeneration = 0
 
 Function ReleaseStaleStoryNPC()
@@ -1023,6 +1140,13 @@ Function OnNPCInteractionResponse(String response, Int success)
     EndIf
 
     ; Check cooldown for BOTH before applying either (avoid partial cooldown reset)
+    ; Someone a quest has out on the road (a venture's ally or companion resting by the road, a giver on the way) is
+    ; not free for a social call: the NPC social engine sent Ugor off to visit Hilde while he waited by the road with
+    ; Jenassa for the player (2026-11-18).
+    If IntelEngine.QuestInvolves(npc1) || IntelEngine.QuestInvolves(npc2) || StorageUtil.GetIntValue(npc1, "Intel_RoadVenture", 0) > 0 || StorageUtil.GetIntValue(npc2, "Intel_RoadVenture", 0) > 0
+        Core.DebugMsg("NPC DM: dropped - " + npc1.GetDisplayName() + " or " + npc2.GetDisplayName() + " is on a quest's errand")
+        Return
+    EndIf
     If !CheckNPCSocialCooldown(npc1) || !CheckNPCSocialCooldown(npc2)
         Core.DebugMsg("NPC DM: " + npc1.GetDisplayName() + " or " + npc2.GetDisplayName() + " on social cooldown")
         return
@@ -1122,7 +1246,7 @@ Bool Function DispatchNPCSocial(Actor npc, Actor target, String narration, Strin
     ; Not someone who is already in a task (as its agent or as the one being fetched), in another story
     ; role, with the player, or never sent on errands: they got a second slot and a jog override on top of
     ; what they were doing. The meeting then counts as having happened off-screen, as with no free slot.
-    If slot >= 0 && (Core.FindSlotByActor(npc) >= 0 || HoldsActor(npc) || Core.IsFollowingPlayer(npc) || Core.IsUnsuitableTaskAgent(npc))
+    If slot >= 0 && (Core.FindSlotByActor(npc) >= 0 || HoldsActor(npc) || Core.IsFollowingPlayer(npc) || Core.IsUnsuitableTaskAgent(npc) || IntelEngine.QuestInvolves(npc))
         Core.DebugMsg("NPC Social: " + npc.GetDisplayName() + " is not free to walk over")
         Core.ReleaseSlotClaim(slot)
         slot = -1
@@ -1782,6 +1906,202 @@ EndFunction
 
 ; Record the rejected dispatch FIRST so the failure flag lands on it, not on the previous entry (or an empty history).
 ; Rejections return before the success-path record and stale/racing callbacks never reach here, so nothing double-records.
+Bool Function DispatchQuestOffer(Actor giver, Int questId)
+    {4.0 quests (IntelEngine_Quests.OnQuestOffer): the giver of a quest the engine planned comes to the player as a
+    story visitor does (seek_player), and the keeper makes the offer once their first line is said. False when they
+    cannot come now; the plan is then dropped.}
+    If giver == None || questId <= 0
+        Return false
+    EndIf
+    String narration = IntelEngine.QuestText(questId, "narration")
+    String why = ""
+    If IsActive || ArrivalHandling
+        why = "another story visitor is on the way"
+    ElseIf giver.IsDead() || giver.IsInCombat() || giver.IsPlayerTeammate() || narration == ""
+        why = "they cannot come now"
+    ElseIf IntelEngine.IsHighStatusNPC(giver) || IntelEngine.IsJarl(giver)
+        why = "a high-status NPC does not travel"
+    ElseIf !IntelEngine.LivingWorldMayMove(giver, "quest")
+        why = "held by a running quest"
+    ElseIf !ApplyCooldownCheck(giver)
+        why = "on story cooldown"
+    EndIf
+    If why != ""
+        Core.DebugMsg("Quests: " + giver.GetDisplayName() + " cannot bring quest " + questId + ": " + why)
+        Return false
+    EndIf
+    IntelEngine.NotifyStoryTypePicked("quest")
+    IntelEngine.RecordStoryDispatch("quest", giver.GetDisplayName(), narration)
+    IntelEngine.LivingWorldMomentDispatched(giver, "quest")
+    StorageUtil.SetIntValue(giver, "Intel_QuestOffer", questId)
+    Core.InjectFact(giver, narration)
+    ActiveStoryType = "seek_player"
+    If !DispatchToTarget(giver, Game.GetPlayer(), narration, "story")
+        StorageUtil.UnsetIntValue(giver, "Intel_QuestOffer")
+        Return false
+    EndIf
+    Core.DebugMsg("Quests: " + giver.GetDisplayName() + " sets out to offer quest " + questId)
+    Return true
+EndFunction
+
+Bool Function DispatchArcOffer(Actor asker, Int arcId)
+    {4.0 story arcs (IntelEngine_Arcs.DebugArc, the director): the asker of an arc the engine planned comes to the
+    player as a story visitor does (seek_player), and the arc keeper makes the offer once their say is over. False
+    when they cannot come now; the plan is then dropped.}
+    If asker == None || arcId <= 0
+        Return false
+    EndIf
+    String narration = IntelEngine.ArcText(arcId, "narration")
+    String why = ""
+    If IsActive || ArrivalHandling
+        why = "another story visitor is on the way"
+    ElseIf asker.IsDead() || asker.IsInCombat() || asker.IsPlayerTeammate() || narration == ""
+        why = "they cannot come now"
+    ElseIf IntelEngine.IsHighStatusNPC(asker) || IntelEngine.IsJarl(asker)
+        why = "a high-status NPC does not travel"
+    ElseIf !IntelEngine.LivingWorldMayMove(asker, "quest")
+        why = "held by a running quest"
+    EndIf
+    If why != ""
+        Core.DebugMsg("Arcs: " + asker.GetDisplayName() + " cannot bring arc " + arcId + ": " + why)
+        Return false
+    EndIf
+    IntelEngine.NotifyStoryTypePicked("quest")
+    IntelEngine.RecordStoryDispatch("quest", asker.GetDisplayName(), narration)
+    IntelEngine.LivingWorldMomentDispatched(asker, "quest")
+    StorageUtil.UnsetIntValue(asker, "Intel_StoryLeaves")
+    Core.RememberWhereFrom(asker)
+    StorageUtil.SetIntValue(asker, "Intel_ArcOffer", arcId)
+    Core.InjectFact(asker, narration)
+    ActiveStoryType = "seek_player"
+    If !DispatchToTarget(asker, Game.GetPlayer(), narration, "story")
+        StorageUtil.UnsetIntValue(asker, "Intel_ArcOffer")
+        Return false
+    EndIf
+    Core.DebugMsg("Arcs: " + asker.GetDisplayName() + " sets out to ask the player (arc " + arcId + ")")
+    Return true
+EndFunction
+
+Bool Function DispatchArcVisit(Actor who, Int arcId, String narration)
+    {A tale's visit step (IntelEngine_Arcs.Visit): its person comes to the player as a story visitor does
+    (seek_player); once there they have their say, and the talk is the step. False when they cannot come now (the
+    DLL asks again later).}
+    If who == None || arcId <= 0 || narration == ""
+        Return false
+    EndIf
+    String why = ""
+    If IsActive || ArrivalHandling
+        why = "another story visitor is on the way"
+    ElseIf who.IsDead() || who.IsInCombat() || who.IsPlayerTeammate()
+        why = "they cannot come now"
+    ElseIf IntelEngine.IsHighStatusNPC(who) || IntelEngine.IsJarl(who)
+        why = "a high-status NPC does not travel"
+    ElseIf !IntelEngine.LivingWorldMayMove(who, "quest")
+        why = "held by a running quest"
+    EndIf
+    If why != ""
+        Core.DebugMsg("Arcs: " + who.GetDisplayName() + " cannot visit for arc " + arcId + ": " + why)
+        Return false
+    EndIf
+    IntelEngine.RecordStoryDispatch("seek_player", who.GetDisplayName(), narration)
+    Core.InjectFact(who, narration)
+    StorageUtil.UnsetIntValue(who, "Intel_StoryLeaves")
+    Core.RememberWhereFrom(who)
+    ActiveStoryType = "seek_player"
+    If !DispatchToTarget(who, Game.GetPlayer(), narration, "story")
+        Return false
+    EndIf
+    Core.DebugMsg("Arcs: " + who.GetDisplayName() + " sets out to see the player (arc " + arcId + ")")
+    Return true
+EndFunction
+
+Float Property ARC_STALK_SECONDS = 75.0 AutoReadOnly   ; a tale's stalker comes forward after this long unnoticed
+
+Bool Function DispatchArcStalk(Actor who, Int arcId, String narration)
+    {A tale's stalk step (IntelEngine_Arcs.Visit): its person shadows the player out of doors, sneaking, holding back
+    when the player stops. Caught (the player notices them), or after a while unnoticed when they gather their courage
+    and come forward, they have their say, and the talk is the step. False when they cannot now (the DLL asks again).}
+    If who == None || arcId <= 0 || narration == ""
+        Return false
+    EndIf
+    Actor player = Game.GetPlayer()
+    String why = ""
+    If IsActive || ArrivalHandling
+        why = "another story visitor is on the way"
+    ElseIf who.IsDead() || who.IsInCombat() || who.IsPlayerTeammate()
+        why = "they cannot come now"
+    ElseIf IntelEngine.IsHighStatusNPC(who) || IntelEngine.IsJarl(who)
+        why = "a high-status NPC does not trail anyone"
+    ElseIf !IntelEngine.LivingWorldMayMove(who, "quest")
+        why = "held by a running quest"
+    ElseIf player.GetParentCell() == None || player.GetParentCell().IsInterior()
+        why = "the player is indoors"
+    EndIf
+    If why != ""
+        Core.DebugMsg("Arcs: " + who.GetDisplayName() + " cannot shadow the player for arc " + arcId + ": " + why)
+        Return false
+    EndIf
+    IntelEngine.RecordStoryDispatch("stalker", who.GetDisplayName(), narration)
+    Core.InjectFact(who, narration)
+    ActiveStoryType = "stalker"
+    Int claimedGeneration = DispatchGeneration + 1
+    If !DispatchToTarget(who, player, narration, "story")
+        Return false
+    EndIf
+    If !StillOwns(who, claimedGeneration, "stalker")
+        Return false
+    EndIf
+    StorageUtil.SetIntValue(who, "Intel_ArcStalk", arcId)
+    StorageUtil.SetIntValue(who, "Intel_SneakPhase", 1)
+    ReapplyTravelPackage(who)
+    StorageUtil.SetFloatValue(who, "Intel_SneakStartTime", Utility.GetCurrentRealTime())
+    Core.DebugMsg("Arcs: " + who.GetDisplayName() + " shadows the player (arc " + arcId + ")")
+    Return true
+EndFunction
+
+Bool Function TalkOver(Actor npc)
+    {Nobody is speaking between this visitor and the player any more, by what was actually said (SkyrimNet's own
+    account): no line of theirs is being said or on its way, their last one is a while ago, and the player has said
+    nothing for a little longer (an answer takes a few seconds to begin). Not by the dialogue target: many people
+    carry one for minutes after the last word.}
+    If IntelEngine.IsNPCSpeechPending(npc)
+        Return false
+    EndIf
+    Float theirs = IntelEngine.GetSecondsSinceNPCSpoke(npc)
+    Float mine = IntelEngine.GetSecondsSincePlayerSpoke()
+    Return (theirs < 0.0 || theirs >= LEAVE_AFTER_TALK_SECONDS) && (mine < 0.0 || mine >= LEAVE_AFTER_TALK_SECONDS * 2.0)
+EndFunction
+
+Function VisitOver(Actor npc)
+    {A story visitor's business with the player is settled (their offer was answered, their part of the talk is done):
+    they do not stand about for the rest of the visit. Once the talk between the two has ended they take their leave
+    and walk back where they came from (CheckStoryLingerCleanup, Core.WalkBack).}
+    If npc == None
+        Return
+    EndIf
+    If StorageUtil.FormListFind(Game.GetPlayer(), "Intel_StoryLingerActors", npc as Form) >= 0
+        StorageUtil.SetIntValue(npc, "Intel_StoryLeaves", 1)
+    Else
+        ; Not held by a visit (any more): nothing keeps them, they only need a way to go.
+        Core.WalkBack(npc)
+    EndIf
+EndFunction
+
+Function SignalArcAskerArrived(Actor npc)
+    {The asker of a story arc reached the player (IntelEngine_Arcs.OnAskerArrived makes the offer).}
+    Int arcOffered = StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0)
+    If arcOffered <= 0
+        Return
+    EndIf
+    StorageUtil.UnsetIntValue(npc, "Intel_ArcOffer")
+    Int handle = ModEvent.Create("IntelEngine_ArcAskerArrived")
+    If handle
+        ModEvent.PushForm(handle, npc)
+        ModEvent.PushInt(handle, arcOffered)
+        ModEvent.Send(handle)
+    EndIf
+EndFunction
+
 Function RejectStory(String typeWithSub, String npcName, String narration, String reason)
     IntelEngine.RecordStoryDispatch(typeWithSub, npcName, narration)
     IntelEngine.MarkLastDispatchFailed(reason)
@@ -1932,6 +2252,21 @@ Function OnDungeonMasterResponse(String response, Int success)
             RejectStory(typeWithSub, npcName, narration, "hold restriction")
             return
         EndIf
+        ; 4.0: someone in a running quest moves only as "NPCs of running quests may move" allows, and the target of
+        ; an objective the player has open never does (the LLM may ignore the candidate's Quest line).
+        If !IntelEngine.LivingWorldMayMove(npc, storyType)
+            Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " rejected - held by a running quest for " + storyType)
+            RejectStory(typeWithSub, npcName, narration, "held by a running quest")
+            return
+        EndIf
+
+        ; 4.0: someone right here with the player is only offered for a quest (a public plea); any other moment
+        ; would send them off and bring them back in view.
+        If storyType != "quest" && storyType != "seek_player" && storyType != "informant" && npc.GetParentCell() == Game.GetPlayer().GetParentCell()
+            Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " is right here - only a quest (a public plea) fits, not " + storyType)
+            RejectStory(typeWithSub, npcName, narration, "npc already in player's cell")
+            return
+        EndIf
 
         ; Re-validate: reject player-targeted types if NPC ended up in the player's cell
         ; (pool was built seconds ago — player may have moved cells during LLM round-trip)
@@ -2011,6 +2346,7 @@ Function OnDungeonMasterResponse(String response, Int success)
     EndIf
     IntelEngine.NotifyStoryTypePicked(typeWithSub)
     IntelEngine.RecordStoryDispatch(typeWithSub, npcName, narration)
+    IntelEngine.LivingWorldMomentDispatched(npc, storyType)
 
     ; Route by type
     If storyType == "seek_player"
@@ -2104,6 +2440,15 @@ EndFunction
 
 Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String slotTaskType, String taskOrigin = "Story engine")
     Actor player = Game.GetPlayer()
+    ; The people of the game's carriages and ferries, and anyone a scene or the player's own quest holds right now,
+    ; are never sent anywhere. The dialogue actions had this rule; the dungeon master's dispatches did not, and a cart
+    ; driver sent to the player stood beside his cart with a walk package nobody could take off.
+    If Core.IsUnsuitableTaskAgent(npc)
+        If npc != None
+            Core.DebugMsg("Story: " + npc.GetDisplayName() + " is not sent anywhere (a driver or ferryman, or held by a scene or a quest)")
+        EndIf
+        return false
+    EndIf
 
     ; === Player home knocking prompt ===
     If target == player && !IsNPCToNPCType() && IntelEngine.IsPlayerInOwnHome()
@@ -2182,6 +2527,8 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     StorageUtil.SetIntValue(npc, "Intel_IsStoryDispatch", 1)
     StorageUtil.SetStringValue(npc, "Intel_StoryNarration", narration)
 
+    StorageUtil.UnsetFloatValue(npc, "Intel_WalkStartDist")
+    ActiveStoryHurries = target == Game.GetPlayer() && IntelEngine.ArcHurries(StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0), npc)
     ReapplyTravelPackage(npc, true)
     If !IsActive || ActiveStoryNPC != npc || DispatchGeneration != claimedGeneration
         ; Already allocated: do not let callers roll back a replacement's payload/quest.
@@ -2264,10 +2611,31 @@ Function PlaceRoadEncounter(Actor npc, String narration, String destination)
         return
     EndIf
 
-    ; Place NPC AHEAD of player (negative distance = forward direction)
-    Float placeDist = Utility.RandomFloat(3000.0, 5000.0)
-    Float[] offset = IntelEngine.GetOffsetBehind(player, -placeDist)
-    npc.MoveTo(player, offset[0], offset[1], 0.0, false)
+    ; Place NPC AHEAD of player (negative distance = forward direction), but never where the player is
+    ; looking: the NPC stays invisible while placed, farther spots are tried, and the last resort is behind
+    ; the player. Before 4.0 the NPC could appear in plain view on an open road.
+    npc.SetAlpha(0.0, false)
+    Bool hidden = false
+    Int attempt = 0
+    While attempt < 4 && !hidden
+        Float placeDist = Utility.RandomFloat(3000.0, 5000.0) + (attempt as Float) * 1000.0
+        Float[] offset = IntelEngine.GetOffsetBehind(player, -placeDist)
+        If attempt == 3
+            offset = IntelEngine.GetOffsetBehind(player, 4000.0)
+        EndIf
+        npc.MoveTo(player, offset[0], offset[1], 0.0, false)
+        Int waited = 0
+        While !npc.Is3DLoaded() && waited < 10
+            Utility.Wait(0.1)
+            waited += 1
+        EndWhile
+        hidden = !Core.PlayerCanSee(npc)
+        attempt += 1
+    EndWhile
+    npc.SetAlpha(1.0, false)
+    If !hidden
+        Debug.Trace("[IntelEngine] StoryEngine: road encounter placed where the player may see it (no hidden spot found)")
+    EndIf
 
     ; Give NPC conversational context
     Core.SendPersistentMemory(npc, npc, npc.GetDisplayName() + " " + narration)
@@ -2644,6 +3012,11 @@ Function CheckStoryLingerCleanup()
                     timedOut = false
                 EndIf
             EndIf
+            ; Their business with the player is settled (VisitOver): once nobody is speaking any more, they go.
+            Bool leaves = StorageUtil.GetIntValue(npc, "Intel_StoryLeaves") == 1
+            If leaves && !timedOut && TalkOver(npc)
+                timedOut = true
+            EndIf
             ; Grace period: don't check distance for the first 30 seconds so
             ; NPCs that start far away (e.g. rescued victims) can pathfind to the player
             Bool shouldRelease = elapsed > 30.0 && Core.ShouldReleaseLinger(npc)
@@ -2680,6 +3053,10 @@ Function CheckStoryLingerCleanup()
                 ; remove from this list, and the index then pointed at somebody else, who was dropped from
                 ; the linger with the sandbox still on them.
                 StorageUtil.FormListRemove(player, "Intel_StoryLingerActors", npc as Form, true)
+                StorageUtil.UnsetIntValue(npc, "Intel_StoryLeaves")
+                If leaves && !takenOver
+                    Core.WalkBack(npc)
+                EndIf
             EndIf
         EndIf
         i -= 1
@@ -2781,6 +3158,18 @@ Function TriggerRoadEncounterGreeting(Actor npc)
     Utility.Wait(0.5)
     npc.SetLookAt(player)
     Core.SendTaskNarration(npc, narration, player)
+    ; 4.0 quests: a former follower met on the way to a venture asks the player along once their line is said
+    ; (IntelEngine_Quests.OnGiverArrived makes the offer).
+    Int questOffered = StorageUtil.GetIntValue(npc, "Intel_QuestOffer", 0)
+    If questOffered > 0
+        StorageUtil.UnsetIntValue(npc, "Intel_QuestOffer")
+        Int handle = ModEvent.Create("IntelEngine_QuestGiverArrived")
+        If handle
+            ModEvent.PushForm(handle, npc)
+            ModEvent.PushInt(handle, questOffered)
+            ModEvent.Send(handle)
+        EndIf
+    EndIf
 
     ; Mark as interacted + store time for max-linger fallback
     StorageUtil.SetIntValue(npc, "Intel_FakeEncounterInteracted", 1)
@@ -2938,6 +3327,30 @@ Function CheckStoryNPCArrival()
         return
     EndIf
 
+    ; === Not in front of the people the story is about ===
+    If arrivalTarget == player && HeldBackByCompany(storyNPC, claimedGeneration, storyType)
+        return
+    EndIf
+
+    ; === Someone coming at a walk does not chase the player across the world ===
+    If arrivalTarget == player && !ActiveStoryHurries && StoryComesAtAWalk(storyType)
+        Bool gone = IntelEngine.ArcReachOf(storyNPC) >= 1
+        Bool sameSpace = storyNPC.GetParentCell() == player.GetParentCell() || (!storyNPC.IsInInterior() && !player.IsInInterior())
+        If !gone && storyNPC.Is3DLoaded() && sameSpace
+            Float nearest = StorageUtil.GetFloatValue(storyNPC, "Intel_WalkStartDist", -1.0)
+            Float off = storyNPC.GetDistance(player)
+            If nearest < 0.0 || off < nearest
+                StorageUtil.SetFloatValue(storyNPC, "Intel_WalkStartDist", off)   ; measured from the nearest they got
+            ElseIf off > nearest + 2500.0 && off > 3500.0
+                gone = true   ; the player walked off faster than they follow
+            EndIf
+        EndIf
+        If gone
+            DeferStory(storyNPC, claimedGeneration, storyType)
+            return
+        EndIf
+    EndIf
+
     ; === Ambush/Stalker sneak monitoring (overrides normal arrival) ===
     If (storyType == "ambush" || storyType == "stalker") && storyNPC.Is3DLoaded()
         ; Timeout: if sneak phase runs too long AND player is far away, give up
@@ -3006,7 +3419,42 @@ Function CheckStoryNPCArrival()
                 EndIf
             Else
                 ; Stalker: detected by engine stealth system OR proximity failsafe (<400u)
-                If storyNPC.IsDetectedBy(player) || sneakDist <= 400.0
+                Bool seen = storyNPC.IsDetectedBy(player) || sneakDist <= 400.0
+                ; A tale's stalker: caught by the player's eye from afar, or unnoticed long enough to gather their
+                ; courage (what they have to say is the story's next step: it is never lost because the player did
+                ; not look back), they stand up and walk over, and say it face to face. Sven whispered his confession
+                ; from a thousand units off and the meeting never counted (2026-11-19).
+                If StorageUtil.GetIntValue(storyNPC, "Intel_ArcStalk", 0) > 0
+                    If sneakPhase == 3
+                        If sneakDist <= 350.0
+                            OnStalkerDetected(StorageUtil.GetIntValue(storyNPC, "Intel_ArcStalkCaught", 0) == 0)
+                        EndIf
+                        return
+                    EndIf
+                    Bool nerve = sneakStart > 0.0 && (Utility.GetCurrentRealTime() - sneakStart) > ARC_STALK_SECONDS && sneakDist <= 1500.0
+                    If seen || nerve
+                        If sneakDist <= 350.0
+                            OnStalkerDetected(!seen)
+                            return
+                        EndIf
+                        If storyNPC.IsSneaking()
+                            storyNPC.StartSneaking()
+                        EndIf
+                        Debug.SendAnimationEvent(storyNPC, "sneakStop")
+                        StorageUtil.SetIntValue(storyNPC, "Intel_SneakPhase", 3)
+                        If seen
+                            StorageUtil.SetIntValue(storyNPC, "Intel_ArcStalkCaught", 1)
+                        EndIf
+                        ActorUtil.RemovePackageOverride(storyNPC, Core.TravelPackage_Stalk)
+                        PO3_SKSEFunctions.SetLinkedRef(storyNPC, player as ObjectReference, Core.IntelEngine_TravelTarget)
+                        ActorUtil.AddPackageOverride(storyNPC, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+                        storyNPC.EvaluatePackage()
+                        Core.DebugMsg("Story [stalker]: " + storyNPC.GetDisplayName() + " stands up and walks over (seen " + seen + ")")
+                    EndIf
+                    If sneakPhase == 3 || seen || nerve
+                        return
+                    EndIf
+                ElseIf seen
                     OnStalkerDetected()
                     return
                 EndIf
@@ -3327,8 +3775,14 @@ Function OnStoryNPCArrived()
     Actor claimedNPC = ActiveStoryNPC
     Int claimedGeneration = DispatchGeneration
     String claimedType = ActiveStoryType
-    ; Latch before side effects or latent calls so concurrent callback/poll stacks cannot both handle arrival.
+    ; Latched before anything that takes time: the check for company reads the game several times, and the arrival
+    ; event and the three-second poll, both on their way here, each passed the line above in that gap and both spoke
+    ; ("seek player fired twice", "delivered a message ... triggers response twice").
     ArrivalHandling = true
+    If HeldBackByCompany(claimedNPC, claimedGeneration, claimedType)
+        ArrivalHandling = false
+        return
+    EndIf
     If ActiveStoryType == "message" || ActiveStoryType == "quest"
         IsActive = false
     EndIf
@@ -3373,6 +3827,19 @@ Function OnStoryNPCArrived()
             StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_ArrivalTopic")
         EndIf
         Core.SendTaskNarration(ActiveStoryNPC, ActiveNarration, Game.GetPlayer())
+        ; 4.0 quests: a giver who came to offer a quest the engine planned; the keeper makes the offer once their
+        ; first line is said (IntelEngine_Quests.OnGiverArrived).
+        Int questOffered = StorageUtil.GetIntValue(ActiveStoryNPC, "Intel_QuestOffer", 0)
+        If questOffered > 0
+            StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_QuestOffer")
+            Int handle = ModEvent.Create("IntelEngine_QuestGiverArrived")
+            If handle
+                ModEvent.PushForm(handle, ActiveStoryNPC)
+                ModEvent.PushInt(handle, questOffered)
+                ModEvent.Send(handle)
+            EndIf
+        EndIf
+        SignalArcAskerArrived(ActiveStoryNPC)
     EndIf
     If ActiveStoryType == "seek_player" || ActiveStoryType == "informant"
         Core.SendStoryEvent("intel_story", ActiveStoryNPC, Game.GetPlayer(), ActiveStoryNPC.GetDisplayName() + " arrived to speak with " + Game.GetPlayer().GetDisplayName())
@@ -3594,6 +4061,12 @@ EndFunction
 
 Function HandleFactionAmbushDispatch(String narration, String response)
     {Faction group ambush — spawn 3-7 hostile soldiers from a faction near the player.}
+    ; Politics switched off means nothing political happens: this ran on (a battle set before the switch, a
+    ; skirmish, an ambush of a faction's men) and people met soldiers and assassins "with politics off".
+    If !IntelEngine.IsPoliticsEnabled()
+        Core.DebugMsg("Story DM: no faction ambush: politics is switched off")
+        return
+    EndIf
     String factionId = ExtractJsonField(response, "ambushFaction")
     String countStr = ExtractJsonField(response, "ambushCount")
 
@@ -3936,8 +4409,8 @@ Function OnAmbushYield()
     FinishArrivalWithLinger(yieldedNPC, Game.GetPlayer() as ObjectReference)
 EndFunction
 
-Function OnStalkerDetected()
-    {Stalker detected by player: stop sneaking, narrate caught, linger for dialogue.
+Function OnStalkerDetected(Bool cameForward = false)
+    {Stalker detected by player (or, a tale's, come forward on their own): stop sneaking, narrate, linger for dialogue.
     No flee phase — TranslateTo ignores navmesh and breaks immersion.}
     String playerName = Game.GetPlayer().GetDisplayName()
     String npcName = ActiveStoryNPC.GetDisplayName()
@@ -3949,7 +4422,14 @@ Function OnStalkerDetected()
     Debug.SendAnimationEvent(ActiveStoryNPC, "sneakStop")
 
     ; Caught fact for SkyrimNet dialogue context (flustered/embarrassed)
-    Core.InjectFact(ActiveStoryNPC, "was caught secretly following " + playerName)
+    StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_ArcStalk")
+    StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_ArcStalkCaught")
+    ActorUtil.RemovePackageOverride(ActiveStoryNPC, Core.TravelPackage_Walk)
+    If cameForward
+        Core.InjectFact(ActiveStoryNPC, "had been following " + playerName + " at a distance, and has now come forward to speak")
+    Else
+        Core.InjectFact(ActiveStoryNPC, "was caught secretly following " + playerName)
+    EndIf
     Core.SendTaskNarration(ActiveStoryNPC, ActiveNarration, Game.GetPlayer())
 
     ; Distinct post-detection outcome; narration above remains the dialogue driver.
@@ -3990,6 +4470,26 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     String suggestedEnemy = ExtractJsonField(response, "enemyFaction")
     If questSubTypeStr == ""
         questSubTypeStr = "combat"
+    EndIf
+    ; A rescue is a story of the town about someone held at a place near it, written and run by the story engine
+    ; (IntelEngine_Arcs: taken out of sight, bound at the heart of the place, freed by reaching them, home on their own
+    ; feet), or nothing at all. The rescue of 3.8 below still runs at the Classic level only: it teleported the victim
+    ; in view, beat them into bleedout, and left a hostage nobody could find ("after clearing it out, I can't find the
+    ; hostage anywhere"; "the location is inaccessible").
+    If (questSubTypeStr == "rescue" || questSubTypeStr == "faction_rescue") && LivingWorldLevel > 0
+        Actor rescueGiver = npc
+        If senderName != ""
+            Actor named = IntelEngine.FindNPCByName(senderName)
+            If named != None && !named.IsDead()
+                rescueGiver = named
+            EndIf
+        EndIf
+        If rescueGiver != None && IntelEngine.ArcRequestRescue(rescueGiver)
+            Core.DebugMsg("Story DM: quest/rescue -- a story about someone held is being written for " + rescueGiver.GetDisplayName())
+        Else
+            Core.DebugMsg("Story DM: quest/rescue -- no such story fits now (no place near that keeps prisoners, nobody who may be held, or another story is under way)")
+        EndIf
+        return
     EndIf
     Actor departureNPC = npc
     String departureFact = ""
@@ -4097,6 +4597,11 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     EndIf
     If IntelEngine.IsLocationNonCombative(questDest)
         Core.DebugMsg("Story DM: quest location '" + questLocationStr + "' is non-combative (temple/castle/guild) - rejecting")
+        return
+    EndIf
+    ; A dragon fights under the open sky ("told to fight a dragon INSIDE FORT GREYMOOR").
+    If enemyType == "dragon" && questDest.GetParentCell() != None && questDest.GetParentCell().IsInterior()
+        Core.DebugMsg("Story DM: quest rejected -- a dragon at '" + questLocationStr + "', which is indoors")
         return
     EndIf
 
@@ -4239,6 +4744,16 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     EndIf
 
     ActiveStoryType = "quest"
+    ; 4.0: someone who is already here does not walk up and whisper: they cry out for help in front of everyone first
+    ; (a public plea), then come to the player, who looks able to help, and make the offer as usual.
+    Actor plPlayer = Game.GetPlayer()
+    If !calmCourier && npc.Is3DLoaded() && npc.GetParentCell() == plPlayer.GetParentCell() && msgContent != ""
+        Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " cries out for help in front of everyone")
+        ; Worded as what drives them to speak, so the line they say is the plea itself (worded as the outburst, it was
+        ; taken as already said and they only reacted to it).
+        SkyrimNetApi.DirectNarration(npc.GetDisplayName() + " turns to everyone around and begs out loud for someone, anyone, to help. What happened: " + msgContent, npc, None)
+        Utility.Wait(4.0)
+    EndIf
     If !DispatchToTarget(npc, Game.GetPlayer(), narration, "story", taskOrigin)
         ; Never set out (no slot after all, or turned away at the player's door). CleanupQuest only
         ; restores a courier who is on the way, so the aggression is put back here.
@@ -4252,7 +4767,10 @@ Function HandleQuestDispatch(Actor npc, String narration, String response, Bool 
     EndIf
 EndFunction
 
-Function ReleaseStrandedCourier(Actor npc, Int slot, Int generation)
+; The last parameter must not be called "generation": as a bare name it replaces the game's own "Generation",
+; which the lightning bolt mesh looks up by exact case, and Sparks bolts turn invisible (3.8.0 to 3.8.2).
+; (SKSE/tests/RunPexStringCaseCheck.py holds every compiled script to it; galanx/IntelEngine-GamePlugin#35.)
+Function ReleaseStrandedCourier(Actor npc, Int slot, Int dispatchGen)
     {The arrival handler came back from a wait (the pause before the offer, the offer itself) and found its
     quest gone: cancelled from the dashboard, expired, replaced. It used to just return. The courier then
     kept the "story" slot and the sandbox that pins them for the offer, with nothing left that would ever
@@ -4260,7 +4778,7 @@ Function ReleaseStrandedCourier(Actor npc, Int slot, Int generation)
     If npc == None
         return
     EndIf
-    Bool sameDispatch = ActiveStoryNPC == npc && DispatchGeneration == generation
+    Bool sameDispatch = ActiveStoryNPC == npc && DispatchGeneration == dispatchGen
     If slot >= 0 && Core.SlotHolds(slot, npc) && Core.SlotTaskTypes[slot] == "story" && (sameDispatch || ActiveStoryNPC != npc)
         StorageUtil.SetStringValue(npc, "Intel_Result", "abandoned")
         Core.ClearSlot(slot)
@@ -4349,9 +4867,6 @@ Function OnQuestNPCArrived()
     EndIf
     If QuestGiver != ActiveStoryNPC
         Core.InjectFact(ActiveStoryNPC, "was sent to deliver a plea for help from " + QuestGiver.GetDisplayName() + " about " + QuestEnemyType + " trouble near " + questLoc)
-    EndIf
-    If QuestSubType == "rescue" && QuestVictimNPC != None
-        Core.InjectFact(QuestVictimNPC, "was captured by " + QuestEnemyType + " near " + questLoc + " and held against my will")
     EndIf
     QuestCourierPending = false
     ; Remove the pinning sandbox before showing dialog (travel/linger packages get applied after)
@@ -4669,6 +5184,9 @@ Function RememberVictimEssential(Actor victim)
     recorded our own "essential" as the original state, which left the NPC unkillable after the quest.}
     If victim != None && StorageUtil.GetIntValue(victim, "Intel_WasEssential", -1) < 0
         StorageUtil.SetIntValue(victim, "Intel_WasEssential", victim.IsEssential() as Int)
+        ; Taken now, and only now do they know it: the memory used to be written when the quest was offered, so
+        ; someone who was never touched (the player said no) remembered a captivity that never was.
+        Core.InjectFact(victim, "was captured by " + QuestEnemyType + " near " + QuestLocationName + " and held against my will")
     EndIf
 EndFunction
 
@@ -4872,7 +5390,11 @@ Function CheckQuestProximity()
                     QuestEnemiesSpawned = true
                     Core.DebugMsg("Story [quest/" + QuestSubType + "]: spawned " + QuestSpawnCount + " " + QuestEnemyType + " at boss room")
                 Else
-                    Core.DebugMsg("Story [quest]: WARNING - no enemies spawned at boss room, falling back to deferred")
+                    ; Nobody could be put there (an enemy kind the game has no list for). The quest used to hang here
+                    ; for good: nothing was "spawned", so nothing could ever be "cleared" ("the quest won't register as
+                    ; completed"). It counts as placed, with nobody to fight: reaching the place ends it.
+                    QuestEnemiesSpawned = true
+                    Core.DebugMsg("Story [quest]: WARNING - no enemies could be placed at the boss room; reaching it completes the quest")
                 EndIf
             EndIf
             return  ; Pre-placed quests don't use the proximity-based spawn path below
@@ -5249,6 +5771,10 @@ Function SpawnQuestEnemies()
         return
     EndIf
 
+    ; A dragon is never put indoors: while the player is inside, it waits (no attempt is counted).
+    If QuestEnemyType == "dragon" && Game.GetPlayer().IsInInterior()
+        return
+    EndIf
     QuestSpawnAttempts += 1
 
     ; Determine spawn anchors. Rescue uses SEPARATE anchors for victim (deep) and
@@ -5826,7 +6352,7 @@ Function CleanupQuest()
             EndIf
         EndIf
         ; If victim was NOT freed by the player, they "escaped"
-        If !QuestVictimFreed
+        If !QuestVictimFreed && victimWasTaken
             Core.InjectFact(QuestVictimNPC, "managed to escape " + QuestEnemyType + " captivity at " + QuestLocationName + " on my own")
         EndIf
         If victimWasTaken
@@ -6197,6 +6723,78 @@ EndFunction
 ; TRAVEL PACKAGE
 ; =============================================================================
 
+Bool Function StoryComesAtAWalk(String storyType)
+    {The kinds of moment in which someone comes to the player with something to say (not the hostile ones, not a
+    guide leading the way).}
+    return storyType == "seek_player" || storyType == "informant" || storyType == "message" || storyType == "quest" || storyType == "road_encounter"
+EndFunction
+
+Bool Function LetsItBe(Actor npc)
+    {True (and the visit is called off until they next meet) when this is the story's visitor coming to the player at
+    a walk and the player is no longer where they are. Asked wherever such a visitor would otherwise be set down near
+    the player.}
+    If !IsActive || ActiveStoryNPC != npc || ActiveStoryHurries || !StoryComesAtAWalk(ActiveStoryType)
+        Return false
+    EndIf
+    If IntelEngine.ArcReachOf(npc) < 1
+        Return false
+    EndIf
+    DeferStory(npc, DispatchGeneration, ActiveStoryType)
+    Return true
+EndFunction
+
+Bool Function HeldBackByCompany(Actor npc, Int claimedGeneration, String storyType)
+    {True (and the visit is called off for now) when this visitor is bringing a story to the player and someone that
+    story is about stands with the player: they turn back before they are close and wait for a moment when the two
+    are apart (the user, 2026-11-19: Sven brought his trouble "while Faendal was standing beside me all the time").}
+    Int arc = StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0)
+    Actor player = Game.GetPlayer()
+    If arc <= 0 || npc == None || !npc.Is3DLoaded()
+        Return false
+    EndIf
+    If npc.GetParentCell() != player.GetParentCell() && (npc.IsInInterior() || player.IsInInterior())
+        Return false
+    EndIf
+    If npc.GetDistance(player) > COMPANY_LOOK_DISTANCE || IntelEngine.ArcCompany(arc) == None
+        Return false
+    EndIf
+    DeferStory(npc, claimedGeneration, storyType, true)
+    Return true
+EndFunction
+
+Function DeferStory(Actor npc, Int claimedGeneration, String storyType, Bool company = false)
+    {They were on their way to the player at a walk and the player is gone (left the place, or walked off faster than
+    they follow): they let it be and go back to their day. A story they were bringing keeps until the two next meet.
+    company: they turned back because someone the story is about stands with the player.}
+    Int arc = StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0)
+    If company
+        Core.DebugMsg("Story [" + storyType + "]: " + npc.GetDisplayName() + " holds back (someone of the story is with the player): it waits until they are apart")
+    Else
+        Core.DebugMsg("Story [" + storyType + "]: " + npc.GetDisplayName() + " could not reach the player (gone): it waits until they next meet")
+    EndIf
+    StorageUtil.UnsetFloatValue(npc, "Intel_WalkStartDist")
+    Int slot = Core.FindSlotByAgent(npc)
+    If (slot >= 0) && StillOwns(npc, claimedGeneration, storyType)
+        Core.ClearSlot(slot)
+    EndIf
+    Core.RemoveIntelPackages(npc)
+    If StillOwns(npc, claimedGeneration, storyType)
+        CleanupStoryDispatch()
+        Core.ReleaseLinger(npc)
+    EndIf
+    If arc > 0
+        StorageUtil.UnsetIntValue(npc, "Intel_ArcOffer")
+        If company
+            IntelEngine.ArcOfferHeldBack(arc)
+        Else
+            IntelEngine.ArcOfferDeferred(arc)
+        EndIf
+    EndIf
+    If company
+        Core.WalkBack(npc)
+    EndIf
+EndFunction
+
 Bool Function StoryTypeJogs(String storyType)
     {The story types whose NPC travels on the jog package (the sneaking ones use the stalk package, and an
     attacker's charge is meant to be fast all the way).}
@@ -6241,6 +6839,13 @@ Function ReapplyTravelPackage(Actor npc, Bool starting = false)
     If travelPkg == Core.TravelPackage_Jog && StoryTypeJogs(ActiveStoryType) && ShouldWalkLastStretch(npc, target)
         travelPkg = Core.TravelPackage_Walk
         StoryWalkingLastStretch = true
+    EndIf
+    ; Someone coming to the player with something to say comes at a walk, as people do. Only those who have truly
+    ; been looking for the player hurry (the user, 2026-11-19: "Maybe the running should be reduced to walking so it
+    ; looks less targeted and more natural... Running into the player is only by people who have genuinely been
+    ; looking for him, missed him or who want to kill him").
+    If travelPkg == Core.TravelPackage_Jog && target == Game.GetPlayer() && StoryComesAtAWalk(ActiveStoryType) && !ActiveStoryHurries
+        travelPkg = Core.TravelPackage_Walk
     EndIf
 
     If starting

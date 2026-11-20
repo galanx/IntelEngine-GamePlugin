@@ -554,6 +554,255 @@ Function NotifyStoryTypePicked(String storyType) Global Native
 ; entry flips to REJECTED for the next DM tick to see.
 Function RecordStoryDispatch(String storyType, String npcName, String narration) Global Native
 
+; 4.0 living world: may a story moment land now? seam: 0 = the clock, 1 arrived in town, 2 entered an inn,
+; 3 left a dungeon, 4 on the road, 5 woke up, 6 came home, 7 quest done. Always true at the Classic level.
+Bool Function LivingWorldMayDeliver(Int seam, Bool urgent) Global Native
+
+; 4.0 living world settings (indexes as on the settings page): level 0 Classic, 1 Rumors, 2 Lives; interruptions
+; 0 Never, 1 Only when urgent, 2 Realistic; quest NPCs 0 Never, 1 For important reasons, 2 Freely; pacing 0 Calm,
+; 1 Normal, 2 Lively; then the days a follower told to wait keeps waiting and the days before a follower left
+; behind starts a life of their own.
+Function SetLivingWorldSettings(Int level, Int interruptions, Int questNpcs, Int pacing, Float waitDays, Float lifeDays) Global Native
+
+; 4.0 living world: a story moment really started with this NPC (counted for pacing and rotation). Not for rejections.
+Function LivingWorldMomentDispatched(Actor npc, String storyType) Global Native
+
+; 4.0 storylines (StorylineBridge). Kinds: 1 meeting, 2 request, 3 visit. Requests: 1 find someone, 2 bring an item,
+; 3 deal with a threat, 4 take me somewhere, 5 speak with someone, 6 free a captive. Events: 1 achieved, 2 met,
+; 3 declined, 4 time ran out, 5 someone died, 6 talked, 7 no-show, 8 fell through. Days: until the deadline, 0 none.
+Int Function StorylineOpen(Int kind, Int request, Actor owner, Actor other, Location place, ObjectReference target, Form item, Float days, Int importance, Bool urgent) Global Native
+String Function StorylineRefusal(Int kind, Int request, Actor owner) Global Native
+Bool Function StorylineEvent(Int id, Int eventId) Global Native
+Int[] Function StorylineOpenIds() Global Native
+Int[] Function StorylineOverdue() Global Native
+; field: "slot", "objective" (255 none), "stage", "kind", "request", "importance", "comes" (1: the one it is about goes
+; along with the player), "replied" (1: they sent an answer); -1 when there is no such storyline
+Int Function StorylineField(Int id, String field) Global Native
+Actor Function StorylineOwner(Int id) Global Native
+Actor Function StorylineOther(Int id) Global Native
+Location Function StorylinePlace(Int id) Global Native
+ObjectReference Function StorylineTarget(Int id) Global Native
+Form Function StorylineItem(Int id) Global Native
+String Function StorylineMemory(Int id) Global Native
+Int Function StorylineReward(Int id, Int playerLevel) Global Native
+Int Function StorylineOpenIdFor(Actor owner) Global Native
+; Branches from conversation. CallOff: the one who asked no longer needs it (stage 14). Amend: change 1 more time,
+; 2 hurry, 3 raise the reward (gold = the sum named), 4 a new person, place or item; returns "" when changed, else why
+; not. Reply: the one it is about sends an answer back through the player and/or comes along; "" when recorded.
+Bool Function StorylineCallOff(Int id, String note) Global Native
+String Function StorylineAmend(Int id, Int change, Actor other, Location place, ObjectReference target, Form item, Int gold, String note) Global Native
+String Function StorylineReply(Int id, Actor speaker, String reply, Bool comesAlong) Global Native
+Int Function StorylineAboutId(Actor person) Global Native
+String Function StorylineOtherMemory(Int id) Global Native
+Int Function StorylineOfferedGold(Int id, Int playerLevel) Global Native
+; Whether running quests let this person go along with the player (their own storyline objective left out).
+Bool Function StorylineMayComeAlong(Actor person) Global Native
+; Why a request was asked, in the asker's words; shown with it in both people's bios and memories.
+Bool Function StorylineSetAbout(Int id, String text) Global Native
+; field: "about" (why it was asked), "reply" (the answer sent back), "note" (the reason for the last change); "" when none.
+String Function StorylineText(Int id, String field) Global Native
+
+; 4.0 quests (QuestBridge; docs/QUESTS.md in the native plugin). Templates: 1 keepsake, 2 bounty, 3 venture. Phases:
+; 0 planned, 1 open, 2 ended. Endings: 10 done, 11 kept, 12 declined, 13 ignored, 14 the giver died, 15 went alone,
+; 16 the ally died, 17 lapsed. Every step is a fact the DLL reads from the game; the scripts show and place.
+Int Function QuestPlanFor(Actor giver) Global Native
+Int Function QuestPlanVenture(Actor ally) Global Native
+; A venture where a former follower already is on an adventure of their own life (met at the dungeon).
+Int Function QuestPlanVentureHere(Actor ally) Global Native
+; Spots ahead of the player where people stand, along the way (dx, dy) they are going (0, 0: the way they face).
+ObjectReference[] Function QuestSpotsAhead(Float dx, Float dy) Global Native
+; Points on the ground ahead (the navmesh, roads first): x, y, z triples, best first.
+Float[] Function QuestGroundAhead(Float dx, Float dy) Global Native
+; The same, on roads only (an ambush waits on the road itself).
+Float[] Function QuestRoadAhead(Float dx, Float dy) Global Native
+; The planned venture this actor is the ally or companion of, 0 = none.
+Int Function QuestVentureOf(Actor actor) Global Native
+; A planned quest ends before it was taken on: 12 declined, 15 went alone, 17 nothing came of it.
+Bool Function QuestEndPlanned(Int id, Int ending) Global Native
+Bool Function QuestAccept(Int id) Global Native
+Bool Function QuestDecline(Int id) Global Native
+Int[] Function QuestLapse() Global Native
+Int[] Function QuestOpenIds() Global Native
+Int Function QuestPlannedFor(Actor giver) Global Native
+; Reads the facts and moves the quest on: (ending * 256) + the bits of the steps done now; 0 = nothing changed.
+Int Function QuestAdvance(Int id) Global Native
+Bool Function QuestMayHandOver(Int id) Global Native
+Bool Function QuestHandOver(Int id) Global Native
+; field: "slot", "step", "steps", "phase", "ending", "template", "truth", "placed", "gold", "openstage", "endstage",
+; "crypt", "objective" (of the current step, -1 none), "objective<n>" and "log<n>" (of step n); -1 when none
+Int Function QuestField(Int id, String field) Global Native
+; form: "giver", "foe", "ally", "companion", "place", "anchor", "item", "holder", "marker" (of the current step)
+Form Function QuestForm(Int id, String field) Global Native
+; text: "stamp", "title", "foename", "narration", "prompt", "memory", "place", "itembase"
+String Function QuestText(Int id, String field) Global Native
+String Function QuestSetFoe(Int id, Actor foe) Global Native
+Function QuestSetPlaced(Int id, Int bits) Global Native
+Function QuestApplyTitles() Global Native
+; A venture was put on the road: what the two remember of falling in together is written.
+Function QuestVenturePlaced(Int id) Global Native
+; Test hook: who a venture's ally travels with (0 by chance, 1 a follower type never travelled with, 2 another former follower, 3 alone).
+Function QuestDebugForceCompanion(Int mode) Global Native
+; A venture's companion who could not be put beside the ally drops out of it (before the meeting only).
+Function QuestDropCompanion(Int id) Global Native
+; Part of a live quest: a giver on the way, a venture's ally or companion. Other systems leave them be.
+Bool Function QuestInvolves(Actor akActor) Global Native
+; Ends a casual follow of SeverActions (no roster entry, no teammate flag); true when one was ended. A roster
+; companion is never touched.
+Bool Function StopCasualFollow(Actor akActor) Global Native
+; Makes them the player's follower (join) or lets them go: SeverActions when installed, else SkyrimNet's follow. The
+; system's name, "" when none could be called.
+String Function QuestFollower(Actor npc, Bool join) Global Native
+
+; 4.0 story arcs (ArcBridge; docs/STORY_ARCS.md). IntelEngine_Arcs.psc offers, shows and carries out; the DLL decides.
+; Plans an arc of this pattern (0 whichever fits, 1 a thief, 2 a feud, 3 a murder) with this asker: its id, 0 when none.
+Int Function ArcPlan(Actor asker, Int pattern) Global Native
+Bool Function ArcAccept(Int id) Global Native
+Bool Function ArcDecline(Int id) Global Native
+; A planned arc that never reached the player: dropped without a memory.
+Bool Function ArcDrop(Int id) Global Native
+; Planned arcs never offered in time (their ids).
+Int[] Function ArcLapse() Global Native
+Int[] Function ArcOpenIds() Global Native
+; Reads the facts and moves the arc on: bits 0-7 nodes done now, 8-15 the ending, 16-19 the effect, 20-23 its role,
+; 24 a prop goes in place now, 25 the choice may be offered, 26 the hand-over may be offered. 0 = nothing.
+Int Function ArcAdvance(Int id) Global Native
+; The choice popup's answer (the index of the node's options, -1 not now).
+Bool Function ArcAnswer(Int id, Int option) Global Native
+; The prop of the current hand-over goes from the player to who the node gives it to.
+Bool Function ArcHandOver(Int id) Global Native
+; How the brawl of the arc's fight ended: 1 the player won, -1 lost (or it turned into a real fight).
+Bool Function ArcBrawl(Int id, Int result) Global Native
+; A murder's victim, out of sight, taken home to be killed there; None when in sight, dead already, or no murder.
+Actor Function ArcStageVictim(Int id) Global Native
+; For this many seconds the arc's people speaking count as speaking with the player (a scene among them).
+Function ArcScene(Int id, Float seconds) Global Native
+; The prop was put at this reference (a container, or the floor beside it).
+Function ArcPlanted(Int id, Int prop, ObjectReference akAt) Global Native
+Int Function ArcField(Int id, String field) Global Native
+Form Function ArcForm(Int id, String field) Global Native
+String Function ArcText(Int id, String field) Global Native
+Function ArcApplyTitles() Global Native
+; Test hook: the next planned arc's thief, rival or killer is this person (when they may be cast).
+Function ArcDebugCast(Actor akActor) Global Native
+; Tales: the two holders whose names the journal log of a slot shows (the story so far, the ending), told again after
+; every load; and a tale asked of the dungeon master for this asker (its answer sends IntelEngine_ArcOffer).
+Function ArcSetHolders(Int slot, ObjectReference akTale, ObjectReference akClose) Global Native
+Bool Function ArcRequestTale(Actor akAsker) Global Native
+; The script let an arc step's person go after lingering with the player.
+Function ArcLingerOver(Int id) Global Native
+; A tale's places out in the world: the script places their masters and company (PlaceAtMe resolves leveled lists).
+Function ArcBossPlaced(Int id, Int site, Actor akBoss) Global Native
+; Someone held at a place for a tale: the script says where they stand (1 away, 2 bound at the heart, 4 gone home).
+Function ArcCaptive(Int id, Int captiveState) Global Native
+; A rescue asked for: a tale about someone held at a place near the giver's town is written, or nothing (false).
+Bool Function ArcRequestRescue(Actor akGiver) Global Native
+; What a tale leaves outside a place to be looked at closely (a victim's remains): the script laid it there.
+Function ArcCluePlaced(Int id, Int clue, ObjectReference akLies) Global Native
+; A hunt asked for: a tale about what is killing people near the giver's town is written, or nothing (false).
+Bool Function ArcRequestHunt(Actor akGiver, Bool abRumored = false) Global Native
+; What walks by night outside a place of a story (ArcBridge, Arcs.h SpiritState): asked for as a story of its own,
+; put there and taken away by the script, laid to rest by the player's hand with what it wants in their pack.
+Bool Function ArcRequestHaunt(Actor akGiver, Bool abRumored = false) Global Native
+Function ArcSpiritOut(Int id, Actor akShade) Global Native
+Function ArcSpiritGone(Int id, Int how) Global Native
+Bool Function ArcSpiritRest(Int id) Global Native
+; The talk of the day (RumorBridge): who would pass it on where the player stands (the innkeeper, a server, the
+; bard; None at a bad moment), and what they bring up unasked (counted as told; "" when nothing is worth a word).
+Actor Function RumorPublican() Global Native
+String Function RumorBringUp(Actor akTeller) Global Native
+; Test hook: something goes round the hold the player is in (with akLead: trouble, and they are the one to go to).
+Int Function RumorDebugNote(String asText, Actor akLead, Float afWeight) Global Native
+; Test hook: the faction editor's DLL side without the dashboard (FactionEditor.cpp); IntelEngine.log tells.
+Function FactionEditorSelfTest() Global Native
+Function ArcGangPlaced(Int id) Global Native
+; A tale's ambush: one of its men placed (k = 0 leads), and what a look asked of the script done (1 placed, 2 they
+; struck, 3 called off unseen).
+Function ArcThugPlaced(Int id, Int k, Actor akThug) Global Native
+Function ArcAmbushDone(Int id, Int what) Global Native
+; Out in the wilds: outdoors and nowhere people live (no town, farm, inn or home): where an ambush may wait.
+Bool Function ArcInWilds(ObjectReference akRef) Global Native
+; Test hook: how far the director's distance rule takes someone to be (0 here, 1 the same hold, 2 another hold), plus
+; 10 when they are close to the player. Logged too.
+Int Function ArcDebugReach(Actor akActor) Global Native
+; The offer of someone who came from another hold could not go out now: tried again in an hour.
+Function ArcOfferLater(Int id) Global Native
+; The asker set out at a walk and the player was gone before they got there: the offer goes out when they next meet.
+Function ArcOfferDeferred(Int id) Global Native
+; Someone of this story (not its asker) who stands beside the player right now, or None: nobody brings their trouble
+; to the player in front of the people it is about.
+Actor Function ArcCompany(Int id) Global Native
+; How far a line said to the player carries (SkyrimNet's interaction distance): the measure of "stands with the player".
+Function ArcEarshot(Float units) Global Native
+; The "Stories" switch: off, no new story of the town begins (ArcBridge::Pace); those open go on to their end.
+Function ArcStoriesOn(Bool on) Global Native
+; A story that began as talk in town: someone near its asker whom they stop and ask on their way to the player, or
+; None; and the test hook that makes the asker set out at the next look.
+Actor Function ArcBystander(Int id, Actor akAsker) Global Native
+Function ArcDebugSetOut(Int id) Global Native
+; What only scripts can read of what stands between someone and the player (other mods keep it in script storage).
+Function ArcHeart(Actor who, Int sparked, Int stance, Int withChild, Bool childIsPlayers, Int children, Bool playersChild, Float refusedAt = -1.0) Global Native
+; The game's relationship rank after a story brought someone and the player a step closer, or apart (never beyond
+; friendship either way: Hearts.h).
+Int Function ArcRankAfter(Int rank, Bool closer) Global Native
+; The asker held back for that reason: the story waits until the two are apart (a far-comer tries again in an hour).
+Function ArcOfferHeldBack(Int id) Global Native
+; Whether someone coming to the player has truly been looking for them (and so hurries): close to the player, come all
+; the way from another hold (not someone who merely failed to reach them once). id: their arc when they bring one,
+; else 0.
+Bool Function ArcHurries(Int id, Actor akActor) Global Native
+; How far someone is from the player: 0 loaded or of the player's own settlement, 1 the same hold, 2 another hold.
+Int Function ArcReachOf(Actor akActor) Global Native
+; Test hook: a tale as the director asks for one, with the asker's own reason, coming to the player from afar.
+Bool Function ArcRequestTaleWhy(Actor akAsker, String why) Global Native
+; A tale's "give": its prop goes from where it was put to the player; false when it was never put anywhere.
+Bool Function ArcFetchProp(Int id, Int prop) Global Native
+; Test hook: a hand-written tale (JSON file, absolute path) for this asker.
+Bool Function ArcDebugTaleFile(Actor akAsker, String path) Global Native
+
+; 4.0 lives of followers the player left behind (IntelEngine_Lives.psc carries the orders out, one at a time).
+; Track: see who follows, who was left behind, who is on an errand, and plan the next change.
+Function LivingWorldTrack() Global Native
+; Test hook: the next life order sends this former follower adventuring at the nearest dungeon the player cannot see.
+String Function LivingWorldDebugAdventure(Actor npc) Global Native
+; They have just been with the player: their own life does not greet the player again for its current step.
+Function LivingWorldMarkGreeted(Actor npc) Global Native
+; The actor of the change that is out, None when there is none.
+Actor Function LivingWorldTakeOrder() Global Native
+; Followers whose life the record keeps (with the player now or left behind), at most limit: held in the lives
+; quest's aliases so the game keeps them in memory (a hireling's reference is not persistent).
+Actor[] Function LivingWorldKeepers(Int limit) Global Native
+; 1 move them (their own life goes on somewhere), 2 home, 3 take the package off (back with the player, an errand,
+; a story), 4 they notice the player
+Int Function LivingWorldOrderKind() Global Native
+ObjectReference Function LivingWorldOrderTarget() Global Native
+; axis 0 x, 1 y, 2 z: from the target to where they stand
+Float Function LivingWorldOrderOffset(Int axis) Global Native
+Actor Function LivingWorldOrderCompanion() Global Native
+Bool Function LivingWorldOrderProtect() Global Native
+String Function LivingWorldOrderNarration() Global Native
+; true: done; false: not now (someone could see), tried again later
+Function LivingWorldOrderDone(Bool ok) Global Native
+; The record of one NPC (flags, activity, place, when they parted...), for tests and the log.
+String Function LivingWorldDescribe(Actor npc) Global Native
+; May this kind of story moment move this NPC? ("NPCs of running quests may move"; the target of an objective the
+; player has open never moves; "message" always may, the sender stays and a courier goes)
+Bool Function LivingWorldMayMove(Actor npc, String storyType) Global Native
+; Held by the game right now, at every level of the living world: in a scene, or the target of an objective the
+; player has open. Such a person takes no task and is sent nowhere.
+Bool Function LivingWorldQuestHolds(Actor npc) Global Native
+; Another mod's scene with the player in it has begun (true) or ended (false): nobody comes to the player meanwhile.
+Function LivingWorldSceneBusy(Bool busy) Global Native
+
+; 4.0: a place named in SkyrimNet (the player's /mark and Places page, a pack's, another mod's travel markers): a
+; persistent reference in its cell or worldspace, None when the destination names no such place. The NPC's own
+; marker goes to it with SkyrimNetPlaceOffset (axis 0 x, 1 y, 2 z); IntelEngine_Core.ResolveTravelTarget does both.
+ObjectReference Function ResolveSkyrimNetPlace(Actor npc, String destination) Global Native
+Float Function SkyrimNetPlaceOffset(Actor npc, Int axis) Global Native
+; The base form of an item by its name (the item index), None when there is no such item.
+Form Function ResolveItemByName(String itemName) Global Native
+; An item this actor carries named exactly so (any case), else None: any mod's "Ale" counts, "Pale Ale" does not.
+Form Function FindItemNamedExactly(Actor akActor, String itemName) Global Native
+
 ; Flip the most recent RecordStoryDispatch entry to REJECTED with a short
 ; reason. Called from any early-return path after RecordStoryDispatch.
 Function MarkLastDispatchFailed(String reason) Global Native

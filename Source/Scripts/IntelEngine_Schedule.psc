@@ -63,8 +63,10 @@ Int Property MAX_SCHEDULED = 10 AutoReadOnly
 ; =============================================================================
 
 Event OnInit()
+    ; Nothing here may call another script: an OnInit that waits on Core while Core's first Maintenance waits for
+    ; this OnInit to finish left the whole quest stuck on new games (3.8.2; dashboard empty, MCM frozen). The
+    ; game-time tick is asked for by RestartMonitoring, which Maintenance calls on the first load too.
     InitializeScheduleArrays()
-    Core.RequestGameTimeTick(1.0)  ; Check every game hour
 EndEvent
 
 ; NOTE: Quest scripts do NOT receive OnPlayerLoadGame events.
@@ -129,6 +131,15 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
         Return false
     EndIf
 
+    ; A place nobody can find is no place to meet: said now, before the player is asked and before anyone is told
+    ; it is agreed. It used to be put in the calendar and announced, and only fell through when the hour came ("I get
+    ; the popup but nothing gets scheduled"; "meet Dromeda at . I should already be there").
+    If destination != "none" && IntelEngine.ResolveAnyDestination(akNPC, destination) == None && IntelEngine.ResolveSkyrimNetPlace(akNPC, destination) == None
+        Core.DebugMsg("Schedule: no meeting for " + akNPC.GetDisplayName() + ": '" + destination + "' is no place that can be found")
+        Core.TellFailure(akNPC, akNPC.GetDisplayName() + " does not know a place called '" + destination + "' to meet at: nothing was arranged.")
+        Return false
+    EndIf
+
     ; Shared scheduling scaffolding: time parse ? MCM confirm ? override ? allocate
     String meetingDescription = "meet"
     If destination != "none"
@@ -164,6 +175,10 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     Float currentGameTime = Utility.GetCurrentGameTime()
     Float hoursUntilMeeting = (meetingGameTime - currentGameTime) * 24.0
     ObjectReference destRef = IntelEngine.ResolveAnyDestination(akNPC, destination)
+    If destRef == None
+        ; A place named in SkyrimNet: its anchor is close enough for the estimate (the trip itself resolves it again).
+        destRef = IntelEngine.ResolveSkyrimNetPlace(akNPC, destination)
+    EndIf
     Float travelHoursEstimate = DEPARTURE_BUFFER_HOURS
     If destRef != None
         Float travelDeadline = IntelEngine.CalculateDeadlineFromDistance(akNPC, destRef, false, 1.0, 12.0)
@@ -185,6 +200,13 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     String timeDesc = GetPreciseTimeDescription(targetHour)
     Core.NotifyPlayer(akNPC.GetDisplayName() + " will " + meetingDescription + " " + timeDesc)
     Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", condition='" + timeCondition + "')")
+
+    ; 4.0: the meeting goes in the journal ("Meet <name> at <place>") until the waiting time after it is over
+    IntelEngine_Threads threads = Quest.GetQuest("IntelEngine_Threads") as IntelEngine_Threads
+    If threads != None && destRef != None
+        Float waitHours = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 5.0)
+        threads.OpenMeeting(akNPC, destRef, (meetingGameTime - currentGameTime) + waitHours / 24.0)
+    EndIf
 
     RegisterForNextDispatch()
     Return true
@@ -282,6 +304,13 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     ; Parse time condition
     Float targetHour = IntelEngine.ParseTimeCondition(timeCondition)
     If targetHour < 0.0
+        If timeCondition != ""
+            ; A time was named and could not be read: nothing is arranged, and they are told. It used to become "this
+            ; evening" without a word, in the popup and in the calendar ("tomorrow at 10 am" fell back to the evening).
+            Core.DebugMsg("Schedule: the time '" + timeCondition + "' could not be read: nothing arranged")
+            Core.TellFailure(akNPC, akNPC.GetDisplayName() + " could not make out when that was meant to be (\"" + timeCondition + "\"): nothing was arranged.")
+            Return -1
+        EndIf
         targetHour = HOUR_EVENING
     EndIf
     Float currentHour = GetCurrentGameHour()

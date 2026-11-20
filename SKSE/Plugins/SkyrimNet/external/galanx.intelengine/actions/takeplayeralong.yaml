@@ -1,0 +1,36 @@
+customCategory: intel_communication
+name: TakePlayerAlong
+description: >
+  You are on your way to clear out a place (you know it under "What I asked of {{ player.name }}"), and
+  {{ player.name }} asks to come along with you, and you agree. {{ player.name }} comes with you from now on.
+
+  Use it in the same reply in which you agree in your own words. Not when you are the one asking (that is
+  InviteAlong), and not when you refuse.
+
+questEditorId: IntelEngine_QuestKeeper
+scriptName: IntelEngine_Quests
+executionFunctionName: TakePlayerAlong
+
+parameterMapping:
+  - type: speaker
+    name: akNPC
+    description: You (the one agreeing)
+
+eligibilityRules:
+  - conditions:
+      - decoratorName: is_in_combat
+        arguments: ["currentActor"]
+        comparisonOperator: "=="
+        expectedValue: false
+      - decoratorName: get_intelengine_venture_invite
+        arguments: ["currentActor"]
+        comparisonOperator: "is_not_empty"
+        expectedValue: ""
+    logicalOperator: "AND"
+    required: true
+
+eventString: "{{ actor.name }} agreed to take {{ player.name }} along"
+isShortLived: true
+enabled: true
+defaultPriority: 5
+tags: []
