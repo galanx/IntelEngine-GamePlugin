@@ -1272,6 +1272,8 @@ Function Watch()
     If earshotLooks <= 0
         earshotLooks = 30
         IntelEngine.ArcEarshot(SkyrimNetApi.GetConfigFloat("game", "interaction.maxDistance", 1600.0))
+        ; The "Stories" switch of the settings holds for the town's own stories too: off, none begins.
+        IntelEngine.ArcStoriesOn(Core().IsStoryEngineEnabled())
     EndIf
     earshotLooks -= 1
     Int[] lapsed = IntelEngine.ArcLapse()
