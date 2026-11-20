@@ -135,6 +135,7 @@ Function Begin()
     RegisterForModEvent("IntelEngine_ArcOffer", "OnArcOffer")
     RegisterForModEvent("IntelEngine_ArcUntie", "OnArcUntie")
     RegisterForModEvent("IntelEngine_ArcClue", "OnArcClue")
+    RegisterForModEvent("IntelEngine_Seam", "OnArrived")
     RegisterForSingleUpdate(WATCH_SECONDS)
 EndFunction
 
@@ -159,6 +160,62 @@ Bool Function DebugRescue(Actor asker)
     Bool ok = IntelEngine.ArcRequestRescue(asker)
     Core().DebugMsg("Arcs: a rescue asked for " + asker.GetDisplayName() + ": " + ok)
     Return ok
+EndFunction
+
+Bool Function DebugHuntRumored(Actor asker)
+    {Test hook: a hunt that begins as talk in town (nobody comes to the player; the innkeeper has heard of it, and the
+    offer goes out when the player comes to the one who wants help).}
+    Bool ok = IntelEngine.ArcRequestHunt(asker, true)
+    Core().DebugMsg("Arcs: a hunt asked for " + asker.GetDisplayName() + ", as talk in town: " + ok)
+    Return ok
+EndFunction
+
+Function DebugBringUp()
+    {Test hook: whoever keeps the place the player stands in brings up the talk of the day now.}
+    BringUpRumor(true)
+EndFunction
+
+Function DebugRumor(String text, Float weight)
+    {Test hook: something goes round the hold the player stands in, as news, with this weight (0.55 crosses one border,
+    0.75 three, 0.9 reaches every hold; a game day for each).}
+    Int id = IntelEngine.RumorDebugNote(text, None, weight)
+    Core().DebugMsg("Arcs: test rumor #" + id + " goes round (weight " + weight + ")")
+EndFunction
+
+Event OnArrived(String eventName, String strArg, Float numArg, Form sender)
+    {The player arrived somewhere (the director's moments). In an inn, whoever keeps it has heard the talk of the day.}
+    If (numArg as Int) == 2 && Enabled()
+        BringUpRumor(false)
+    EndIf
+EndEvent
+
+Function BringUpRumor(Bool now)
+    {The one who keeps the place passes on the one thing most worth a word: trouble someone wants help with first,
+    else something new that has weight. Once in a while (six game hours), after the player has had a moment to come
+    in, never at a bad moment, never the same thing twice. They say it themselves, in their own words (a narration
+    to SkyrimNet); the DLL chooses what (RumorBridge::BringUp).}
+    Float day = Utility.GetCurrentGameTime()
+    If !now
+        If (day - StorageUtil.GetFloatValue(self, "Intel_RumorBroughtUp", -10.0)) * 24.0 < 6.0
+            Return
+        EndIf
+        Utility.Wait(7.0)
+    EndIf
+    Actor player = Game.GetPlayer()
+    If player.IsInCombat() || Utility.IsInMenuMode()
+        Return
+    EndIf
+    Actor teller = IntelEngine.RumorPublican()
+    If teller == None
+        Return
+    EndIf
+    String word = IntelEngine.RumorBringUp(teller)
+    If word == ""
+        Return
+    EndIf
+    StorageUtil.SetFloatValue(self, "Intel_RumorBroughtUp", day)
+    Core().SendTaskNarration(teller, "has heard something and passes it on to " + player.GetDisplayName() + " unasked, in their own words, as hearsay: " + word, player)
+    Core().DebugMsg("Arcs: " + teller.GetDisplayName() + " brings up the talk of the day: " + word)
 EndFunction
 
 Bool Function DebugHunt(Actor asker)
@@ -186,11 +243,15 @@ Bool Function DebugTaleWhy(Actor asker, String why)
     Return IntelEngine.ArcRequestTaleWhy(asker, why)
 EndFunction
 
-Function DebugHeart(Actor who, Int sparked, Int stance)
+Function DebugHeart(Actor who, Int sparked, Int stance, Float refusedDaysAgo = -1.0)
     {Test hook: tells the DLL what a relationship mod would keep about this person and the player (something of the
-    heart on their side, the player's answer to it: -1, 0, 1), without touching any mod's records. Someone such a
-    mod tracks is told again from its own records within a minute.}
-    IntelEngine.ArcHeart(who, sparked, stance, 0, false, 0, false)
+    heart on their side, the player's answer to it: -1, 0, 1; for a no, how many game days ago it was first seen),
+    without touching any mod's records. Someone such a mod tracks is told again from its own records within a minute.}
+    Float refusedAt = -1.0
+    If stance < 0 && refusedDaysAgo >= 0.0
+        refusedAt = Utility.GetCurrentGameTime() - refusedDaysAgo
+    EndIf
+    IntelEngine.ArcHeart(who, sparked, stance, 0, false, 0, false, refusedAt)
 EndFunction
 
 Bool Function DebugTaleFile(Actor asker, String path)
@@ -1173,8 +1234,22 @@ Function TellHearts()
             If listed > children
                 children = listed
             EndIf
-            IntelEngine.ArcHeart(who, StorageUtil.GetIntValue(who, "SNRom_Sparked"), StorageUtil.GetIntValue(who, "SNRom_PlayerStance"), \
-                withChild, withChild > 0 && father != "" && father == playerName, children, StorageUtil.GetIntValue(who, "SNKin_IsPlayerChild") == 1)
+            ; A no is remembered with its day (the relationship mod keeps only the no): it stands for a season, and
+            ; what may come after is decided in the DLL (Hearts.h, SecondChance). A no taken back is forgotten.
+            Int stance = StorageUtil.GetIntValue(who, "SNRom_PlayerStance")
+            Float refusedAt = -1.0
+            If stance < 0
+                refusedAt = StorageUtil.GetFloatValue(who, "Intel_TurnedDownAt", -1.0)
+                Float today = Utility.GetCurrentGameTime()
+                If refusedAt < 0.0 || refusedAt > today
+                    refusedAt = today
+                    StorageUtil.SetFloatValue(who, "Intel_TurnedDownAt", refusedAt)
+                EndIf
+            ElseIf StorageUtil.HasFloatValue(who, "Intel_TurnedDownAt")
+                StorageUtil.UnsetFloatValue(who, "Intel_TurnedDownAt")
+            EndIf
+            IntelEngine.ArcHeart(who, StorageUtil.GetIntValue(who, "SNRom_Sparked"), stance, \
+                withChild, withChild > 0 && father != "" && father == playerName, children, StorageUtil.GetIntValue(who, "SNKin_IsPlayerChild") == 1, refusedAt)
         EndIf
         heartAt += 1
         looked += 1
