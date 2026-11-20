@@ -237,6 +237,7 @@ Bool Property QuestAllowVictimDeath = false Auto Hidden
 String Property QuestAlliedFaction = "" Auto Hidden
 String Property QuestBattleEnemyFaction = "" Auto Hidden  ; faction_battle: validated enemy from DM
 Bool Property QuestBattleScheduled = false Auto Hidden  ; faction_battle: waiting for battle to end
+Int Property QuestBattleTries = 0 Auto Hidden           ; faction_battle: how often the armies could not be drawn up yet
 
 ; CK Property -- quest objective alias (points compass at quest location)
 ReferenceAlias Property QuestTargetAlias Auto
@@ -5508,6 +5509,16 @@ Function CheckQuestProximity()
                         battle.BattleSpawnAnchor = QuestLocation
                         battle.StartBattleImmediate(QuestAlliedFaction, enemyFaction, 0)
                         ; Verify the battle actually started
+                        If !IntelEngine.IsBattleActive() && QuestBattleTries < 60
+                            ; No ground for two armies where the player is just now (among houses, people about, a
+                            ; lake): they are drawn up as soon as there is, as the player walks on. (The quest used
+                            ; to fail on the spot.)
+                            QuestBattleTries += 1
+                            QuestBattleScheduled = false
+                            QuestEnemiesSpawned = false
+                            Core.DebugMsg("Story [quest/faction_battle]: the armies cannot be drawn up here yet (try " + QuestBattleTries + ")")
+                            return
+                        EndIf
                         If !IntelEngine.IsBattleActive()
                             Core.DebugMsg("Story [quest/faction_battle]: StartBattleImmediate failed, failing quest")
                             Debug.Notification("The forces have already moved on.")
@@ -6420,6 +6431,7 @@ Function CleanupQuest()
     QuestItemName = ""
     QuestAlliedFaction = ""
     QuestBattleScheduled = false
+    QuestBattleTries = 0
     QuestVictimFreed = false
     QuestBossNPC = None
     QuestPrePlaced = false

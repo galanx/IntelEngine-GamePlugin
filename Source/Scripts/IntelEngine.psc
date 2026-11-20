@@ -1221,14 +1221,49 @@ String Function GetFactionSoldierTemplate(String factionId) Global Native
 ; Falls back to generic bandit if template not found. Returns array of spawned Actors.
 Actor[] Function SpawnBattleSoldiers(String factionIdWithCount, ObjectReference spawnAt) Global Native
 
-; Execute the ENTIRE battle spawn sequence in C++: player join, position calculation,
-; spawn both sides at anchor, faction assignment, leader selection, bounty snapshot.
-; Returns JSON: {success, sideACount, sideBCount, paired, playerJoined, joinFaction, notification,
-;                leaderFormId, sideAFormIds, sideBFormIds}
-String Function ExecuteFullBattleSpawn(String questAutoJoinFaction, Actor player, Float playerAngleZ, ObjectReference spawnAnchor) Global Native
+; Where the two armies of the active battle can be drawn up near the player: never where the player stands, never
+; where people live or stand about, on ground that is there, dry and not across a cliff. place: what the battle is
+; named after (may be None). The field found is remembered for the battle.
+; Returns JSON: {ok, x, y, z, axis, reason}
+String Function BattlePickField(Actor player, ObjectReference place) Global Native
 
-; Spawn reinforcements for an active battle (wave 2+). Handles factions, aggression, combat, crime factions.
-String Function SpawnReinforcements(Int count, Actor player, ObjectReference spawnAnchor = None) Global Native
+; Part of one army of the active battle drawn up on its field ("A" or "B"): soldiers first to first + count - 1
+; of its first wave, in ranks, the commander (number 0) in front, facing the other line, standing down. Created
+; where they stand, switched off: the script lets them fade in. A few at a time: making a soldier costs about a
+; quarter of a millisecond of the game's frame.
+; Returns JSON: {success, count, formIds, commander: [id] (with number 0), error}
+String Function BattleMusterLine(String side, Int first, Int count, Actor player) Global Native
+
+; count more soldiers for one side, created behind their own line where the player is least likely to see it,
+; switched off. first: their number in the group that comes up together (0 picks where the group comes from).
+; Returns JSON: {success, count, formIds, error}
+String Function BattleReinforceLine(String side, Int first, Int count, Actor player) Global Native
+
+; The lines have met: from now on the battle can be won and lost.
+Function BattleBeginFight() Global Native
+
+; Who has the better of a battle that is not fought out. Returns JSON: {result, victor} ("draw" and "" for nobody).
+String Function BattleVerdict() Global Native
+
+; A side called the player to its line and was turned down or not answered.
+Function BattleNoteTurnedDown(String factionId) Global Native
+
+; The player walked away from a battle they had taken a side in.
+Function BattleNotePlayerLeft() Global Native
+
+; The field of the active battle. Returns JSON: {set, x, y, z, axis, mustering, commanderA: [id], commanderB: [id]}
+String Function BattleFieldInfo() Global Native
+
+; Each army brings up its own reserves when it is the one that needs them. side: "A" or "B".
+Int Function GetBattleWaveOf(String side) Global Native
+Function AdvanceBattleWaveOf(String side) Global Native
+
+; A sentence of a battle, whole: what the player reads (drawn_up, broke_out, stand_with, captain_fell, word_won,
+; word_nobody, more_come, last_come, choice_body, choice_join, choice_out, commander_name) or what somebody is given to say in their own
+; words (hail, cry, after_won, after_drawn, after_lost). a, b: faction ids; name: someone's or some place's name.
+; Whole, and made in the DLL, because the game keeps one spelling for all strings that differ only in capitals:
+; "the Imperial Legion" put together in a script came out as "The Imperial Legion" in the middle of a sentence.
+String Function BattleSay(String what, String a = "", String b = "", String name = "", Int number = 0, Int other = 0) Global Native
 
 ; Get FormIDs of soldiers on a given side ("A" or "B"). Returns JSON: {formIds: [...], count, alive}
 String Function GetBattleSoldierFormIds(String side) Global Native
