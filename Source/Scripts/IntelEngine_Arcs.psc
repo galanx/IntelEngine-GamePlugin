@@ -184,6 +184,11 @@ Function DebugBringUp()
     BringUpRumor(true)
 EndFunction
 
+Function DebugFactionEditor()
+    {Test hook: reads what the load order offers the faction editor and saves the faction file as it stands.}
+    IntelEngine.FactionEditorSelfTest()
+EndFunction
+
 Function DebugRumor(String text, Float weight)
     {Test hook: something goes round the hold the player stands in, as news, with this weight (0.55 crosses one border,
     0.75 three, 0.9 reaches every hold; a game day for each).}

@@ -712,6 +712,8 @@ Actor Function RumorPublican() Global Native
 String Function RumorBringUp(Actor akTeller) Global Native
 ; Test hook: something goes round the hold the player is in (with akLead: trouble, and they are the one to go to).
 Int Function RumorDebugNote(String asText, Actor akLead, Float afWeight) Global Native
+; Test hook: the faction editor's DLL side without the dashboard (FactionEditor.cpp); IntelEngine.log tells.
+Function FactionEditorSelfTest() Global Native
 Function ArcGangPlaced(Int id) Global Native
 ; A tale's ambush: one of its men placed (k = 0 leads), and what a look asked of the script done (1 placed, 2 they
 ; struck, 3 called off unseen).
