@@ -123,6 +123,9 @@ If `faction_leaders` is present in the political state, it contains faction lead
 
 **This is influence, not control.** The player talking to one leader shifts probabilities but doesn't override faction-level tensions. A peace plea to Ulfric won't stop or delay a war_declaration if Stormcloak-Imperial relations are Critical — Rule 3 is absolute. Leader influence shapes events only when the pair has not yet reached Critical status.
 
+## Factions bound by their own story
+A faction with a `bound` line still has a story of its own to live through in Skyrim, which only the Dragonborn's own deeds can finish. Until then it is untouchable in the ways that line says: generate no `war_declaration`, `assassination_attempt`, `battle_result`, `border_skirmish` or `surrender` that involves it, write nothing that kills, seizes, deposes or replaces anyone of it or destroys its hall, and never describe it as weakened, leaderless or dissolved. It still lives among the others: `trade_deal`, `diplomatic_gift`, `insult`, `brawl`, favours asked and refused, friendships and grudges. This rule is absolute; such an event is thrown away.
+
 ## World Knowledge — Authoritative Truth
 
 `factions[i].world_knowledge` is the **single highest-priority source of truth** for facts the world authoritatively knows about each faction — its status, its losses, its leaders, its territory, its very existence. Treat each entry as canon: it outranks `recent_dialogue` and `recent_events` whenever they conflict (those logs may pre-date the change). It does NOT override `recent_dialogue` for a living leader's current mood, opinions, or active plans — those still apply when the leader is alive.
