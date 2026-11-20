@@ -135,6 +135,7 @@ Function Begin()
     RegisterForModEvent("IntelEngine_ArcOffer", "OnArcOffer")
     RegisterForModEvent("IntelEngine_ArcUntie", "OnArcUntie")
     RegisterForModEvent("IntelEngine_ArcClue", "OnArcClue")
+    RegisterForModEvent("IntelEngine_ArcSpirit", "OnArcSpirit")
     RegisterForModEvent("IntelEngine_Seam", "OnArrived")
     RegisterForSingleUpdate(WATCH_SECONDS)
 EndFunction
@@ -159,6 +160,14 @@ Bool Function DebugRescue(Actor asker)
     close to the asker who is held at a place near their town, or nothing).}
     Bool ok = IntelEngine.ArcRequestRescue(asker)
     Core().DebugMsg("Arcs: a rescue asked for " + asker.GetDisplayName() + ": " + ok)
+    Return ok
+EndFunction
+
+Bool Function DebugHaunt(Actor asker)
+    {Test hook: a haunting is asked for (a story about something that walks by night outside one of the places near
+    the asker's town), or nothing.}
+    Bool ok = IntelEngine.ArcRequestHaunt(asker)
+    Core().DebugMsg("Arcs: a haunting asked for " + asker.GetDisplayName() + ": " + ok)
     Return ok
 EndFunction
 
@@ -1381,6 +1390,7 @@ Function WatchOne(Int id)
         PlaceBosses(id)
         PlaceCaptive(id)
         PlaceClues(id)
+        TendSpirit(id)
         If jq != None && Math.LogicalAnd(r, 31) == 0
             ; Only the marker: the objective is on the screen already. Showing the step anew here put the quest's
             ; name and objective up again every time a marker moved or something was laid out in the world (the
@@ -1471,6 +1481,7 @@ Function Ended(Int id, Int ending, Quest jq)
     {The ending's log entry completes or fails the journal quest. Memories and what the town hears are the DLL's.}
     CallOff(id, false)   ; men of an ambush still waiting somewhere unseen have no errand left
     ReleaseClues(id)
+    ReleaseSpirit(id)
     If jq == None
         Return
     EndIf
@@ -1848,6 +1859,103 @@ Function GiveRemedy(Int id, Int site, Actor giver)
     Core().NotifyPlayer(giver.GetDisplayName() + " gave you " + remedy.GetName() + " (2).")
     Core().SendTaskNarration(giver, "hands " + player.GetDisplayName() + " two of " + remedy.GetName() + ", all they have against what did it", player)
     Core().DebugMsg("Arcs: #" + id + " " + giver.GetDisplayName() + " gives the player " + remedy.GetName() + " (named rightly what did it)")
+EndFunction
+
+Float SpiritTouchedAt = 0.0
+
+Function TendSpirit(Int id)
+    {What walks by night outside a place of a story. The DLL says when there is something to do: it is night and that
+    ground is in the game (then "spiritbase" names whose shade to put there), or the sky has grown light while it is
+    out. Put by the place's marker, or a little way behind the player when that spot is in plain view close by, and
+    fading in either way: it is a shade. It is on nobody's side and starts no fight; the player's hand on it is the
+    story's (the DLL hears it, OnArcSpirit). At first light it fades, unless it is fighting.}
+    Actor player = Game.GetPlayer()
+    Actor shade = IntelEngine.ArcForm(id, "spirit") as Actor
+    Form base = IntelEngine.ArcForm(id, "spiritbase")
+    If shade == None && base != None
+        ObjectReference anchor = IntelEngine.ArcForm(id, "spiritanchor") as ObjectReference
+        If anchor == None
+            Return
+        EndIf
+        Cell there = anchor.GetParentCell()
+        If there == None || !there.IsAttached()
+            Return
+        EndIf
+        shade = anchor.PlaceAtMe(base, 1, true, true) as Actor
+        If shade == None
+            Return
+        EndIf
+        If player.GetDistance(anchor) < 1500.0 && player.HasLOS(anchor)
+            Float behind = player.GetAngleZ() + 180.0
+            shade.MoveTo(player, 900.0 * Math.Sin(behind), 900.0 * Math.Cos(behind), 0.0, false)
+        EndIf
+        shade.RemoveFromAllFactions()
+        shade.SetActorValue("Aggression", 0)
+        shade.SetActorValue("Confidence", 4)
+        shade.SetActorValue("Assistance", 0)
+        shade.BlockActivation(true)
+        String named = IntelEngine.ArcText(id, "spiritname")
+        If named != ""
+            shade.SetDisplayName(named, true)
+        EndIf
+        shade.Enable(true)
+        IntelEngine.ArcSpiritOut(id, shade)
+        Core().DebugMsg("Arcs: #" + id + " " + shade.GetDisplayName() + " walks outside " + IntelEngine.ArcText(id, "spiritplace") + " tonight")
+    ElseIf shade != None && base == None
+        Float day = Utility.GetCurrentGameTime()
+        Float hour = (day - Math.Floor(day)) * 24.0
+        If hour >= 5.0 && hour < 21.0 && !shade.IsDead() && !shade.IsInCombat()
+            shade.Disable(true)
+            shade.Delete()
+            IntelEngine.ArcSpiritGone(id, 0)
+            Core().DebugMsg("Arcs: #" + id + " what walked there fades with the light")
+        EndIf
+    EndIf
+EndFunction
+
+Event OnArcSpirit(String eventName, String strArg, Float numArg, Form sender)
+    {The player reached out to what walks by night (their hand on it; the DLL hears it, ArcBridge::Activated). With
+    what it wants in their pack it is laid to rest: the thing goes with it, it says its last words, and it is gone.
+    Without, their hand passes through it, and it answers that in its own way (not more than once in a while).}
+    Int id = numArg as Int
+    Actor shade = sender as Actor
+    Actor player = Game.GetPlayer()
+    If shade == None || shade.IsDead()
+        Return
+    EndIf
+    If strArg == "rest"
+        String thing = IntelEngine.ArcText(id, "spiritwants")
+        If !IntelEngine.ArcSpiritRest(id)
+            Return
+        EndIf
+        Core().DebugMsg("Arcs: #" + id + " " + shade.GetDisplayName() + " is laid to rest")
+        Core().SendTaskNarration(shade, "is given " + thing + " by " + player.GetDisplayName() + ", the one thing that held them here, and can rest at last; they say their last words to the living before they are gone", player)
+        Utility.Wait(2.0)
+        Quests().WaitForTheirSay(shade, 30.0)
+        shade.Disable(true)
+        shade.Delete()
+        IntelEngine.ArcSpiritGone(id, 3)
+    Else
+        Float now = Utility.GetCurrentRealTime()
+        If now - SpiritTouchedAt < 20.0 && now >= SpiritTouchedAt
+            Return
+        EndIf
+        SpiritTouchedAt = now
+        Core().SendTaskNarration(shade, "is reached for by " + player.GetDisplayName() + ", whose hand passes through them like cold mist", player)
+    EndIf
+EndEvent
+
+Function ReleaseSpirit(Int id)
+    {A story is over: nothing of it walks any more. What was struck down lies where it fell, as the game leaves its
+    dead.}
+    Actor shade = IntelEngine.ArcForm(id, "spirit") as Actor
+    If shade != None
+        If !shade.IsDead()
+            shade.Disable(true)
+            shade.Delete()
+        EndIf
+        IntelEngine.ArcSpiritGone(id, 0)
+    EndIf
 EndFunction
 
 Function ReleaseClues(Int id)

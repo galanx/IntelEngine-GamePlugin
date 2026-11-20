@@ -700,6 +700,12 @@ Bool Function ArcRequestRescue(Actor akGiver) Global Native
 Function ArcCluePlaced(Int id, Int clue, ObjectReference akLies) Global Native
 ; A hunt asked for: a tale about what is killing people near the giver's town is written, or nothing (false).
 Bool Function ArcRequestHunt(Actor akGiver, Bool abRumored = false) Global Native
+; What walks by night outside a place of a story (ArcBridge, Arcs.h SpiritState): asked for as a story of its own,
+; put there and taken away by the script, laid to rest by the player's hand with what it wants in their pack.
+Bool Function ArcRequestHaunt(Actor akGiver, Bool abRumored = false) Global Native
+Function ArcSpiritOut(Int id, Actor akShade) Global Native
+Function ArcSpiritGone(Int id, Int how) Global Native
+Bool Function ArcSpiritRest(Int id) Global Native
 ; The talk of the day (RumorBridge): who would pass it on where the player stands (the innkeeper, a server, the
 ; bard; None at a bad moment), and what they bring up unasked (counted as told; "" when nothing is worth a word).
 Actor Function RumorPublican() Global Native

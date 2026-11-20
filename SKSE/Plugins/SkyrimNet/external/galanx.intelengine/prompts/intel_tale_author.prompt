@@ -7,7 +7,9 @@
    between the asker and the player: courtship, together, family, affair; Hearts.h decides), items, quests (the player's
    current quests), told (stories told before), lean (a genre to lean toward), reward; places (key, name, what, far,
    heart, cleared, holds); must_place (this one leads out into the world), must_captive (a rescue was asked for),
-   bar_captive (nobody is held this time); on a second attempt also fix (why the first answer was refused) and
+   bar_captive (nobody is held this time), must_mystery / bar_examine (a hunt: asked for, or not on offer),
+   must_haunt / bar_haunt (something that walks by night: asked for, or not on offer), rumored (it begins as talk in
+   town), thread (a second flavour to weave in); on a second attempt also fix (why the first answer was refused) and
    previous (that answer). The JSON keys are the contract with Tales.h. #}
 [ system ]
 You are the dungeon master of a living Skyrim. You write one story of a town that the player can live through: real
@@ -61,6 +63,11 @@ Rules for this story: {{ player_name }} can always say no kindly, at more than o
 # Something is killing near {{ town }}
 This story is a hunt. People, or their beasts, have been found dead out by one of the places below, and in {{ town }} nobody knows what did it, or someone knows and is not saying. {{ asker_name }} has a reason of their own to want it found out (kin, a debt, guilt, fear for someone still alive). It goes: people first (who found the dead, who saw something that night, who is lying about where they were); then what was left of a victim, outside the place ("examine", with a "clue" taken from that place's signs); then, where someone of the story would know what to do about it, {{ player_name }} says what they think did it ("name"); then what did it, faced in that place ("slay" there); then people again, because what {{ player_name }} found out there overturns something that was said in town, and the story ends on a choice that costs someone. Nothing before the "examine" names what did it: not the offer, not a witness (they tell what they saw and feared, and may be wrong), not a goal. {{ player_name }} is to work it out from what they see.
 {% endif %}
+{% if must_haunt %}
+
+# Something walks by night near {{ town }}
+This story is a haunting. Out by one of the places below something has been seen after dark: the shade of someone who died there and does not rest. People of {{ town }} are afraid of it and talk around it, and at least one of them knows why it walks, because what keeps it here was done by the living: someone left to die, a promise broken, a death lied about, a thing taken from the dead, a grave never dug. {{ asker_name }} has a reason of their own to want it ended (kin, guilt, fear, love), and may not have told all of it. It goes: people first (who saw it, who will not speak of the dead one, who profits from the silence); then the one thing the dead one wants, which someone living has kept or hidden (an item of the story, a "find"); and the shade itself, by night ("haunt"), which {{ player_name }} can speak with and which answers only from its own truth. It can be struck down, which ends the fear and buries the truth with it, or be given that thing and laid to rest, which means someone living has to answer for what was done. The story ends among the living, on a choice that costs someone. Keep it quiet and cold rather than loud: what frightens is what people will not say, a door kept shut, a name nobody uses any more. Nothing before the shade speaks says plainly who wronged it.
+{% endif %}
 {% if must_captive %}
 
 # Someone has been taken
@@ -75,7 +82,7 @@ This story is about someone of {{ town }} who is held at one of the places below
 
 # Places out in the world the story may lead to (by key)
 {% if length(places) > 0 %}{% for d in places %}
-- {{ d.key }}: {{ d.name }}, {{ d.what }}, {{ d.far }}; at its heart: {{ d.heart }}.{% if d.cleared %} Cleared once already; something new has moved in.{% endif %}{% if d.holds %} Someone may be held here.{% endif %}{% if d.outside and not bar_examine %} What lives here leaves these signs on those it kills: {{ d.signs }}.{% endif %}
+- {{ d.key }}: {{ d.name }}, {{ d.what }}, {{ d.far }}; at its heart: {{ d.heart }}.{% if d.cleared %} Cleared once already; something new has moved in.{% endif %}{% if d.holds %} Someone may be held here.{% endif %}{% if d.outside and not bar_examine %} What lives here leaves these signs on those it kills: {{ d.signs }}.{% endif %}{% if d.outside and not bar_haunt %} There is open ground outside it, where the dead may walk.{% endif %}
 {% endfor %}{% else %}
 - none near enough
 {% endif %}
@@ -140,6 +147,9 @@ This story is about someone of {{ town }} who is held at one of the places below
 {% if not bar_examine %}
 - "examine": what was left of a victim lies outside a place ("place": "dX", one whose line gives its signs), and {{ player_name }} looks at it closely. "what": one of "a hunter" (a man), "a cow", "a horse", "a goat", "a deer". "name": the dead one's name when the story gives them one ("Torvald"; leave it out for a beast): the body carries it. "clue": what {{ player_name }} sees on it, one or two plain sentences, taken from that place's signs and from nothing else; it never names what did it, and it is true (a clue may be puzzling, never false). The body lies there whole and clothed: a clue speaks of wounds, colour, smell and what clings to it, never of anything missing or torn off. What did it is what lives in that place, so a later step is the "slay" there. At most two in a story. Its "journal" line is what {{ player_name }} sees, not yet what it means.
 - "name": after an "examine", {{ player_name }} tells someone what did it ("with": "pX": whoever would know what to do about it, or the one who asks; "place": "dX", the place the remains lie by). "question": what they ask ("So what killed him?"). "truth": the answer that is true, naming what the list says lives in that place. "others": exactly two answers that are false but that people of this story believe or would rather believe (what the guard says, what the one who asks fears, what the one with something to hide puts about). "right" and "wrong": each with "then" and "journal". Told the truth, that person gives {{ player_name }} what they have against it (the engine chooses it), so working it out is worth something; a wrong answer costs that help and nothing else, and the story goes on. It comes after the "examine" and before the "slay" there.
+{% endif %}
+{% if not bar_haunt %}
+- "haunt": something walks by night outside a place ("place": "dX", one with open ground outside it): the shade of someone who died there. "spirit": what people call it ("the Pale Widow", "Old Hrolf's shade"); "sex": "woman" or "man"; "truth": the dead one's own words, first person, 3 to 6 sentences: who they were, how they died and by whose doing, what holds them here, what they want, and what they never learned. It is there only between nightfall and first light, and by day there is nothing to see. {{ player_name }} can speak with it as with anyone; it answers from that truth alone, harms nobody who leaves it be, and cannot leave the spot. Two ways on from it: "banished": {"then", "journal"} when {{ player_name }} strikes it down (always there, so the story can never be stuck; never the good ending by itself, because the wrong stays unrighted); and, when "wants": "iN" names an item of the story, "rested": {"then", "journal"} when {{ player_name }} brings it that thing and holds it out. That item is found before the shade is faced (a "find" for it in an earlier step, or someone handing it over with "give iN"), and it is "hidden" with someone living who had a reason to keep it. The dead one is nobody of the list and has no line among "people"; what the living know of the death stands in their own truths, and one of them knows more than they say. The step's goal says to go by night ("Go to Graywinter Watch after dark and face what walks there"). At most one in a story.
 {% endif %}
 {% endif %}
 {% if not bar_stalk %}
