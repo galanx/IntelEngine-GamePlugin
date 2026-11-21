@@ -37,6 +37,13 @@ with ONLY one JSON object, nothing before or after it.
 {{ asker_name }} travels to find {{ player_name }}{% if player_where != "" %}, who is at {{ player_where }}{% endif %}: offer.words is how they arrive and why they came all that way. The story's people and places are those of {{ asker_name }}'s own town and hold.
 {% endif %}
 {% if exists("heart_lean") %}
+{% if heart_lean == "admirer" %}
+
+# Someone who has not dared to say it
+{{ admirer_name }} ({{ admirer }}) is drawn to {{ player_name }} and has never said so: too shy, too proud, or afraid of the answer. What is true between the two stands in {{ admirer_name }}'s line below ("With {{ player_name }}"); write from that and add nothing to it. {{ asker_name }}, who is close to {{ admirer_name }}, knows or has guessed, and is the one who comes to {{ player_name }}: sent with a word or a small gift and told not to say from whom, or come on their own because they cannot watch it any longer. offer.words is {{ asker_name }}'s, and names nobody unless giving the name away is their own idea.
+The story is {{ player_name }} finding out who it is and what to do about it. {{ asker_name }} may be pressed to tell, or keep faith (a "talk" whose outcomes differ); a token may point to its giver (a "find" or "give" with an item of the list, if one fits); {{ admirer_name }} may hang back and watch from a distance before they dare come up (a "stalk" by {{ admirer }}, where that step is on offer); in the end the two speak face to face (a "talk" or "choose" with {{ admirer }}).
+Rules for this story: it is tender, awkward and a little funny; never a trick played on {{ admirer_name }}, never a humiliation, and {{ asker_name }} wants nothing for themself. {{ player_name }} can always say no kindly, at more than one point, and can also let {{ admirer_name }} keep their secret: a kind no or a kept secret changes nothing between them as friends (those branches carry no effect at all). Where {{ player_name }} welcomes it and the two come closer, the branch carries "effect": "closer {{ admirer }}". Only where {{ player_name }} mocked them or was cruel: "effect": "apart {{ admirer }}". Nothing explicit; the story ends at the door. Nobody is paid: "reward" is 0.
+{% else %}
 
 # Between {{ asker_name }} and {{ player_name }}
 This story is about the two of them, not a favour for a third person. What is true between them stands in {{ asker_name }}'s line below ("With {{ player_name }}"); write from that and add nothing to it.
@@ -52,6 +59,7 @@ They are wed, with a child coming or children already. This is a story of the ho
 {{ asker_name }} is married to another, and {{ player_name }} has welcomed what is between them all the same. This is a story about that weight: secrecy, a spouse who may suspect, a choice to end it or to stop hiding. The spouse is a person of this town with a line of their own; never make them a fool or a villain for it. An ending may leave things as they are, end it, or bring it into the open.
 {% endif %}
 Rules for this story: {{ player_name }} can always say no kindly, at more than one point. A kind no ("you are a dear friend, nothing more", "I need time") ends it without bitterness and changes nothing between them as friends: that branch carries no effect at all. Where the two come closer, the branch carries "effect": "closer {{ asker }}". Only where {{ player_name }} was cruel or careless with them (a lie, mockery, walking off without a word) does it carry "effect": "apart {{ asker }}". Nothing is paid for a story like this: nobody promises gold for it, in offer.ask or anywhere ("reward" and "pay" are ignored); what is gained is each other. Tell it in words and gestures only: a hand held, an embrace, a kiss at most, and the story ends at the door. Only grown people have any part in it.
+{% endif %}
 {% endif %}
 {% if rumored %}
 
@@ -74,7 +82,14 @@ This story is a haunting. Out by one of the places below something has been seen
 This story is about someone of {{ town }} who is held at one of the places below when it begins: carried off, sold, lured there, or gone of their own will and now kept. Who, by whom and why is yours to invent from who these people are. It must be one of the people whose line says they may be held and that they are close to {{ asker_name }} (nobody asks a stranger to risk their neck for someone who is nothing to them), at a place whose line says someone may be held there ("held": "dX" on that person), and a step frees them ("do": "free"). {{ asker_name }} comes to {{ player_name }} because of them. The one held knows more than {{ asker_name }} does: what they say once free is the turn of the story, and the story does not end at the place.
 {% endif %}
 
-# The people you may use (by key)
+{% if exists("talk") %}# What people here are talking about now
+{% for t in talk %}- {{ t }}
+{% endfor %}A story may grow out of one of these: someone it touches, someone who doubts it, someone who means to profit by it, someone it shames. Or it passes them by. Never contradict them, and never make {{ player_name }} retell or prove what they did.
+
+{% endif %}{% if exists("times") %}# The times
+{{ times }}The war and the factions are the weather these people live in. A story may turn on it when one of the people below is honestly part of it: a son gone to the army, a debt to a quartermaster, a deserter hidden in a barn, a recruiter at the inn, a letter that must not reach a camp, someone who would like {{ player_name }}'s name with a faction used for them or held against them. It stays a story of these people: never move an army, begin or end a war, or harm a leader, and never say how the war will go.
+
+{% endif %}# The people you may use (by key)
 {% for p in people %}
 - {{ p.key }}: {{ p.name }}, {{ p.sex }}, {{ p.race }}; {{ p.work }}. Temperament: {{ p.temperament }}. Home: {{ p.home }}.{% if length(p.may) > 0 %} May: {% for m in p.may %}{{ m }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if length(p.ties) > 0 %} Ties: {% for t in p.ties %}{{ t }}{% if not loop.is_last %}; {% endif %}{% endfor %}.{% endif %}{% if existsIn(p, "close") %} Close to {{ asker_name }}.{% endif %}{% if existsIn(p, "heart") %} With {{ player_name }}: {{ p.heart }}{% endif %}{% if existsIn(p, "quest") %} Has a part in a quest of the game not finished ({{ p.quest }}): keep clear of that quest's whole matter; never touch their past, secret or fate from it.{% endif %}{% if existsIn(p, "quest_done") %} Quests of the game {{ player_name }} has finished with them: {{ p.quest_done }}; a story may grow out of how those ended.{% endif %}{% if existsIn(p, "favours") %} The game's own errands with them: {{ p.favours }}; never retell one.{% endif %}{% if existsIn(p, "office") %} Holds office in the hold and has a part in Skyrim's own story: a matter may be brought before them, they may judge, advise or refuse; never the guilty one, never corrupt, never deceived into harm, nothing about them changed.{% endif %}{% if existsIn(p, "old") %} An old companion of {{ player_name }}'s, not of this town: {{ p.old }} A story may lead {{ player_name }} to them where they are now, or have them seek {{ player_name }} out ("visit"); never jailed, sent away, fought or robbed.{% endif %}{% if existsIn(p, "about") %}
   About them: {{ p.about }}{% endif %}
