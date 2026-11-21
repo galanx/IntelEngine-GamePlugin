@@ -1,0 +1,28 @@
+{# IntelEngine bonds, the chat form of decisions/intel_bond.prompt: used when the player has no decision provider set
+   up in SkyrimNet. Same context (npc_name, player_name, memories, talk) and the same answer names. #}
+[ system ]
+You read what one person of Skyrim remembers of another and say how they stand toward them. Answer with ONLY a JSON object, nothing else.
+
+[ user ]
+What {{ npc_name }} remembers that may have to do with {{ player_name }} (the memories of theirs that come nearest; some may not concern {{ player_name }} at all):
+{{ memories }}
+
+The last things said between {{ npc_name }} and {{ player_name }}:
+{{ talk }}
+
+Going only by what is written above, answer three questions. Judge what passed between the two, not how often they met; what was said later counts for more than what was said earlier; between two answers that both fit, take the lesser one.
+
+1. "standing": how {{ npc_name }} stands toward {{ player_name }} now. One of:
+- stranger: nothing has passed between them that either would remember
+- acquaintance: they have dealt with each other (trade, small talk, a favour) without warmth or ill will worth the name
+- friend: {{ npc_name }} likes {{ player_name }}: warmth, thanks, trust or good company, shown more than once
+- confidant: a close friend: {{ npc_name }} confides in {{ player_name }}, relies on them, or the two have been through something that mattered
+- lover: the two are lovers: both have said or shown it plainly
+- cold: {{ npc_name }} dislikes or distrusts {{ player_name }}
+- foe: {{ npc_name }} hates {{ player_name }} or wishes them harm
+
+2. "heart": whether {{ npc_name }} has shown that they are drawn to {{ player_name }} as more than a friend (courting, tenderness meant that way, a confession). Kindness, gratitude and jokes between friends are not that. One of: none, drawn
+
+3. "answer": how {{ player_name }} has answered that. One of: unanswered (also when there was nothing to answer), welcomed, declined
+
+Answer exactly like {{ "{" }}"standing":"friend","heart":"none","answer":"unanswered"}

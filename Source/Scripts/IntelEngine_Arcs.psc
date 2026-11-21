@@ -279,6 +279,25 @@ Bool Function DebugTaleFile(Actor asker, String path)
     Return IntelEngine.ArcDebugTaleFile(asker, path)
 EndFunction
 
+Bool Function DebugBond(Actor who)
+    {Test hook: how this person stands with the player is read now from what they remember of the player (as it is
+    for everybody, by and by, in a game without a relationship mod). The answer comes to IntelEngine.log a few
+    seconds later ("Bonds: ... stands to the player as ..."); DebugBondOf says it afterwards.}
+    Bool ok = IntelEngine.BondJudge(who)
+    Core().DebugMsg("Bonds: a reading asked for " + who.GetDisplayName() + ": " + ok)
+    Return ok
+EndFunction
+
+Function DebugBondOf(Actor who)
+    {Test hook: what was last read of this person, in the log.}
+    Core().DebugMsg("Bonds: " + who.GetDisplayName() + " - " + IntelEngine.BondDescribe(who))
+EndFunction
+
+Function DebugBondNoMod(Bool on)
+    {Test hook: go on as if no relationship mod were installed (this session only), so that what was read counts.}
+    IntelEngine.BondPretendNoMod(on)
+EndFunction
+
 Int Function DebugArc(Actor asker, Int pattern = 0)
     {Test hook (in-game tests): plans an arc with this asker as the director will and sends them to the player to ask;
     the id, 0 when none fits or they cannot come.}

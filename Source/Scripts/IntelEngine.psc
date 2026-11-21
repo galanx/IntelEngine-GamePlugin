@@ -731,6 +731,12 @@ Function ArcOfferDeferred(Int id) Global Native
 ; The offer of a planned story goes out: its asker comes to the player (IntelEngine_ArcOffer), or stays where they are
 ; and waits for the two to meet: a stranger, somebody with a post to keep, anybody once the player is out of their town.
 Function ArcOffer(Int id, Actor akAsker) Global Native
+; How somebody stands with the player where no relationship mod keeps it: read by the dialogue model from what they
+; remember of the player (Bonds.h). Test hooks: read this person now; go on as if no relationship mod were installed;
+; what was last read of them, in words.
+Bool Function BondJudge(Actor akWho) Global Native
+Function BondPretendNoMod(Bool on) Global Native
+String Function BondDescribe(Actor akWho) Global Native
 ; Someone of this story (not its asker) who stands beside the player right now, or None: nobody brings their trouble
 ; to the player in front of the people it is about.
 Actor Function ArcCompany(Int id) Global Native
