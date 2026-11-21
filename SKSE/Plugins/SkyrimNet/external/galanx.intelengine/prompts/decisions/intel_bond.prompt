@@ -1,0 +1,43 @@
+{# IntelEngine bonds: how somebody stands with the player, read from what they remember of the player, in a game
+   without a relationship mod (BondBridge.cpp, Bonds.h). One request per person, now and then, never in talk.
+   Context: npc_name, player_name, memories (the memories of theirs that come nearest to the player, with their kind
+   and age), talk (the last things said between the two, oldest first). The answer names (stranger, acquaintance,
+   friend, confidant, lover, cold, foe / none, drawn / unanswered, welcomed, declined) are the contract with Bonds.h;
+   keep them. Without a decision provider the chat form answers (intel_bond_chat.prompt). #}
+[ state record ]
+What {{ npc_name }} remembers that may have to do with {{ player_name }} (the memories of theirs that come nearest; some may not concern {{ player_name }} at all):
+{{ memories }}
+
+The last things said between {{ npc_name }} and {{ player_name }}:
+{{ talk }}
+[ end state ]
+
+[ question standing choice ]
+Going only by what is written above, how does {{ npc_name }} stand toward {{ player_name }} now? Judge what passed between the two, not how often they met: politeness, trade and small talk make an acquaintance and nothing more. What was said later counts for more than what was said earlier. Between two answers that both fit, take the lesser one.
+[ criteria ]
+stranger: Nothing has passed between them that either would remember.
+acquaintance: They have dealt with each other (trade, small talk, a favour asked or done) without warmth or ill will worth the name.
+friend: {{ npc_name }} likes {{ player_name }}: warmth, thanks, trust or good company, shown more than once.
+confidant: A close friend: {{ npc_name }} confides in {{ player_name }}, relies on them, or the two have been through something that mattered together.
+lover: The two are lovers: both have said or shown it plainly.
+cold: {{ npc_name }} dislikes or distrusts {{ player_name }}: an insult, a betrayal or a harm done that has not been made good.
+foe: {{ npc_name }} hates {{ player_name }} or wishes them harm.
+[ end criteria ]
+[ end question ]
+
+[ question heart choice ]
+Is anything of the heart in it on {{ npc_name }}'s side: have they shown that they are drawn to {{ player_name }} as more than a friend (courting, tenderness meant that way, a confession, wanting them)? Kindness, gratitude, admiration and jokes between friends are not that.
+[ criteria ]
+none: Nothing of the kind is in what is written above.
+drawn: {{ npc_name }} has shown it.
+[ end criteria ]
+[ end question ]
+
+[ question answer choice ]
+If {{ npc_name }} has shown it, how has {{ player_name }} answered?
+[ criteria ]
+unanswered: {{ player_name }} has not answered either way, or there was nothing to answer.
+welcomed: {{ player_name }} has returned it or plainly encouraged it.
+declined: {{ player_name }} has turned it down, kindly or not.
+[ end criteria ]
+[ end question ]
