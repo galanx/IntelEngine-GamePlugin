@@ -1298,6 +1298,10 @@ Function BattleBeginFight() Global Native
 ; Who has the better of a battle that is not fought out. Returns JSON: {result, victor} ("draw" and "" for nobody).
 String Function BattleVerdict() Global Native
 
+; Soldiers who stand about while the battle is on, each with the enemy nearest to them (at most `most`): JSON
+; {count, idle: [ids], foe: [ids]}. Not those who keep by the player.
+String Function BattleIdleHands(Int most) Global Native
+
 ; A side called the player to its line and was turned down or not answered.
 Function BattleNoteTurnedDown(String factionId) Global Native
 
