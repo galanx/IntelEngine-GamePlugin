@@ -1069,6 +1069,10 @@ Function BeginAsyncPoliticalTick(Float currentGameTime, Quest callbackQuest, Str
 ; Build compact political dashboard JSON for PrismaUI
 String Function BuildPoliticalDashboardJson() Global Native
 
+; The dashboard's World page: {rumors, stories, quests, asks, people} as JSON (the talk of the day, what the player
+; has taken on, what people have asked of them, those who follow them or once did).
+String Function BuildWorldDashboardJson() Global Native
+
 ; Record a political event between factions, returns event ID (-1 on failure)
 Int Function RecordPoliticalEvent(String factionA, String factionB, String eventType, String description, Int delta, Float gameTime) Global Native
 ; Return political events after an ID with feed identity and pagination metadata.
@@ -1087,9 +1091,58 @@ Function ConfirmManifestationCooldown() Global Native
 ; Reset manifestation cooldown (director override — allows repeated testing).
 Function ResetManifestationCooldown() Global Native
 
-; Execute assassination: find leader, spawn assassin at nearest door, strip factions, setup.
-; Returns the spawned assassin Actor directly (None on failure).
+; An attempt on a leader's life: a leader of the target faction near the player (not a follower, a child or somebody
+; in a scene), and a killer who comes from where the player does not see them appear: beyond a door of the room, or
+; out of sight out of doors. In no faction, starting nothing until the blow. Returns the killer (None: not here, not
+; now; the event is then told as written, see ManifestationFailed). Out of doors they are made switched off.
 Actor Function ExecuteAssassination(String targetFaction, String attackerFaction) Global Native
+
+; An event that was to be seen (held back by the DLL until then) could not be shown: recorded and told as written.
+Function ManifestationFailed() Global Native
+
+; It was shown and has recorded itself (a skirmish does, like a battle): nothing more to record.
+Function ManifestationDone() Global Native
+
+; How an attempt on a leader's life ended, as it was seen: "foiled" (the player killed the killer before the blow),
+; "saved" (after it), "failed" (somebody else did), "killed" (the leader is dead), "slain_by_player", "escaped".
+; Records it, tells it, moves the player's standing. Returns JSON: {notification, thanks, reward, targetFact, witnessFact}
+String Function AssassinationOutcome(String targetFaction, String attackerFaction, String leaderName, String outcome) Global Native
+
+; The active battle is a skirmish: size a side (2 to 6), nobody held back. To be said before the lines are drawn up.
+Function BattleSetSkirmish(Int size) Global Native
+
+; A side's hidden force: count soldiers made out to one side of the other side's line, out of the player's sight.
+; first: their number in the group (0 picks where they break cover). Returns JSON: {success, count, formIds, error}
+String Function BattleFlankLine(String side, Int first, Int count, Actor player) Global Native
+
+; A side's champion, made behind their own line out of the player's sight (once a battle).
+; Returns JSON: {success, count, formIds, champion: [id], error}
+String Function BattleChampionLine(String side, Actor player) Global Native
+
+; Some of one side's living turn their coats: from now on they count, live and die for the other side. The script
+; changes their battle side and sets them on their old comrades. Returns JSON: {count, formIds}
+String Function BattleTurnCoats(String side) Global Native
+
+; Test hook: what the active battle has in store, said outright (champion: 0 none, 1 side A, 2 side B, 3 both;
+; flank and turncoat: 0, 1 or 2).
+Function BattleSetTwists(Int champion, Int flank, Int turncoat) Global Native
+
+; The ladder: the rank a faction honours the player with now (0 to 5; none while it takes them for an enemy), and
+; what that rank is called with it ("Veteran", "Trusted Hand"; "" for none).
+Int Function PlayerFactionRank(String factionId) Global Native
+String Function PlayerRankTitle(String factionId) Global Native
+
+; Something done for a faction outside a battle: "quest" (a thing done at its asking), "saved" (a leader's life).
+; Returns the name of the rank it lifted the player to, or "".
+String Function PlayerDidFor(String factionId, String deed) Global Native
+
+; Armies are drawn up or fighting, or a battle has only just ended (its dead on the field, its survivors walking
+; off): nobody comes up to the player with a story of their own.
+Bool Function BattleFieldBusy() Global Native
+
+; Where a band that comes for the player themselves can come from: out of doors, not in or by a town or a house,
+; from a spot the player does not see and that can be walked from. Returns JSON: {ok, x, y, z, reason}
+String Function BattlePickAmbush(Actor player) Global Native
 
 ; Get the assassination target (leader) set by ExecuteAssassination.
 Actor Function GetAssassinationTarget() Global Native
@@ -1251,6 +1304,23 @@ Function BattleNoteTurnedDown(String factionId) Global Native
 ; The player walked away from a battle they had taken a side in.
 Function BattleNotePlayerLeft() Global Native
 
+; The gathering of armies one of whose sides calls the player (they hold a rank with it; of two, the one they stand
+; higher with). Returns JSON: {id, faction, place, location: [id], marker: [id]}, "{}" when nobody calls.
+String Function BattleCall() Global Native
+
+; Where an army goes when its battle is over: the marker of a town to march toward by the roads (its home if that is far
+; enough, else the nearest town; the beaten never through the army that beat them). x, y: where it was fought; dirX,
+; dirY: from the other army toward this one; notTo: the town the other army goes to. None: no town to march to.
+ObjectReference Function BattleWayHome(String factionId, Float x, Float y, Float dirX, Float dirY, Bool beaten, ObjectReference notTo) Global Native
+
+; While the field of a battle the player fought in empties: what they have come to owe a hold for violent crime since
+; they took a side is struck out again (a battle is no crime; older debts stay). During the fight the poll does it.
+Function BattleTendBounty() Global Native
+
+; Says the call's objective in the journal ("Stand with the Imperial Legion near Rorikstead ..."). Not kept by the
+; game: said again after a load.
+Function BattleCallText(String factionId, String place) Global Native
+
 ; The field of the active battle. Returns JSON: {set, x, y, z, axis, mustering, commanderA: [id], commanderB: [id]}
 String Function BattleFieldInfo() Global Native
 
@@ -1259,8 +1329,10 @@ Int Function GetBattleWaveOf(String side) Global Native
 Function AdvanceBattleWaveOf(String side) Global Native
 
 ; A sentence of a battle, whole: what the player reads (drawn_up, broke_out, stand_with, captain_fell, word_won,
-; word_nobody, more_come, last_come, choice_body, choice_join, choice_out, commander_name) or what somebody is given to say in their own
-; words (hail, cry, after_won, after_drawn, after_lost). a, b: faction ids; name: someone's or some place's name.
+; word_nobody, more_come, last_come, choice_body, choice_join, choice_out, commander_name, champion_name,
+; champion_comes, champion_fell, flank, treachery, promoted, file, word_body, word_charge, word_hold, skirmish_met,
+; ambush, stranger) or what somebody is given to say in their own words (hail, cry, champion_cry, turncoat_cry,
+; after_won, after_drawn, after_lost). a, b: faction ids; name: someone's or some place's name.
 ; Whole, and made in the DLL, because the game keeps one spelling for all strings that differ only in capitals:
 ; "the Imperial Legion" put together in a script came out as "The Imperial Legion" in the middle of a sentence.
 String Function BattleSay(String what, String a = "", String b = "", String name = "", Int number = 0, Int other = 0) Global Native

@@ -126,6 +126,11 @@ If `faction_leaders` is present in the political state, it contains faction lead
 ## Factions bound by their own story
 A faction with a `bound` line still has a story of its own to live through in Skyrim, which only the Dragonborn's own deeds can finish. Until then it is untouchable in the ways that line says: generate no `war_declaration`, `assassination_attempt`, `battle_result`, `border_skirmish` or `surrender` that involves it, write nothing that kills, seizes, deposes or replaces anyone of it or destroys its hall, and never describe it as weakened, leaderless or dissolved. It still lives among the others: `trade_deal`, `diplomatic_gift`, `insult`, `brawl`, favours asked and refused, friendships and grudges. This rule is absolute; such an event is thrown away.
 
+### The fallen, and how a battle comes about
+`factions[i].fallen_leaders` names people of that faction who are dead. They do and say nothing any more and nothing further happens to them: write no event in which one of them acts, speaks, is met, attacked or replaced by name. A faction all of whose leaders have fallen is not in the list at all; no event may name it.
+
+A `battle_result` or `battle_scheduled` does not happen in the moment you write it. The two armies first gather near `battle_location`, word of that goes round, and for some hours the Dragonborn may go there and take a side. If they do, what is recorded is what happens on the field. If nobody comes, the battle ends as you wrote it (`battle_result`, `battle_victor`, the losses) and your `description` is what people are told then: write it as the outcome, in the past tense, as it will be told afterwards.
+
 ## World Knowledge — Authoritative Truth
 
 `factions[i].world_knowledge` is the **single highest-priority source of truth** for facts the world authoritatively knows about each faction — its status, its losses, its leaders, its territory, its very existence. Treat each entry as canon: it outranks `recent_dialogue` and `recent_events` whenever they conflict (those logs may pre-date the change). It does NOT override `recent_dialogue` for a living leader's current mood, opinions, or active plans — those still apply when the leader is alive.
