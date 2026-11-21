@@ -1788,6 +1788,10 @@ Bool Function OwnsPackagesOf(Actor npc)
     If NPCTasks && NPCTasks.HoldsActor(npc)
         Return true
     EndIf
+    ; A battle's soldiers come up and walk off on our travel packages, with no task slot behind them.
+    If Battle && Battle.HoldsActor(npc)
+        Return true
+    EndIf
     ; A road meeting of a venture (IntelEngine_Quests) gives its people packages without a task slot; the sweep took
     ; Jenassa's and Vilkas' off on the road (2026-11-18). Its mark is trusted while the venture is live, and for a
     ; little while after it ended (they walk off and are let go once out of sight); a mark left behind stops counting.
@@ -4612,6 +4616,9 @@ String Function BuildDashboardStateJson()
     If IntelEngine.IsPoliticsEnabled()
         json += ",\"politics\":" + IntelEngine.BuildPoliticalDashboardJson()
     EndIf
+
+    ; ── The world (talk of the day, open stories, the player's people) ──
+    json += ",\"world\":" + IntelEngine.BuildWorldDashboardJson()
 
     ; ── Config ──
     json += ",\"config\":" + BuildConfigJson()

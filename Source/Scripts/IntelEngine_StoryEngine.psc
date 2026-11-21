@@ -3492,6 +3492,15 @@ Function CheckStoryNPCArrival()
         return
     EndIf
 
+    ; Nobody walks onto a battlefield with a tale of their own: with armies in the field, or their dead still warm,
+    ; whoever was on the way to the player goes back to their day, and what they bring keeps until the two next meet.
+    ; (Uthgerd came through a battle and its aftermath with a town matter, three times, 2026-11-20.)
+    If arrivalTarget == player && IntelEngine.BattleFieldBusy()
+        Core.DebugMsg("Story [" + storyType + "]: " + storyNPC.GetDisplayName() + " turns back: armies are in the field")
+        DeferStory(storyNPC, claimedGeneration, storyType)
+        return
+    EndIf
+
     ; Pause arrival during combat (don't greet while fighting)
     If arrivalTarget == player && player.IsInCombat()
         NearPlayerSince = -1.0
@@ -4111,21 +4120,28 @@ Function HandleFactionAmbushDispatch(String narration, String response)
     EndIf
 
     Actor player = Game.GetPlayer()
-    Float playerAngle = player.GetAngleZ()
 
-    ; The soldiers are created at a marker behind the player, not at the player. Created at the player they
-    ; all stood on that spot for a moment before the loop below moved them out of view one by one (the
-    ; battle code spawns at its rally markers for the same reason).
-    ObjectReference spawnAt = player as ObjectReference
+    ; Where they come from: out of doors, not in or by a town or a house, from a spot the player does not see and
+    ; that can be walked from, some forty paces off. (They used to be put ten to fifteen paces behind the player,
+    ; wherever the player was: in a tavern, in their own house, in the middle of a village.) No such spot here and
+    ; now: no ambush here and now.
+    String from = IntelEngine.BattlePickAmbush(player)
+    If IntelEngine.StoryResponseGetField(from, "ok") != "true"
+        Core.DebugMsg("Story [faction_ambush]: not here (" + IntelEngine.StoryResponseGetField(from, "reason") + ")")
+        return
+    EndIf
     ObjectReference spawnMarker = None
     Form xmarkerBase = Game.GetFormFromFile(0x0000003B, "Skyrim.esm")
     If xmarkerBase
         spawnMarker = player.PlaceAtMe(xmarkerBase)
-        If spawnMarker
-            spawnMarker.MoveTo(player, Math.Sin(playerAngle + 180.0) * 1000.0, Math.Cos(playerAngle + 180.0) * 1000.0, 0.0)
-            spawnAt = spawnMarker
-        EndIf
     EndIf
+    If spawnMarker == None
+        Core.DebugMsg("Story [faction_ambush]: no marker to make them at")
+        return
+    EndIf
+    spawnMarker.SetPosition(IntelEngine.StoryResponseGetField(from, "x") as Float, IntelEngine.StoryResponseGetField(from, "y") as Float, \
+        IntelEngine.StoryResponseGetField(from, "z") as Float)
+    ObjectReference spawnAt = spawnMarker
 
     ; Spawn soldiers — C++ handles leveled list resolution + crime faction removal (no bounty)
     Actor[] soldiers = IntelEngine.SpawnBattleSoldiers(factionId + ":" + count, spawnAt)
@@ -4146,12 +4162,8 @@ Function HandleFactionAmbushDispatch(String narration, String response)
     Int i = 0
     While i < soldiers.Length
         If soldiers[i] != None && FactionAmbushCount < 7
-            ; Spawn behind player (out of view, close enough to engage quickly)
-            Float angle = playerAngle + 180.0 + Utility.RandomFloat(-45.0, 45.0)
-            Float dist = Utility.RandomFloat(800.0, 1200.0)
-            Float offsetX = Math.Sin(angle) * dist
-            Float offsetY = Math.Cos(angle) * dist
-            soldiers[i].MoveTo(player, offsetX, offsetY, 0.0)
+            ; A step apart from each other, where they were made
+            soldiers[i].MoveTo(soldiers[i], Utility.RandomFloat(-160.0, 160.0), Utility.RandomFloat(-160.0, 160.0), 0.0)
             soldiers[i].SetActorValue("Confidence", 4)
             soldiers[i].SetActorValue("Aggression", 1)  ; Aggressive (not Very Aggressive — won't attack civilians)
             FactionAmbushActors[FactionAmbushCount] = soldiers[i]
@@ -4176,18 +4188,11 @@ Function HandleFactionAmbushDispatch(String narration, String response)
 
     String factionName = IntelEngine.GetFactionDisplayName(factionId)
 
-    ; Wait for actors to load, then warn player with faction identification
+    ; They come running from where they were made; the player is told when they are on their way.
     Utility.Wait(1.5 + Utility.RandomFloat(0.0, 1.0))
     Debug.Notification("Something feels wrong...")
     Utility.Wait(1.0)
-    Int ambushMsg = Utility.RandomInt(0, 2)
-    If ambushMsg == 0
-        Debug.Notification(factionName + " soldiers emerge from hiding!")
-    ElseIf ambushMsg == 1
-        Debug.Notification("Ambush! " + factionName + " forces surround you!")
-    Else
-        Debug.Notification(factionName + " troops close in from behind!")
-    EndIf
+    Debug.Notification(IntelEngine.BattleSay("ambush", factionId))
 
     ; Stagger combat starts for natural feel
     i = 0
@@ -6025,9 +6030,13 @@ Function OnQuestComplete()
     EndIf
     QuestActive = false  ; prevent double-completion from concurrent calls
 
-    ; Restore crime factions if this was a faction quest
-    If QuestAlliedFaction != ""
-        IntelEngine.RestorePlayerCrimeFactions()
+    ; A thing done at a faction's asking counts with it (the ladder, Ranks.h). A battle fought for it counts by the
+    ; battle itself.
+    If QuestAlliedFaction != "" && QuestSubType != "faction_battle"
+        String risen = IntelEngine.PlayerDidFor(QuestAlliedFaction, "quest")
+        If risen != ""
+            Debug.Notification(IntelEngine.BattleSay("promoted", QuestAlliedFaction, "", risen))
+        EndIf
     EndIf
 
     Core.DebugMsg("Story [quest/" + QuestSubType + "]: Completed at " + QuestLocationName + "!")

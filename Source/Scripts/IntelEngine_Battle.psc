@@ -74,6 +74,20 @@ Int Property CurrentWave = 0 Auto Hidden
 
 ; Player participation
 String Property PlayerBattleSide = "" Auto Hidden
+; The call to the line: the gathering a faction has called the player to (-1: none), whose call it is, where, and
+; whether that gathering became a battle.
+Int Property CallBattleId = -1 Auto Hidden
+String Property CallFaction = "" Auto Hidden
+String Property CallPlace = "" Auto Hidden
+Bool Property CallFought = false Auto Hidden
+; How a call ends in the journal (the stages of IntelEngine_Call).
+Int Property CALL_OPEN = 10 AutoReadOnly
+Int Property CALL_STOOD = 100 AutoReadOnly       ; stood in the line
+Int Property CALL_AGAINST = 150 AutoReadOnly     ; stood with the other side
+Int Property CALL_WATCHED = 160 AutoReadOnly     ; came and took no side
+Int Property CALL_LEFT = 170 AutoReadOnly        ; stood in the line and walked away
+Int Property CALL_MISSED = 200 AutoReadOnly      ; it was decided without the player
+Int Property CALL_PARTED = 210 AutoReadOnly      ; the armies parted with nothing decided
 String Property QuestAutoJoinFaction = "" Auto Hidden  ; Set by StoryEngine for quest-dispatched battles
 
 ; Deferred cleanup state (non-blocking, uses OnUpdate polling)
@@ -108,9 +122,24 @@ Float _goneSince = 0.0          ; since when the player has been away from the f
 Bool _waveBusy = false          ; reinforcements are being brought up (one wave at a time)
 Float _noReserveUntilA = 0.0    ; nowhere for side A's reserves to come from unseen: not asked again before this
 Float _noReserveUntilB = 0.0
+String _flankWaiting = ""       ; the side whose hidden force is to break cover as soon as the wave now coming is up
+String _championWaiting = ""    ; the side(s) whose champion is to come up as soon as the wave now coming is up
+Bool _fileAssigned = false      ; the player's file of soldiers has been told off (once a battle)
+Bool _wordGiven = false         ; the player has been asked for the word to charge (once a battle)
 Bool _tending = false           ; the muster is being looked after (the commander's call waits for an answer)
+Bool _warnedOff = false         ; a commander has shouted at the player as at an officer of the other army (once a battle)
 Bool _endedUnseen = false       ; the battle is decided with the player gone: nothing is announced
 String _markedEnemyOf = ""      ; the side that took the player for an enemy in this battle
+
+; A skirmish (a brawl, a border skirmish): a small battle
+Bool Property BattleSkirmish = false Auto Hidden
+Int Property BattleLineSize = 8 Auto Hidden             ; how many of a side are drawn up
+
+; An attempt on a leader's life
+Bool _assassinReported = false          ; how it ended has been recorded and told
+String _assassinTargetFaction = ""
+String _assassinAttackerFaction = ""
+String _assassinLeaderName = ""
 
 ; Micro-encounter (political event manifestation) state
 Actor[] Property ManifestActors Auto Hidden
@@ -163,6 +192,11 @@ Function HandlePendingBattleTriggered(Int pendingId)
     If factionA == "" || factionB == "" || warId <= 0
         ; Their war is over: nobody fights.
         Core.DebugMsg("Battle: Pending battle " + pendingId + " is no longer a battle of a war - dropped")
+        ; Whoever was called to it finds the armies gone: they parted with nothing decided. (The journal said the
+        ; battle had been decided without them, of a battle that was never fought.)
+        If CallBattleId == pendingId
+            EndCall(CALL_PARTED)
+        EndIf
         IntelEngine.RemovePendingBattle(pendingId)
         PendingPollActive = IntelEngine.GetPendingBattleCount() > 0
         return
@@ -175,7 +209,14 @@ Function HandlePendingBattleTriggered(Int pendingId)
     BattleLocationName = locName
     BattleSpawnAnchor = IntelEngine.ResolveAnyDestination(player, locName)
     QuestAutoJoinFaction = ""
+    BattleSkirmish = false
+    BattleLineSize = GetWaveSoldierCount(1)
     If StartBattleSequence()
+        If pendingId == CallBattleId
+            CallFought = true           ; the battle the player was called to: how the call ends is how they fought it
+        ElseIf CallBattleId < 0
+            CallAtMuster(pendingId, locName)
+        EndIf
         IntelEngine.RemovePendingBattle(pendingId)
         PendingPollActive = IntelEngine.GetPendingBattleCount() > 0
         Core.DebugMsg("Battle: the armies gathered at " + locName + " are drawn up - " + factionA + " vs " + factionB)
@@ -183,6 +224,119 @@ Function HandlePendingBattleTriggered(Int pendingId)
         _noFieldUntil = Utility.GetCurrentRealTime() + 15.0
         ForgetBattleNames()
     EndIf
+EndFunction
+
+Quest Function CallQuest()
+    Return Quest.GetQuest("IntelEngine_Call")
+EndFunction
+
+Function CallAtMuster(Int pendingId, String place)
+    {The armies are drawn up near a player who was never called: they were already close by when the armies
+    gathered, so the gathering became a battle before anybody sent for them (played 2026-11-21: a Captain of the
+    Legion a few fields away, and nothing in the journal). Whoever holds a rank with one of the two is called
+    now, by the same rule (the side they stand higher with; equal ranks, neither), and the journal points at
+    that side's commander: the one who will hail them.}
+    Int rankA = IntelEngine.PlayerFactionRank(BattleFactionA)
+    Int rankB = IntelEngine.PlayerFactionRank(BattleFactionB)
+    String caller = ""
+    Actor commander = None
+    If rankA > rankB && rankA >= 1
+        caller = BattleFactionA
+        commander = CommanderA
+    ElseIf rankB > rankA && rankB >= 1
+        caller = BattleFactionB
+        commander = CommanderB
+    EndIf
+    Quest jq = CallQuest()
+    If caller == "" || commander == None || commander.IsDead() || jq == None
+        Return
+    EndIf
+    If jq.IsRunning()
+        jq.Stop()
+    EndIf
+    jq.Reset()
+    If !jq.Start()
+        Core.DebugMsg("Battle: the journal entry of the call did not start")
+        Return
+    EndIf
+    CallBattleId = pendingId
+    CallFaction = caller
+    CallPlace = place
+    CallFought = true
+    IntelEngine.BattleCallText(CallFaction, CallPlace)
+    ReferenceAlias markAlias = jq.GetAlias(0) as ReferenceAlias
+    If markAlias != None
+        markAlias.ForceRefTo(commander)
+    EndIf
+    jq.SetStage(CALL_OPEN)
+    jq.SetObjectiveDisplayed(0, true, true)
+    jq.SetActive(true)
+    Core.DebugMsg("Battle: " + CallFaction + " calls the player to its line near " + CallPlace + " (the armies are drawn up already)")
+EndFunction
+
+Function TendCall()
+    {When armies gather, a faction the player holds a rank with calls its own: a journal entry with the place marked
+    (of two such factions the one they stand higher with; equal ranks, neither). The call ends with the battle: stood
+    in the line, stood against it, only watched, walked away, or never came.}
+    If CallBattleId >= 0
+        If !CallFought && !IntelEngine.IsBattleActive() && IntelEngine.GetPendingBattleInfo(CallBattleId) == "{}"
+            EndCall(CALL_MISSED)
+        EndIf
+        Return
+    EndIf
+    String call = IntelEngine.BattleCall()
+    If call == "" || call == "{}"
+        Return
+    EndIf
+    Quest jq = CallQuest()
+    ObjectReference mark = Game.GetFormEx(IntelEngine.GetJsonArrayInt(call, "marker", 0)) as ObjectReference
+    If jq == None || mark == None
+        Return
+    EndIf
+    If jq.IsRunning()
+        jq.Stop()
+    EndIf
+    jq.Reset()
+    If !jq.Start()
+        Core.DebugMsg("Battle: the journal entry of the call did not start")
+        Return
+    EndIf
+    CallBattleId = IntelEngine.StoryResponseGetField(call, "id") as Int
+    CallFaction = IntelEngine.StoryResponseGetField(call, "faction")
+    CallPlace = IntelEngine.StoryResponseGetField(call, "place")
+    CallFought = false
+    IntelEngine.BattleCallText(CallFaction, CallPlace)
+    ReferenceAlias markAlias = jq.GetAlias(0) as ReferenceAlias
+    If markAlias != None
+        markAlias.ForceRefTo(mark)
+    EndIf
+    Location place = Game.GetFormEx(IntelEngine.GetJsonArrayInt(call, "location", 0)) as Location
+    LocationAlias placeAlias = jq.GetAlias(1) as LocationAlias
+    If placeAlias != None && place != None
+        placeAlias.ForceLocationTo(place)
+    EndIf
+    jq.SetStage(CALL_OPEN)
+    jq.SetObjectiveDisplayed(0, true, true)
+    jq.SetActive(true)
+    Core.DebugMsg("Battle: " + CallFaction + " calls the player to its line near " + CallPlace + " (gathering " + CallBattleId + ")")
+EndFunction
+
+Function EndCall(Int stage)
+    {The call is over: its objective is done or failed and the journal says how it went.}
+    Quest jq = CallQuest()
+    If jq != None && jq.IsRunning()
+        If stage == CALL_STOOD
+            jq.SetObjectiveCompleted(0, true)
+        Else
+            jq.SetObjectiveFailed(0, true)
+        EndIf
+        jq.SetStage(stage)
+    EndIf
+    Core.DebugMsg("Battle: the call of " + CallFaction + " is over (" + stage + ")")
+    CallBattleId = -1
+    CallFaction = ""
+    CallPlace = ""
+    CallFought = false
 EndFunction
 
 Function ForgetBattleNames()
@@ -196,6 +350,8 @@ Function ForgetBattleNames()
     ActiveBattleId = -1
     BattleSpawned = false
     BattlePhase = 0
+    BattleSkirmish = false
+    BattleLineSize = GetWaveSoldierCount(1)
 EndFunction
 
 ; =============================================================================
@@ -217,10 +373,9 @@ Event OnUpdate()
         If ManifestLeaderTarget != None && !ManifestAssassinAttacked
             Actor hardAssassin = ManifestActors[0]
 
-            ; Player killed the assassin during tailing — immediate cleanup
+            ; The killer is dead before the blow: the cleanup says by whose hand, and tells it
             If hardAssassin == None || hardAssassin.IsDead()
-                Core.DebugMsg("Battle: Assassin killed during tailing - assassination prevented")
-                Debug.Notification("The assassination attempt was foiled!")
+                Core.DebugMsg("Battle: the killer is dead before the blow")
                 CleanupManifestation()
                 Core.RequestTick(PollInterval)
                 return
@@ -311,6 +466,7 @@ Event OnUpdate()
     ; player is out of the battle sides and another battle may start; those still in view stay on the list as
     ; stragglers. (This used to switch off everyone who was left, in front of the player.)
     If DeferredCleanupActive
+        IntelEngine.BattleTendBounty()
         Float elapsed = Utility.GetCurrentRealTime() - DeferredCleanupStart
         Int remaining = SpawnedSoldierCount
         If SweepDue(AftermathInterval) || elapsed >= 180.0
@@ -367,6 +523,10 @@ Event OnUpdate()
                 Debug.Notification(IntelEngine.BattleSay("word_nobody", "", "", locName))
             EndIf
         EndIf
+
+        ; A faction the player holds a rank with calls its own to the line; a call whose battle was decided without
+        ; them ends.
+        TendCall()
 
         ; Check if any pending battles remain
         If IntelEngine.GetPendingBattleCount() <= 0
@@ -454,6 +614,8 @@ Function StartBattleImmediate(String factionA, String factionB, Int warId)
     BattleLocationName = ""
     BattleScheduled = false
     BattleSpawned = false
+    BattleSkirmish = false
+    BattleLineSize = GetWaveSoldierCount(1)
     Core.DebugMsg("Battle: Starting immediate - " + factionA + " vs " + factionB)
     If !StartBattleSequence()
         ForgetBattleNames()
@@ -515,11 +677,16 @@ Bool Function DrawUpArmies(String field)
     MusterStartRealTime = Utility.GetCurrentRealTime()
     MusterSeenRealTime = 0.0
     PlayerWasHailed = false
+    _warnedOff = false
     _goneSince = 0.0
     _markedEnemyOf = ""
     _endedUnseen = false
     _waveBusy = false
     _tending = false
+    _flankWaiting = ""
+    _championWaiting = ""
+    _fileAssigned = false
+    _wordGiven = false
     ReleaseOldSoldiers()
     If PlayerBattleSide == ""
         player.RemoveFromFaction(Intel_BattleSideA)
@@ -537,6 +704,9 @@ Bool Function DrawUpArmies(String field)
 
     CommanderA = None
     CommanderB = None
+    If BattleSkirmish
+        IntelEngine.BattleSetSkirmish(BattleLineSize)
+    EndIf
     Int drawnA = DrawUpLine("A", player)
     Int drawnB = DrawUpLine("B", player)
     RememberBattleSoldiers()
@@ -545,8 +715,10 @@ Bool Function DrawUpArmies(String field)
         CleanupBattle()
         Return false
     EndIf
-    NameCommander(CommanderA, BattleFactionA)
-    NameCommander(CommanderB, BattleFactionB)
+    If !BattleSkirmish
+        NameCommander(CommanderA, BattleFactionA)
+        NameCommander(CommanderB, BattleFactionB)
+    EndIf
 
     Int i = 0
     While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
@@ -558,6 +730,7 @@ Bool Function DrawUpArmies(String field)
         i += 1
     EndWhile
 
+    MusterStartRealTime = Utility.GetCurrentRealTime()      ; they stand from now
     CurrentWave = 1
     IntelEngine.AdvanceBattleWaveOf("A")
     IntelEngine.AdvanceBattleWaveOf("B")
@@ -586,7 +759,7 @@ EndFunction
 Int Function DrawUpLine(String side, Actor player)
     {One army's line, one soldier at a time with a breath between: making a soldier costs a third to half a
     millisecond of the game's frame, and a whole line at once was a hitch (1.5 ms, measured). Returns how many stand.}
-    Int total = GetWaveSoldierCount(1)
+    Int total = BattleLineSize
     Int made = 0
     Int first = 0
     While first < total
@@ -605,7 +778,9 @@ Int Function DrawUpLine(String side, Actor player)
             EndIf
         EndIf
         first += 1
-        Utility.Wait(0.03)
+        ; (WaitMenuMode: a choice window somebody else put up must not stop an army in the middle of drawing up.
+        ; With Wait it did: three soldiers stood in a field for two minutes until a quest offer was answered.)
+        Utility.WaitMenuMode(0.03)
     EndWhile
     Return made
 EndFunction
@@ -627,7 +802,7 @@ Int Function BringUp(String side, Int count, Actor player)
         EndIf
         made += came
         first += 1
-        Utility.Wait(0.03)
+        Utility.WaitMenuMode(0.03)
     EndWhile
     Return made
 EndFunction
@@ -701,14 +876,30 @@ Function TendMuster()
             PlayerWasHailed = true
             HailPlayer(caller)
             charge = true           ; answered or not: it begins
+        ElseIf !_warnedOff
+            WarnOff(player)
         EndIf
     EndIf
     now = Utility.GetCurrentRealTime()
-    If !charge && MusterSeenRealTime > 0.0 && now - MusterSeenRealTime >= MusterWatched
+    Float watched = MusterWatched
+    Float longest = MusterLongest
+    If BattleSkirmish
+        watched = 15.0          ; a handful does not stand and stare for long
+        longest = 60.0
+    EndIf
+    If !charge && MusterSeenRealTime > 0.0 && now - MusterSeenRealTime >= watched
         charge = true
     EndIf
-    If !charge && now - MusterStartRealTime >= MusterLongest
+    If !charge && now - MusterStartRealTime >= longest
         charge = true
+    EndIf
+    ; From Captain on, the line the player stands in waits for their word (unless blows have fallen already).
+    If charge && !_wordGiven && PlayerBattleSide != "" && near && !AnySoldierFighting() && IntelEngine.PlayerFactionRank(PlayerBattleSide) >= 4
+        _wordGiven = true
+        If !AskForTheWord()
+            MusterSeenRealTime = Utility.GetCurrentRealTime()       ; they hold: as long again as they have stood
+            charge = false
+        EndIf
     EndIf
     _tending = false
     If charge && BattlePhase == 1 && IntelEngine.IsBattleActive()
@@ -747,19 +938,58 @@ Actor Function CommanderWhoCalls(Actor player, Float within)
     {The nearer of the two commanders who would have the player in their line, if one is this near.}
     Actor best = None
     Float nearest = within
-    If CommanderA != None && !CommanderA.IsDead() && IntelEngine.GetPlayerFactionStanding(BattleFactionA) > HostileStanding
+    If CommanderA != None && !CommanderA.IsDead() && WouldHave(BattleFactionA, BattleFactionB)
         Float distanceA = player.GetDistance(CommanderA)
         If distanceA <= nearest
             nearest = distanceA
             best = CommanderA
         EndIf
     EndIf
-    If CommanderB != None && !CommanderB.IsDead() && IntelEngine.GetPlayerFactionStanding(BattleFactionB) > HostileStanding
+    If CommanderB != None && !CommanderB.IsDead() && WouldHave(BattleFactionB, BattleFactionA)
         If player.GetDistance(CommanderB) <= nearest
             best = CommanderB
         EndIf
     EndIf
     Return best
+EndFunction
+
+Bool Function KnownOfficerOf(String theirs, String others)
+    {Does the army of "theirs" know the player as an officer of the other one? From the third rank a name is known
+    beyond the faction itself (Ranks::Famous); whoever stands as high or higher with "theirs" is their own first.}
+    Int withOthers = IntelEngine.PlayerFactionRank(others)
+    Return withOthers >= 3 && withOthers > IntelEngine.PlayerFactionRank(theirs)
+EndFunction
+
+Bool Function WouldHave(String theirs, String others)
+    {Would this army call the player into its line? Not one that takes them for an enemy, and not one that knows
+    them as an officer of the army across the field. (Played 2026-11-21: a Captain of the Legion walked past the
+    Stormcloaks' line on the way to their own, and the Stormcloak captain greeted them as a stranger whose blade
+    was welcome, with "stand with the Stormcloaks" as the first answer.)}
+    Return IntelEngine.GetPlayerFactionStanding(theirs) > HostileStanding && !KnownOfficerOf(theirs, others)
+EndFunction
+
+Function WarnOff(Actor player)
+    {A commander who knows the player as an officer of the other army does not call them over: he shouts at them,
+    once, when they come near his line before the fight. No answer is asked for and nothing begins by it.}
+    Actor foe = None
+    String theirs = ""
+    String others = ""
+    If CommanderA != None && !CommanderA.IsDead() && KnownOfficerOf(BattleFactionA, BattleFactionB) && player.GetDistance(CommanderA) <= HailDistance
+        foe = CommanderA
+        theirs = BattleFactionA
+        others = BattleFactionB
+    ElseIf CommanderB != None && !CommanderB.IsDead() && KnownOfficerOf(BattleFactionB, BattleFactionA) && player.GetDistance(CommanderB) <= HailDistance
+        foe = CommanderB
+        theirs = BattleFactionB
+        others = BattleFactionA
+    EndIf
+    If foe == None
+        Return
+    EndIf
+    _warnedOff = true
+    foe.SetLookAt(player)
+    Core.SendTaskNarration(foe, IntelEngine.BattleSay("warn_off", theirs, others, player.GetDisplayName()), player)
+    Core.DebugMsg("Battle: " + foe.GetDisplayName() + " knows the player as an officer of " + others + " and shouts at them")
 EndFunction
 
 Function HailPlayer(Actor caller)
@@ -772,6 +1002,8 @@ Function HailPlayer(Actor caller)
         theirs = BattleFactionB
         others = BattleFactionA
     EndIf
+    ; The other side is theirs to choose if it does not take them for an enemy: going over to it is the player's own
+    ; decision, whatever they are known as (only who calls them over depends on that).
     Bool othersWouldHave = IntelEngine.GetPlayerFactionStanding(others) > HostileStanding
     Int friend = 0
     If IntelEngine.GetPlayerFactionStanding(theirs) >= FriendStanding
@@ -848,6 +1080,7 @@ Function BeginCharge()
     EndWhile
     IntelEngine.BattleBeginFight()
     ForceInitialEngagement()
+    AssignFile()
     If MusterSeenRealTime <= 0.0 && PlayerOnField(GoneDistance)
         Debug.Notification(IntelEngine.BattleSay("broke_out"))
     EndIf
@@ -964,6 +1197,20 @@ Function SpawnWave(String side)
         EndIf
     EndIf
     _waveBusy = false
+    ; A champion or a hidden force was to come while this wave was being brought up.
+    If _championWaiting != "" && IntelEngine.IsBattleActive()
+        String due = _championWaiting
+        _championWaiting = ""
+        If StringUtil.Find(due, "A") >= 0
+            BringChampion("A")
+        EndIf
+        If StringUtil.Find(due, "B") >= 0 && IntelEngine.IsBattleActive()
+            BringChampion("B")
+        EndIf
+    EndIf
+    If _flankWaiting != "" && IntelEngine.IsBattleActive()
+        SpringFlank(_flankWaiting)
+    EndIf
 EndFunction
 
 Int Function SendToTheFight(Int first)
@@ -977,7 +1224,7 @@ Int Function SendToTheFight(Int first)
             soldier.EnableNoWait(true)
             If CenterMarker != None
                 PO3_SKSEFunctions.SetLinkedRef(soldier, CenterMarker, Core.IntelEngine_TravelTarget)
-                ActorUtil.AddPackageOverride(soldier, Core.TravelPackage_Run, Core.PRIORITY_TRAVEL, 1)
+                ActorUtil.AddPackageOverride(soldier, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
                 soldier.EvaluatePackage()
             EndIf
             sent += 1
@@ -1016,6 +1263,236 @@ Int Function GetWaveSoldierCount(Int waveNum)
 EndFunction
 
 ; =============================================================================
+; WHAT A BATTLE HAS IN STORE (Battlefield.h, Plan): a champion, a hidden force, turncoats
+; =============================================================================
+
+Function WelcomeChampion(Actor champion, String side)
+    {A side's champion has come up with its second wave: three times a soldier's measure, striking with full force.
+    Known as that by name and by size; seen coming; and when the player stands with the other side, it is the
+    player the champion comes for.}
+    If champion == None
+        Return
+    EndIf
+    String own = BattleFactionA
+    String foe = BattleFactionB
+    If side == "B"
+        own = BattleFactionB
+        foe = BattleFactionA
+    EndIf
+    Actor player = Game.GetPlayer()
+    champion.SetDisplayName(IntelEngine.BattleSay("champion_name", own), true)
+    champion.SetScale(1.12)
+    Bool near = PlayerOnField(WatchDistance + 1500.0)
+    If near
+        Debug.Notification(IntelEngine.BattleSay("champion_comes", own))
+    EndIf
+    Bool forPlayer = PlayerBattleSide != "" && PlayerBattleSide != own
+    Core.DebugMsg("Battle: a champion of " + own + " takes the field (for the player: " + forPlayer + ")")
+    Utility.Wait(2.5)       ; until they are there to be seen and to act
+    If champion.IsDead() || !IntelEngine.IsBattleActive()
+        Return
+    EndIf
+    If forPlayer
+        champion.StartCombat(player)
+        If near
+            Core.SendTaskNarration(champion, IntelEngine.BattleSay("champion_cry", own, foe, player.GetDisplayName()), player)
+        EndIf
+    ElseIf near
+        Core.SendTaskNarration(champion, IntelEngine.BattleSay("champion_cry", own, foe), None)
+    EndIf
+EndFunction
+
+Function BringChampion(String side)
+    {A side's champion comes up from behind its line, alone, when the fighting has gone on a while.}
+    If _waveBusy
+        _championWaiting += side     ; a wave is being brought up just now: right after it
+        Return
+    EndIf
+    _waveBusy = true
+    Actor player = Game.GetPlayer()
+    Int before = SpawnedSoldierCount
+    String part = IntelEngine.BattleChampionLine(side, player)
+    Actor champion = None
+    If IntelEngine.StoryResponseGetField(part, "success") != "true"
+        DropOrphans(part)
+    Else
+        champion = SoldierFromId(IntelEngine.GetJsonArrayInt(part, "champion", 0))
+    EndIf
+    RememberBattleSoldiers()
+    SendToTheFight(before)
+    _waveBusy = false
+    If champion != None
+        WelcomeChampion(champion, side)
+    Else
+        Core.DebugMsg("Battle: the champion of side " + side + " could not come up unseen")
+    EndIf
+EndFunction
+
+Function SpringFlank(String side)
+    {A side's hidden force breaks cover out to one side of the other's line and falls on it. The DLL says when
+    (some half a minute into the fighting) and makes them where the player does not see them appear.}
+    If _waveBusy
+        _flankWaiting = side     ; a wave is being brought up just now: right after it
+        Return
+    EndIf
+    _waveBusy = true
+    _flankWaiting = ""
+    Actor player = Game.GetPlayer()
+    Int before = SpawnedSoldierCount
+    Int made = 0
+    Int first = 0
+    While first < 4
+        String part = IntelEngine.BattleFlankLine(side, first, 1, player)
+        If IntelEngine.StoryResponseGetField(part, "success") != "true"
+            DropOrphans(part)
+            first = 4
+        Else
+            Int came = IntelEngine.StoryResponseGetField(part, "count") as Int
+            If came <= 0 && first == 0
+                first = 4           ; nowhere to break cover unseen: they stay hidden
+            Else
+                made += came
+                first += 1
+                Utility.WaitMenuMode(0.03)
+            EndIf
+        EndIf
+    EndWhile
+    RememberBattleSoldiers()
+    SendToTheFight(before)
+    String own = BattleFactionA
+    If side == "B"
+        own = BattleFactionB
+    EndIf
+    Core.DebugMsg("Battle: a hidden force of " + own + " breaks cover on the flank - " + made)
+    If made > 0 && PlayerOnField(WatchDistance + 1500.0)
+        Debug.Notification(IntelEngine.BattleSay("flank", own))
+    EndIf
+    _waveBusy = false
+EndFunction
+
+Function TurnCoats(String side)
+    {Some of one side's men turn their coats: the DLL says who (and counts them for the other side from now on); here
+    they change their battle side and go for their old comrades.}
+    String turned = IntelEngine.BattleTurnCoats(side)
+    Int count = IntelEngine.StoryResponseGetField(turned, "count") as Int
+    If count <= 0
+        Return
+    EndIf
+    Faction was = Intel_BattleSideA
+    Faction now = Intel_BattleSideB
+    String own = BattleFactionA
+    String other = BattleFactionB
+    If side == "B"
+        was = Intel_BattleSideB
+        now = Intel_BattleSideA
+        own = BattleFactionB
+        other = BattleFactionA
+    EndIf
+    ; Somebody of their old side to go for.
+    Actor comrade = None
+    Int i = 0
+    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length && comrade == None
+        Actor soldier = SpawnedSoldiers[i]
+        If soldier != None && !soldier.IsDead() && soldier.IsInFaction(was)
+            comrade = soldier
+        EndIf
+        i += 1
+    EndWhile
+    Actor first = None
+    i = 0
+    While i < count
+        Actor coat = SoldierFromId(IntelEngine.GetJsonArrayInt(turned, "formIds", i))
+        If coat != None && !coat.IsDead()
+            coat.RemoveFromFaction(was)
+            coat.AddToFaction(now)
+            coat.SetDisplayName(IntelEngine.BattleSay("turncoat_name", own), true)
+            coat.IgnoreFriendlyHits(false)
+            coat.StopCombat()
+            If comrade != None && comrade != coat
+                coat.StartCombat(comrade)
+            EndIf
+            If first == None
+                first = coat
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+    Core.DebugMsg("Battle: " + count + " of " + own + " turn their coats")
+    If PlayerOnField(WatchDistance + 1500.0)
+        Debug.Notification(IntelEngine.BattleSay("treachery", own))
+        If first != None
+            Core.SendTaskNarration(first, IntelEngine.BattleSay("turncoat_cry", own, other), None)
+        EndIf
+    EndIf
+EndFunction
+
+; =============================================================================
+; THE LADDER IN THE FIELD (Ranks.h): soldiers at the player's side, the line waiting for a captain's word
+; =============================================================================
+
+Function AssignFile()
+    {From the second rank on the player has a file of their own in a battle of their side: two soldiers (four from
+    Captain on) who keep by them, fight where they fight and come back to them between.}
+    If PlayerBattleSide == "" || _fileAssigned
+        Return
+    EndIf
+    _fileAssigned = true
+    Int rank = IntelEngine.PlayerFactionRank(PlayerBattleSide)
+    Int wanted = 0
+    If rank >= 4
+        wanted = 4
+    ElseIf rank >= 2
+        wanted = 2
+    EndIf
+    If wanted <= 0
+        Return
+    EndIf
+    Faction own = Intel_BattleSideA
+    If PlayerBattleSide == BattleFactionB
+        own = Intel_BattleSideB
+    EndIf
+    Actor player = Game.GetPlayer()
+    Int given = 0
+    Int i = SpawnedSoldierCount - 1
+    While i >= 0 && given < wanted
+        If i < SpawnedSoldiers.Length
+            Actor soldier = SpawnedSoldiers[i]
+            If soldier != None && !soldier.IsDead() && soldier.IsInFaction(own) && soldier != CommanderA && soldier != CommanderB
+                Package gait = PaceFor(soldier, Core.TravelPackage_Jog, Core.TravelPackage_Run)
+                TakeBackTravelOrder(soldier)
+                PO3_SKSEFunctions.SetLinkedRef(soldier, player, Core.IntelEngine_TravelTarget)
+                ActorUtil.AddPackageOverride(soldier, gait, Core.PRIORITY_TRAVEL, 1)
+                soldier.EvaluatePackage()
+                given += 1
+            EndIf
+        EndIf
+        i -= 1
+    EndWhile
+    If given >= 2
+        Debug.Notification(IntelEngine.BattleSay("file", PlayerBattleSide, "", "", given))
+    EndIf
+    Core.DebugMsg("Battle: " + given + " soldiers keep by the player (rank " + rank + ")")
+EndFunction
+
+Bool Function AskForTheWord()
+    {From Captain on the line the player stands in waits for the player's word. True: charge now. False: they hold a
+    little longer (asked once; after that it goes as it would have).}
+    Actor captain = CommanderA
+    If PlayerBattleSide == BattleFactionB
+        captain = CommanderB
+    EndIf
+    String who = IntelEngine.PlayerRankTitle(PlayerBattleSide)
+    If captain != None && !captain.IsDead()
+        who = captain.GetDisplayName()
+    EndIf
+    String charge = IntelEngine.BattleSay("word_charge")
+    String choice = Core.ShowChoice(who, "Battle", IntelEngine.BattleSay("word_body", PlayerBattleSide, "", IntelEngine.PlayerRankTitle(PlayerBattleSide)), \
+        charge, IntelEngine.BattleSay("word_hold"), "", 40.0)
+    Core.DebugMsg("Battle: the line waits for the player's word - " + choice)
+    Return choice != IntelEngine.BattleSay("word_hold")
+EndFunction
+
+; =============================================================================
 ; PLAYER PARTICIPATION
 ; =============================================================================
 
@@ -1046,7 +1523,34 @@ Function JoinBattleSide(String factionId)
         player.AddToFaction(Intel_BattleSideB)
     EndIf
     Debug.Notification(IntelEngine.BattleSay("stand_with", factionId))
-    Core.DebugMsg("Battle: Player joined " + factionId)
+    Core.DebugMsg("Battle: Player joined " + factionId + " (rank " + IntelEngine.PlayerFactionRank(factionId) + " " + IntelEngine.PlayerRankTitle(factionId) + ")")
+    TrustOwnSide()
+    If BattlePhase == 2
+        AssignFile()            ; joined with the fight already on: their file falls in now
+    EndIf
+EndFunction
+
+Function TrustOwnSide()
+    {The soldiers of the side the player stands with take a stray blow of theirs for what it is. In a press of
+    forty people a swung blade finds a comrade now and then; each such blow used to be an assault, and the
+    soldier struck turned on the player with his whole line (2026-11-21). The battle sides are allied to
+    themselves in the plugin file as well; this mark makes a comrade ignore such a blow altogether. Those who
+    come up later get it in RememberBattleSoldiers.}
+    If PlayerBattleSide == "" || !SpawnedSoldiers
+        Return
+    EndIf
+    Faction own = Intel_BattleSideA
+    If IntelEngine.GetFactionBattleSide(PlayerBattleSide) != "A"
+        own = Intel_BattleSideB
+    EndIf
+    Int i = 0
+    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
+        Actor soldier = SpawnedSoldiers[i]
+        If soldier != None && !soldier.IsDead() && soldier.IsInFaction(own)
+            soldier.IgnoreFriendlyHits(true)
+        EndIf
+        i += 1
+    EndWhile
 EndFunction
 
 Bool Function JoinBattleByWord(Actor akSpeaker)
@@ -1142,17 +1646,23 @@ Function PostBattleSoldierMoment(Actor survivor, Int alliesLeft, String ownSide,
         return
     EndIf
     If !survivor || survivor.IsDead()
-        return              ; allies live, but none is near enough to come over
+        Core.DebugMsg("Battle: allies live, but none is anywhere near - no word, no pay")
+        return
     EndIf
-    ; Comes over at a weary pace. A travel order, not a scripted path: that one cannot be given up.
+    ; Comes over: at a run while they are far, at a weary pace for the last stretch. A travel order, not a scripted
+    ; path: that one cannot be given up.
     Actor player = Game.GetPlayer()
-    survivor.SetActorValue("SpeedMult", 70.0)
     TakeBackTravelOrder(survivor)
     PO3_SKSEFunctions.SetLinkedRef(survivor, player, Core.IntelEngine_TravelTarget)
-    ActorUtil.AddPackageOverride(survivor, Core.TravelPackage_Run, Core.PRIORITY_TRAVEL, 1)
+    ActorUtil.AddPackageOverride(survivor, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
     survivor.EvaluatePackage()
     Float waited = 0.0
-    While waited < 14.0 && survivor.GetDistance(player) > AllySpeaksDistance && !survivor.IsDead()
+    Bool weary = false
+    While waited < 45.0 && survivor.GetDistance(player) > AllySpeaksDistance && !survivor.IsDead()
+        If !weary && survivor.GetDistance(player) < 900.0
+            weary = true
+            survivor.SetActorValue("SpeedMult", 70.0)
+        EndIf
         Utility.Wait(1.0)
         waited += 1.0
     EndWhile
@@ -1167,9 +1677,11 @@ Function PostBattleSoldierMoment(Actor survivor, Int alliesLeft, String ownSide,
         Core.SendTaskNarration(survivor, IntelEngine.BattleSay(what, ownSide, otherSide, who, enemyKills, reward), player)
         Core.DebugMsg("Battle: " + survivor.GetDisplayName() + " has a word with the player after " + waited + " s")
         Utility.Wait(2.0)
+        ; (Half a minute for the words to come: after a battle they took twenty-five seconds, and the gold was in
+        ; the player's purse a quarter of a minute before the soldier opened his mouth.)
         IntelEngine_Quests quests = Quest.GetQuest("IntelEngine_QuestKeeper") as IntelEngine_Quests
         If quests != None
-            quests.WaitForTheirSay(survivor, 10.0)
+            quests.WaitForTheirSay(survivor, 30.0)
         EndIf
         ; The pay, handed over by the one who came, there and then.
         If playerWon && reward > 0 && !survivor.IsDead()
@@ -1181,10 +1693,7 @@ Function PostBattleSoldierMoment(Actor survivor, Int alliesLeft, String ownSide,
     EndIf
     survivor.SetActorValue("SpeedMult", 100.0)
     If !survivor.IsDead()
-        ObjectReference way = ExitMarkerA
-        If survivor.IsInFaction(Intel_BattleSideB)
-            way = ExitMarkerB
-        EndIf
+        ObjectReference way = ExitFor(survivor.IsInFaction(Intel_BattleSideB))
         If way != None
             SendSoldierOff(survivor, way, !playerWon && !drawn)
         EndIf
@@ -1205,6 +1714,28 @@ Function HandlePollResult(String stateJson)
     String fallen = IntelEngine.StoryResponseGetOptionalField(stateJson, "commander_down")
     If fallen != "" && !battleOver && PlayerOnField(WatchDistance + 1500.0)
         Debug.Notification(IntelEngine.BattleSay("captain_fell", fallen))
+    EndIf
+
+    String championFell = IntelEngine.StoryResponseGetOptionalField(stateJson, "champion_down")
+    If championFell != "" && !battleOver && PlayerOnField(WatchDistance + 1500.0)
+        Debug.Notification(IntelEngine.BattleSay("champion_fell", championFell))
+    EndIf
+    If !battleOver
+        String championOf = IntelEngine.StoryResponseGetOptionalField(stateJson, "do_champion")
+        If StringUtil.Find(championOf, "A") >= 0
+            BringChampion("A")
+        EndIf
+        If StringUtil.Find(championOf, "B") >= 0 && IntelEngine.IsBattleActive()
+            BringChampion("B")
+        EndIf
+        String flankOf = IntelEngine.StoryResponseGetOptionalField(stateJson, "do_flank")
+        If flankOf != ""
+            SpringFlank(flankOf)
+        EndIf
+        String turnOf = IntelEngine.StoryResponseGetOptionalField(stateJson, "do_turn")
+        If turnOf != "" && IntelEngine.IsBattleActive()
+            TurnCoats(turnOf)
+        EndIf
     EndIf
 
     ; Check wave spawn triggers
@@ -1248,6 +1779,9 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
     ; behind the script's back while this function is still waiting below (it then sent everybody off a second time).
     BattleSpawned = false
     BattlePhase = 0
+    If BattleSkirmish
+        IntelEngine.ManifestationDone()         ; the event that was held back for it is what was just recorded
+    EndIf
 
     ; Do NOT remove player from battle factions here — soldiers are still alive during
     ; deferred cleanup. Removing the player from the faction makes stray-hit soldiers
@@ -1256,6 +1790,18 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
     ; Parse C++ result for engine-only operations (notifications, soldier moment, cleanup)
     String playerSideWas = IntelEngine.StoryResponseGetField(resultJson, "playerSideWas")
     Bool playerWon = IntelEngine.StoryResponseGetField(resultJson, "playerWon") == "true"
+    ; The battle the player was called to: how they fought it is how the call ends.
+    If CallBattleId >= 0 && CallFought
+        If playerSideWas == ""
+            EndCall(CALL_WATCHED)
+        ElseIf playerSideWas != CallFaction
+            EndCall(CALL_AGAINST)
+        ElseIf IntelEngine.StoryResponseGetField(resultJson, "playerLeft") == "true"
+            EndCall(CALL_LEFT)
+        Else
+            EndCall(CALL_STOOD)
+        EndIf
+    EndIf
     Bool drawn = IntelEngine.StoryResponseGetField(resultJson, "drawn") == "true"
     String notification = IntelEngine.StoryResponseGetField(resultJson, "notification")
     String spectatorNotif = IntelEngine.StoryResponseGetOptionalField(resultJson, "spectatorNotification")
@@ -1309,6 +1855,13 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
     If spectatorNotif != ""
         Utility.Wait(1.5)
         Debug.Notification(spectatorNotif)
+    EndIf
+    ; What the battle did for the player's name with the side they fought for.
+    String promoted = IntelEngine.StoryResponseGetOptionalField(resultJson, "promoted")
+    If promoted != "" && playerSideWas != ""
+        Utility.Wait(1.5)
+        Debug.Notification(IntelEngine.BattleSay("promoted", playerSideWas, "", promoted))
+        Core.DebugMsg("Battle: the player rises to " + promoted + " with " + playerSideWas)
     EndIf
 
     ; One of the player's side comes over, and follows the others afterwards.
@@ -1381,6 +1934,10 @@ Function RememberBattleSoldiers()
     String side = "A"
     Int pass = 0
     Int missing = 0
+    String ownSide = ""             ; the side the player stands with, if any: its newcomers take their stray blows too
+    If PlayerBattleSide != ""
+        ownSide = IntelEngine.GetFactionBattleSide(PlayerBattleSide)
+    EndIf
     While pass < 2
         String json = IntelEngine.GetBattleSoldierFormIds(side)
         Int count = IntelEngine.StoryResponseGetField(json, "count") as Int
@@ -1391,6 +1948,9 @@ Function RememberBattleSoldiers()
                 missing += 1
             ElseIf !IsRemembered(soldier)
                 RememberSoldier(soldier)
+                If side == ownSide
+                    soldier.IgnoreFriendlyHits(true)
+                EndIf
             EndIf
             i += 1
         EndWhile
@@ -1416,17 +1976,50 @@ Bool Function IsRemembered(Actor soldier)
     Return false
 EndFunction
 
+Bool Function HoldsActor(Actor npc)
+    {Does a battle account for this NPC running one of IntelEngine's travel packages? Asked by Core's sweep of stale
+    overrides. Soldiers come up to the fight and leave the field on travel orders that belong to no task slot; the
+    sweep took those orders for leftovers and released them. Whoever it caught on two rounds (a game hour apart: three
+    minutes of play) stopped where they stood: the beaten, who were to run, stood about among the winners and the
+    dead, next to the player they had just fought (seen 2026-11-21, four Stormcloaks, all of them reserves).}
+    If npc == None
+        Return false
+    EndIf
+    If SpawnedSoldiers && SpawnedSoldiers.Find(npc) >= 0
+        Return true
+    EndIf
+    Return ManifestActors && ManifestActors.Find(npc) >= 0
+EndFunction
+
 ; ── When it is over: the field empties ──
 
 ObjectReference Property ExitMarkerA Auto Hidden
 ObjectReference Property ExitMarkerB Auto Hidden
+; The towns the two armies march off toward (IntelEngine.BattleWayHome): markers of the game, never removed here.
+; None: no town to march to; the exit marker above is used.
+ObjectReference Property WayOffA Auto Hidden
+ObjectReference Property WayOffB Auto Hidden
+
+ObjectReference Function ExitFor(Bool sideB)
+    {Where a soldier of this side goes when it is over.}
+    If sideB
+        If WayOffB != None
+            Return WayOffB
+        EndIf
+        Return ExitMarkerB
+    EndIf
+    If WayOffA != None
+        Return WayOffA
+    EndIf
+    Return ExitMarkerA
+EndFunction
 Float Property ExitDistance = 14000.0 AutoReadOnly      ; beyond the loaded area: whoever gets there is out of the world
 Float Property BodyOutOfSightDistance = 5000.0 AutoReadOnly     ; nearer than this a body is not removed even off screen
 Float Property WalkerOutOfSightDistance = 7000.0 AutoReadOnly   ; and a living soldier not nearer than this
 Float Property AftermathInterval = 6.0 AutoReadOnly     ; seconds between sweeps while a battle's aftermath runs
 Float Property StragglerInterval = 15.0 AutoReadOnly    ; and between looks at what a wound-up battle left behind
 Float Property BodiesStayHours = 6.0 AutoReadOnly       ; game hours the dead stay on the field, wherever the player goes
-Float Property AllyComesOverDistance = 2500.0 AutoReadOnly  ; an ally farther off than this does not come over after the battle
+Float Property AllyComesOverDistance = 7000.0 AutoReadOnly  ; an ally farther off than this does not come over after the battle (the whole field: at 2,500 a fight that had moved on left the player unthanked and unpaid)
 Float Property AllySpeaksDistance = 350.0 AutoReadOnly  ; how near the ally has to get before the word is said
 Float Property BattleEndedGameTime = 0.0 Auto Hidden    ; when the last battle's soldiers were sent off (game days)
 Bool Property SoldiersLeaving = false Auto Hidden       ; a wound-up battle still has soldiers or bodies in the player's view
@@ -1526,6 +2119,10 @@ Function DisperseSoldiers(Int winningSide, Bool findAlly)
     ExitMarkerA.SetPosition(cx + dx * ExitDistance, cy + dy * ExitDistance, z)
     ExitMarkerB = player.PlaceAtMe(xmarkerBase)
     ExitMarkerB.SetPosition(cx - dx * ExitDistance, cy - dy * ExitDistance, z)
+    ; Each army marches off toward a town, by the roads: a point in a straight line may lie in a mountain, and then
+    ; nobody took a step (the exit markers stay for where there is no town to march to).
+    WayOffA = IntelEngine.BattleWayHome(BattleFactionA, cx, cy, dx, dy, winningSide == 2, None)
+    WayOffB = IntelEngine.BattleWayHome(BattleFactionB, cx, cy, -dx, -dy, winningSide == 1, WayOffA)
 
     Int leavingA = 0
     Int leavingB = 0
@@ -1540,10 +2137,10 @@ Function DisperseSoldiers(Int winningSide, Bool findAlly)
             ; Whoever was held in line at the muster may move again.
             soldier.SetDontMove(false)
             If sideB
-                SendSoldierOff(soldier, ExitMarkerB, beaten)
+                SendSoldierOff(soldier, ExitFor(true), beaten)
                 leavingB += 1
             Else
-                SendSoldierOff(soldier, ExitMarkerA, beaten)
+                SendSoldierOff(soldier, ExitFor(false), beaten)
                 leavingA += 1
             EndIf
             If findAlly && sideB == playerOnB
@@ -1580,15 +2177,30 @@ Function SendSoldierOff(Actor soldier, ObjectReference exit, Bool running)
     If running
         pace = Core.TravelPackage_Run
     EndIf
+    pace = PaceFor(soldier, pace, Core.TravelPackage_Jog)
     PO3_SKSEFunctions.SetLinkedRef(soldier, exit, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(soldier, pace, Core.PRIORITY_TRAVEL, 1)
     soldier.EvaluatePackage()
+EndFunction
+
+Package Function PaceFor(Actor soldier, Package wanted, Package instead)
+    {The travel package to give somebody a new order with. The game does not begin a package anew for somebody who is
+    on it already: with the old order taken back and the same one given again, to another place, they went on to
+    where the old one led and stood there. That is what the reserves did who had run up on the run package and were
+    told to run for it: the last to come stood about on the field of a lost battle (seen 2026-11-21, twice). So
+    whoever comes, comes at a jog, whoever leaves, at a walk or a run, and nobody is ever given the package they
+    are on: they get the other one.}
+    If soldier.GetCurrentPackage() == wanted
+        Return instead
+    EndIf
+    Return wanted
 EndFunction
 
 Function TakeBackTravelOrder(Actor soldier)
     {The travel order is stored under the soldier's id, outside the soldier. It has to be gone before the soldier
     is: the id of a deleted reference is handed out again, and whoever gets it would walk off with the order.}
     ActorUtil.RemovePackageOverride(soldier, Core.TravelPackage_Walk)
+    ActorUtil.RemovePackageOverride(soldier, Core.TravelPackage_Jog)
     ActorUtil.RemovePackageOverride(soldier, Core.TravelPackage_Run)
 EndFunction
 
@@ -1650,6 +2262,8 @@ Function LeaveBattleSides()
 EndFunction
 
 Function ClearExitMarkers()
+    WayOffA = None          ; the game's own markers: forgotten, never removed
+    WayOffB = None
     If ExitMarkerA
         ExitMarkerA.DisableNoWait()
         ExitMarkerA.Delete()
@@ -1800,11 +2414,14 @@ Function ResetState()
     CommanderA = None
     CommanderB = None
     PlayerWasHailed = false
+    _warnedOff = false
     _goneSince = 0.0
     _waveBusy = false
     _tending = false
     _endedUnseen = false
     _markedEnemyOf = ""
+    BattleSkirmish = false
+    BattleLineSize = GetWaveSoldierCount(1)
     ; Revert battle leader's Protected flag and SpeedMult
     If BattleLeader != None
         BattleLeader.SetActorValue("SpeedMult", 100.0)
@@ -1826,276 +2443,169 @@ EndFunction
 ; =============================================================================
 
 Function ManifestEvent(String manifestJson)
-    ; Politics switched off means nothing political happens: this ran on (a battle set before the switch, a
-    ; skirmish, an ambush of a faction's men) and people met soldiers and assassins "with politics off".
+    {A political event that can be seen near the player: an attempt on a leader's life, or a skirmish (a brawl is a
+    small one). The DLL holds the event back, unrecorded, until this says how it went; whatever cannot be shown
+    after all is told as it was written (ManifestationFailed).}
     If !IntelEngine.IsPoliticsEnabled()
         Core.DebugMsg("Battle: no event shown: politics is switched off")
+        IntelEngine.ManifestationFailed()
         return
     EndIf
-    ; Guard: no active battle or manifestation
     ; Safety: if ManifestActive is stuck for > 2 minutes (stale save state), force-clear it
     If ManifestActive
         Float stuckTime = Utility.GetCurrentRealTime() - ManifestStartTime
         If stuckTime > 120.0
             Core.DebugMsg("Battle: ManifestActive stuck for " + stuckTime + "s - force-clearing")
-            CleanupManifestation()
+            CleanupManifestation(false)
         Else
             Core.DebugMsg("Battle: Cannot manifest - manifestation already active (" + stuckTime + "s)")
+            IntelEngine.ManifestationFailed()
             return
         EndIf
     EndIf
-    If IntelEngine.IsBattleActive()
+    If IntelEngine.IsBattleActive() || BattlePhase != 0
         Core.DebugMsg("Battle: Cannot manifest - battle active")
+        IntelEngine.ManifestationFailed()
         return
     EndIf
     If Core != None && Core.StoryEngine != None && Core.StoryEngine.FactionAmbushActive
         Core.DebugMsg("Battle: Cannot manifest - faction ambush already active")
+        IntelEngine.ManifestationFailed()
         return
     EndIf
 
-    ; Allow assassination_attempt indoors (soldiers spawn near leader)
-    ; Other types still require exterior
-    String manifestEventType = IntelEngine.StoryResponseGetField(manifestJson, "event_type")
-    If !IsPlayerInExterior() && manifestEventType != "assassination_attempt"
-        Core.DebugMsg("Battle: Cannot manifest - player is indoors (" + manifestEventType + ")")
-        return
-    EndIf
-
-    ; Parse manifest JSON
     String eventType = IntelEngine.StoryResponseGetField(manifestJson, "event_type")
     String attackerFaction = IntelEngine.StoryResponseGetField(manifestJson, "attacker_faction")
     String targetFaction = IntelEngine.StoryResponseGetField(manifestJson, "target_faction")
     Int spawnCount = IntelEngine.StoryResponseGetField(manifestJson, "spawn_count") as Int
-    Bool spawnDefenders = IntelEngine.StoryResponseGetField(manifestJson, "spawn_defenders") == "true"
-    Int defenderCount = IntelEngine.StoryResponseGetField(manifestJson, "defender_count") as Int
-
-    If attackerFaction == "" || (spawnCount <= 0 && eventType != "assassination_attempt")
+    If attackerFaction == "" || targetFaction == ""
+        IntelEngine.ManifestationFailed()
         return
     EndIf
 
+    ; A skirmish, or a brawl: a small battle. A handful of each side meet on a field out of the player's way and go
+    ; at each other. (They used to be made around the player: one band 800 units in front of their eyes, the other
+    ; behind their back.)
+    If eventType != "assassination_attempt"
+        If StartSkirmish(attackerFaction, targetFaction, spawnCount)
+            IntelEngine.ConfirmManifestationCooldown()
+        Else
+            Core.DebugMsg("Battle: no ground here for a skirmish between " + attackerFaction + " and " + targetFaction)
+            IntelEngine.ManifestationFailed()
+        EndIf
+        return
+    EndIf
+
+    ; An attempt on a leader's life.
     Actor player = Game.GetPlayer()
     ManifestActors = new Actor[12]
     ManifestCount = 0
     ManifestLeaderTarget = None
     ManifestAssassinAttacked = false
     ManifestAssassinStruck = false
-    ; Everyone spawned below joins battle side B, the enemy of side A. The player only belongs to a side
-    ; during a full battle; a membership left over from one that ended badly would turn every brawl and
-    ; skirmish on the player.
+    _assassinReported = false
     If PlayerBattleSide == ""
         player.RemoveFromFaction(Intel_BattleSideA)
         player.RemoveFromFaction(Intel_BattleSideB)
     EndIf
 
-    ; Pre-calculate spawn offset — actors spawn at offset, not at player position
-    Float playerAngle = player.GetAngleZ()
-
-    ; Non-assassination events use attacker faction template for spawning
-    String spawnFaction = attackerFaction
-
-    Int i = 0
-
-    ; Assassination uses dedicated C++ path — skip generic spawn entirely.
-    If eventType != "assassination_attempt"
-        ; Generic spawn for non-assassination events (brawl, border_skirmish, etc.)
-        Int attackCap = 12 - ManifestCount
-        If spawnCount < attackCap
-            attackCap = spawnCount
-        EndIf
-        ; Created at a marker behind the player (outdoors), as the battle waves are at their rally markers.
-        ; Created at the player they all stood on that spot until the loop below had moved each one away.
-        ObjectReference attackMarker = None
-        If IsPlayerInExterior()
-            attackMarker = PlaceSpawnMarker(player, playerAngle + 180.0, 2000.0)
-        EndIf
-        ObjectReference attackAt = player as ObjectReference
-        If attackMarker
-            attackAt = attackMarker
-        EndIf
-        Actor[] attackers = IntelEngine.SpawnBattleSoldiers(spawnFaction + ":" + attackCap, attackAt)
-        If attackMarker
-            attackMarker.DisableNoWait()
-            attackMarker.Delete()
-        EndIf
-
-        i = 0
-        While i < attackers.Length
-            If attackers[i]
-                If IsPlayerInExterior()
-                    Float angle = playerAngle + 180.0 + Utility.RandomFloat(-60.0, 60.0)
-                    Float dist = Utility.RandomFloat(1500.0, 2500.0)
-                    Float offsetX = Math.Sin(angle) * dist
-                    Float offsetY = Math.Cos(angle) * dist
-                    attackers[i].MoveTo(player, offsetX, offsetY, 0.0)
-                Else
-                    Float offsetX = Utility.RandomFloat(-200.0, 200.0)
-                    Float offsetY = Utility.RandomFloat(-200.0, 200.0)
-                    attackers[i].MoveTo(player, offsetX, offsetY, 0.0)
-                EndIf
-                ; CONVENTION: BattleSideA = player's allied side, BattleSideB = enemy side.
-                attackers[i].AddToFaction(Intel_BattleSideB)
-                ; They are here for each other. Several soldier templates, and the bandit stand-in used for
-                ; factions without one, attack any neutral on sight: the player first, being nearest.
-                attackers[i].SetActorValue("Aggression", 1)
-                ManifestActors[ManifestCount] = attackers[i]
-                ManifestCount += 1
-            EndIf
-            i += 1
-        EndWhile
-
-        If ManifestCount == 0
-            Core.DebugMsg("Battle: Manifest failed - no attackers spawned")
-            return
-        EndIf
+    ; The DLL picks the leader and makes the killer where the player does not see them appear: beyond a door of the
+    ; room, or out of sight out of doors.
+    Actor assassin = IntelEngine.ExecuteAssassination(targetFaction, attackerFaction)
+    If assassin == None
+        Core.DebugMsg("Battle: no attempt on a leader of " + targetFaction + " can be shown here")
+        IntelEngine.ManifestationFailed()
+        return
+    EndIf
+    Actor assTarget = IntelEngine.GetAssassinationTarget()
+    String leaderName = IntelEngine.GetAssassinationLeaderName()
+    Int slot = -1
+    If assTarget != None
+        slot = Core.ClaimFreeAgentSlot()
+    EndIf
+    If assTarget == None || slot < 0
+        Core.DebugMsg("Battle: the attempt cannot go ahead (target " + assTarget + ", slot " + slot + ")")
+        assassin.DisableNoWait()
+        assassin.Delete()
+        IntelEngine.ManifestationFailed()
+        return
     EndIf
 
-    ; Handle combat targeting based on event type
-    If eventType == "assassination_attempt"
-        ; C++ spawns assassin, strips factions, sets kIgnoreFriendlyHits.
-        ; Returns Actor directly — no JSON.
-        Actor assassin = IntelEngine.ExecuteAssassination(targetFaction, attackerFaction)
-        If assassin == None
-            Core.DebugMsg("Battle: ExecuteAssassination failed - no assassin returned")
-            ManifestActive = false
-            return
-        EndIf
+    ManifestLeaderTarget = assTarget
+    _assassinTargetFaction = targetFaction
+    _assassinAttackerFaction = attackerFaction
+    _assassinLeaderName = leaderName
+    ManifestActors[0] = assassin
+    ManifestCount = 1
+    ; Nobody knows who this is. (They carried the name of what they were made from: a "Bandit" walked into Jorrvaskr.)
+    assassin.SetDisplayName(IntelEngine.BattleSay("stranger"), true)
+    assassin.EnableNoWait(true)
 
-        Actor assTarget = IntelEngine.GetAssassinationTarget()
-        String leaderName = IntelEngine.GetAssassinationLeaderName()
-        If assTarget == None
-            Core.DebugMsg("Battle: Assassination target not found - aborting")
-            assassin.DisableNoWait()
-            assassin.Delete()
-            ManifestActive = false
-            return
-        EndIf
-
-        ManifestLeaderTarget = assTarget
-
-        ; Find a free slot
-        Int slot = Core.ClaimFreeAgentSlot()
-        If slot < 0
-            Core.DebugMsg("Battle: No free task slot for assassin - aborting")
-            assassin.DisableNoWait()
-            assassin.Delete()
-            ManifestActive = false
-            ; Was left pointing at the leader. OnUpdate takes "leader set, not attacked yet" for an
-            ; assassination in progress, so the next brawl or skirmish was handled as one: its first
-            ; soldier dying announced a foiled assassination, or was sent to attack that leader.
-            ManifestLeaderTarget = None
-            return
-        EndIf
-
-        ; Track assassin in ManifestActors for cleanup
-        ManifestActors[0] = assassin
-        ManifestCount = 1
-
-        ; If no door was found, C++ spawned at leader — offset 500 units behind leader
-        If IsPlayerInExterior() && assassin.GetDistance(assTarget) < 100.0
-            Float angle = assTarget.GetAngleZ() + 180.0 + Utility.RandomFloat(-30.0, 30.0)
-            Float offsetX = Math.Sin(angle) * 500.0
-            Float offsetY = Math.Cos(angle) * 500.0
-            assassin.MoveTo(assTarget, offsetX, offsetY, 0.0)
-        EndIf
-
-        ; Allocate slot — assigns quest alias + task faction (makes travel packages work)
-        Core.AllocateSlot(slot, assassin, "assassination", leaderName, 0, "Politics")
-
-        ; Start travel — exact same pattern as FetchPerson
-        ; Intel_DestMarker is required for Travel.CheckForArrival to detect proximity
-        StorageUtil.SetFormValue(assassin, "Intel_DestMarker", assTarget as ObjectReference)
-        PO3_SKSEFunctions.SetLinkedRef(assassin, assTarget, Core.IntelEngine_TravelTarget)
-        ActorUtil.AddPackageOverride(assassin, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
-        Utility.Wait(0.1)
-        assassin.EvaluatePackage()
-
-        Core.DebugMsg("Battle: Assassin " + assassin.GetDisplayName() + " walking toward " + leaderName + " (slot " + slot + ")")
-        ; Travel system monitors arrival → calls OnArrival → HandleAssassinArrival
-
-    ElseIf spawnDefenders && defenderCount > 0
-        ; Brawl / border skirmish — batch spawn defenders, then position
-        Int defStart = ManifestCount
-        Int defCap = 12 - ManifestCount
-        If defenderCount < defCap
-            defCap = defenderCount
-        EndIf
-        ; (At a marker on their side of the player, not at the player's feet: see the attackers above.)
-        ObjectReference defendMarker = PlaceSpawnMarker(player, playerAngle, 1000.0)
-        ObjectReference defendAt = player as ObjectReference
-        If defendMarker
-            defendAt = defendMarker
-        EndIf
-        Actor[] defenders = IntelEngine.SpawnBattleSoldiers(targetFaction + ":" + defCap, defendAt)
-        If defendMarker
-            defendMarker.DisableNoWait()
-            defendMarker.Delete()
-        EndIf
-
-        i = 0
-        While i < defenders.Length
-            If defenders[i]
-                ; Position offset from attackers (opposite side of player)
-                Float angle = playerAngle + Utility.RandomFloat(-45.0, 45.0)
-                Float dist = Utility.RandomFloat(800.0, 1200.0)
-                Float offsetX = Math.Sin(angle) * dist
-                Float offsetY = Math.Cos(angle) * dist
-                defenders[i].MoveTo(player, offsetX, offsetY, 0.0)
-                defenders[i].AddToFaction(Intel_BattleSideB)
-                defenders[i].SetActorValue("Aggression", 1)
-                ManifestActors[ManifestCount] = defenders[i]
-                ManifestCount += 1
-            EndIf
-            i += 1
-        EndWhile
-
-        ; Only start combat if we have defenders
-        If ManifestCount > defStart
-            ; Make attackers fight defenders
-            i = 0
-            While i < defStart
-                If ManifestActors[i] != None
-                    Int k = defStart
-                    While k < ManifestCount
-                        If ManifestActors[k] != None
-                            ManifestActors[i].StartCombat(ManifestActors[k])
-                        EndIf
-                        k += 1
-                    EndWhile
-                EndIf
-                i += 1
-            EndWhile
-            IntelEngine.ConfirmManifestationCooldown()
-            Core.DebugMsg("Battle: Manifest " + eventType + " - " + defStart + " vs " + (ManifestCount - defStart))
-        Else
-            ; No defenders — abort manifestation (attackers with no targets is immersion-breaking)
-            Core.DebugMsg("Battle: Manifest " + eventType + " - no defenders spawned, aborting")
-            i = 0
-            While i < ManifestCount
-                If ManifestActors[i] != None
-                    ManifestActors[i].DisableNoWait()
-                    ManifestActors[i].Delete()
-                    ManifestActors[i] = None
-                EndIf
-                i += 1
-            EndWhile
-            ManifestCount = 0
-            ManifestActive = false
-            return
-        EndIf
-    EndIf
-
-    ; Show notification (assassination notification deferred to HandleAssassinArrival)
-    String nameA = IntelEngine.GetFactionDisplayName(attackerFaction)
-    String nameB = IntelEngine.GetFactionDisplayName(targetFaction)
-    If eventType == "brawl"
-        Debug.Notification("A brawl erupts between " + nameA + " and " + nameB + "!")
-    ElseIf eventType == "border_skirmish"
-        Debug.Notification(nameA + " skirmishers clash with " + nameB + " forces!")
-    EndIf
+    ; Allocate slot — assigns quest alias + task faction (makes travel packages work)
+    Core.AllocateSlot(slot, assassin, "assassination", leaderName, 0, "Politics")
+    ; Intel_DestMarker is required for Travel.CheckForArrival to detect proximity
+    StorageUtil.SetFormValue(assassin, "Intel_DestMarker", assTarget as ObjectReference)
+    PO3_SKSEFunctions.SetLinkedRef(assassin, assTarget, Core.IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(assassin, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
+    Utility.Wait(0.1)
+    assassin.EvaluatePackage()
+    Core.DebugMsg("Battle: a killer (" + assassin.GetDisplayName() + ") is on the way to " + leaderName + " (slot " + slot + ", " + \
+        assassin.GetDistance(assTarget) + " units)")
+    ; Travel system monitors arrival → calls OnArrival → HandleAssassinArrival
 
     ManifestActive = true
     ManifestStartTime = Utility.GetCurrentRealTime()
     Core.RequestTick(PollInterval)
+EndFunction
+
+Bool Function StartSkirmish(String attacker, String target, Int size)
+    {A handful of two factions meet on a field near the player. False: no ground for it here and now.}
+    If IntelEngine.IsBattleActive() || BattlePhase != 0
+        Return false
+    EndIf
+    If size < 2
+        size = 2
+    ElseIf size > 6
+        size = 6
+    EndIf
+    BattleFactionA = attacker
+    BattleFactionB = target
+    BattleWarId = IntelEngine.GetActiveWarId(attacker, target)
+    BattleLocationName = ""
+    BattleSpawnAnchor = None
+    QuestAutoJoinFaction = ""
+    BattleScheduled = false
+    BattleSpawned = false
+    BattleSkirmish = true
+    BattleLineSize = size
+    If !StartBattleSequence()
+        ForgetBattleNames()
+        Return false
+    EndIf
+    Return true
+EndFunction
+
+String Function AssassinationResult()
+    {How the attempt on the leader's life ended, as it is to be seen now.}
+    Actor striker = ManifestActors[0]
+    Actor leader = ManifestLeaderTarget
+    Actor player = Game.GetPlayer()
+    If leader != None && leader.IsDead()
+        If leader.GetKiller() == player
+            Return "slain_by_player"
+        EndIf
+        Return "killed"
+    EndIf
+    If striker == None || striker.IsDead()
+        If striker != None && striker.GetKiller() == player
+            If ManifestAssassinStruck
+                Return "saved"
+            EndIf
+            Return "foiled"
+        EndIf
+        Return "failed"
+    EndIf
+    Return "escaped"
 EndFunction
 
 ObjectReference Function PlaceSpawnMarker(Actor player, Float angle, Float dist)
@@ -2173,24 +2683,18 @@ Function HandleAssassinArrival(Actor assassin, String targetName)
     assassin.StartCombat(target)
     ManifestAssassinStruck = true
 
-    ; Inject facts + SkyrimNet event. The witnesses are the people around the victim. They were counted around
-    ; the player, 3000 units wide: someone two rooms from the attack remembered having witnessed it because
-    ; the player stood near them (seen in Jorrvaskr, 2026-11-13). And the victim got the witnesses' line,
-    ; "witnessed an assassination attempt on Kodlak Whitemane", about themself.
+    ; The blow, as an event of the game for SkyrimNet. What people remember of it is given when it is over, with
+    ; how it ended (CleanupManifestation): at this point they used to be given "witnessed an assassination attempt"
+    ; and nothing of the outcome. The witness is somebody near the victim (not near the player: someone two rooms
+    ; from the attack "witnessed" it because the player stood by them, Jorrvaskr, 2026-11-13).
     String infiltrationFact = "witnessed an assassination attempt on " + targetName
     Actor[] witnesses = IntelEngine.GetNearbyWitnessNPCs(target, 2000.0)
     Actor eventWitness = player
-    Bool haveWitness = false
     Int wi = 0
     While wi < witnesses.Length
-        If witnesses[wi] == target
-            Core.InjectFact(target, "was attacked by an assassin")
-        ElseIf witnesses[wi] != None
-            Core.InjectFact(witnesses[wi], infiltrationFact)
-            If !haveWitness
-                eventWitness = witnesses[wi]
-                haveWitness = true
-            EndIf
+        If witnesses[wi] != None && witnesses[wi] != target
+            eventWitness = witnesses[wi]
+            wi = witnesses.Length
         EndIf
         wi += 1
     EndWhile
@@ -2198,7 +2702,7 @@ Function HandleAssassinArrival(Actor assassin, String targetName)
 
     ; Reset manifest timer so cleanup doesn't fire immediately
     ManifestStartTime = Utility.GetCurrentRealTime()
-    Debug.Notification("Assassin strikes at " + targetName + "!")
+    Debug.Notification("An assassin strikes at " + targetName + "!")
     IntelEngine.ConfirmManifestationCooldown()
     Core.DebugMsg("Battle: Assassination attack triggered on " + targetName)
 EndFunction
@@ -2252,8 +2756,56 @@ Function CalmManifestActor(Actor fighter)
     fighter.EvaluatePackage()
 EndFunction
 
-Function CleanupManifestation()
+Function CleanupManifestation(Bool report = true)
     Core.DebugMsg("Battle: Cleaning up manifestation (" + ManifestCount + " actors)")
+
+    ; An attempt on a leader's life: how it ended is recorded and told as it was seen (it used to be told beforehand,
+    ; as the DM had written it, whatever then happened). One that never came to it is told as written.
+    Actor thanked = None
+    String thanks = ""
+    Int reward = 0
+    If ManifestLeaderTarget != None && !_assassinReported
+        _assassinReported = true
+        Actor striker = ManifestActors[0]
+        If report && (ManifestAssassinStruck || (striker != None && striker.IsDead()))
+            String outcome = AssassinationResult()
+            String told = IntelEngine.AssassinationOutcome(_assassinTargetFaction, _assassinAttackerFaction, _assassinLeaderName, outcome)
+            Core.DebugMsg("Battle: the attempt on " + _assassinLeaderName + " ended - " + outcome)
+            String note = IntelEngine.StoryResponseGetOptionalField(told, "notification")
+            If note != ""
+                Debug.Notification(note)
+            EndIf
+            String risen = IntelEngine.StoryResponseGetOptionalField(told, "promoted")
+            If risen != ""
+                Debug.Notification(IntelEngine.BattleSay("promoted", _assassinTargetFaction, "", risen))
+            EndIf
+            Actor leader = ManifestLeaderTarget
+            String witnessFact = IntelEngine.StoryResponseGetOptionalField(told, "witnessFact")
+            String targetFact = IntelEngine.StoryResponseGetOptionalField(told, "targetFact")
+            If leader != None && leader.Is3DLoaded()
+                If targetFact != "" && !leader.IsDead()
+                    Core.InjectFact(leader, targetFact)
+                EndIf
+                If witnessFact != ""
+                    Actor[] witnesses = IntelEngine.GetNearbyWitnessNPCs(leader, 2000.0)
+                    Int wi = 0
+                    While wi < witnesses.Length
+                        If witnesses[wi] != None && witnesses[wi] != leader
+                            Core.InjectFact(witnesses[wi], witnessFact)
+                        EndIf
+                        wi += 1
+                    EndWhile
+                EndIf
+                thanks = IntelEngine.StoryResponseGetOptionalField(told, "thanks")
+                reward = IntelEngine.StoryResponseGetField(told, "reward") as Int
+                If thanks != "" && !leader.IsDead() && !leader.IsBleedingOut() && leader.GetDistance(Game.GetPlayer()) <= 2000.0
+                    thanked = leader
+                EndIf
+            EndIf
+        ElseIf report
+            IntelEngine.ManifestationFailed()
+        EndIf
+    EndIf
 
     ; Clear assassination task slot to prevent permanent slot leak
     If ManifestLeaderTarget != None && ManifestActors[0] != None
@@ -2293,6 +2845,23 @@ Function CleanupManifestation()
     ManifestAssassinAttacked = false
     ManifestAssassinStruck = false
     ManifestLeaderTarget = None
+
+    ; The one whose life was saved thanks the one who saved it, in their own words, and pays them in person.
+    If thanked != None
+        Actor player = Game.GetPlayer()
+        thanked.SetLookAt(player)
+        Core.SendTaskNarration(thanked, thanks, player)
+        Utility.Wait(2.0)
+        IntelEngine_Quests quests = Quest.GetQuest("IntelEngine_QuestKeeper") as IntelEngine_Quests
+        If quests != None
+            quests.WaitForTheirSay(thanked, 12.0)
+        EndIf
+        If reward > 0 && !thanked.IsDead()
+            player.AddItem(Game.GetFormFromFile(0x0000000F, "Skyrim.esm"), reward)
+            Core.DebugMsg("Battle: " + reward + " gold from " + thanked.GetDisplayName() + " for their life")
+        EndIf
+        thanked.ClearLookAt()
+    EndIf
 EndFunction
 
 Bool Function IsAnyManifestActorInCombat()
@@ -2325,7 +2894,50 @@ EndFunction
 Function ShowBattleStartNotification(String locationName)
     {What the player sees as they come near: two armies facing each other. (It used to say that soldiers "clash",
     with the lines still standing, or with nobody in sight.)}
-    Debug.Notification(IntelEngine.BattleSay("drawn_up", BattleFactionA, BattleFactionB))
+    If BattleSkirmish
+        Debug.Notification(IntelEngine.BattleSay("skirmish_met", BattleFactionA, BattleFactionB))
+    Else
+        Debug.Notification(IntelEngine.BattleSay("drawn_up", BattleFactionA, BattleFactionB))
+    EndIf
+EndFunction
+
+Function DebugSkirmish(String attacker, String target, Int size)
+    {Test hook: a skirmish between two factions near the player, as a political event would bring it.}
+    Core.DebugMsg("Battle: [debug] skirmish " + attacker + " / " + target + " -> " + StartSkirmish(attacker, target, size))
+EndFunction
+
+Function DebugAssassination(String targetFaction, String attackerFaction)
+    {Test hook: an attempt on a leader of the target faction who is near the player, as a political event would bring it.}
+    ManifestEvent("{" + Quote("event_type") + ":" + Quote("assassination_attempt") + "," + Quote("attacker_faction") + ":" + Quote(attackerFaction) +         "," + Quote("target_faction") + ":" + Quote(targetFaction) + "," + Quote("spawn_count") + ":1}")
+EndFunction
+
+String Function Quote(String text)
+    Return "\"" + text + "\""
+EndFunction
+
+Function DebugGathering(String place, String attacker, String target)
+    {Test hook: two armies gather near a place, as when the political dungeon master announces a battle.}
+    Int id = IntelEngine.AddPendingBattle(place, attacker, target, "{}")
+    Core.DebugMsg("Battle: [debug] gathering " + id + " near " + place + ": " + attacker + " against " + target)
+    If id >= 0
+        StartPendingBattlePoll()
+    EndIf
+EndFunction
+
+Function DebugTwists(Int champion, Int flank, Int turncoat)
+    {Test hook: what the battle now drawn up has in store, said outright (champion: 0 none, 1 side A, 2 side B, 3 both;
+    flank and turncoat: 0, 1 or 2).}
+    IntelEngine.BattleSetTwists(champion, flank, turncoat)
+EndFunction
+
+Function DebugDidFor(String factionId, Int times)
+    {Test hook: the player has done this many things at a faction's asking (eight renown each): for trying the ranks.}
+    Int i = 0
+    While i < times
+        IntelEngine.PlayerDidFor(factionId, "quest")
+        i += 1
+    EndWhile
+    Core.DebugMsg("Battle: [debug] with " + factionId + " the player is now rank " + IntelEngine.PlayerFactionRank(factionId) + " " + IntelEngine.PlayerRankTitle(factionId))
 EndFunction
 
 Function DebugBattle()
@@ -2380,9 +2992,9 @@ Function OnGameReload()
         ManifestStartTime = now
     EndIf
 
-    ; Clean up any active manifestation from pre-reload
+    ; Clean up any active manifestation from pre-reload (nothing is recorded of it: who knows how it would have gone)
     If ManifestActive
-        CleanupManifestation()
+        CleanupManifestation(false)
     EndIf
 
     ; If a battle was in progress when the game was saved, clean up
@@ -2414,5 +3026,16 @@ Function OnGameReload()
     PendingPollActive = IntelEngine.GetPendingBattleCount() > 0
     If PendingPollActive
         Core.RequestTick(PollInterval)
+    EndIf
+    ; A call that was open when the game was saved: its words are said again (the game does not keep them); one whose
+    ; battle was being fought ends with nothing decided (a battle does not come back with a save), one whose
+    ; gathering is gone was decided without the player.
+    If CallBattleId >= 0
+        IntelEngine.BattleCallText(CallFaction, CallPlace)
+        If CallFought
+            EndCall(CALL_PARTED)
+        ElseIf IntelEngine.GetPendingBattleInfo(CallBattleId) == "{}"
+            EndCall(CALL_MISSED)
+        EndIf
     EndIf
 EndFunction
