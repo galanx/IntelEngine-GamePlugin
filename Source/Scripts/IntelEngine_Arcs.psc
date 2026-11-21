@@ -286,12 +286,9 @@ Int Function DebugArc(Actor asker, Int pattern = 0)
     If id <= 0
         Return 0
     EndIf
-    IntelEngine_Core c = Core()
-    If c == None || c.StoryEngine == None || !c.StoryEngine.DispatchArcOffer(asker, id)
-        IntelEngine.ArcDrop(id)
-        Return 0
-    EndIf
-    TheMurder(id)
+    ; By the door every offer goes out of (OnArcOffer does the rest): the hook used to send the asker straight off, so a
+    ; test never met the rule on who goes to the player and who waits.
+    IntelEngine.ArcOffer(id, asker)
     Return id
 EndFunction
 

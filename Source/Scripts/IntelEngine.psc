@@ -728,6 +728,9 @@ Int Function ArcDebugReach(Actor akActor) Global Native
 Function ArcOfferLater(Int id) Global Native
 ; The asker set out at a walk and the player was gone before they got there: the offer goes out when they next meet.
 Function ArcOfferDeferred(Int id) Global Native
+; The offer of a planned story goes out: its asker comes to the player (IntelEngine_ArcOffer), or stays where they are
+; and waits for the two to meet: a stranger, somebody with a post to keep, anybody once the player is out of their town.
+Function ArcOffer(Int id, Actor akAsker) Global Native
 ; Someone of this story (not its asker) who stands beside the player right now, or None: nobody brings their trouble
 ; to the player in front of the people it is about.
 Actor Function ArcCompany(Int id) Global Native
