@@ -568,6 +568,10 @@ Event OnUpdate()
         EndIf
         return
     EndIf
+    If BattlePhase == 0 && FindingField()
+        Core.RequestTick(MusterPoll)        ; the field is still being looked for: nothing to tend yet
+        return
+    EndIf
     If BattlePhase != 2
         ; A battle this script did not begin (one left by an older version): closed.
         Core.DebugMsg("Battle: a battle is active that was never drawn up - closing it")
@@ -646,6 +650,17 @@ Function StartBattleImmediate(String factionA, String factionB, Int warId)
     EndIf
 EndFunction
 
+Float _fieldSearchSince = -1.0      ; real time at which the search for a field began; below 0: no search
+
+Bool Function FindingField()
+    {Is the DLL being asked for a field right now? (By the clock: a search cut off by a load is not one.)}
+    If _fieldSearchSince < 0.0
+        Return false
+    EndIf
+    Float since = Utility.GetCurrentRealTime() - _fieldSearchSince
+    Return since >= 0.0 && since < 15.0
+EndFunction
+
 Bool Function StartBattleSequence()
     {The two armies are drawn up against each other on a field near the player, if there is one. False: no ground
     for it here and now. Nothing has begun then, and whoever asked may ask again later. (A battle used to "begin"
@@ -672,7 +687,18 @@ Bool Function StartBattleSequence()
         Return false
     EndIf
 
+    ; The DLL looks a quarter of a millisecond at a time and says "looking" until it is through: asked again each
+    ; frame. (In one go the search took 1.5 ms of a frame on a big mod list.) The poll leaves the battle alone
+    ; meanwhile: it would take a battle that has no lines yet for one left over, and close it.
+    _fieldSearchSince = Utility.GetCurrentRealTime()
     String field = IntelEngine.BattlePickField(player, BattleSpawnAnchor)
+    Int looks = 0
+    While looks < 150 && IntelEngine.StoryResponseGetField(field, "reason") == "looking"
+        Utility.Wait(0.02)
+        field = IntelEngine.BattlePickField(player, BattleSpawnAnchor)
+        looks += 1
+    EndWhile
+    _fieldSearchSince = -1.0
     If IntelEngine.StoryResponseGetField(field, "ok") != "true"
         Core.DebugMsg("Battle: no field here for " + BattleFactionA + " vs " + BattleFactionB + " (" + \
             IntelEngine.StoryResponseGetField(field, "reason") + ")")
@@ -1668,34 +1694,101 @@ Function PostBattleSoldierMoment(Actor survivor, Int alliesLeft, String ownSide,
     If alliesLeft <= 0
         If playerWon
             Debug.Notification("The field is yours, though none of your side is left standing to share it.")
+            PaySentOn(ownSide, reward)
         Else
             Debug.Notification("You stand alone among the fallen.")
         EndIf
         return
     EndIf
     If !survivor || survivor.IsDead()
-        Core.DebugMsg("Battle: allies live, but none is anywhere near - no word, no pay")
+        Core.DebugMsg("Battle: allies live, but none is anywhere near - no word")
+        If playerWon
+            PaySentOn(ownSide, reward)
+        EndIf
         return
     EndIf
     ; Comes over: at a run while they are far, at a weary pace for the last stretch. A travel order, not a scripted
     ; path: that one cannot be given up.
     Actor player = Game.GetPlayer()
-    ; (Never the package he is on: one who had come up as a reserve at a jog and was told to come over at a jog went
-    ; on with his old order, and the pay of a battle won was never handed over. 2026-11-21.)
-    Package gait = PaceFor(survivor, Core.TravelPackage_Jog, Core.TravelPackage_Run)
+    Float from = survivor.GetDistance(player)
+    ; He comes the way a companion follows: on the follow order of the soldiers at the player's side, which has no
+    ; place to get to and so nothing to go wrong about it. (He used to be sent on the travel order with the player
+    ; as its place. Fresh out of the fight that did not take: twice on the full mod list the one who was to bring
+    ; the pay walked on with the march, past the player at 900 units and off toward Riverwood, and a battle won paid
+    ; nothing. Told to follow, the same man turned at once. 2026-11-21.)
+    _speaker = survivor
+    Package gait = FollowPackage()
+    Bool following = gait != None
+    If !following
+        gait = PaceFor(survivor, Core.TravelPackage_Jog, Core.TravelPackage_Run)
+    EndIf
+    Core.DebugMsg("Battle: " + survivor + " is to come over from " + from + " units (on " + \
+        PaceName(survivor.GetCurrentPackage()) + ", told to " + PaceName(gait) + ", fighting " + survivor.IsInCombat() + ")")
+    CalmSoldier(survivor)
     TakeBackTravelOrder(survivor)
-    PO3_SKSEFunctions.SetLinkedRef(survivor, player, Core.IntelEngine_TravelTarget)
+    If !following
+        PO3_SKSEFunctions.SetLinkedRef(survivor, player, Core.IntelEngine_TravelTarget)
+    EndIf
     ActorUtil.AddPackageOverride(survivor, gait, Core.PRIORITY_TRAVEL, 1)
     survivor.EvaluatePackage()
+    ; As long as the way is: half a minute for somebody near, close to two for somebody across the field. By the
+    ; clock, not by counting waits: with many scripts at work a quarter of a second's wait takes far longer, and
+    ; "45 seconds" were 67.
+    Float began = Utility.GetCurrentRealTime()
+    Float most = 25.0 + from / 60.0
+    If most > 110.0
+        most = 110.0
+    EndIf
     Float waited = 0.0
+    Float told = 0.0
+    Float best = from           ; the nearest he has been, and when: one who follows stops at his own few steps off
+    Float bestAt = 0.0
+    Bool settled = false
+    Int tries = 0
     Bool weary = false
-    While waited < 45.0 && survivor.GetDistance(player) > AllyStopsDistance && !survivor.IsDead()
-        If !weary && survivor.GetDistance(player) < 900.0
+    While waited < most && !settled && survivor.GetDistance(player) > AllyStopsDistance && !survivor.IsDead()
+        Float off = survivor.GetDistance(player)
+        If !weary && off < 900.0
             weary = true
             survivor.SetActorValue("SpeedMult", 70.0)
         EndIf
         Utility.Wait(0.25)
-        waited += 0.25
+        waited = Utility.GetCurrentRealTime() - began
+        off = survivor.GetDistance(player)
+        If off < best - 15.0
+            best = off
+            bestAt = waited
+        ElseIf off <= AllySpeaksDistance && waited - bestAt >= 1.5
+            settled = true      ; near enough to speak, and he has come no nearer for a moment: this is where he stands
+        EndIf
+        ; The order has to take. If he goes on with what he was doing, he is told again, another way each time: on
+        ; the travel order at a run, then with his wits shaken awake and told to follow once more, then at the other
+        ; pace.
+        If !settled && tries < 3 && waited >= 4.0 * (tries + 1) && (survivor.GetCurrentPackage() != gait || off > from + 150.0)
+            tries += 1
+            Core.DebugMsg("Battle: the order to come over has not taken (" + off + " units after " + waited + " s, on " + \
+                PaceName(survivor.GetCurrentPackage()) + ", fighting " + survivor.IsInCombat() + ") - told again, way " + tries)
+            CalmSoldier(survivor)
+            TakeBackTravelOrder(survivor)
+            If tries == 2 && FollowPackage() != None
+                survivor.EnableAI(false)
+                survivor.EnableAI(true)
+                gait = FollowPackage()
+            Else
+                gait = PaceFor(survivor, Core.TravelPackage_Run, Core.TravelPackage_Jog)
+                PO3_SKSEFunctions.SetLinkedRef(survivor, player, Core.IntelEngine_TravelTarget)
+            EndIf
+            ActorUtil.AddPackageOverride(survivor, gait, Core.PRIORITY_TRAVEL, 1)
+            survivor.EvaluatePackage()
+            from = off
+            best = off
+            bestAt = waited
+        EndIf
+        If waited - told >= 5.0
+            told = waited
+            Core.DebugMsg("Battle: comes over - " + off + " units after " + waited + " s, on " + \
+                PaceName(survivor.GetCurrentPackage()) + ", fighting " + survivor.IsInCombat())
+        EndIf
     EndWhile
     ; He stops there, a few steps off, and stands while he speaks. (His order to come to the player stayed on him
     ; until he had spoken, and the words take their time to come: he walked into the player, was pushed off, and
@@ -1727,18 +1820,27 @@ Function PostBattleSoldierMoment(Actor survivor, Int alliesLeft, String ownSide,
             quests.WaitForTheirSay(survivor, 30.0)
         EndIf
         ; The pay, handed over by the one who came, there and then.
-        If playerWon && reward > 0 && !survivor.IsDead()
-            player.AddItem(Game.GetFormFromFile(0x0000000F, "Skyrim.esm"), reward)
-            Core.DebugMsg("Battle: " + reward + " gold paid to the player")
+        If playerWon && reward > 0
+            If !survivor.IsDead()
+                player.AddItem(Game.GetFormFromFile(0x0000000F, "Skyrim.esm"), reward)
+                Core.DebugMsg("Battle: " + reward + " gold paid to the player")
+            Else
+                PaySentOn(ownSide, reward)
+            EndIf
         EndIf
     Else
-        Core.DebugMsg("Battle: " + survivor.GetDisplayName() + " did not reach the player in time, no word")
+        Core.DebugMsg("Battle: " + survivor.GetDisplayName() + " did not reach the player in time, no word (" + \
+            survivor.GetDistance(player) + " units off after " + waited + " s)")
+        If playerWon
+            PaySentOn(ownSide, reward)
+        EndIf
     EndIf
     survivor.SetActorValue("SpeedMult", 100.0)
     If stopped
         survivor.SetDontMove(false)
         survivor.ClearLookAt()
     EndIf
+    _speaker = None
     If !survivor.IsDead()
         ObjectReference way = ExitFor(survivor.IsInFaction(Intel_BattleSideB))
         If way != None
@@ -2231,6 +2333,34 @@ Function SendSoldierOff(Actor soldier, ObjectReference exit, Bool running)
     soldier.EvaluatePackage()
 EndFunction
 
+Function PaySentOn(String side, Int reward)
+    {The pay of a battle won when nobody of the player's side can bring it over: none left standing, none near, or
+    the one who set out did not get there. It is sent on, and the player is told so. (It used to be lost without a
+    word: a battle won, fought in from the back of the field, and nothing for it.)}
+    If reward <= 0
+        Return
+    EndIf
+    Game.GetPlayer().AddItem(Game.GetFormFromFile(0x0000000F, "Skyrim.esm"), reward, true)
+    Debug.Notification(IntelEngine.BattleSay("pay_sent", side, "", "", reward))
+    Core.DebugMsg("Battle: nobody could bring the pay over - " + reward + " gold sent on to the player")
+EndFunction
+
+String Function PaceName(Package order)
+    {What somebody is doing, for the log: which of our own orders, or another package altogether.}
+    If order == None
+        Return "nothing"
+    ElseIf order == Core.TravelPackage_Walk
+        Return "walk"
+    ElseIf order == Core.TravelPackage_Jog
+        Return "jog"
+    ElseIf order == Core.TravelPackage_Run
+        Return "run"
+    ElseIf order == FollowPackage()
+        Return "follow"
+    EndIf
+    Return "another package " + order
+EndFunction
+
 Package Function PaceFor(Actor soldier, Package wanted, Package instead)
     {The travel package to give somebody a new order with. The game does not begin a package anew for somebody who is
     on it already: with the old order taken back and the same one given again, to another place, they went on to
@@ -2314,6 +2444,80 @@ EndFunction
 
 Float _sweepDueAt = 0.0
 Bool _sweeping = false
+Actor _speaker = None       ; the one who has come over for a word: he stands because he is speaking
+
+
+Int Function StandingAbout(Actor soldier, Actor player)
+    {Somebody who was sent off and stands. Each look of the aftermath notes where he is; if he has not moved since
+    the last one he is told again, another way each time (the order had not taken, or the way to the town cannot be
+    walked from where he got to); if nothing gets him moving he rests where he is, and leaves the game with
+    everybody else once the player has gone from there. Always returns 0: nobody loaded is taken away.
+    (Three stood on a field at two and at five minutes after a battle on the full mod list, 2026-11-21: one on the
+    travel order without taking a step, one whose order had not taken, one held by a talk.)}
+    If soldier == _speaker || soldier.IsInCombat() || soldier.IsBleedingOut()
+        Return 0
+    EndIf
+    Float x = soldier.GetPositionX()
+    Float y = soldier.GetPositionY()
+    Float wasX = StorageUtil.GetFloatValue(soldier, "Intel_BattleAtX", -90000000.0)
+    Float wasY = StorageUtil.GetFloatValue(soldier, "Intel_BattleAtY", -90000000.0)
+    StorageUtil.SetFloatValue(soldier, "Intel_BattleAtX", x)
+    StorageUtil.SetFloatValue(soldier, "Intel_BattleAtY", y)
+    If wasX < -80000000.0
+        Return 0                ; the first look at him
+    EndIf
+    If Math.sqrt((x - wasX) * (x - wasX) + (y - wasY) * (y - wasY)) >= 150.0
+        StorageUtil.UnsetIntValue(soldier, "Intel_BattleStood")
+        Return 0
+    EndIf
+    Int stood = StorageUtil.GetIntValue(soldier, "Intel_BattleStood") + 1
+    StorageUtil.SetIntValue(soldier, "Intel_BattleStood", stood)
+    If stood == 5
+        ; Two ways off tried and he has not taken a step: there is no way out of where he got to (a fenced garden, a
+        ; ledge). He stops trying and rests there, as a man does after a battle, until nobody looks.
+        TakeBackTravelOrder(soldier)
+        If Core.SandboxPackage != None
+            ActorUtil.AddPackageOverride(soldier, Core.SandboxPackage, Core.PRIORITY_SANDBOX, 1)
+        EndIf
+        soldier.EvaluatePackage()
+        Core.DebugMsg("Battle: " + soldier + " cannot get away from where he is - he rests there")
+    EndIf
+    If stood == 2 || stood == 4
+        Bool sideB = soldier.IsInFaction(Intel_BattleSideB)
+        ObjectReference way = ExitFor(sideB)
+        If stood == 4 && !player.HasLOS(soldier)
+            ; Caught on something (a fence's corner, a rock): a step aside while nobody looks sets him free. (The one in
+            ; the cabbage patch walked off as soon as somebody brushed against him.)
+            soldier.MoveTo(soldier, Utility.RandomFloat(-120.0, 120.0), Utility.RandomFloat(-120.0, 120.0), 40.0, false)
+        EndIf
+        If stood != 2
+            ; The way to the town cannot be walked from here: straight off the field instead, or the other way round.
+            ObjectReference straight = ExitMarkerA
+            If sideB
+                straight = ExitMarkerB
+            EndIf
+            If straight != None && (stood == 4 || way == None)
+                way = straight
+            EndIf
+        EndIf
+        If way != None
+            Core.DebugMsg("Battle: " + soldier + " stands (" + stood + " looks, on " + PaceName(soldier.GetCurrentPackage()) + \
+                ") - sent off again")
+            SendSoldierOff(soldier, way, false)
+        EndIf
+    EndIf
+    Return 0
+EndFunction
+
+Function ForgetStanding(Actor soldier)
+    {What was noted about where a soldier stood goes with him: the id of a deleted reference is handed out again.}
+    StorageUtil.UnsetFloatValue(soldier, "Intel_BattleAtX")
+    StorageUtil.UnsetFloatValue(soldier, "Intel_BattleAtY")
+    StorageUtil.UnsetIntValue(soldier, "Intel_BattleStood")
+    If Core.SandboxPackage != None
+        ActorUtil.RemovePackageOverride(soldier, Core.SandboxPackage)
+    EndIf
+EndFunction
 
 Bool Function SweepDue(Float interval)
     {Is it time for the next sweep? (The update timer is shared by every script of the quest, so this handler
@@ -2394,7 +2598,6 @@ Int Function SweepSoldiers(Bool letGo)
     Bool bodiesStay = !letGo && hoursSince >= 0.0 && hoursSince < BodiesStayHours
     Int listed = SpawnedSoldierCount
     Int unloaded = 0
-    Int farOff = 0
     Int released = 0
     Int kept = 0
     Int i = 0
@@ -2403,17 +2606,23 @@ Int Function SweepSoldiers(Bool letGo)
         SpawnedSoldiers[i] = None
         If soldier != None && !soldier.IsDeleted()
             Int unseen = OutOfSight(soldier, player, bodiesStay)
-            If unseen > 0
+            If unseen != 1 && !letGo && !soldier.IsDead()
+                StandingAbout(soldier, player)
+            EndIf
+            ; Only what is out of the loaded area is taken away. Somebody whose body the game still holds, however far
+            ; off and unseen, is left to walk out of it: switching a loaded body off and deleting it takes its
+            ; skeleton apart under the hands of whatever else is working on it. On a big mod list that crashed the
+            ; game inside the hair-and-cloth physics eighteen seconds after a soldier 2,500 units off was removed
+            ; (2026-11-21; it had been done from 7,000 units since 3.8.1).
+            If unseen == 1
                 TakeBackTravelOrder(soldier)
+                ForgetStanding(soldier)
                 soldier.DisableNoWait()
                 soldier.Delete()
-                If unseen == 1
-                    unloaded += 1
-                Else
-                    farOff += 1
-                EndIf
+                unloaded += 1
             ElseIf letGo
                 TakeBackTravelOrder(soldier)
+                ForgetStanding(soldier)
                 If !soldier.IsDead()
                     soldier.SetActorValue("Aggression", 0.0)
                     soldier.StopCombat()
@@ -2442,9 +2651,9 @@ Int Function SweepSoldiers(Bool letGo)
     EndWhile
     SpawnedSoldierCount = kept
     _sweeping = false
-    If unloaded + farOff + released > 0
-        Core.DebugMsg("Battle: removed out of sight - " + unloaded + " that left the loaded area, " + farOff + \
-            " far off and off screen; " + released + " let go; " + kept + " stay (" + (Utility.GetCurrentRealTime() - began) + " s)")
+    If unloaded + released > 0
+        Core.DebugMsg("Battle: removed - " + unloaded + " that had left the loaded area; " + released + " let go; " + kept + \
+            " stay (" + (Utility.GetCurrentRealTime() - began) + " s)")
     EndIf
     Return kept
 EndFunction
