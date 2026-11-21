@@ -588,8 +588,32 @@ Event OnUpdate()
     EndIf
 
     HandlePollResult(stateJson)
+    If BattlePhase == 2 && IntelEngine.IsBattleActive()
+        RouseIdleHands()
+    EndIf
     Core.RequestTick(PollInterval)
 EndEvent
+
+Function RouseIdleHands()
+    {Whoever stands about while the battle is on goes for the enemy nearest to them. Everyone who came up after the
+    lines had met (reserves, a hidden force, a champion) was sent to the middle of the field, one spot for all of
+    them: with the fighting moved on they stood there shoulder to shoulder, whole and idle, while their side lost
+    (seen 2026-11-21). So did anyone whose opponent had fallen with nobody else in reach. Six at a look.}
+    String hands = IntelEngine.BattleIdleHands(6)
+    Int count = IntelEngine.StoryResponseGetField(hands, "count") as Int
+    Int i = 0
+    While i < count
+        Actor hand = SoldierFromId(IntelEngine.GetJsonArrayInt(hands, "idle", i))
+        Actor foe = SoldierFromId(IntelEngine.GetJsonArrayInt(hands, "foe", i))
+        If hand != None && foe != None && !hand.IsDead() && !foe.IsDead()
+            hand.StartCombat(foe)
+        EndIf
+        i += 1
+    EndWhile
+    If count > 0
+        Core.DebugMsg("Battle: " + count + " who stood about go for the nearest enemy")
+    EndIf
+EndFunction
 
 ; =============================================================================
 ; BATTLE START
@@ -1458,10 +1482,14 @@ Function AssignFile()
         If i < SpawnedSoldiers.Length
             Actor soldier = SpawnedSoldiers[i]
             If soldier != None && !soldier.IsDead() && soldier.IsInFaction(own) && soldier != CommanderA && soldier != CommanderB
-                Package gait = PaceFor(soldier, Core.TravelPackage_Jog, Core.TravelPackage_Run)
+                ; They follow, the way a companion does: a few steps off. (They were sent to the player on the travel
+                ; package, whose place is the very spot its target stands on: soldiers walking into the player for
+                ; as long as the battle lasted.)
                 TakeBackTravelOrder(soldier)
-                PO3_SKSEFunctions.SetLinkedRef(soldier, player, Core.IntelEngine_TravelTarget)
-                ActorUtil.AddPackageOverride(soldier, gait, Core.PRIORITY_TRAVEL, 1)
+                Package follow = FollowPackage()
+                If follow != None
+                    ActorUtil.AddPackageOverride(soldier, follow, Core.PRIORITY_TRAVEL, 1)
+                EndIf
                 soldier.EvaluatePackage()
                 given += 1
             EndIf
@@ -1652,21 +1680,36 @@ Function PostBattleSoldierMoment(Actor survivor, Int alliesLeft, String ownSide,
     ; Comes over: at a run while they are far, at a weary pace for the last stretch. A travel order, not a scripted
     ; path: that one cannot be given up.
     Actor player = Game.GetPlayer()
+    ; (Never the package he is on: one who had come up as a reserve at a jog and was told to come over at a jog went
+    ; on with his old order, and the pay of a battle won was never handed over. 2026-11-21.)
+    Package gait = PaceFor(survivor, Core.TravelPackage_Jog, Core.TravelPackage_Run)
     TakeBackTravelOrder(survivor)
     PO3_SKSEFunctions.SetLinkedRef(survivor, player, Core.IntelEngine_TravelTarget)
-    ActorUtil.AddPackageOverride(survivor, Core.TravelPackage_Jog, Core.PRIORITY_TRAVEL, 1)
+    ActorUtil.AddPackageOverride(survivor, gait, Core.PRIORITY_TRAVEL, 1)
     survivor.EvaluatePackage()
     Float waited = 0.0
     Bool weary = false
-    While waited < 45.0 && survivor.GetDistance(player) > AllySpeaksDistance && !survivor.IsDead()
+    While waited < 45.0 && survivor.GetDistance(player) > AllyStopsDistance && !survivor.IsDead()
         If !weary && survivor.GetDistance(player) < 900.0
             weary = true
             survivor.SetActorValue("SpeedMult", 70.0)
         EndIf
-        Utility.Wait(1.0)
-        waited += 1.0
+        Utility.Wait(0.25)
+        waited += 0.25
     EndWhile
+    ; He stops there, a few steps off, and stands while he speaks. (His order to come to the player stayed on him
+    ; until he had spoken, and the words take their time to come: he walked into the player, was pushed off, and
+    ; walked into them again, for as long as that took. Seen by the user, 2026-11-21.)
+    Bool stopped = false
     If !survivor.IsDead() && survivor.GetDistance(player) <= AllySpeaksDistance
+        TakeBackTravelOrder(survivor)
+        survivor.EvaluatePackage()
+        TurnTo(survivor, player)
+        survivor.SetDontMove(true)
+        survivor.SetLookAt(player)
+        stopped = true
+    EndIf
+    If stopped
         String who = player.GetDisplayName()
         String what = "after_lost"
         If playerWon
@@ -1692,6 +1735,10 @@ Function PostBattleSoldierMoment(Actor survivor, Int alliesLeft, String ownSide,
         Core.DebugMsg("Battle: " + survivor.GetDisplayName() + " did not reach the player in time, no word")
     EndIf
     survivor.SetActorValue("SpeedMult", 100.0)
+    If stopped
+        survivor.SetDontMove(false)
+        survivor.ClearLookAt()
+    EndIf
     If !survivor.IsDead()
         ObjectReference way = ExitFor(survivor.IsInFaction(Intel_BattleSideB))
         If way != None
@@ -2021,6 +2068,7 @@ Float Property StragglerInterval = 15.0 AutoReadOnly    ; and between looks at w
 Float Property BodiesStayHours = 6.0 AutoReadOnly       ; game hours the dead stay on the field, wherever the player goes
 Float Property AllyComesOverDistance = 7000.0 AutoReadOnly  ; an ally farther off than this does not come over after the battle (the whole field: at 2,500 a fight that had moved on left the player unthanked and unpaid)
 Float Property AllySpeaksDistance = 350.0 AutoReadOnly  ; how near the ally has to get before the word is said
+Float Property AllyStopsDistance = 220.0 AutoReadOnly   ; where he stops: a few steps off, not in the player's face
 Float Property BattleEndedGameTime = 0.0 Auto Hidden    ; when the last battle's soldiers were sent off (game days)
 Bool Property SoldiersLeaving = false Auto Hidden       ; a wound-up battle still has soldiers or bodies in the player's view
 
@@ -2196,12 +2244,46 @@ Package Function PaceFor(Actor soldier, Package wanted, Package instead)
     Return wanted
 EndFunction
 
+Function TurnTo(Actor who, ObjectReference whom)
+    {Somebody turns to face another where they stand, at the pace a man turns. (One who was already beside the
+    player when it was over spoke his word side-on, looking past them: seen 2026-11-21.)}
+    Float off = who.GetHeadingAngle(whom)
+    If off > -25.0 && off < 25.0
+        Return
+    EndIf
+    Float turn = off
+    If turn < 0.0
+        turn = -turn
+    EndIf
+    ; A step's breadth toward them while turning: a translation that goes nowhere may turn all at once.
+    Float facing = who.GetAngleZ() + off
+    who.TranslateTo(who.GetPositionX() + 3.0 * Math.Sin(facing), who.GetPositionY() + 3.0 * Math.Cos(facing), who.GetPositionZ(), \
+        0.0, 0.0, facing, 3.0 / (turn / 240.0 + 0.1), 240.0)
+    Utility.Wait(turn / 240.0 + 0.15)
+    who.StopTranslation()
+EndFunction
+
+Package _followPackage = None
+
+Package Function FollowPackage()
+    {IntelEngine's own follow-the-player package (IntelEngine_FollowPlayerTaskPackage): for the soldiers who keep by
+    the player in a battle.}
+    If _followPackage == None
+        _followPackage = Game.GetFormFromFile(0x00001836, "IntelEngine.esp") as Package
+    EndIf
+    Return _followPackage
+EndFunction
+
 Function TakeBackTravelOrder(Actor soldier)
     {The travel order is stored under the soldier's id, outside the soldier. It has to be gone before the soldier
     is: the id of a deleted reference is handed out again, and whoever gets it would walk off with the order.}
     ActorUtil.RemovePackageOverride(soldier, Core.TravelPackage_Walk)
     ActorUtil.RemovePackageOverride(soldier, Core.TravelPackage_Jog)
     ActorUtil.RemovePackageOverride(soldier, Core.TravelPackage_Run)
+    Package follow = FollowPackage()
+    If follow != None
+        ActorUtil.RemovePackageOverride(soldier, follow)
+    EndIf
 EndFunction
 
 Int Function OutOfSight(Actor soldier, Actor player, Bool bodiesStay)
