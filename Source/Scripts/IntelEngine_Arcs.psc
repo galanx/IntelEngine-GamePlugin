@@ -293,6 +293,12 @@ Function DebugBondOf(Actor who)
     Core().DebugMsg("Bonds: " + who.GetDisplayName() + " - " + IntelEngine.BondDescribe(who))
 EndFunction
 
+Function DebugPatrolAlways(Bool on)
+    {Test hook: every moment the director lets land is a faction's patrol (while some faction holds the player for
+    an enemy), with no rest between two.}
+    IntelEngine.FactionPatrolTest(on)
+EndFunction
+
 Function DebugBondNoMod(Bool on)
     {Test hook: go on as if no relationship mod were installed (this session only), so that what was read counts.}
     IntelEngine.BondPretendNoMod(on)
@@ -1374,6 +1380,30 @@ Function Watch()
         IntelEngine.ArcEarshot(SkyrimNetApi.GetConfigFloat("game", "interaction.maxDistance", 1600.0))
         ; The "Stories" switch of the settings holds for the town's own stories too: off, none begins.
         IntelEngine.ArcStoriesOn(Core().IsStoryEngineEnabled())
+        ; So do the switches for each kind of moment: what is switched off there is not in a story either.
+        IntelEngine_StoryEngine story = Core().StoryEngine
+        If story != None
+            Int off = 0
+            If !story.TypeAmbushEnabled
+                off += 1
+            EndIf
+            If !story.TypeStalkerEnabled
+                off += 2
+            EndIf
+            If !story.QuestSubTypeRescueEnabled
+                off += 4
+            EndIf
+            If !story.TypeQuestEnabled
+                off += 8
+            EndIf
+            If !story.QuestSubTypeCombatEnabled
+                off += 16
+            EndIf
+            If !story.QuestSubTypeFindItemEnabled
+                off += 32
+            EndIf
+            IntelEngine.ArcStorySwitches(off)
+        EndIf
     EndIf
     earshotLooks -= 1
     Int[] lapsed = IntelEngine.ArcLapse()

@@ -1409,10 +1409,16 @@ body {
 .ie-page > * { margin-top: 0 !important; min-width: 0; }
 .ie-page > section { padding: 10px 12px 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.028); border: 1px solid rgba(255, 255, 255, 0.06); }
 .ie-page.ie-page-wide { grid-template-columns: 1fr; }
-.ie-page > div.p-3 { padding: 0; }                      /* a nested list (other packages) is a card of its own */
-.ie-page > div.p-3 > section { padding: 10px 12px 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.028); border: 1px solid rgba(255, 255, 255, 0.06); }
+/* Two-column pages put their cards in two column boxes (Section.jsx), each stacking its own cards, so a
+   folded card frees its space. Floats and CSS columns failed in the game's Ultralight engine. */
+.ie-col > * { min-width: 0; }
+.ie-col > * + * { margin-top: 12px !important; }
+.ie-col > section { padding: 10px 12px 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.028); border: 1px solid rgba(255, 255, 255, 0.06); }
+.ie-page > div.p-3, .ie-col > div.p-3 { padding: 0; }   /* a nested list (other packages) is a card of its own */
+.ie-page > div.p-3 > section, .ie-col > div.p-3 > section { padding: 10px 12px 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.028); border: 1px solid rgba(255, 255, 255, 0.06); }
 .ie-settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 8px; align-items: start; }
 .ie-settings > * { margin-top: 0 !important; min-width: 0; }
+.ie-settings > .ie-col > * + * { margin-top: 8px !important; }
 
 /* What is selected must be obvious from the sofa and in a headset: one strong ring, for the pad's selection
    (Magelight marks it data-ml-focused), for keyboard focus, and nothing that only shows on hover. */

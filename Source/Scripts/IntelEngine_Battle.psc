@@ -364,6 +364,9 @@ Event OnUpdateGameTime()
 EndEvent
 
 Event OnUpdate()
+    If _retiredCount > 0
+        DeleteRetiredMarkers()
+    EndIf
     ; Manifestation cleanup check (micro-encounters from political events)
     If ManifestActive
         Float elapsed = Utility.GetCurrentRealTime() - ManifestStartTime
@@ -2550,16 +2553,10 @@ EndFunction
 Function ClearExitMarkers()
     WayOffA = None          ; the game's own markers: forgotten, never removed
     WayOffB = None
-    If ExitMarkerA
-        ExitMarkerA.DisableNoWait()
-        ExitMarkerA.Delete()
-        ExitMarkerA = None
-    EndIf
-    If ExitMarkerB
-        ExitMarkerB.DisableNoWait()
-        ExitMarkerB.Delete()
-        ExitMarkerB = None
-    EndIf
+    RetireMarker(ExitMarkerA)
+    ExitMarkerA = None
+    RetireMarker(ExitMarkerB)
+    ExitMarkerB = None
 EndFunction
 
 Function RememberSoldier(Actor soldier)
@@ -2661,24 +2658,134 @@ EndFunction
 ; CleanupActorArray — REMOVED. C++ ForceCleanupAllSoldiers handles all cleanup.
 
 Function CleanupMarkers(Bool keepExits = false)
-    If CenterMarker
-        CenterMarker.DisableNoWait()
-        CenterMarker.Delete()
-        CenterMarker = None
-    EndIf
-    If RallyMarkerA
-        RallyMarkerA.DisableNoWait()
-        RallyMarkerA.Delete()
-        RallyMarkerA = None
-    EndIf
-    If RallyMarkerB
-        RallyMarkerB.DisableNoWait()
-        RallyMarkerB.Delete()
-        RallyMarkerB = None
-    EndIf
+    RetireMarker(CenterMarker)
+    CenterMarker = None
+    RetireMarker(RallyMarkerA)
+    RallyMarkerA = None
+    RetireMarker(RallyMarkerB)
+    RallyMarkerB = None
     If !keepExits
         ClearExitMarkers()
     EndIf
+EndFunction
+
+; Markers that are out of use. A travel order holds the marker it leads to by a bare pointer: deleting a marker under
+; a soldier still walking to it crashed the game twice at the end of a skirmish (2026-11-18; found and first mended
+; by Gerkinfeltser, pull request #29: the old exit markers were deleted before the soldiers of an earlier fight had
+; been sent to the new ones). Here no marker of a battle is deleted when it goes out of use. It is put aside, and
+; deleted once it has rested a while (a soldier whose order was just taken back is still on it until the game has
+; given him something else to do) and no soldier on the list is linked to it any more.
+ObjectReference[] _retired
+Float[] _retiredAt
+Int _retiredCount = 0
+Float _retiredLooked = 0.0
+Float Property MarkerRestSeconds = 10.0 AutoReadOnly
+
+Function RetireMarker(ObjectReference marker)
+    If marker == None
+        Return
+    EndIf
+    If !_retired || _retired.Length != 16
+        _retired = new ObjectReference[16]
+        _retiredAt = new Float[16]
+        _retiredCount = 0
+    EndIf
+    If _retired.Find(marker) >= 0
+        Return
+    EndIf
+    Float now = Utility.GetCurrentRealTime()
+    Int slot = _retired.Find(None)
+    If slot < 0
+        ; Sixteen waiting (never seen): the one that has waited longest goes, after everybody was taken off it.
+        slot = 0
+        Int k = 1
+        While k < _retired.Length
+            If _retiredAt[k] < _retiredAt[slot]
+                slot = k
+            EndIf
+            k += 1
+        EndWhile
+        TakeEverybodyOff(_retired[slot])
+        _retired[slot].DisableNoWait()
+        _retired[slot].Delete()
+        _retiredCount -= 1
+    EndIf
+    _retired[slot] = marker
+    _retiredAt[slot] = now
+    _retiredCount += 1
+    Core.RequestTick(MarkerRestSeconds + 1.0)
+EndFunction
+
+Function DeleteRetiredMarkers()
+    {Called from every update while markers wait: deletes those that have rested and that nobody walks to.}
+    If !_retired || _retiredCount <= 0
+        _retiredCount = 0
+        Return
+    EndIf
+    Float now = Utility.GetCurrentRealTime()
+    If now >= _retiredLooked && now - _retiredLooked < 3.0
+        Return
+    EndIf
+    _retiredLooked = now
+    Int waiting = 0
+    Int removed = 0
+    Int i = 0
+    While i < _retired.Length
+        ObjectReference marker = _retired[i]
+        If marker != None
+            ; (The real-time clock starts again with the game: a marker put aside before a load has rested.)
+            Float rested = now - _retiredAt[i]
+            If (rested >= MarkerRestSeconds || rested < 0.0) && !SomebodyOnTheWayTo(marker)
+                _retired[i] = None
+                marker.DisableNoWait()
+                marker.Delete()
+                removed += 1
+            Else
+                waiting += 1
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+    _retiredCount = waiting
+    If removed > 0
+        Core.DebugMsg("Battle: " + removed + " markers nobody walks to any more are removed; " + waiting + " still wait")
+    EndIf
+    If waiting > 0
+        Core.RequestTick(MarkerRestSeconds)
+    EndIf
+EndFunction
+
+Bool Function SomebodyOnTheWayTo(ObjectReference marker)
+    If !SpawnedSoldiers || marker == None
+        Return false
+    EndIf
+    Int i = 0
+    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
+        Actor soldier = SpawnedSoldiers[i]
+        If soldier != None && !soldier.IsDead() && soldier.GetLinkedRef(Core.IntelEngine_TravelTarget) == marker
+            Return true
+        EndIf
+        i += 1
+    EndWhile
+    Return false
+EndFunction
+
+Function TakeEverybodyOff(ObjectReference marker)
+    If !SpawnedSoldiers || marker == None
+        Return
+    EndIf
+    Int i = 0
+    While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
+        Actor soldier = SpawnedSoldiers[i]
+        If soldier != None && soldier.GetLinkedRef(Core.IntelEngine_TravelTarget) == marker
+            TakeBackTravelOrder(soldier)
+            PO3_SKSEFunctions.SetLinkedRef(soldier, None, Core.IntelEngine_TravelTarget)
+            If !soldier.IsDead()
+                soldier.EvaluatePackage()
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
 EndFunction
 
 Function ResetState()
@@ -3047,7 +3154,15 @@ Function CalmManifestActor(Actor fighter)
     fighter.EvaluatePackage()
 EndFunction
 
+Bool _manifestCleaning = false
+
 Function CleanupManifestation(Bool report = true)
+    ; One at a time (Gerkinfeltser, pull request #29: OnUpdate ran it twice two seconds apart, 15:46:57/59 and
+    ; 17:42:25/26). The calls below let other events in, and a second pass would report and pay a second time.
+    If _manifestCleaning
+        Return
+    EndIf
+    _manifestCleaning = true
     Core.DebugMsg("Battle: Cleaning up manifestation (" + ManifestCount + " actors)")
 
     ; An attempt on a leader's life: how it ended is recorded and told as it was seen (it used to be told beforehand,
@@ -3136,6 +3251,7 @@ Function CleanupManifestation(Bool report = true)
     ManifestAssassinAttacked = false
     ManifestAssassinStruck = false
     ManifestLeaderTarget = None
+    _manifestCleaning = false
 
     ; The one whose life was saved thanks the one who saved it, in their own words, and pays them in person.
     If thanked != None
@@ -3282,8 +3398,13 @@ Function OnGameReload()
     If ManifestStartTime > now
         ManifestStartTime = now
     EndIf
+    _retiredLooked = 0.0
+    If _retiredCount > 0
+        Core.RequestTick(MarkerRestSeconds)
+    EndIf
 
     ; Clean up any active manifestation from pre-reload (nothing is recorded of it: who knows how it would have gone)
+    _manifestCleaning = false   ; a save made in the middle of a cleanup would otherwise block every later one
     If ManifestActive
         CleanupManifestation(false)
     EndIf

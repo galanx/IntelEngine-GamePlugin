@@ -800,6 +800,27 @@ Function TickScheduler()
                 return
             EndIf
 
+            ; 4.0: a faction that holds the player for an enemy sends men after them now and then. Before 4.0 this
+            ; was one of the dungeon master's choices; the director judges people one by one and a faction is nobody,
+            ; so above Classic it had no way to happen any more. The DLL says whether one comes at this moment
+            ; (Patrols.h); everything else is the same handler as before, with its own checks.
+            If LivingWorldLevel > 0 && StringUtil.Find(", " + excludeList + ", ", ", faction_ambush, ") < 0
+                String patrol = IntelEngine.FactionPatrolDue()
+                If patrol != ""
+                    Bool wasActive = FactionAmbushActive
+                    ; (The clock is set before the handler, which takes some seconds: no second look meanwhile.)
+                    Float lookedAt = LastStoryTickTime
+                    LastStoryTickTime = Utility.GetCurrentGameTime()
+                    HandleFactionAmbushDispatch("their patrol had orders to bring the traveller down", patrol)
+                    If FactionAmbushActive && !wasActive
+                        IntelEngine.FactionPatrolSent()
+                        return
+                    EndIf
+                    LastStoryTickTime = lookedAt
+                    Core.DebugMsg("Story: no patrol went out after all; the dungeon master looks as usual")
+                EndIf
+            EndIf
+
             ; Populate recent gossip for DM context (read from StorageUtil, pass to C++)
             Int gossipCount = StorageUtil.StringListCount(player, "Intel_SocialLog_Type")
             If gossipCount > 0
