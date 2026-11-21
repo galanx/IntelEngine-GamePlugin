@@ -141,6 +141,9 @@ Found by going through 3.8 feature by feature:
 - Your block lists and white lists (names, factions) only held for the old dungeon master. They hold for the town's stories now: who asks and who has a part.
 - The "Stories" switch did not stop the town's own stories. Off, none begins; one that is open goes on to its end.
 - Someone far away who had word for you either travelled to you with a whole story or did nothing. They send a letter by courier again.
+- **A faction that holds you for an enemy sends men after you again.** In 3.8 this was one of the dungeon master's choices; the new director judges people one by one, and a faction is nobody, so above "Classic" a patrol had no way to happen any more. It is decided in code now: at a standing of -40 or worse, a share of the moments the director would let land anyway becomes a patrol of that faction (one in five while the feud is young, every other one when it is deep), three to seven soldiers by how deep it is, never within two days of the last. It counts as a big moment, so you are left in peace afterwards as after any other. Everything else is as before: out of doors, away from towns and houses, from where you do not see them come. Played: Stormcloaks at -78 came after the test character on the tundra; on a mountainside with nowhere to come from unseen nothing happened and the dungeon master looked as usual.
+- **The switches for each kind of moment hold inside a story too.** "Ambush", "Stalker", "Quest" and the quest kinds governed the dungeon master's one-off moments only: a story of the town could have an ambush or a shadow in it with those switched off. Now: no ambush step with "Ambush" off, nobody shadowing you with "Stalker" off, nobody held captive with "Rescue" off, no master of a place to kill and no bounty with "Clear out enemies" off, no keepsake hunt with "Find an item" off, and with "Quest" off no story of the town begins (nobody brings you their trouble).
+- **Upgrading a save.** A save made on 3.7.1 was loaded with this version: it comes up at "Lives" with the default pace, not at "Classic" (a script comment in the mod claimed new settings read zero on old saves; they take their defaults).
 
 ### Followers you left behind
 - At "Lives", a follower you dismissed starts a life of their own after a while (7 days by default; 30 for one you told to wait, once their follower mod lets them go): work at an inn of the hold, an adventure at a dungeon (now and then with another former follower), a trip to a town, home for a while.
@@ -179,6 +182,17 @@ Every report in the Discord channels and on GitHub was looked up in this version
 - **Speaking twice on arrival**, **the dead in gossip**, and **meetings at places or times nobody can make out** (refused with a word, instead of "this evening" or a meeting that fell through when the hour came).
 - **Names that are not UTF-8** (mods' plugins in Russian, Chinese or accented Latin code pages) could stop a request or end the game in any of ninety-four places; the dashboard had been mended for it in 3.7.1.
 - Found by reading the new code, not by anyone's report: one way the story watch could hang the game thread, and several ways a model's answer of the wrong shape could end the game.
+
+### From Gerkinfeltser's pull requests
+Eight pull requests against 3.8.3, taken into this version (six as they are, under his name; two adapted, see the native repository's commit):
+- The Politics tab keeps its faction colours after a settings reload.
+- Maintenance runs once per load (the DLL's own call three seconds later slipped past the two-second guard and ran task recovery a second time).
+- Travel history reads "Went to Riften but gave up waiting" again where the game handed the task type back in another script's spelling.
+- Director tab, political dispatch: Generate says why it failed when SkyrimNet gives a reason; a war declaration between two factions that cannot be at war is stopped in the form with a hint; a generated relation change has to fit the event (a betrayal is never +8); the field is held to -15..15.
+- English names of the game's places resolve on a game in another language (a table of 1,489 names under `SKSE/Plugins/IntelEngine/placenames`, more languages can be added as files); names with accented and Cyrillic letters are matched without regard to case. Loaded in 3 ms. Not tested on a game in another language yet.
+- Dashboard: a folded card frees its space on every two-column page.
+- Battles: a marker soldiers may still be walking to is never deleted under them (his finding: two crashes at the end of a skirmish in 3.8.3; 4.0 deleted markers the same way in three places), and the clean-up after an attempt on a leader's life cannot run twice at once. The rest of that pull request mended the 3.8 skirmish, which 4.0 replaced with a small battle on a field of its own.
+- A task no longer wipes other mods' package overrides: 4.0 had this fix already.
 
 ### Fixes to 3.8
 - A new game no longer leaves IntelEngine stuck at start-up. On some new games started on 3.8.2 the dashboard said "settings not available" and the IntelEngine MCM page froze: the scheduling script called the main script while it was still starting, and each waited for the other. It no longer calls anything while starting; its timer is set a moment later by the start-up routine, as on every load. Reported by LouisCCW; the cause was found by Gerkinfeltser from a stack dump. A save already stuck this way may not recover: start a new game on this version.

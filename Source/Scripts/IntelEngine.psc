@@ -744,6 +744,9 @@ Actor Function ArcCompany(Int id) Global Native
 Function ArcEarshot(Float units) Global Native
 ; The "Stories" switch: off, no new story of the town begins (ArcBridge::Pace); those open go on to their end.
 Function ArcStoriesOn(Bool on) Global Native
+; The story-type switches that are OFF, as bits: 1 ambush, 2 stalker, 4 rescue, 8 quest, 16 clear out enemies,
+; 32 find an item. They hold inside a story of the town and for the engine's own quests too (ArcBridge.h).
+Function ArcStorySwitches(Int off) Global Native
 ; A story that began as talk in town: someone near its asker whom they stop and ask on their way to the player, or
 ; None; and the test hook that makes the asker set out at the next look.
 Actor Function ArcBystander(Int id, Actor akAsker) Global Native
@@ -1053,6 +1056,12 @@ Int Function AdjustFactionRelation(String factionA, String factionB, Int delta) 
 
 ; Get player standing with a faction (-100 to +100)
 Int Function GetPlayerFactionStanding(String factionId) Global Native
+; 4.0: a faction that holds the player for an enemy sends men after them now and then. Asked at a moment the director
+; lets land: the faction and how many, as the dungeon master used to answer ({"ambushFaction":..,"ambushCount":..}),
+; or "". FactionPatrolSent: one went out (the rest between two starts, the director's budget is charged).
+String Function FactionPatrolDue() Global Native
+Function FactionPatrolSent() Global Native
+Function FactionPatrolTest(Bool always) Global Native
 
 ; Adjust player standing with a faction by delta, returns new standing
 Int Function AdjustPlayerFactionStanding(String factionId, Int delta) Global Native
