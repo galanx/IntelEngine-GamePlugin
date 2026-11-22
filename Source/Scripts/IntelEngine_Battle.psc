@@ -2390,7 +2390,12 @@ Function DisperseSoldiers(Int winningSide, Bool findAlly)
 EndFunction
 
 Function CalmSoldier(Actor soldier)
-    {No more fighting for this one: weapon away.}
+    {No more fighting for this one: weapon away. Not in the middle of a killing blow, dealt or taken (the two are held
+    in one animation, and whoever is taken out of it leaves the other hanging in the air), and not somebody who is
+    down and bleeding. The next look of the aftermath finds them.}
+    If soldier.IsInKillMove() || soldier.IsBleedingOut()
+        Return
+    EndIf
     soldier.SetActorValue("Aggression", 0.0)
     soldier.StopCombat()
     soldier.StopCombatAlarm()
@@ -2398,7 +2403,13 @@ Function CalmSoldier(Actor soldier)
 EndFunction
 
 Function SendSoldierOff(Actor soldier, ObjectReference exit, Bool running)
-    {Weapon away, and off they go. The beaten run. Sending somebody off a second time leaves one travel order.}
+    {Weapon away, and off they go. The beaten run. Sending somebody off a second time leaves one travel order.
+    Somebody who is down and bleeding, or in the middle of a killing blow, gets no order now: the wounded were sent
+    off with everybody else and slid away over the ground as they lay ("Why are dead bodies floating? Are they trying
+    to run away too?", the user, 2026-11-22). They stand when they are up again, and StandingAbout sends them.}
+    If soldier.IsInKillMove() || soldier.IsBleedingOut()
+        Return
+    EndIf
     CalmSoldier(soldier)
     TakeBackTravelOrder(soldier)
     Package pace = Core.TravelPackage_Walk
@@ -3391,6 +3402,11 @@ Function ShowBattleStartNotification(String locationName)
     Else
         Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("drawn_up", BattleFactionA, BattleFactionB)))
     EndIf
+EndFunction
+
+Function DebugBodies()
+    {Test hook: where the battle's dead lie and who is held in a killing blow, into IntelEngine.log.}
+    IntelEngine.BattleDebugBodies()
 EndFunction
 
 Function DebugSkirmish(String attacker, String target, Int size)

@@ -1436,6 +1436,9 @@ Int Function CountDeadBattleSoldiers(String side) Global Native
 ; battle. A few a call (no frame carries all of them). Returns how many soldiers come after these.
 Int Function BattleCeaseFire(Int first, Int count, Bool amongThemselves) Global Native
 
+; Test hook: where the battle's dead lie and who is held in a killing blow, into IntelEngine.log.
+Function BattleDebugBodies() Global Native
+
 ; Cleanup battle soldiers by proximity. Returns count of remaining actors.
 Int Function CleanupBattleSoldiers(Float playerX, Float playerY, Float playerZ, Float playerAngleZ, Bool forceAll) Global Native
 
