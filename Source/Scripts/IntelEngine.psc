@@ -770,9 +770,15 @@ Bool Function ArcTalkWithAnother(Actor visitor) Global Native
 ; No other story came to the player or ended within the hour (asked again when a story's asker has reached the player:
 ; another story may have ended while they were on their way).
 Bool Function ArcQuietNow(Int id) Global Native
+; The player's answer to an offer, taken from the talk. ArcReadOffer has the talk with the one who asked read for a yes
+; or a no; ArcOfferSpoken says what came of it: -1 while it is read, 0 nothing decided (the window asks), 1 yes, 2 no.
+Function ArcReadOffer(Int id) Global Native
+Int Function ArcOfferSpoken(Int id) Global Native
 ; Test hook: the player is in the middle of a quest of the journal (one that moved on in the last quarter of an hour and
 ; that the journal shows). Asking writes a log line for each quest that moved on lately.
 Bool Function ArcQuestBusyNow() Global Native
+; Test hook: times the parts of a tale's request for this person on the game's thread and writes them to the log.
+Function ArcDebugCosts(Actor who) Global Native
 ; How far a line said to the player carries (SkyrimNet's interaction distance): the measure of "stands with the player".
 Function ArcEarshot(Float units) Global Native
 ; The "Stories" switch: off, no new story of the town begins (ArcBridge::Pace); those open go on to their end.

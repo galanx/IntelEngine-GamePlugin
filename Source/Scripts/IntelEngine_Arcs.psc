@@ -302,6 +302,11 @@ Function DebugPlace()
     Core().DebugMsg("Arcs: a place nobody is sent to? " + why)
 EndFunction
 
+Function DebugCosts(Actor who)
+    {Test hook: what the parts of a tale's request cost for this person (IntelEngine.log).}
+    IntelEngine.ArcDebugCosts(who)
+EndFunction
+
 Function DebugQuestBusy()
     {Test hook: logs whether a quest of the journal holds the town's stories back right now.}
     Core().DebugMsg("Arcs: busy with a quest of the journal? " + IntelEngine.ArcQuestBusyNow())
@@ -494,6 +499,47 @@ Function AskAround(Int id, Actor asker)
     EndWhile
 EndFunction
 
+Int Function SpokenAnswer(Int id, Actor asker, Float beganAt)
+    {The asker has made their request (begun at this real second). When the player has said something since it began,
+    or says something in the next few seconds (typed or spoken; while SkyrimNet's text box is open the game stands
+    still, so the time to write it does not count), the asker's reply to it is waited for and the talk is read for a
+    yes or a no (IntelEngine.ArcReadOffer). 1 yes, 2 no, 0 nothing said or nothing decided: then the window asks, as
+    it always did.}
+    Float waited = 0.0
+    Bool said = false
+    While waited < 6.5 && !said
+        Float since = IntelEngine.GetSecondsSincePlayerSpoke()
+        ; A line of the player's younger than the request: said while they were asking, or after.
+        said = since >= 0.0 && since < (Utility.GetCurrentRealTime() - beganAt) - 0.25
+        If !said
+            Utility.Wait(0.5)
+            waited += 0.5
+        EndIf
+        If IntelEngine.ArcField(id, "phase") != PHASE_PLANNED || asker.IsDead() || asker.IsInCombat()
+            Return 0
+        EndIf
+    EndWhile
+    If !said
+        Return 0
+    EndIf
+    ; What the asker says to it belongs to the talk that is read.
+    Utility.Wait(1.5)
+    Quests().WaitForTheirSay(asker, 20.0)
+    IntelEngine.ArcReadOffer(id)
+    Int answer = -1
+    waited = 0.0
+    While answer < 0 && waited < 26.0
+        Utility.Wait(0.5)
+        waited += 0.5
+        answer = IntelEngine.ArcOfferSpoken(id)
+    EndWhile
+    If answer < 0
+        answer = 0
+    EndIf
+    Core().DebugMsg("Arcs: #" + id + " the player answered " + asker.GetDisplayName() + " in talk: " + answer + " (1 yes, 2 no, 0 the window asks)")
+    Return answer
+EndFunction
+
 Event OnAskerArrived(Form askerForm, Int id)
     {The asker reached the player and was told to speak (StoryEngine, seek_player arrival). Once their say is over, the
     player chooses in the popup.}
@@ -502,6 +548,7 @@ Event OnAskerArrived(Form askerForm, Int id)
     If asker == None || id <= 0 || IntelEngine.ArcField(id, "phase") != PHASE_PLANNED
         Return
     EndIf
+    Float beganAt = Utility.GetCurrentRealTime()
     ; Let them have their say first: the popup never cuts a line off.
     Utility.Wait(2.0)
     Quests().WaitForTheirSay(asker, 30.0)
@@ -527,19 +574,36 @@ Event OnAskerArrived(Form askerForm, Int id)
             Return
         EndIf
     EndIf
-    String choice = Core().ShowChoice(asker.GetDisplayName(), "Quest offer", IntelEngine.ArcText(id, "prompt"), "I'll do it", "Not now")
+    ; The player may answer in their own words: a yes or a no said to the one who asked is taken as said, and the
+    ; window comes only when nothing was said or nothing was decided.
+    Int spoken = SpokenAnswer(id, asker, beganAt)
+    If IntelEngine.ArcField(id, "phase") != PHASE_PLANNED || asker.IsDead() || asker.IsInCombat()
+        Return
+    EndIf
+    String choice = ""
+    If spoken == 1
+        choice = "I'll do it"
+    ElseIf spoken == 2
+        choice = "Not now"
+    Else
+        choice = Core().ShowChoice(asker.GetDisplayName(), "Quest offer", IntelEngine.ArcText(id, "prompt"), "I'll do it", "Not now")
+    EndIf
     If IntelEngine.ArcField(id, "phase") != PHASE_PLANNED
         Return
     EndIf
     Bool stays = false
     If choice == "I'll do it" && IntelEngine.ArcAccept(id)
-        Core().SendTaskNarration(asker, "was told that " + player.GetDisplayName() + " will do it", player)
+        If spoken == 0
+            Core().SendTaskNarration(asker, "was told that " + player.GetDisplayName() + " will do it", player)
+        EndIf
         Open(id)
         ; The first thing to do is with the asker themselves: they stay for it.
         stays = (IntelEngine.ArcForm(id, "who") as Actor) == asker
     Else
         IntelEngine.ArcDecline(id)
-        Core().SendTaskNarration(asker, "was told that " + player.GetDisplayName() + " will not do it", player)
+        If spoken == 0
+            Core().SendTaskNarration(asker, "was told that " + player.GetDisplayName() + " will not do it", player)
+        EndIf
     EndIf
     ; The answer is given: once they have said their word to it, they take their leave and walk back where they came
     ; from, instead of standing beside the player for the rest of the visit.
