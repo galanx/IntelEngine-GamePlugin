@@ -1064,6 +1064,11 @@ Function FactionPatrolSent() Global Native
 Function FactionPatrolTest(Bool always) Global Native
 ; Why nobody in arms would come upon the player now (a scene, a talk, resting, undressed, settled); "" when they may.
 String Function PrivateMomentNow() Global Native
+; Places nobody is sent to (another plane or land, and above Classic a dungeon). PlaceBarsArrival: would this person,
+; arriving unseen at akDest, be set down beside a player who is in such a place? 0 no, 1 a dungeon (a story's visitor
+; is not set down there), 2 beyond reach (nobody is). PlaceBarsNow: the reason for where the player is now, or "".
+Int Function PlaceBarsArrival(Actor akWho, ObjectReference akDest) Global Native
+String Function PlaceBarsNow() Global Native
 
 ; Adjust player standing with a faction by delta, returns new standing
 Int Function AdjustPlayerFactionStanding(String factionId, Int delta) Global Native

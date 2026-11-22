@@ -293,6 +293,15 @@ Function DebugBondOf(Actor who)
     Core().DebugMsg("Bonds: " + who.GetDisplayName() + " - " + IntelEngine.BondDescribe(who))
 EndFunction
 
+Function DebugPlace()
+    {Test hook: logs whether the player is where nobody is sent (another plane, a dungeon).}
+    String why = IntelEngine.PlaceBarsNow()
+    If why == ""
+        why = "no: people may come to the player here"
+    EndIf
+    Core().DebugMsg("Arcs: a place nobody is sent to? " + why)
+EndFunction
+
 Function DebugPrivate()
     {Test hook: logs why nobody in arms would come upon the player now, or that they may.}
     String why = IntelEngine.PrivateMomentNow()

@@ -2135,6 +2135,24 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
         StorageUtil.SetFloatValue(npc, "Intel_OffscreenDiagAt", now)
     EndIf
     If status == 1
+        ; Nobody is set down beside a player who is where nobody could have followed them (another plane, a land
+        ; across the sea), and no story's visitor in a dungeon after them: "npcs spawn in dangerous places to talk
+        ; to me and they die / im in the soul carion / how did they even manage to get here" (a user, 2026-11-20).
+        ; A story's visitor lets it be until the two next meet; somebody on the player's own errand waits where
+        ; they are until the player is back.
+        Int barred = IntelEngine.PlaceBarsArrival(npc, dest)
+        If barred > 0
+            If StoryEngine != None && StoryEngine.CallOffWhereNobodyComes(npc)
+                Return false
+            ElseIf barred >= 2
+                Float waitedAt = StorageUtil.GetFloatValue(npc, "Intel_BarredWaitAt", -100.0)
+                If now < waitedAt || now - waitedAt >= 60.0
+                    DebugMsg(npc.GetDisplayName() + " is not set down beside the player: nobody could have followed them there. They wait.")
+                    StorageUtil.SetFloatValue(npc, "Intel_BarredWaitAt", now)
+                EndIf
+                Return false
+            EndIf
+        EndIf
         ; Someone who was walking over to the player and whom the player has left behind (another town, another hold)
         ; is never set down beside the player there: they let it be until the two next meet (Faendal of Riverwood
         ; stood behind the player in an inn at Whiterun a minute and a half after the player left, 2026-11-19).

@@ -6771,6 +6771,18 @@ Bool Function StoryComesAtAWalk(String storyType)
     return storyType == "seek_player" || storyType == "informant" || storyType == "message" || storyType == "quest" || storyType == "road_encounter"
 EndFunction
 
+Bool Function CallOffWhereNobodyComes(Actor npc)
+    {True (and the visit is called off until they next meet) when this is the story's own visitor, of whatever kind and
+    however pressed: asked when they would be set down beside a player who is where nobody is sent (another plane, a
+    dungeon).}
+    If !IsActive || ActiveStoryNPC != npc
+        Return false
+    EndIf
+    Core.DebugMsg("Story [" + ActiveStoryType + "]: " + npc.GetDisplayName() + " does not follow the player to where they are now")
+    DeferStory(npc, DispatchGeneration, ActiveStoryType)
+    Return true
+EndFunction
+
 Bool Function LetsItBe(Actor npc)
     {True (and the visit is called off until they next meet) when this is the story's visitor coming to the player at
     a walk and the player is no longer where they are. Asked wherever such a visitor would otherwise be set down near
