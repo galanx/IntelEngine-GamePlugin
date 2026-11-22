@@ -1413,7 +1413,7 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_StoryEngineEnabled
         SetInfoText("The Story Engine (the dungeon master). NPCs with unfinished business will autonomously seek you out based on your shared history.")
     ElseIf optionId == OID_StoryEngineInterval
-        SetInfoText("How often (in game hours) the Story Engine checks for NPCs with compelling reasons to find you.")
+        SetInfoText("At Classic: how often the dungeon master looks for somebody with a reason to come to you. Above Classic it is not used: the pace is \"How often something happens\", and the dungeon master looks when you arrive somewhere, when you wake, and every three game hours besides.")
     ElseIf optionId == OID_StoryEngineCooldown
         SetInfoText("How long (game hours) a picked NPC's priority stays reduced. Higher = more variety in NPC picks, lower = favorites return sooner.")
     ElseIf optionId == OID_StoryLongAbsence
