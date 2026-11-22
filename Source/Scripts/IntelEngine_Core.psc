@@ -3693,7 +3693,8 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
     ElseIf strArg == "releaseDistance"
         SetReleaseDistance(numArg)
     ElseIf strArg == "livingWorldLevel" || strArg == "livingWorldInterruptions" || strArg == "livingWorldQuestNpcs" || \
-           strArg == "livingWorldPacing" || strArg == "livingWorldWaitDays" || strArg == "livingWorldLifeDays"
+           strArg == "livingWorldPacing" || strArg == "livingWorldWaitDays" || strArg == "livingWorldLifeDays" || \
+           strArg == "livingWorldSkippedTime"
         If StoryEngine
             StoryEngine.SetLivingWorldSetting(strArg, numArg)
         EndIf
@@ -4679,6 +4680,7 @@ String Function BuildConfigJson()
         json += ",\"livingWorldPacing\":" + StoryEngine.LivingWorldPacing
         json += ",\"livingWorldWaitDays\":" + StoryEngine.LivingWorldWaitDays
         json += ",\"livingWorldLifeDays\":" + StoryEngine.LivingWorldLifeDays
+        json += ",\"livingWorldSkippedTime\":" + BoolToJson(StoryEngine.LivingWorldSkippedTime)
         json += ",\"maxTravelDays\":" + StoryEngine.MaxTravelDaysConfig
         json += ",\"allowStuckTeleport\":" + BoolToJson(StoryEngine.AllowStuckTeleport)
         json += ",\"dangerZonePolicy\":" + StoryEngine.DangerZonePolicy
@@ -4734,7 +4736,7 @@ String Function BuildConfigJson()
     Else
         json += ",\"longAbsenceDays\":3,\"maxTravelDays\":1,\"allowStuckTeleport\":true"
         json += ",\"livingWorldLevel\":2,\"livingWorldInterruptions\":1,\"livingWorldQuestNpcs\":1,\"livingWorldPacing\":1"
-        json += ",\"livingWorldWaitDays\":30,\"livingWorldLifeDays\":7"
+        json += ",\"livingWorldWaitDays\":30,\"livingWorldLifeDays\":7,\"livingWorldSkippedTime\":false"
         json += ",\"dangerZonePolicy\":1,\"playerHomePolicy\":0"
         json += ",\"holdPolicySeekPlayer\":1,\"holdPolicyInformant\":6,\"holdPolicyRoadEncounter\":0"
         json += ",\"holdPolicyAmbush\":1,\"holdPolicyStalker\":1,\"holdPolicyMessage\":2,\"holdPolicyQuest\":0"

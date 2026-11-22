@@ -562,7 +562,7 @@ Bool Function LivingWorldMayDeliver(Int seam, Bool urgent) Global Native
 ; 0 Never, 1 Only when urgent, 2 Realistic; quest NPCs 0 Never, 1 For important reasons, 2 Freely; pacing 0 Calm,
 ; 1 Normal, 2 Lively; then the days a follower told to wait keeps waiting and the days before a follower left
 ; behind starts a life of their own.
-Function SetLivingWorldSettings(Int level, Int interruptions, Int questNpcs, Int pacing, Float waitDays, Float lifeDays) Global Native
+Function SetLivingWorldSettings(Int level, Int interruptions, Int questNpcs, Int pacing, Float waitDays, Float lifeDays, Bool skippedTimeCounts) Global Native
 
 ; 4.0 living world: a story moment really started with this NPC (counted for pacing and rotation). Not for rejections.
 Function LivingWorldMomentDispatched(Actor npc, String storyType) Global Native

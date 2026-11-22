@@ -246,6 +246,13 @@ schema:
       defaultValue: "Normal"
       category: "Living world"
 
+    - name: "Skipped time counts toward the pace"
+      path: "living_world.skipped_time_counts"
+      type: "bool"
+      description: "Off: waiting, sleeping and fast travel do not bring the next moment sooner. It also takes time actually played: eight minutes between two moments, four minutes in a town before a story of its own begins there, twenty minutes between two such stories. On: the game's clock alone counts: skip a day and a day's worth of moments is due."
+      defaultValue: false
+      category: "Living world"
+
     - name: "A follower told to wait waits (days)"
       path: "living_world.wait_order_days"
       type: "float"

@@ -59,6 +59,9 @@ Int Property LivingWorldQuestNpcs = 1 Auto Hidden        ; 0 Never, 1 For import
 Int Property LivingWorldPacing = 1 Auto Hidden           ; 0 Calm, 1 Normal, 2 Lively
 Float Property LivingWorldWaitDays = 30.0 Auto Hidden
 Float Property LivingWorldLifeDays = 7.0 Auto Hidden
+; "Skipped time counts toward the pace". False: waiting, sleeping and fast travel do not bring the next moment sooner
+; (the DLL counts time actually played as well); true: the game's clock alone counts.
+Bool Property LivingWorldSkippedTime = false Auto Hidden
 String Property ExcludedTypesConfig = "" Auto Hidden
 Bool Property AllowStuckTeleport = true Auto Hidden
 Int Property DangerZonePolicy = 1 Auto Hidden
@@ -864,7 +867,7 @@ Bool SeamApproved = false
 
 Function PushLivingWorldSettings()
     IntelEngine.SetLivingWorldSettings(LivingWorldLevel, LivingWorldInterruptions, LivingWorldQuestNpcs, LivingWorldPacing, \
-        LivingWorldWaitDays, LivingWorldLifeDays)
+        LivingWorldWaitDays, LivingWorldLifeDays, LivingWorldSkippedTime)
 EndFunction
 
 Function SetLivingWorldSetting(String settingKey, Float value)
@@ -887,6 +890,8 @@ Function SetLivingWorldSetting(String settingKey, Float value)
         LivingWorldWaitDays = value
     ElseIf settingKey == "livingWorldLifeDays" && value >= 1.0
         LivingWorldLifeDays = value
+    ElseIf settingKey == "livingWorldSkippedTime"
+        LivingWorldSkippedTime = value > 0.5
     EndIf
     PushLivingWorldSettings()
 EndFunction
