@@ -302,6 +302,11 @@ Function DebugPlace()
     Core().DebugMsg("Arcs: a place nobody is sent to? " + why)
 EndFunction
 
+Function DebugQuestBusy()
+    {Test hook: logs whether a quest of the journal holds the town's stories back right now.}
+    Core().DebugMsg("Arcs: busy with a quest of the journal? " + IntelEngine.ArcQuestBusyNow())
+EndFunction
+
 Function DebugPrivate()
     {Test hook: logs why nobody in arms would come upon the player now, or that they may.}
     String why = IntelEngine.PrivateMomentNow()

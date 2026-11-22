@@ -3819,6 +3819,10 @@ Function OnStoryNPCArrived()
         ArrivalHandling = false
         return
     EndIf
+    If WaitsTheirTurn(claimedNPC, claimedGeneration, claimedType)
+        ArrivalHandling = false
+        return
+    EndIf
     If ActiveStoryType == "message" || ActiveStoryType == "quest"
         IsActive = false
     EndIf
@@ -6799,6 +6803,47 @@ Bool Function LetsItBe(Actor npc)
         Return false
     EndIf
     DeferStory(npc, DispatchGeneration, ActiveStoryType)
+    Return true
+EndFunction
+
+Actor TurnWaitNPC          ; the visitor standing by until somebody else's talk with the player is over
+Float TurnWaitSince = 0.0   ; real seconds: since when
+
+Bool Function WaitsTheirTurn(Actor npc, Int claimedGeneration, String storyType)
+    {True while this visitor, come to say something to the player, has to wait. Somebody else is talking with the
+    player: they stand by, and speak once that talk is over (asked again at every look; after a minute and a half a
+    story's asker lets it be and comes another time, a one-off visitor says their piece after all). Or another story
+    came to the player or ended while a story's asker was on the way: they let it be for now. The play session of
+    2026-11-22: Acolyte Jenssen walked in on the last words of another story and his request was sent into that talk;
+    SkyrimNet gave it to the man who was speaking.}
+    If npc == None || !(storyType == "seek_player" || storyType == "informant" || storyType == "quest" || storyType == "message")
+        Return false
+    EndIf
+    Int arc = StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0)
+    If arc > 0 && !IntelEngine.ArcQuietNow(arc)
+        Core.DebugMsg("Story [" + storyType + "]: " + npc.GetDisplayName() + " lets it be for now: another story came to the player or ended within the hour")
+        TurnWaitNPC = None
+        DeferStory(npc, claimedGeneration, storyType)
+        Return true
+    EndIf
+    If !IntelEngine.ArcTalkWithAnother(npc)
+        TurnWaitNPC = None
+        Return false
+    EndIf
+    Float now = Utility.GetCurrentRealTime()
+    If TurnWaitNPC != npc || now < TurnWaitSince
+        TurnWaitNPC = npc
+        TurnWaitSince = now
+        npc.SetLookAt(Game.GetPlayer())
+        Core.DebugMsg("Story [" + storyType + "]: " + npc.GetDisplayName() + " waits their turn: the player is talking with somebody else")
+    ElseIf now - TurnWaitSince > 90.0
+        TurnWaitNPC = None
+        If arc <= 0
+            Return false
+        EndIf
+        Core.DebugMsg("Story [" + storyType + "]: " + npc.GetDisplayName() + " has waited long enough and comes another time")
+        DeferStory(npc, claimedGeneration, storyType)
+    EndIf
     Return true
 EndFunction
 
