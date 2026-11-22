@@ -93,6 +93,7 @@ Int OID_LWQuestNpcs
 Int OID_LWPacing
 Int OID_LWWaitDays
 Int OID_LWLifeDays
+Int OID_LWSkippedTime
 Int OID_HomeAllowAll
 Int OID_HomeBlockCivilians
 Int OID_HomeFollowersOnly
@@ -450,6 +451,7 @@ Function ShowSettingsPage()
         OID_LWInterruptions = AddTextOption("Interruptions at bad moments", LivingWorldLabel(1, Core.StoryEngine.LivingWorldInterruptions))
         OID_LWQuestNpcs = AddTextOption("NPCs of running quests may move", LivingWorldLabel(2, Core.StoryEngine.LivingWorldQuestNpcs))
         OID_LWPacing = AddTextOption("How often something happens", LivingWorldLabel(3, Core.StoryEngine.LivingWorldPacing))
+        OID_LWSkippedTime = AddToggleOption("Skipped time counts toward the pace", Core.StoryEngine.LivingWorldSkippedTime)
         OID_LWWaitDays = AddSliderOption("A follower told to wait waits (days)", Core.StoryEngine.LivingWorldWaitDays, "{0}")
         OID_LWLifeDays = AddSliderOption("A follower left behind moves on after (days)", Core.StoryEngine.LivingWorldLifeDays, "{0}")
     EndIf
@@ -982,6 +984,13 @@ Event OnOptionSelect(Int optionId)
 
     ElseIf optionId == OID_LWLevel || optionId == OID_LWInterruptions || optionId == OID_LWQuestNpcs || optionId == OID_LWPacing
         CycleLivingWorld(optionId)
+    ElseIf optionId == OID_LWSkippedTime && Core != None && Core.StoryEngine != None
+        Float counts = 1.0
+        If Core.StoryEngine.LivingWorldSkippedTime
+            counts = 0.0
+        EndIf
+        Core.StoryEngine.SetLivingWorldSetting("livingWorldSkippedTime", counts)
+        SetToggleOptionValue(OID_LWSkippedTime, Core.StoryEngine.LivingWorldSkippedTime)
     ElseIf optionId == OID_ConfirmGoToLocation
         CycleConfirmMode(optionId, "GoToLocation")
     ElseIf optionId == OID_ConfirmDeliverMessage
@@ -1378,6 +1387,8 @@ Event OnOptionHighlight(Int optionId)
         SetInfoText("Click to cycle. Whether NPCs who take part in a running quest may travel or move for a story. The target of an objective you have open never moves.")
     ElseIf optionId == OID_LWPacing
         SetInfoText("Click to cycle. About one notable moment every two game days, every game day, or twice a game day. Moments wait for a good time: arriving in a town or an inn, coming home, leaving a dungeon, waking up.")
+    ElseIf optionId == OID_LWSkippedTime
+        SetInfoText("Off: waiting, sleeping and fast travel do not bring the next moment sooner. It also takes time actually played: eight minutes between two moments, four minutes in a town before a story of its own begins there, twenty minutes between two such stories. On: the game's clock alone counts: skip a day and a day's worth of moments is due.")
     ElseIf optionId == OID_LWWaitDays
         SetInfoText("How long after you told a follower to wait they start a life of their own, once their follower mod lets them go. While it still holds them, they keep waiting.")
     ElseIf optionId == OID_LWLifeDays
