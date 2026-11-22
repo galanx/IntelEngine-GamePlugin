@@ -462,13 +462,13 @@ Function RestartMonitoring()
     If QuestActive && QuestBattleScheduled
         If Core.Battle == None || (!Core.Battle.BattleScheduled && !IntelEngine.IsBattleActive())
             Core.DebugMsg("Story: faction_battle quest - battle schedule lost on load, granting partial credit")
-            Debug.Notification("The fighting has ended before you arrived.")
+            Debug.Notification(IntelEngine.L("The fighting has ended before you arrived."))
             ; Partial standing for willingness to fight
             If QuestAlliedFaction != ""
                 IntelEngine.AdjustPlayerFactionStanding(QuestAlliedFaction, QUEST_STANDING_REWARD / 2)
                 String allyName = IntelEngine.GetFactionDisplayName(QuestAlliedFaction)
                 If allyName != ""
-                    Debug.Notification("The " + allyName + " acknowledge your intent to fight.")
+                    Debug.Notification(IntelEngine.L("The " + allyName + " acknowledge your intent to fight."))
                 EndIf
             EndIf
             RemoveQuestMarker()
@@ -4216,9 +4216,9 @@ Function HandleFactionAmbushDispatch(String narration, String response)
 
     ; They come running from where they were made; the player is told when they are on their way.
     Utility.Wait(1.5 + Utility.RandomFloat(0.0, 1.0))
-    Debug.Notification("Something feels wrong...")
+    Debug.Notification(IntelEngine.L("Something feels wrong..."))
     Utility.Wait(1.0)
-    Debug.Notification(IntelEngine.BattleSay("ambush", factionId))
+    Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("ambush", factionId)))
 
     ; Stagger combat starts for natural feel
     i = 0
@@ -4876,7 +4876,7 @@ Function OnQuestNPCArrived()
         CleanupStoryDispatch()
         return
     EndIf
-    Debug.Notification("They seem to have more to ask...")
+    Debug.Notification(IntelEngine.L("They seem to have more to ask..."))
     ; Bail out if NPC became invalid during the wait
     If claimedNPC.IsDead() || claimedNPC.IsInCombat()
         Core.ClearSlot(claimedSlot)
@@ -5552,7 +5552,7 @@ Function CheckQuestProximity()
                         EndIf
                         If !IntelEngine.IsBattleActive()
                             Core.DebugMsg("Story [quest/faction_battle]: StartBattleImmediate failed, failing quest")
-                            Debug.Notification("The forces have already moved on.")
+                            Debug.Notification(IntelEngine.L("The forces have already moved on."))
                             QuestBattleScheduled = false
                             QuestEnemiesSpawned = false
                             RemoveQuestMarker()
@@ -5562,7 +5562,7 @@ Function CheckQuestProximity()
                         Core.DebugMsg("Story [quest/faction_battle]: battle started - " + QuestAlliedFaction + " vs " + enemyFaction)
                     Else
                         Core.DebugMsg("Story [quest/faction_battle]: battle system busy, granting partial credit")
-                        Debug.Notification("The fighting is already underway elsewhere.")
+                        Debug.Notification(IntelEngine.L("The fighting is already underway elsewhere."))
                         If QuestAlliedFaction != ""
                             IntelEngine.AdjustPlayerFactionStanding(QuestAlliedFaction, QUEST_STANDING_REWARD / 2)
                         EndIf
@@ -5573,7 +5573,7 @@ Function CheckQuestProximity()
                     Core.DebugMsg("Story [quest/faction_battle]: no rival found for " + QuestAlliedFaction + ", failing quest")
                     String allyFailName = IntelEngine.GetFactionDisplayName(QuestAlliedFaction)
                     If allyFailName != ""
-                        Debug.Notification("The " + allyFailName + " held the field unopposed.")
+                        Debug.Notification(IntelEngine.L("The " + allyFailName + " held the field unopposed."))
                     EndIf
                     RemoveQuestMarker()
                     CleanupQuest()
@@ -5713,12 +5713,12 @@ Function CheckQuestProximity()
             Float battleElapsed = Utility.GetCurrentGameTime() - QuestGuideStartTime
             If battleElapsed > BATTLE_BUILDUP_NOTIFY_MIN && battleElapsed < BATTLE_BUILDUP_NOTIFY_MAX && QuestSpawnAttempts == 0
                 QuestSpawnAttempts = 1  ; prevent repeat
-                Debug.Notification("You hear the clink of armor ahead.")
+                Debug.Notification(IntelEngine.L("You hear the clink of armor ahead."))
             EndIf
             ; Third dramatic beat: fire once when battle actually starts
             If IntelEngine.IsBattleActive() && QuestSpawnAttempts < 2
                 QuestSpawnAttempts = 2
-                Debug.Notification("Sounds of fighting carry from up ahead.")
+                Debug.Notification(IntelEngine.L("Sounds of fighting carry from up ahead."))
             EndIf
             ; Minimum delay: don't check for completion until battle has had time to start
             If battleElapsed < BATTLE_MIN_START_DELAY
@@ -5970,7 +5970,7 @@ Function SpawnQuestEnemies()
         ; Safety net: after 3 failed spawn attempts, grant partial completion.
         ; The player traveled here — reward the effort even if spawns failed.
         Core.DebugMsg("Story [quest]: spawn failed after 3 attempts, granting partial completion")
-        Debug.Notification("The area is quiet. The threat seems to have moved on.")
+        Debug.Notification(IntelEngine.L("The area is quiet. The threat seems to have moved on."))
         If QuestGiver != None && QuestEnemyType != "" && QuestLocationName != ""
             Core.InjectFact(QuestGiver, "learned that " + Game.GetPlayer().GetDisplayName() + " traveled to " + QuestLocationName + " but the " + QuestEnemyType + " threat had already dispersed")
         EndIf
@@ -5979,7 +5979,7 @@ Function SpawnQuestEnemies()
             IntelEngine.AdjustPlayerFactionStanding(QuestAlliedFaction, QUEST_STANDING_REWARD / 2)
             String allyName = IntelEngine.GetFactionDisplayName(QuestAlliedFaction)
             If allyName != ""
-                Debug.Notification("The " + allyName + " acknowledge your willingness to help.")
+                Debug.Notification(IntelEngine.L("The " + allyName + " acknowledge your willingness to help."))
             EndIf
         EndIf
         RemoveQuestMarker(true)
@@ -6061,7 +6061,7 @@ Function OnQuestComplete()
     If QuestAlliedFaction != "" && QuestSubType != "faction_battle"
         String risen = IntelEngine.PlayerDidFor(QuestAlliedFaction, "quest")
         If risen != ""
-            Debug.Notification(IntelEngine.BattleSay("promoted", QuestAlliedFaction, "", risen))
+            Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("promoted", QuestAlliedFaction, "", risen)))
         EndIf
     EndIf
 
@@ -6140,7 +6140,7 @@ Function OnQuestComplete()
         String completionJson = IntelEngine.RecordFactionBattleCompletion(QuestAlliedFaction, QuestLocationName, playerName, QuestBattleEnemyFaction)
         String completionNotif = IntelEngine.StoryResponseGetField(completionJson, "notification")
         If completionNotif != ""
-            Debug.Notification(completionNotif)
+            Debug.Notification(IntelEngine.L(completionNotif))
         EndIf
         ; Papyrus-only: inject facts into loaded actors (requires Actor handles)
         If QuestGiver != None
@@ -6196,11 +6196,11 @@ Function OnQuestComplete()
         If allyName != ""
             Int standingRoll = Utility.RandomInt(0, 2)
             If standingRoll == 0
-                Debug.Notification("Your name carries weight among the " + allyName + ".")
+                Debug.Notification(IntelEngine.L("Your name carries weight among the " + allyName + "."))
             ElseIf standingRoll == 1
-                Debug.Notification("The " + allyName + " speak your name with respect.")
+                Debug.Notification(IntelEngine.L("The " + allyName + " speak your name with respect."))
             Else
-                Debug.Notification("Word of your deeds reaches the " + allyName + ".")
+                Debug.Notification(IntelEngine.L("Word of your deeds reaches the " + allyName + "."))
             EndIf
         EndIf
     EndIf
@@ -6236,7 +6236,7 @@ Function CheckQuestExpiry()
     ; Warning at 75% of expiry time
     If !QuestExpiryWarned && elapsed > (QUEST_EXPIRY_DAYS * 0.75)
         QuestExpiryWarned = true
-        Debug.Notification("You should hurry - the situation won't hold much longer.")
+        Debug.Notification(IntelEngine.L("You should hurry - the situation won't hold much longer."))
     EndIf
     If elapsed > QUEST_EXPIRY_DAYS
         Core.DebugMsg("Story [quest/" + QuestSubType + "]: Expired after " + QUEST_EXPIRY_DAYS + " days")
@@ -6260,7 +6260,7 @@ Function CheckQuestExpiry()
                 Core.Battle.ResetState()
                 Core.DebugMsg("Story [quest/faction_battle]: cancelled scheduled battle on expiry")
             EndIf
-            Debug.Notification("Word reaches you: the battle has moved on.")
+            Debug.Notification(IntelEngine.L("Word reaches you: the battle has moved on."))
         Else
             If QuestGiver != None
                 Core.InjectFact(QuestGiver, "grew disappointed that " + playerName + " never dealt with the " + QuestEnemyType + " threat at " + QuestLocationName)

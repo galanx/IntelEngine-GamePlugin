@@ -1,0 +1,69 @@
+# IntelEngine language pack: Italian.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	it
+meta	codes	it|ita|italian
+meta	name	Italian
+meta	game	italian
+meta	script	latin
+
+time	in 2 days	dopodomani
+time	tomorrow morning	domattina|domani mattina
+time	tomorrow	domani
+time	today	oggi
+time	tonight	stanotte|questa notte
+time	evening	stasera|questa sera|di sera|la sera|sera|in serata
+time	morning	stamattina|di mattina|la mattina|al mattino|mattina|mattino|in mattinata
+time	noon	a mezzogiorno|mezzogiorno
+time	afternoon	nel pomeriggio|di pomeriggio|questo pomeriggio|pomeriggio
+time	night	di notte|la notte|notte
+time	midnight	a mezzanotte|mezzanotte
+time	dawn	all'alba|alba|al sorgere del sole
+time	sunset	al tramonto|tramonto
+time	dusk	al crepuscolo|crepuscolo|all'imbrunire|imbrunire
+time	pm	di sera|del pomeriggio
+time	am	di mattina|del mattino
+time	half an hour	mezz'ora|mezzora|mezza ora
+time	in	tra|fra|in
+time	hours	ore
+time	hour	ora
+time	minutes	minuti|minuto
+time	days	giorni|giorno
+time	weeks	settimane|settimana
+time	at	alle|all|alla|verso le
+time	one	una|un|uno
+time	two	due
+time	three	tre
+time	four	quattro
+time	five	cinque
+time	six	sei
+time	seven	sette
+time	eight	otto
+time	nine	nove
+time	ten	dieci
+time	eleven	undici
+time	twelve	dodici
+
+place	home	a casa|casa mia|a casa mia|la mia casa
+place	your home	casa tua|a casa tua|casa vostra|la tua casa
+place	outside	fuori|all'esterno|esterno|all'aperto
+place	inside	dentro|all'interno
+place	upstairs	di sopra|al piano di sopra|sopra
+place	downstairs	di sotto|al piano di sotto|sotto
+place	cellar	in cantina|cantina|scantinato
+place	bedroom	in camera|camera da letto|la mia camera|la mia stanza|a letto
+place	kitchen	in cucina|cucina
+place	bath	al bagno|bagno|i bagni|terme|sorgente calda
+place	river	al fiume|fiume
+place	lake	al lago|lago
+
+none	none	nessuno|nessuna|nessun|niente|nulla|da nessuna parte|senza
+
+free	*	il|lo|la|i|gli|le|l|un|una|uno|di|del|della|dei|a|al|alla|allo|ai|da|dal|in|nel|nella|con|su|per|verso

@@ -184,6 +184,7 @@ Event OnInit()
 EndEvent
 
 Float LastMaintenanceRealTime = 0.0
+Int LastMaintenanceLoad = 0   ; the load (IntelEngine.LoadStamp) LastMaintenanceRealTime was taken after
 
 Function Maintenance(Bool isFirstLoad = false)
     {
@@ -202,6 +203,16 @@ Function Maintenance(Bool isFirstLoad = false)
     ; new session — skipping RestartMonitoring and leaving C++ singletons unsynced.
     If now < LastMaintenanceRealTime
         LastMaintenanceRealTime = 0.0
+    EndIf
+    ; ... and a kept time a few seconds EARLIER than now is the same mistake the other way round: whoever starts the
+    ; game and loads straight away does so at much the same second every session, the guard took the last session's
+    ; call for one a moment ago, and the whole load went without Maintenance (no monitoring restarted, the story
+    ; engine's load recovery never finished, so no visitor's arrival was looked at again: found 2026-11-22). The
+    ; guard is for two calls after ONE load, so the kept time counts only when it was taken after this very load.
+    Int thisLoad = IntelEngine.LoadStamp()
+    If thisLoad != LastMaintenanceLoad
+        LastMaintenanceRealTime = 0.0
+        LastMaintenanceLoad = thisLoad
     EndIf
     If !isFirstLoad && (now - LastMaintenanceRealTime) < 5.0 && LastMaintenanceRealTime > 0.0
         DebugMsg("IntelEngine Maintenance skipped (duplicate call within 5s)")
@@ -2984,8 +2995,26 @@ Function CleanExpiredFactsGlobal()
     EndWhile
 EndFunction
 
+Function DebugLanguage(String aTime, String aPlace, String aWho, String aNotice)
+    {Test hook (4.0): what the language layer (LanguageBridge in the DLL, the packs in
+    Data/SKSE/Plugins/IntelEngine/languages) makes of a time, a word of place, a name and a notice. The answers go
+    to the script log; the notice, when one is given, is shown as any notice is.}
+    Float hour = IntelEngine.ParseTimeCondition(aTime)
+    String place = IntelEngine.PlaceInEnglish(aPlace)
+    Actor who = IntelEngine.FindNPCByName(aWho)
+    String name = "nobody"
+    If who != None
+        name = who.GetDisplayName()
+    EndIf
+    Debug.Trace("IntelEngine: Language: time '" + aTime + "' -> " + hour + "; place '" + aPlace + "' -> '" + place + "', none: " + IntelEngine.IsNoneWord(aPlace) \
+        + "; who '" + aWho + "' -> " + name + "; the player reads '" + IntelEngine.TextLanguage() + "'; notice '" + aNotice + "' -> '" + IntelEngine.L(aNotice) + "'")
+    If aNotice != ""
+        NotifyPlayer(aNotice)
+    EndIf
+EndFunction
+
 Function NotifyPlayer(String msgText)
-    Debug.Notification(msgText)
+    Debug.Notification(IntelEngine.L(msgText))   ; in the game's language where its pack has the sentence
     Debug.Trace("IntelEngine: " + msgText)
 EndFunction
 
@@ -3313,14 +3342,29 @@ String Function ShowChoice(String asTitle, String asKind, String asBody, String 
     If asB3 != ""
         n = 3
     EndIf
-    String code = ShowMagelightChoice(asTitle, asKind, asBody, asB1, asB2, asB3, n, afTimeoutSecs)
+    ; What is shown goes through the language pack; what is returned stays the English the callers compare with.
+    String shownBody = IntelEngine.L(asBody)
+    String shown1 = IntelEngine.L(asB1)
+    String shown2 = IntelEngine.L(asB2)
+    String shown3 = asB3
+    If asB3 != ""
+        shown3 = IntelEngine.L(asB3)
+    EndIf
+    String code = ShowMagelightChoice(asTitle, IntelEngine.L(asKind), shownBody, shown1, shown2, shown3, n, afTimeoutSecs)
     String r = ""
     String path = "magelight"
     If code == ""
         path = "fallback"
         ; No time limit on the classic box: it cannot take itself off the screen, so after a timeout it stayed
         ; up with buttons that no longer did anything. It waits for the player instead.
-        r = SkyMessage.Show(asBody, asB1, asB2, asB3)
+        r = SkyMessage.Show(shownBody, shown1, shown2, shown3)
+        If r == shown1
+            r = asB1
+        ElseIf r == shown2
+            r = asB2
+        ElseIf asB3 != "" && r == shown3
+            r = asB3
+        EndIf
     ElseIf code == "t"
         r = "TIMED_OUT"
     ElseIf code == "0"
@@ -3906,7 +3950,14 @@ String Function UntagName(String name)
 EndFunction
 
 String Function ReplaceText(String text, String what, String with)
-    ; Whole-word, case-insensitive: "Ria" must not hit "Riften" or "Victoria".
+    ; Whole-word, case-insensitive: "Ria" must not hit "Riften" or "Victoria". In the DLL since 4.0: the loop below
+    ; asks StringUtil.IsLetter, which knows ASCII only, so in a Russian game every byte of a letter was a word
+    ; boundary and a name was replaced in the middle of its declined form.
+    Return IntelEngine.ReplaceWholeWord(text, what, with)
+EndFunction
+
+String Function ReplaceTextAscii(String text, String what, String with)
+    ; (the loop as it was, kept for reference and for the bytecode checks that model it)
     String result = ""
     Int len = StringUtil.GetLength(what)
     Int total = StringUtil.GetLength(text)
@@ -3936,7 +3987,7 @@ String Function InformantRumor(String subject, String rumor, String gossip)
     EndIf
     ; Not without a subject: the gossip then began with a blank ("told X a rumor:  heard ..."), in the line
     ; and in what both NPCs remember (the repository's own typed-event check has failed on this since fix 84).
-    If subject != "" && ReplaceText(gossip, UntagName(subject), "") == gossip ; fix96: whole-word, "Ria" is not in "Victoria" (live 17:27)
+    If subject != "" && !IntelEngine.TextMentionsName(gossip, UntagName(subject)) ; whole words, and the name in whatever form its language puts it
         gossip = subject + " " + gossip
     EndIf
     Return gossip
@@ -3993,7 +4044,7 @@ String Function InformantRejection(String subject, String rumor)
         Return "rumor is empty"
     ElseIf name == ""
         Return "subject is empty"
-    ElseIf ReplaceText(rumor, name, "") == rumor ; whole-word, like the C++ check
+    ElseIf !IntelEngine.TextMentionsName(rumor, name) ; whole words, in whatever form the language puts the name, like the C++ check
         Return "rumor does not name the subject"
     EndIf
     Int sp = 0 ; first word ends at " ,.;:" like the C++ check

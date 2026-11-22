@@ -24,10 +24,15 @@ parameterMapping:
     description: >
       The person to fetch. Must be a named NPC or hold guard (e.g., "Ysolda", "Whiterun Guard").
       INVALID: "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
+      Write the name exactly as it stands in the game and the context, in the game's language and in its plain
+      form: no case ending, no article, never translated.
   - type: dynamic
     name: timeCondition
     description: >
       When to go fetch them. Examples: "at dawn", "after sunset", "tonight"
+      Write it in English in one of these forms, whatever language you are speaking: "today 18:00",
+      "tomorrow 08:00", "in 2 hours", "in 3 days 12:00", or a part of the day in English ("at dawn", "tonight",
+      "tomorrow morning").
   - type: static
     value: "Schedule"
     name: taskOrigin

@@ -241,6 +241,23 @@ Float[] Function GetOffsetBehind(ObjectReference akRef, Float distance) Global N
 ; Returns: Target hour (0.0-23.99), or -1.0 if unparseable
 Float Function ParseTimeCondition(String condition) Global Native
 
+; ---- languages (4.0: language packs, Data/SKSE/Plugins/IntelEngine/languages/*.tsv; LanguageBridge in the DLL)
+; A word of place said in another language, in English ("domoi", "nach Hause", "n'shpi" give "home") when the whole
+; of what was said is one; a name, and English, come back as they were.
+String Function PlaceInEnglish(String said) Global Native
+; Nothing, "none", or the word for it in a language in force ("net", "keine", "asnje" in their own letters).
+Bool Function IsNoneWord(String said) Global Native
+; What the player reads, in the game's language where its pack has the sentence; else as it came.
+String Function L(String english) Global Native
+; Does a sentence speak of this name, in whatever form its language puts it (declined, with an ending)?
+Bool Function TextMentionsName(String text, String name) Global Native
+; The English name of the language the player reads in ("Russian"); "" for English.
+String Function TextLanguage() Global Native
+; Whole-word, case-insensitive replace with the word boundaries of any script.
+String Function ReplaceWholeWord(String text, String what, String with) Global Native
+; A list of names with plain commas, whatever separators the model wrote.
+String Function CommaList(String said) Global Native
+
 ; Calculate absolute game time for a target hour
 ; If target hour is before or at current hour, returns tomorrow's time
 ; Returns: Absolute game time (days) for use with GetCurrentGameTime()
@@ -367,6 +384,9 @@ Function SetSlotOffscreenArrival(Int slot, Float arrival) Global Native
 ; Returns true if slot state was recovered from SKSE co-save (skip StorageUtil recovery).
 Bool Function HasCoSaveTaskData() Global Native
 Bool Function StoryLoadRecovered(Bool complete = false) Global Native
+; Which load of which session this is: a number no other load has. A time of the game's real-seconds clock that a
+; script kept in the save means something only when it was taken after this very load.
+Int Function LoadStamp() Global Native
 
 ; Push C++ SlotTracker state to Papyrus arrays (reverse of SyncSlotTrackerFromArrays).
 ; Called from Maintenance when co-save data exists.
@@ -697,6 +717,9 @@ Function ArcCaptive(Int id, Int captiveState) Global Native
 ; A rescue asked for: a tale about someone held at a place near the giver's town is written, or nothing (false).
 Bool Function ArcRequestRescue(Actor akGiver) Global Native
 ; What a tale leaves outside a place to be looked at closely (a victim's remains): the script laid it there.
+; Where a sign of a trail is laid: x, y, z of a point on the ground out from the place; empty for what lies by the
+; place itself (and when no ground was found).
+Float[] Function ArcTrailSpot(Int id, Int clue) Global Native
 Function ArcCluePlaced(Int id, Int clue, ObjectReference akLies) Global Native
 ; A hunt asked for: a tale about what is killing people near the giver's town is written, or nothing (false).
 Bool Function ArcRequestHunt(Actor akGiver, Bool abRumored = false) Global Native

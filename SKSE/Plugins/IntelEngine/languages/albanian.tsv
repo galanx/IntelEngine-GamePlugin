@@ -1,0 +1,67 @@
+# IntelEngine language pack: Albanian.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	sq
+meta	codes	sq|sqi|alb|aln|als|albanian|gheg|shqip
+meta	name	Albanian
+meta	script	latin
+
+time	in 2 days	pasnesër|pasneser|mbasnesër|mbasneser|pasnesrit
+time	tomorrow morning	nesër në mëngjes|neser ne mengjes|nesër nadje|neser nadje|nesër heret|nesër herët|nesër n'nadje
+time	tomorrow	nesër|neser|nesëm|nesrit
+time	today	sot
+time	tonight	sonte|sontë|sande|këtë natë|kët natë|ket nat
+time	morning	në mëngjes|ne mengjes|mëngjesin|mëngjes|mengjes|nadje|n'nadje|në nadje|në sabah|n'sabah|sabah|herët në mëngjes
+time	noon	në mesditë|ne mesdite|mesditë|mesdite|n'mjesditë|mjesditë|në drekë|n'drekë|drekë|dreke
+time	afternoon	pasdite|mbasdite|masdite|pasdreke|mbasdreke
+time	evening	në mbrëmje|ne mbremje|mbrëmjen|mbrëmje|mbremje|n'mramje|në mramje|mramje|n'aksham|aksham|akshami
+time	night	natën|naten|natë|nate|n'natë|natën vonë
+time	midnight	në mesnatë|mesnatë|mesnate|mjesnatë|n'mjesnatë
+time	dawn	në agim|n'agim|agim|agimin|në të gdhirë|të gdhirë|me t'zbardhun|sa të zbardhë|me të dalë dielli
+time	sunset	në perëndim|perëndim|perendim|n'prendim|prendim|kur të perëndojë dielli|me t'prendue dielli
+time	dusk	në muzg|muzg|n'muzg|mugëtirë
+time	pm	të mbrëmjes|te mbremjes|e mbrëmjes|t'mramjes|e mramjes|të pasdites|e pasdites|mbasdite vonë
+time	am	të mëngjesit|te mengjesit|e mëngjesit|t'nadjes|e nadjes
+time	half an hour	gjysmë ore|gjysëm ore|gjysë ore|gjysmë sahati|gjys sahati
+time	in	pas|mbas|mas|për|per
+time	hours	orësh|oresh|orë|ore|sahatësh|sahatesh|sahatë|sahate|sahat
+time	minutes	minutash|minuta|minutë|minute
+time	days	ditësh|ditesh|ditë|dite|dit
+time	weeks	javësh|javë|jave
+time	at	në orën|ne oren|n'orën|në ora|n'ora|ora|në|ne
+time	one	një|nje|nji|ni
+time	two	dy
+time	three	tre|tri
+time	four	katër|kater
+time	five	pesë|pese
+time	six	gjashtë|gjashte
+time	seven	shtatë|shtate
+time	eight	tetë|tete
+time	nine	nëntë|nente|nandë|nand
+time	ten	dhjetë|dhjete|dhetë|dhet
+time	eleven	njëmbëdhjetë|njembedhjete|njimdhetë
+time	twelve	dymbëdhjetë|dymbedhjete|dymdhetë
+
+place	home	në shtëpi|ne shtepi|shtëpi|shtepi|shtëpia ime|në shtëpinë time|n'shpi|në shpi|shpi|shpia jem|shpia jeme|n'shpinë tem|te shpia|te shtëpia
+place	your home	shtëpia jote|në shtëpinë tënde|te shtëpia jote|shpia jote|n'shpinë tande|shpia tande|shtëpia juaj
+place	outside	jashtë|jashte|jasht|përjashta|perjashta|n'oborr|në oborr
+place	inside	brenda|mbrenda|përbrenda
+place	upstairs	lart|sipër|siper|nalt|përpjetë|në katin e sipërm|kati i sipërm
+place	downstairs	poshtë|poshte|posht|teposhtë|në katin e poshtëm|kati i poshtëm
+place	cellar	në bodrum|bodrum|qilar|në qilar
+place	bedroom	dhoma e gjumit|dhomë gjumi|në dhomën e gjumit|dhoma ime|dhoma jem|në shtrat|n'shtrat
+place	kitchen	në kuzhinë|kuzhinë|kuzhina|kuzhine|mutfak|n'mutfak
+place	bath	në banjë|banjë|banjo|banja|hamam|n'hamam
+place	river	te lumi|lumi|lum|në lum
+place	lake	te liqeni|liqeni|liqen
+
+none	none	asnjë|asnje|asnji|asgjë|asgje|askush|askënd|kurrkush|kërkush|kurrgja|kurrgjë|hiç|hic|s'ka|ska|jo|bosh
+
+free	*	te|tek|në|ne|n|nga|prej|me|për|per|e|i|të|së|se|ke|kah|deri|drejt|mbi|ndër|te|ke|asaj|atij

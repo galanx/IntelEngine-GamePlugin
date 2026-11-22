@@ -45,6 +45,9 @@ parameterMapping:
       When to arrive. Must be a specific time, not vague.
       Examples: "at dawn", "at noon", "in the evening", "tonight",
       "after sunset", "tomorrow morning", "in 2 hours"
+      Write it in English in one of these forms, whatever language you are speaking: "today 18:00",
+      "tomorrow 08:00", "in 2 hours", "in 3 days 12:00", or a part of the day in English ("at dawn", "tonight",
+      "tomorrow morning").
   - type: static
     value: "Schedule"
     name: taskOrigin

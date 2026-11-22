@@ -1,0 +1,68 @@
+# IntelEngine language pack: Chinese.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	zh
+meta	codes	zh|zho|chi|zh-hans|zh-hant|zh-cn|zh-tw|chinese
+meta	name	Chinese
+meta	game	chinese
+meta	script	han
+
+time	in 2 days	后天|後天
+time	tomorrow	明天|明日
+time	today	今天|今日
+time	tonight	今晚|今夜
+time	midnight	午夜|半夜|子夜
+time	dawn	黎明|拂晓|拂曉|日出|天亮
+time	sunset	日落|太阳落山|太陽落山
+time	dusk	黄昏|黃昏|傍晚
+time	noon	中午|正午
+time	morning	早上|早晨|上午|清晨
+time	afternoon	下午
+time	evening	晚上|晚间|晚間
+time	night	夜里|夜裡|夜晚|深夜
+time	half an hour	半小时|半小時|半个小时|半個小時
+time	hours later	个小时后|個小時後|小时后|小時後|个小时之后|個小時之後|小时之后|小時之後
+time	hours	个小时|個小時|小时|小時|钟头|鐘頭
+time	o'clock	点钟|點鐘|点|點
+time	minutes	分钟|分鐘
+time	days later	天后|天後|天之后|天之後|日后|日後
+time	days	天
+time	weeks later	周后|週後|星期后|星期後|个星期后|個星期後
+time	weeks	星期|周|週
+time	later	之后|之後|以后|以後|后|後
+time	one	一
+time	two	二|两|兩
+time	three	三
+time	four	四
+time	five	五
+time	six	六
+time	seven	七
+time	eight	八
+time	nine	九
+time	ten	十
+time	eleven	十一
+time	twelve	十二
+
+place	home	回家|我家|我的家|自己家|家里|家裡|家
+place	your home	你家|你的家|您家|您的家
+place	outside	外面|外边|外邊|出去|室外|户外|戶外
+place	inside	里面|裡面|里边|裡邊|进去|進去|室内|室內
+place	upstairs	楼上|樓上|上楼|上樓
+place	downstairs	楼下|樓下|下楼|下樓
+place	cellar	地下室|地窖
+place	bedroom	卧室|臥室|我的房间|我的房間|床上
+place	kitchen	厨房|廚房
+place	bath	浴室|澡堂|温泉|溫泉|洗澡
+place	river	河边|河邊|河
+place	lake	湖边|湖邊|湖
+
+none	none	无|無|没有|沒有|没有人|沒有人|无人|無人|什么都没有|什麼都沒有|不适用|不適用
+
+free	*	的|去|到|在|往|向|从|從|把

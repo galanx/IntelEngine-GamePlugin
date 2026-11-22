@@ -1,0 +1,68 @@
+# IntelEngine language pack: Polish.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	pl
+meta	codes	pl|pol|polish
+meta	name	Polish
+meta	game	polish
+meta	script	latin
+
+time	in 2 days	pojutrze
+time	tomorrow	jutro
+time	today	dziś|dzisiaj|dzis
+time	tonight	dziś w nocy|dzisiejszej nocy|tej nocy
+time	evening	dziś wieczorem|wieczorem|wieczór|pod wieczór
+time	morning	rano|z rana|rankiem|o poranku|poranek
+time	noon	w południe|południe|poludnie
+time	afternoon	po południu|popołudniu|popołudnie|po poludniu
+time	night	w nocy|nocą|noc
+time	midnight	o północy|północ|polnoc
+time	dawn	o świcie|świt|świcie|o wschodzie słońca|wschód słońca
+time	sunset	o zachodzie słońca|zachód słońca|o zachodzie
+time	dusk	o zmierzchu|zmierzch
+time	pm	wieczorem|po południu
+time	am	rano
+time	half an hour	pół godziny|pol godziny
+time	in	za
+time	hours	godziny|godzin
+time	hour	godzinę|godzina|godzine
+time	minutes	minut|minuty|minutę
+time	days	dni|dzień|dnia
+time	weeks	tygodni|tygodnie|tydzień
+time	at	o|około
+time	one	jedną|jedna|jeden|pierwszej
+time	two	dwie|dwa|drugiej
+time	three	trzy|trzeciej
+time	four	cztery|czwartej
+time	five	pięć|piątej
+time	six	sześć|szóstej
+time	seven	siedem|siódmej
+time	eight	osiem|ósmej
+time	nine	dziewięć|dziewiątej
+time	ten	dziesięć|dziesiątej
+time	eleven	jedenaście|jedenastej
+time	twelve	dwanaście|dwunastej
+
+place	home	do domu|w domu|mój dom|do mojego domu|do siebie
+place	your home	do twojego domu|twój dom|do ciebie|wasz dom
+place	outside	na zewnątrz|na dwór|na dworze|zewnątrz
+place	inside	do środka|w środku|wewnątrz
+place	upstairs	na górę|na górze|piętro wyżej
+place	downstairs	na dół|na dole|piętro niżej
+place	cellar	do piwnicy|piwnica|piwnicy
+place	bedroom	do sypialni|sypialnia|mój pokój|do mojego pokoju|do łóżka
+place	kitchen	do kuchni|kuchnia|kuchni
+place	bath	do łaźni|łaźnia|kąpiel|gorące źródła
+place	river	nad rzekę|rzeka|do rzeki
+place	lake	nad jezioro|jezioro
+
+none	none	żaden|żadna|żadne|nikt|nic|nigdzie|brak
+
+free	*	do|w|we|na|u|z|ze|od|po|za|przy|nad|pod|ku|dla|o

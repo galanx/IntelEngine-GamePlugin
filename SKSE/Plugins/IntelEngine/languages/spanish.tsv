@@ -1,0 +1,69 @@
+# IntelEngine language pack: Spanish.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	es
+meta	codes	es|spa|spanish
+meta	name	Spanish
+meta	game	spanish
+meta	script	latin
+
+time	in 2 days	pasado mañana
+time	tomorrow morning	mañana por la mañana|mañana temprano
+time	morning	por la mañana|de la mañana temprano|esta mañana|en la mañana|temprano
+time	tomorrow	mañana|manana
+time	today	hoy
+time	tonight	esta noche
+time	evening	al anochecer|por la tarde-noche|al caer la tarde
+time	noon	al mediodía|al mediodia|mediodía|mediodia
+time	afternoon	por la tarde|esta tarde|en la tarde|tarde
+time	night	por la noche|de noche|en la noche|noche
+time	midnight	a medianoche|medianoche
+time	dawn	al amanecer|amanecer|al alba|alba|al salir el sol
+time	sunset	al atardecer|atardecer|a la puesta del sol|puesta del sol|al ponerse el sol
+time	dusk	al crepúsculo|crepúsculo|crepusculo
+time	pm	de la tarde|de la noche
+time	am	de la mañana|de la madrugada
+time	half an hour	media hora
+time	in	en|dentro de
+time	hours	horas
+time	hour	hora
+time	minutes	minutos|minuto
+time	days	días|dias|día|dia
+time	weeks	semanas|semana
+time	at	a las|a la|sobre las|hacia las
+time	one	una|un|uno
+time	two	dos
+time	three	tres
+time	four	cuatro
+time	five	cinco
+time	six	seis
+time	seven	siete
+time	eight	ocho
+time	nine	nueve
+time	ten	diez
+time	eleven	once
+time	twelve	doce
+
+place	home	a casa|en casa|mi casa|a mi casa|mi hogar
+place	your home	tu casa|a tu casa|su casa|vuestra casa
+place	outside	afuera|fuera|al exterior|exterior
+place	inside	adentro|dentro|al interior
+place	upstairs	arriba|al piso de arriba|piso de arriba
+place	downstairs	abajo|al piso de abajo|piso de abajo
+place	cellar	al sótano|sótano|sotano|bodega
+place	bedroom	al dormitorio|dormitorio|mi cuarto|mi habitación|a la cama
+place	kitchen	a la cocina|cocina
+place	bath	al baño|baño|los baños|aguas termales
+place	river	al río|río|rio
+place	lake	al lago|lago
+
+none	none	ninguno|ninguna|ningún|nadie|nada|ninguna parte|sin
+
+free	*	el|la|los|las|un|una|unos|unas|de|del|a|al|en|con|por|para|hacia|hasta|desde

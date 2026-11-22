@@ -1959,7 +1959,7 @@ Function PlaceClues(Int id)
     have looked (the DLL changes the crosshair's word).}
     Actor player = Game.GetPlayer()
     Int k = 0
-    While k < 2
+    While k < 3
         Form base = IntelEngine.ArcForm(id, "cluebase" + k)
         ObjectReference anchor = IntelEngine.ArcForm(id, "clueanchor" + k) as ObjectReference
         If base != None && anchor != None
@@ -1972,7 +1972,29 @@ Function PlaceClues(Int id)
                     ; Right at the marker: that is where a traveller arrives, so it is ground one can stand on (a
                     ; few steps to the side, the first one lay inside a rock face). Dead only once it is really in
                     ; the game: killed a moment sooner, the body was there and could not be seen (played 2026-11-19).
-                    Actor lies = anchor.PlaceAtMe(base, 1, false, false) as Actor
+                    ; A sign of a trail lies out from the place, on open ground the DLL found on the way to it
+                    ; (ArcBridge::TrailSpot); what lies by the place itself, and anything no ground was found for,
+                    ; lies at the place's marker. It is placed AT its spot: placed at the marker and moved there
+                    ; before its body was in the game, it stayed invisible (the goat and the horse of the first
+                    ; trail were there and could not be seen). So a marker goes to the spot first, which has no
+                    ; body to wait for, and the dead one is placed at that.
+                    ObjectReference at = anchor
+                    ObjectReference pin = None
+                    Float[] spot = IntelEngine.ArcTrailSpot(id, k)
+                    If spot.Length == 3
+                        Form xMarker = Game.GetFormFromFile(0x0000003B, "Skyrim.esm")
+                        If xMarker != None
+                            pin = anchor.PlaceAtMe(xMarker, 1, false, false)
+                        EndIf
+                        If pin != None
+                            pin.SetPosition(spot[0], spot[1], spot[2] + 8.0)
+                            at = pin
+                        EndIf
+                    EndIf
+                    Actor lies = at.PlaceAtMe(base, 1, false, false) as Actor
+                    If pin != None
+                        pin.Delete()
+                    EndIf
                     If lies != None
                         Int waited = 0
                         While !lies.Is3DLoaded() && waited < 30

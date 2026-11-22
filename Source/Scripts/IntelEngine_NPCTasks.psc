@@ -651,7 +651,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     StorageUtil.SetFormValue(akAgent, "Intel_DestMarker", destMarker)
     ; Derive shouldFail from failReason (merged parameter)
     Int shouldFail = 0
-    If failReason != "none" && failReason != ""
+    If !IntelEngine.IsNoneWord(failReason)   ; "none" in any language in force (it came back as "net", and was a reason)
         shouldFail = 1
     EndIf
     StorageUtil.SetIntValue(akAgent, "Intel_ShouldFail", shouldFail)
@@ -1178,6 +1178,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     EndIf
 
     ; Resolve destination
+    destination = IntelEngine.PlaceInEnglish(destination)   ; "nach Hause", "n'shpi", "domoi": "home"
     ObjectReference destMarkerRef
     If destination == "home"
         destMarkerRef = IntelEngine.ResolveAnyDestination(targetNPC, "home")
@@ -1832,7 +1833,7 @@ Function HandleFetchFailure(Int slot, Actor agent, Actor target)
     String agentName = agent.GetDisplayName()
     String targetName = target.GetDisplayName()
     String failReason = StorageUtil.GetStringValue(agent, "Intel_FailReason")
-    If failReason == "" || failReason == "none"
+    If IntelEngine.IsNoneWord(failReason)
         failReason = "was busy"
     EndIf
 
@@ -2223,7 +2224,7 @@ EndFunction
 Function OnReturnedAfterFailure(Int slot, Actor agent)
     String targetName = StorageUtil.GetStringValue(agent, "Intel_Target")
     String failReason = StorageUtil.GetStringValue(agent, "Intel_FailReason")
-    If failReason == "" || failReason == "none"
+    If IntelEngine.IsNoneWord(failReason)
         failReason = "was busy"
     EndIf
 
@@ -2676,7 +2677,7 @@ Function OnArrivedToDeliver(Int slot, Actor agent, Actor target)
     String meetLoc = StorageUtil.GetStringValue(agent, "Intel_DeliveryMeetLocation")
     String meetTimeStr = StorageUtil.GetStringValue(agent, "Intel_DeliveryMeetTime")
     Core.DebugMsg("Delivery meet check: loc='" + meetLoc + "' time='" + meetTimeStr + "'")
-    If meetLoc != "none" && meetLoc != "" && meetTimeStr != "none" && meetTimeStr != ""
+    If !IntelEngine.IsNoneWord(meetLoc) && !IntelEngine.IsNoneWord(meetTimeStr)
         If Core.Schedule != None
             Core.DebugMsg("Scheduling meeting for " + target.GetDisplayName() + " at " + meetLoc + " " + meetTimeStr)
             Bool scheduled = Core.Schedule.ScheduleMeeting(target, meetLoc, meetTimeStr)

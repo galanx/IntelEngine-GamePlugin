@@ -1,0 +1,68 @@
+# IntelEngine language pack: French.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	fr
+meta	codes	fr|fra|fre|french
+meta	name	French
+meta	game	french
+meta	script	latin
+
+time	in 2 days	après-demain|apres-demain|après demain
+time	tomorrow	demain
+time	today	aujourd'hui|aujourd’hui
+time	tonight	cette nuit
+time	evening	ce soir|le soir|au soir|soir|en soirée|soirée
+time	morning	le matin|au matin|ce matin|matin|dans la matinée|matinée
+time	noon	à midi|a midi|midi
+time	afternoon	l'après-midi|cet après-midi|après-midi|apres-midi|dans l'après-midi
+time	night	la nuit|de nuit|nuit
+time	midnight	à minuit|a minuit|minuit
+time	dawn	à l'aube|a l'aube|l'aube|aube|au lever du soleil|lever du soleil|au point du jour
+time	sunset	au coucher du soleil|coucher du soleil
+time	dusk	au crépuscule|crépuscule|crepuscule
+time	pm	du soir|de l'après-midi
+time	am	du matin
+time	half an hour	une demi-heure|demi-heure|une demie heure
+time	in	dans|d'ici
+time	hours	heures
+time	hour	heure
+time	minutes	minutes|minute
+time	days	jours|jour
+time	weeks	semaines|semaine
+time	at	à|a|vers
+time	one	une|un
+time	two	deux
+time	three	trois
+time	four	quatre
+time	five	cinq
+time	six	six
+time	seven	sept
+time	eight	huit
+time	nine	neuf
+time	ten	dix
+time	eleven	onze
+time	twelve	douze
+
+place	home	à la maison|a la maison|chez moi|ma maison|mon foyer|rentrer
+place	your home	chez toi|chez vous|ta maison|votre maison
+place	outside	dehors|à l'extérieur|a l'exterieur|l'extérieur|extérieur
+place	inside	dedans|à l'intérieur|a l'interieur|l'intérieur
+place	upstairs	en haut|à l'étage|a l'etage|l'étage
+place	downstairs	en bas|au rez-de-chaussée
+place	cellar	à la cave|la cave|cave|au sous-sol|sous-sol
+place	bedroom	la chambre|ma chambre|chambre|au lit
+place	kitchen	la cuisine|à la cuisine|cuisine
+place	bath	le bain|au bain|bain|les bains|source chaude
+place	river	la rivière|à la rivière|rivière|riviere|le fleuve
+place	lake	le lac|au lac|lac
+
+none	none	aucun|aucune|personne|rien|nulle part|néant|sans
+
+free	*	le|la|les|l|un|une|des|du|de|d|à|a|au|aux|en|chez|vers|dans|sur|sous|par|pour

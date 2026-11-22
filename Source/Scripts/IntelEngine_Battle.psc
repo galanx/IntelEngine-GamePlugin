@@ -521,9 +521,9 @@ Event OnUpdate()
             String victorId = IntelEngine.StoryResponseGetField(expiredResult, "victor")
             String locName = IntelEngine.StoryResponseGetField(expiredResult, "location")
             If victorId != ""
-                Debug.Notification(IntelEngine.BattleSay("word_won", victorId, "", locName))
+                Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("word_won", victorId, "", locName)))
             Else
-                Debug.Notification(IntelEngine.BattleSay("word_nobody", "", "", locName))
+                Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("word_nobody", "", "", locName)))
             EndIf
         EndIf
 
@@ -1135,7 +1135,7 @@ Function BeginCharge()
     ForceInitialEngagement()
     AssignFile()
     If MusterSeenRealTime <= 0.0 && PlayerOnField(GoneDistance)
-        Debug.Notification(IntelEngine.BattleSay("broke_out"))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("broke_out")))
     EndIf
     Core.DebugMsg("Battle: the lines meet")
     Core.RequestTick(PollInterval)
@@ -1244,9 +1244,9 @@ Function SpawnWave(String side)
     Core.DebugMsg("Battle: " + more + " more of " + own + " come up (its wave " + waveNum + ")")
     If PlayerOnField(WatchDistance + 1500.0)
         If waveNum >= 5
-            Debug.Notification(IntelEngine.BattleSay("last_come", own))
+            Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("last_come", own)))
         Else
-            Debug.Notification(IntelEngine.BattleSay("more_come", own))
+            Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("more_come", own)))
         EndIf
     EndIf
     _waveBusy = false
@@ -1337,7 +1337,7 @@ Function WelcomeChampion(Actor champion, String side)
     champion.SetScale(1.12)
     Bool near = PlayerOnField(WatchDistance + 1500.0)
     If near
-        Debug.Notification(IntelEngine.BattleSay("champion_comes", own))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("champion_comes", own)))
     EndIf
     Bool forPlayer = PlayerBattleSide != "" && PlayerBattleSide != own
     Core.DebugMsg("Battle: a champion of " + own + " takes the field (for the player: " + forPlayer + ")")
@@ -1418,7 +1418,7 @@ Function SpringFlank(String side)
     EndIf
     Core.DebugMsg("Battle: a hidden force of " + own + " breaks cover on the flank - " + made)
     If made > 0 && PlayerOnField(WatchDistance + 1500.0)
-        Debug.Notification(IntelEngine.BattleSay("flank", own))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("flank", own)))
     EndIf
     _waveBusy = false
 EndFunction
@@ -1472,7 +1472,7 @@ Function TurnCoats(String side)
     EndWhile
     Core.DebugMsg("Battle: " + count + " of " + own + " turn their coats")
     If PlayerOnField(WatchDistance + 1500.0)
-        Debug.Notification(IntelEngine.BattleSay("treachery", own))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("treachery", own)))
         If first != None
             Core.SendTaskNarration(first, IntelEngine.BattleSay("turncoat_cry", own, other), None)
         EndIf
@@ -1526,7 +1526,7 @@ Function AssignFile()
         i -= 1
     EndWhile
     If given >= 2
-        Debug.Notification(IntelEngine.BattleSay("file", PlayerBattleSide, "", "", given))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("file", PlayerBattleSide, "", "", given)))
     EndIf
     Core.DebugMsg("Battle: " + given + " soldiers keep by the player (rank " + rank + ")")
 EndFunction
@@ -1579,7 +1579,7 @@ Function JoinBattleSide(String factionId)
     Else
         player.AddToFaction(Intel_BattleSideB)
     EndIf
-    Debug.Notification(IntelEngine.BattleSay("stand_with", factionId))
+    Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("stand_with", factionId)))
     Core.DebugMsg("Battle: Player joined " + factionId + " (rank " + IntelEngine.PlayerFactionRank(factionId) + " " + IntelEngine.PlayerRankTitle(factionId) + ")")
     TrustOwnSide()
     If BattlePhase == 2
@@ -1696,10 +1696,10 @@ Function PostBattleSoldierMoment(Actor survivor, Int alliesLeft, String ownSide,
     screen, between quotation marks.)}
     If alliesLeft <= 0
         If playerWon
-            Debug.Notification("The field is yours, though none of your side is left standing to share it.")
+            Debug.Notification(IntelEngine.L("The field is yours, though none of your side is left standing to share it."))
             PaySentOn(ownSide, reward)
         Else
-            Debug.Notification("You stand alone among the fallen.")
+            Debug.Notification(IntelEngine.L("You stand alone among the fallen."))
         EndIf
         return
     EndIf
@@ -1865,12 +1865,12 @@ Function HandlePollResult(String stateJson)
     ; An army's commander has fallen: its men see it (and lose heart: the DLL has counted that).
     String fallen = IntelEngine.StoryResponseGetOptionalField(stateJson, "commander_down")
     If fallen != "" && !battleOver && PlayerOnField(WatchDistance + 1500.0)
-        Debug.Notification(IntelEngine.BattleSay("captain_fell", fallen))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("captain_fell", fallen)))
     EndIf
 
     String championFell = IntelEngine.StoryResponseGetOptionalField(stateJson, "champion_down")
     If championFell != "" && !battleOver && PlayerOnField(WatchDistance + 1500.0)
-        Debug.Notification(IntelEngine.BattleSay("champion_fell", championFell))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("champion_fell", championFell)))
     EndIf
     If !battleOver
         String championOf = IntelEngine.StoryResponseGetOptionalField(stateJson, "do_champion")
@@ -2002,17 +2002,17 @@ Function HandleBattleEnd(String result, String victor, String stateJson)
 
     ; Notifications (engine-only: Debug.Notification)
     If notification != ""
-        Debug.Notification(notification)
+        Debug.Notification(IntelEngine.L(notification))
     EndIf
     If spectatorNotif != ""
         Utility.Wait(1.5)
-        Debug.Notification(spectatorNotif)
+        Debug.Notification(IntelEngine.L(spectatorNotif))
     EndIf
     ; What the battle did for the player's name with the side they fought for.
     String promoted = IntelEngine.StoryResponseGetOptionalField(resultJson, "promoted")
     If promoted != "" && playerSideWas != ""
         Utility.Wait(1.5)
-        Debug.Notification(IntelEngine.BattleSay("promoted", playerSideWas, "", promoted))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("promoted", playerSideWas, "", promoted)))
         Core.DebugMsg("Battle: the player rises to " + promoted + " with " + playerSideWas)
     EndIf
 
@@ -2344,7 +2344,7 @@ Function PaySentOn(String side, Int reward)
         Return
     EndIf
     Game.GetPlayer().AddItem(Game.GetFormFromFile(0x0000000F, "Skyrim.esm"), reward, true)
-    Debug.Notification(IntelEngine.BattleSay("pay_sent", side, "", "", reward))
+    Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("pay_sent", side, "", "", reward)))
     Core.DebugMsg("Battle: nobody could bring the pay over - " + reward + " gold sent on to the player")
 EndFunction
 
@@ -3100,7 +3100,7 @@ Function HandleAssassinArrival(Actor assassin, String targetName)
 
     ; Reset manifest timer so cleanup doesn't fire immediately
     ManifestStartTime = Utility.GetCurrentRealTime()
-    Debug.Notification("An assassin strikes at " + targetName + "!")
+    Debug.Notification(IntelEngine.L("An assassin strikes at " + targetName + "!"))
     IntelEngine.ConfirmManifestationCooldown()
     Core.DebugMsg("Battle: Assassination attack triggered on " + targetName)
 EndFunction
@@ -3179,11 +3179,11 @@ Function CleanupManifestation(Bool report = true)
             Core.DebugMsg("Battle: the attempt on " + _assassinLeaderName + " ended - " + outcome)
             String note = IntelEngine.StoryResponseGetOptionalField(told, "notification")
             If note != ""
-                Debug.Notification(note)
+                Debug.Notification(IntelEngine.L(note))
             EndIf
             String risen = IntelEngine.StoryResponseGetOptionalField(told, "promoted")
             If risen != ""
-                Debug.Notification(IntelEngine.BattleSay("promoted", _assassinTargetFaction, "", risen))
+                Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("promoted", _assassinTargetFaction, "", risen)))
             EndIf
             Actor leader = ManifestLeaderTarget
             String witnessFact = IntelEngine.StoryResponseGetOptionalField(told, "witnessFact")
@@ -3302,9 +3302,9 @@ Function ShowBattleStartNotification(String locationName)
     {What the player sees as they come near: two armies facing each other. (It used to say that soldiers "clash",
     with the lines still standing, or with nobody in sight.)}
     If BattleSkirmish
-        Debug.Notification(IntelEngine.BattleSay("skirmish_met", BattleFactionA, BattleFactionB))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("skirmish_met", BattleFactionA, BattleFactionB)))
     Else
-        Debug.Notification(IntelEngine.BattleSay("drawn_up", BattleFactionA, BattleFactionB))
+        Debug.Notification(IntelEngine.L(IntelEngine.BattleSay("drawn_up", BattleFactionA, BattleFactionB)))
     EndIf
 EndFunction
 

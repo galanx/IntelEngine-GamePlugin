@@ -1,0 +1,69 @@
+# IntelEngine language pack: Russian.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	ru
+meta	codes	ru|rus|russian
+meta	name	Russian
+meta	game	russian
+meta	script	cyrillic
+
+time	in 2 days	послезавтра
+time	tomorrow	завтра|назавтра
+time	today	сегодня
+time	tonight	сегодня ночью|этой ночью
+time	morning	утром|утро|с утра|поутру|с утра пораньше
+time	noon	в полдень|полдень|к полудню|полудню
+time	afternoon	после полудня|после обеда|днём|днем
+time	evening	вечером|вечер|под вечер|к вечеру
+time	night	ночью|ночь
+time	midnight	в полночь|полночь|к полуночи
+time	dawn	на рассвете|с рассветом|рассвет|рассвете|на заре|на восходе|восход
+time	sunset	на закате|закат|закате|к закату
+time	dusk	в сумерках|сумерки|сумерках
+time	pm	часов вечера|часа вечера|час вечера|вечера|часов дня|часа дня|час дня|пополудни
+time	am	часов утра|часа утра|час утра|утра
+time	at night	часов ночи|часа ночи|час ночи|ночи
+time	half an hour	полчаса|пол часа
+time	in	через|спустя
+time	hours	часов|часа|часы
+time	hour	час
+time	minutes	минут|минуты|минуту|минута
+time	days	дней|дня|день|суток|сутки
+time	weeks	недель|недели|неделю|неделя
+time	at	в|во|к|около
+time	one	один|одну|одна|одного
+time	two	два|две|двух
+time	three	три|трёх|трех
+time	four	четыре|четырёх
+time	five	пять|пяти
+time	six	шесть|шести
+time	seven	семь|семи
+time	eight	восемь|восьми
+time	nine	девять|девяти
+time	ten	десять|десяти
+time	eleven	одиннадцать|одиннадцати
+time	twelve	двенадцать|двенадцати
+
+place	home	домой|к себе домой|к себе|у себя дома|мой дом|в мой дом|ко мне домой
+place	your home	к тебе домой|твой дом|в твой дом|к вам домой|ваш дом|в ваш дом
+place	outside	наружу|снаружи|на улицу|на улице|во двор|вон|за дверь
+place	inside	внутрь|внутри
+place	upstairs	наверх|наверху|на второй этаж|этажом выше
+place	downstairs	вниз|внизу|на первый этаж|этажом ниже
+place	cellar	в подвал|подвал|погреб|в погреб
+place	bedroom	в спальню|спальня|спальню|моя комната|в мою комнату|в постель
+place	kitchen	на кухню|кухня|кухню|на кухне
+place	bath	в баню|баня|в купальню|купальня|горячий источник
+place	river	к реке|река|на реку|реку
+place	lake	к озеру|озеро|на озеро
+
+none	none	нет|никто|ничего|ничто|никуда|никого|никак|отсутствует|не указано
+
+free	*	к|ко|в|во|на|у|из|до|от|с|со|за|по|об|о|для|около|возле|мимо|через
