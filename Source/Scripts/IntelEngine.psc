@@ -1363,8 +1363,8 @@ String Function BattleMusterLine(String side, Int first, Int count, Actor player
 String Function BattleSettle() Global Native
 
 ; Before a group comes up (kind 0 a wave: BattleReinforceLine; 1 the hidden force: BattleFlankLine; 2 a champion:
-; BattleChampionLine): where they come from, out of the player's sight, and who they are, chosen in a frame of its
-; own. The making of the first of them follows a frame later.
+; BattleChampionLine; 3 a line of the muster: BattleMusterLine): where they come from, out of the player's sight, and
+; who they are, chosen in a frame of its own. The making of the first of them follows a frame later.
 ; 1 chosen; 0 nowhere to come from unseen, or nobody to come; -1 no battle with a field.
 Int Function BattlePrepareGroup(String side, Int kind, Actor player) Global Native
 
@@ -1430,6 +1430,11 @@ Function SetBattleSoldiersAsTeammates(String side) Global Native
 
 ; Count dead soldiers on a given side ("A" or "B").
 Int Function CountDeadBattleSoldiers(String side) Global Native
+
+; The fighting is called off for count of the battle's soldiers from number first on: they start nothing any more,
+; forget who struck them, and their fight ends. amongThemselves: only those whose fight is with another soldier of the
+; battle. A few a call (no frame carries all of them). Returns how many soldiers come after these.
+Int Function BattleCeaseFire(Int first, Int count, Bool amongThemselves) Global Native
 
 ; Cleanup battle soldiers by proximity. Returns count of remaining actors.
 Int Function CleanupBattleSoldiers(Float playerX, Float playerY, Float playerZ, Float playerAngleZ, Bool forceAll) Global Native
