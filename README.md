@@ -474,10 +474,11 @@ Six settings under "Living world" (SkyrimNet's plugin settings page, the MCM's S
 |---|---|---|
 | How alive the world is | Classic (as before 4.0), Rumors (the world moves on and you hear about it), Lives (followers you left behind also live lives of their own) | Lives |
 | How often something happens | Calm (about one notable moment every two game days), Normal (one a game day), Lively (two a game day) | Normal |
-| Interruptions at bad moments | Never, Only when urgent, Realistic: whether someone may turn up during a fight, a conversation, a scene or a menu | Only when urgent |
-| NPCs of running quests may move | Never, For important reasons, Freely. Only quests with an objective in your journal count; the target of an objective you have open never moves | For important reasons |
+| Interruptions at bad moments | Never, If urgent, Realistic: whether someone may turn up during a fight, a conversation, a scene or a menu | If urgent |
+| Quest NPCs may move | Never, If important, Freely. Only quests with an objective in your journal count; the target of an objective you have open never moves | If important |
+| Skipped time counts toward the pace | Off: waiting, sleeping and fast travel do not bring the next moment sooner; moments also take time actually played (eight minutes between two, four minutes in a town before a story of its own begins there, twenty minutes between two such stories). On: the game's clock alone counts | Off |
 | A follower told to wait waits (days) | 1–120 | 30 |
-| A follower left behind moves on after (days) | 1–60 | 7 |
+| A follower left behind moves on (days) | 1–60 | 7 |
 
 **Moments wait for a good time.** Arriving in a town or an inn, coming home, coming out of a dungeon and waking up are the moments the director looks for; the old clock remains as a fallback, paced the same way.
 

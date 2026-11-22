@@ -559,7 +559,7 @@ Function RecordStoryDispatch(String storyType, String npcName, String narration)
 Bool Function LivingWorldMayDeliver(Int seam, Bool urgent) Global Native
 
 ; 4.0 living world settings (indexes as on the settings page): level 0 Classic, 1 Rumors, 2 Lives; interruptions
-; 0 Never, 1 Only when urgent, 2 Realistic; quest NPCs 0 Never, 1 For important reasons, 2 Freely; pacing 0 Calm,
+; 0 Never, 1 If urgent, 2 Realistic; quest NPCs 0 Never, 1 If important, 2 Freely; pacing 0 Calm,
 ; 1 Normal, 2 Lively; then the days a follower told to wait keeps waiting and the days before a follower left
 ; behind starts a life of their own.
 Function SetLivingWorldSettings(Int level, Int interruptions, Int questNpcs, Int pacing, Float waitDays, Float lifeDays, Bool skippedTimeCounts) Global Native
@@ -796,7 +796,7 @@ String Function LivingWorldOrderNarration() Global Native
 Function LivingWorldOrderDone(Bool ok) Global Native
 ; The record of one NPC (flags, activity, place, when they parted...), for tests and the log.
 String Function LivingWorldDescribe(Actor npc) Global Native
-; May this kind of story moment move this NPC? ("NPCs of running quests may move"; the target of an objective the
+; May this kind of story moment move this NPC? ("Quest NPCs may move"; the target of an objective the
 ; player has open never moves; "message" always may, the sender stays and a courier goes)
 Bool Function LivingWorldMayMove(Actor npc, String storyType) Global Native
 ; Held by the game right now, at every level of the living world: in a scene, or the target of an objective the

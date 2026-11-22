@@ -219,20 +219,20 @@ schema:
       description: "Whether someone may turn up during a fight, a conversation, a scene or a menu: never, only for something urgent, or now and then, as in real life."
       options:
         - "Never"
-        - "Only when urgent"
+        - "If urgent"
         - "Realistic"
-      defaultValue: "Only when urgent"
+      defaultValue: "If urgent"
       category: "Living world"
 
-    - name: "NPCs of running quests may move"
+    - name: "Quest NPCs may move"
       path: "living_world.quest_npcs_move"
       type: "select"
       description: "Whether NPCs who take part in a running quest may travel or move for a story. The target of an objective you have open never moves."
       options:
         - "Never"
-        - "For important reasons"
+        - "If important"
         - "Freely"
-      defaultValue: "For important reasons"
+      defaultValue: "If important"
       category: "Living world"
 
     - name: "How often something happens"
@@ -262,7 +262,7 @@ schema:
       max: 120
       category: "Living world"
 
-    - name: "A follower left behind moves on after (days)"
+    - name: "A follower left behind moves on (days)"
       path: "living_world.life_start_days"
       type: "float"
       description: "How long a follower you dismissed stays where you left them before starting a life of their own."
