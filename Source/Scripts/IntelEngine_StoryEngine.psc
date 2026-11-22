@@ -54,8 +54,8 @@ Float Property LongAbsenceDaysConfig = 3.0 Auto Hidden
 ; 4.0 living world settings, as on SkyrimNet's settings page (indexes of the choices there). The DLL gets them on load
 ; and on every change (PushLivingWorldSettings).
 Int Property LivingWorldLevel = 2 Auto Hidden            ; 0 Classic, 1 Rumors, 2 Lives
-Int Property LivingWorldInterruptions = 1 Auto Hidden    ; 0 Never, 1 Only when urgent, 2 Realistic
-Int Property LivingWorldQuestNpcs = 1 Auto Hidden        ; 0 Never, 1 For important reasons, 2 Freely
+Int Property LivingWorldInterruptions = 1 Auto Hidden    ; 0 Never, 1 If urgent, 2 Realistic
+Int Property LivingWorldQuestNpcs = 1 Auto Hidden        ; 0 Never, 1 If important, 2 Freely
 Int Property LivingWorldPacing = 1 Auto Hidden           ; 0 Calm, 1 Normal, 2 Lively
 Float Property LivingWorldWaitDays = 30.0 Auto Hidden
 Float Property LivingWorldLifeDays = 7.0 Auto Hidden
@@ -2279,7 +2279,7 @@ Function OnDungeonMasterResponse(String response, Int success)
             RejectStory(typeWithSub, npcName, narration, "hold restriction")
             return
         EndIf
-        ; 4.0: someone in a running quest moves only as "NPCs of running quests may move" allows, and the target of
+        ; 4.0: someone in a running quest moves only as "Quest NPCs may move" allows, and the target of
         ; an objective the player has open never does (the LLM may ignore the candidate's Quest line).
         If !IntelEngine.LivingWorldMayMove(npc, storyType)
             Core.DebugMsg("Story DM: " + npc.GetDisplayName() + " rejected - held by a running quest for " + storyType)

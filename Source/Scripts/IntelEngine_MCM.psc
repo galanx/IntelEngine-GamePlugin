@@ -271,30 +271,53 @@ Function ShowStatusPage()
     AddEmptyOption()
 
     ; Show each slot status
-    String slot0 = GetSlotDisplay(0)
-    String slot1 = GetSlotDisplay(1)
-    String slot2 = GetSlotDisplay(2)
-    String slot3 = GetSlotDisplay(3)
-    String slot4 = GetSlotDisplay(4)
+    OID_Slot0Status = AddSlotRow(0)
+    OID_ClearSlot0 = AddTextOption(SlotWhere(0), "Clear", GetClearFlag(0))
 
-    OID_Slot0Status = AddTextOption("Slot 0:", slot0)
-    OID_ClearSlot0 = AddTextOption("", "Clear", GetClearFlag(0))
+    OID_Slot1Status = AddSlotRow(1)
+    OID_ClearSlot1 = AddTextOption(SlotWhere(1), "Clear", GetClearFlag(1))
 
-    OID_Slot1Status = AddTextOption("Slot 1:", slot1)
-    OID_ClearSlot1 = AddTextOption("", "Clear", GetClearFlag(1))
+    OID_Slot2Status = AddSlotRow(2)
+    OID_ClearSlot2 = AddTextOption(SlotWhere(2), "Clear", GetClearFlag(2))
 
-    OID_Slot2Status = AddTextOption("Slot 2:", slot2)
-    OID_ClearSlot2 = AddTextOption("", "Clear", GetClearFlag(2))
+    OID_Slot3Status = AddSlotRow(3)
+    OID_ClearSlot3 = AddTextOption(SlotWhere(3), "Clear", GetClearFlag(3))
 
-    OID_Slot3Status = AddTextOption("Slot 3:", slot3)
-    OID_ClearSlot3 = AddTextOption("", "Clear", GetClearFlag(3))
-
-    OID_Slot4Status = AddTextOption("Slot 4:", slot4)
-    OID_ClearSlot4 = AddTextOption("", "Clear", GetClearFlag(4))
+    OID_Slot4Status = AddSlotRow(4)
+    OID_ClearSlot4 = AddTextOption(SlotWhere(4), "Clear", GetClearFlag(4))
 
     AddEmptyOption()
     AddHeaderOption("Actions")
     OID_ResetAllTasks = AddTextOption("Reset All Tasks", "Click")
+EndFunction
+
+Int Function AddSlotRow(Int slot)
+    {One row of the Active Tasks page. A slot in use shows who and what as the row's own text with nothing on the
+     right: written as a value it was set in capitals from the right edge and lay over the "Slot N:" label
+     ("SINMIR: TRAVELING TO DRUNKEN HUNTSM" over "Slot 0:", seen in the game 2026-11-22).}
+    String status = GetSlotDisplay(slot)
+    If status == "Empty" || status == "Invalid" || status == "Unknown" || status == "Error: No Core"
+        Return AddTextOption("Slot " + slot + ":", status)
+    EndIf
+    Int cut = StringUtil.Find(status, " (")
+    If cut > 0
+        Return AddTextOption(StringUtil.Substring(status, 0, cut), "")
+    EndIf
+    Return AddTextOption(status, "")
+EndFunction
+
+String Function SlotWhere(Int slot)
+    {The bracketed end of a busy slot's text ("(near The Bannered Mare)"), shown beside its Clear button: on the
+     row above it ran past the column's edge and was cut.}
+    String status = GetSlotDisplay(slot)
+    If status == "Empty" || status == "Invalid" || status == "Unknown" || status == "Error: No Core"
+        Return ""
+    EndIf
+    Int cut = StringUtil.Find(status, " (")
+    If cut > 0
+        Return StringUtil.Substring(status, cut + 1)
+    EndIf
+    Return ""
 EndFunction
 
 String Function GetSlotDisplay(Int slot)
@@ -449,11 +472,11 @@ Function ShowSettingsPage()
     If Core != None && Core.StoryEngine != None
         OID_LWLevel = AddTextOption("How alive the world is", LivingWorldLabel(0, Core.StoryEngine.LivingWorldLevel))
         OID_LWInterruptions = AddTextOption("Interruptions at bad moments", LivingWorldLabel(1, Core.StoryEngine.LivingWorldInterruptions))
-        OID_LWQuestNpcs = AddTextOption("NPCs of running quests may move", LivingWorldLabel(2, Core.StoryEngine.LivingWorldQuestNpcs))
+        OID_LWQuestNpcs = AddTextOption("Quest NPCs may move", LivingWorldLabel(2, Core.StoryEngine.LivingWorldQuestNpcs))
         OID_LWPacing = AddTextOption("How often something happens", LivingWorldLabel(3, Core.StoryEngine.LivingWorldPacing))
         OID_LWSkippedTime = AddToggleOption("Skipped time counts toward the pace", Core.StoryEngine.LivingWorldSkippedTime)
         OID_LWWaitDays = AddSliderOption("A follower told to wait waits (days)", Core.StoryEngine.LivingWorldWaitDays, "{0}")
-        OID_LWLifeDays = AddSliderOption("A follower left behind moves on after (days)", Core.StoryEngine.LivingWorldLifeDays, "{0}")
+        OID_LWLifeDays = AddSliderOption("A follower left behind moves on (days)", Core.StoryEngine.LivingWorldLifeDays, "{0}")
     EndIf
 
     AddEmptyOption()
@@ -736,14 +759,14 @@ String Function LivingWorldLabel(Int which, Int index)
         If index == 0
             Return "Never"
         ElseIf index == 1
-            Return "Only when urgent"
+            Return "If urgent"
         EndIf
         Return "Realistic"
     ElseIf which == 2
         If index == 0
             Return "Never"
         ElseIf index == 1
-            Return "For important reasons"
+            Return "If important"
         EndIf
         Return "Freely"
     EndIf
