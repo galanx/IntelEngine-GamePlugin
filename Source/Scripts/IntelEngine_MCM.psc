@@ -1447,15 +1447,15 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_TypeRoadEncounter
         SetInfoText("NPC appears on the road nearby, coincidentally traveling. Exterior only. The Director and the log call this type \"Road Encounter\".")
     ElseIf optionId == OID_TypeAmbush
-        SetInfoText("Hostile NPC stalks and attacks you. Requires combat class and hostile memories. The Director and the log call this type \"Ambush\".")
+        SetInfoText("Someone with a grudge lies in wait on the road. Off: no ambush inside a town's story either. The Director and the log call this type \"Ambush\".")
     ElseIf optionId == OID_TypeFactionAmbush
-        SetInfoText("A faction you stand badly with sends soldiers to waylay you. The Director and the log call this type \"Faction Ambush\".")
+        SetInfoText("A faction that holds you for an enemy (standing -40 or worse) sends men after you on the road, now and then. Never while you are with somebody, resting or settled somewhere. The Director and the log call this type \"Faction Ambush\".")
     ElseIf optionId == OID_TypeStalker
-        SetInfoText("Romantic or jealous NPC secretly follows you. Exterior only. The Director and the log call this type \"Stalker\".")
+        SetInfoText("Someone shadows you from a distance, out of doors. Off: nobody does inside a town's story either. The Director and the log call this type \"Stalker\".")
     ElseIf optionId == OID_TypeMessage
         SetInfoText("NPC delivers a verbal message, optionally with a meeting invitation. The Director and the log call this type \"Message\".")
     ElseIf optionId == OID_TypeQuest
-        SetInfoText("NPC asks you to kill enemies at a location. Courier or guide delivery. The Director and the log call this type \"Quest\".")
+        SetInfoText("People who need your help. Off: nobody brings you their trouble, and no story of the town begins. The Director and the log call this type \"Quest\".")
     ElseIf optionId == OID_TypeNPCInteraction
         SetInfoText("Two NPCs interact: argue, trade, train, bond. Visible or off-screen. The Director and the log call this type \"NPC Interaction\".")
     ElseIf optionId == OID_TypeNPCGossip
@@ -1469,11 +1469,11 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_NPCSocialCooldown
         SetInfoText("How long (game hours) before an NPC can be picked for another social interaction. Separate from the stories' \"Long absence\".")
     ElseIf optionId == OID_QuestCombat
-        SetInfoText("Enable 'clear enemies' quest type. NPC asks you to kill bandits, draugr, or dragons at a location.")
+        SetInfoText("A bounty on what lives at a place. Off: no bounty, and no master of a place to kill inside a town's story.")
     ElseIf optionId == OID_QuestRescue
-        SetInfoText("Enable 'rescue captive NPC' quest type. A real NPC is teleported to the location and held captive by enemies.")
+        SetInfoText("Someone of the town held at a place out in the world. Off: nobody is held in a story.")
     ElseIf optionId == OID_QuestFindItem
-        SetInfoText("Enable 'find lost item' quest type. A valuable item spawns in a chest guarded by enemies.")
+        SetInfoText("A keepsake lost at a place. Off: no keepsake hunt.")
     ElseIf optionId == OID_QuestFactionCombat
         SetInfoText("Enable faction combat quests. Clear out hostile faction soldiers at a location. Rewards faction standing with the opposing side.")
     ElseIf optionId == OID_QuestFactionRescue

@@ -1062,6 +1062,8 @@ Int Function GetPlayerFactionStanding(String factionId) Global Native
 String Function FactionPatrolDue() Global Native
 Function FactionPatrolSent() Global Native
 Function FactionPatrolTest(Bool always) Global Native
+; Why nobody in arms would come upon the player now (a scene, a talk, resting, undressed, settled); "" when they may.
+String Function PrivateMomentNow() Global Native
 
 ; Adjust player standing with a faction by delta, returns new standing
 Int Function AdjustPlayerFactionStanding(String factionId, Int delta) Global Native

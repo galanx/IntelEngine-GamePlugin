@@ -94,7 +94,7 @@ schema:
     - name: "Check interval (game hours)"
       path: "stories.check_interval_hours"
       type: "float"
-      description: "How often the dungeon master considers starting something."
+      description: "The fallback clock: how often the dungeon master looks when nothing else prompts it. Arriving in a town, an inn or your home, leaving a dungeon and waking up bring a look of their own; how much comes of it is set by 'How often something happens'."
       defaultValue: 3
       min: 0.5
       max: 168
@@ -152,24 +152,28 @@ schema:
     - name: "Story type: someone has work for you"
       path: "stories.type_quest"
       type: "bool"
+      description: "People who need your help. Off: nobody brings you their trouble, and no story of the town begins."
       defaultValue: true
       category: "Stories"
 
     - name: "Story type: an ambush"
       path: "stories.type_ambush"
       type: "bool"
+      description: "Someone with a grudge lies in wait on the road. Off: no ambush inside a town's story either."
       defaultValue: true
       category: "Stories"
 
     - name: "Story type: a faction's patrol hunts you"
       path: "stories.type_faction_ambush"
       type: "bool"
+      description: "A faction that holds you for an enemy (standing -40 or worse) sends men after you on the road, now and then. Never while you are with somebody, resting or settled somewhere."
       defaultValue: true
       category: "Stories"
 
     - name: "Story type: someone follows you unseen"
       path: "stories.type_stalker"
       type: "bool"
+      description: "Someone shadows you from a distance, out of doors. Off: nobody does inside a town's story either."
       defaultValue: true
       category: "Stories"
 
@@ -279,7 +283,7 @@ schema:
     - name: "Someone brings a rumor"
       path: "stories.reach_informant"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -309,7 +313,7 @@ schema:
     - name: "A message is delivered"
       path: "stories.reach_message"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -324,7 +328,7 @@ schema:
     - name: "Someone has work for you"
       path: "stories.reach_quest"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -339,7 +343,7 @@ schema:
     - name: "An ambush"
       path: "stories.reach_ambush"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -354,7 +358,7 @@ schema:
     - name: "Someone follows you unseen"
       path: "stories.reach_stalker"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -370,18 +374,21 @@ schema:
     - name: "Quest kind: clear out enemies"
       path: "stories.quest_combat"
       type: "bool"
+      description: "A bounty on what lives at a place. Off: no bounty, and no master of a place to kill inside a town's story."
       defaultValue: true
       category: "Stories: quests"
 
     - name: "Quest kind: rescue someone"
       path: "stories.quest_rescue"
       type: "bool"
+      description: "Someone of the town held at a place out in the world. Off: nobody is held in a story."
       defaultValue: true
       category: "Stories: quests"
 
     - name: "Quest kind: find an item"
       path: "stories.quest_find_item"
       type: "bool"
+      description: "A keepsake lost at a place. Off: no keepsake hunt."
       defaultValue: true
       category: "Stories: quests"
 
@@ -406,7 +413,7 @@ schema:
     - name: "Quest expires after (days)"
       path: "stories.quest_timeout_days"
       type: "float"
-      description: "A quest you were offered and did not finish ends after this many days."
+      description: "A quest of the dungeon master's own that you were offered and did not finish ends after this many days. A story of the town says in its offer how long it waits."
       defaultValue: 1
       min: 1
       max: 30

@@ -293,6 +293,15 @@ Function DebugBondOf(Actor who)
     Core().DebugMsg("Bonds: " + who.GetDisplayName() + " - " + IntelEngine.BondDescribe(who))
 EndFunction
 
+Function DebugPrivate()
+    {Test hook: logs why nobody in arms would come upon the player now, or that they may.}
+    String why = IntelEngine.PrivateMomentNow()
+    If why == ""
+        why = "nothing: the player is on the road and may be come upon"
+    EndIf
+    Core().DebugMsg("Arcs: a private moment? " + why)
+EndFunction
+
 Function DebugPatrolAlways(Bool on)
     {Test hook: every moment the director lets land is a faction's patrol (while some faction holds the player for
     an enemy), with no rest between two.}
