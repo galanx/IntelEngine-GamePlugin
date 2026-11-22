@@ -270,7 +270,7 @@ Function StartScheduler()
         ; Core.RequestGameTimeTick keeps the soonest request (Battle and Schedule use it too).
         Float storyInterval = 3.0
         If Core != None
-            storyInterval = Core.GetStoryEngineInterval()
+            storyInterval = Core.GetStoryClockHours()
         EndIf
         Float npcInterval = NPCTickIntervalHours
         Float politicsInterval = IntelEngine.GetPoliticsTickInterval() as Float
@@ -628,7 +628,7 @@ Event OnUpdate()
     Float now = Utility.GetCurrentGameTime()
     Float storyInterval = 3.0
     If Core != None
-        storyInterval = Core.GetStoryEngineInterval()
+        storyInterval = Core.GetStoryClockHours()
     EndIf
     Float npcInterval = NPCTickIntervalHours
     Float politicsInterval = IntelEngine.GetPoliticsTickInterval() as Float
@@ -712,7 +712,7 @@ Function TickScheduler()
     ; The shared game-time timer fires at the shortest interval (may be politics or NPC DM).
     Float storyInterval = 3.0
     If Core != None
-        storyInterval = Core.GetStoryEngineInterval()
+        storyInterval = Core.GetStoryClockHours()
     EndIf
     Float storyElapsed = (Utility.GetCurrentGameTime() - LastStoryTickTime) * 24.0  ; days to hours
     If storyElapsed < storyInterval

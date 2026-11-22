@@ -3047,6 +3047,22 @@ Float Function GetStoryEngineInterval()
     return GetSettingFloat("Intel_MCM_StoryInterval", 3.0)
 EndFunction
 
+Float Function GetStoryClockHours()
+    {How often the dungeon master looks by the clock (game hours). At Classic: the setting "Check interval", which
+    is the pace there, as before 4.0. Above Classic: the director's own smallest gap between two moments. There the
+    pace is "How often something happens" (the director's budget), a look that finds the budget spent ends before
+    any model is asked, and a second pace setting could only contradict the first: set to a day or a week it
+    starved the director whenever the player stayed in one place (the user, 2026-11-22: "do we still need that?").}
+    If StoryEngine != None && StoryEngine.LivingWorldLevel > 0
+        Float clock = IntelEngine.LivingWorldClockHours()
+        If clock > 0.0
+            Return clock
+        EndIf
+        Return 3.0
+    EndIf
+    Return GetStoryEngineInterval()
+EndFunction
+
 Float Function GetStoryEngineCooldown()
     return GetSettingFloat("Intel_MCM_StoryCooldown", 24.0)
 EndFunction
@@ -4510,7 +4526,7 @@ String Function BuildDashboardStateJson()
         json += ",\"activeNPC\":\"" + EscapeJson(GetActorName(StoryEngine.ActiveStoryNPC)) + "\""
         json += ",\"activeType\":\"" + StoryEngine.ActiveStoryType + "\""
         json += ",\"activeNarration\":\"" + EscapeJson(StoryEngine.ActiveNarration) + "\""
-        Float storyInterval = GetStoryEngineInterval()
+        Float storyInterval = GetStoryClockHours()
         json += ",\"interval\":" + storyInterval
         json += ",\"cooldown\":" + GetStoryEngineCooldown()
         ; Next story check-in (hours until next DM tick)
