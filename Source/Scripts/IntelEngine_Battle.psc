@@ -809,14 +809,30 @@ Bool Function DrawUpArmies(String field)
     Return true
 EndFunction
 
+Function SettleSoldiers()
+    {The second half of making a soldier, in a frame of its own (the caller has waited one since the making): whoever
+    was made is set down where they are to stand and given their side and their orders. Making and settling in one
+    call cost 0.51 to 0.57 ms of the game's frame (measured 2026-11-22, the rule being half a millisecond); the game's
+    own making is 0.4 ms of that and cannot be cut up, so it has a frame to itself.}
+    String left = IntelEngine.BattleSettle()
+    If left != ""
+        DropOrphans(left)       ; the battle ended between the two halves, or their ground was unloaded: never seen
+    EndIf
+    Utility.WaitMenuMode(0.03)
+EndFunction
+
 Int Function DrawUpLine(String side, Actor player)
-    {One army's line, one soldier at a time with a breath between: making a soldier costs a third to half a
-    millisecond of the game's frame, and a whole line at once was a hitch (1.5 ms, measured). Returns how many stand.}
+    {One army's line, one soldier at a time, each over two frames (made, then settled) with a breath between: a whole
+    line at once was a hitch (1.5 ms, measured). Returns how many were made.}
     Int total = BattleLineSize
     Int made = 0
     Int first = 0
     While first < total
         String part = IntelEngine.BattleMusterLine(side, first, 1, player)
+        ; The frame a soldier is made in holds nothing else: what the call answered is read in the next one.
+        ; (WaitMenuMode: a choice window somebody else put up must not stop an army in the middle of drawing up.
+        ; With Wait it did: three soldiers stood in a field for two minutes until a quest offer was answered.)
+        Utility.WaitMenuMode(0.03)
         If IntelEngine.StoryResponseGetField(part, "success") != "true"
             Core.DebugMsg("Battle: line " + side + " - " + IntelEngine.StoryResponseGetOptionalField(part, "error"))
             Return made
@@ -831,9 +847,7 @@ Int Function DrawUpLine(String side, Actor player)
             EndIf
         EndIf
         first += 1
-        ; (WaitMenuMode: a choice window somebody else put up must not stop an army in the middle of drawing up.
-        ; With Wait it did: three soldiers stood in a field for two minutes until a quest offer was answered.)
-        Utility.WaitMenuMode(0.03)
+        SettleSoldiers()
     EndWhile
     Return made
 EndFunction
@@ -842,8 +856,14 @@ Int Function BringUp(String side, Int count, Actor player)
     {More soldiers for one side, made behind its line one at a time (see DrawUpLine). Returns how many came.}
     Int made = 0
     Int first = 0
+    ; Where they come from and who they are is chosen first, in a frame of its own.
+    If IntelEngine.BattlePrepareGroup(side, 0, player) <= 0
+        Return 0            ; nowhere for them to come from unseen
+    EndIf
+    Utility.WaitMenuMode(0.03)
     While first < count
         String part = IntelEngine.BattleReinforceLine(side, first, 1, player)
+        Utility.WaitMenuMode(0.03)          ; the frame of the making holds nothing else
         If IntelEngine.StoryResponseGetField(part, "success") != "true"
             ; Made in the moment the battle ended: they are not of it, and go.
             DropOrphans(part)
@@ -855,7 +875,7 @@ Int Function BringUp(String side, Int count, Actor player)
         EndIf
         made += came
         first += 1
-        Utility.WaitMenuMode(0.03)
+        SettleSoldiers()
     EndWhile
     Return made
 EndFunction
@@ -1364,12 +1384,20 @@ Function BringChampion(String side)
     _waveBusy = true
     Actor player = Game.GetPlayer()
     Int before = SpawnedSoldierCount
-    String part = IntelEngine.BattleChampionLine(side, player)
+    String part = ""
+    If IntelEngine.BattlePrepareGroup(side, 2, player) > 0
+        Utility.WaitMenuMode(0.03)
+        part = IntelEngine.BattleChampionLine(side, player)
+        Utility.WaitMenuMode(0.03)          ; the frame of the making holds nothing else
+    EndIf
     Actor champion = None
-    If IntelEngine.StoryResponseGetField(part, "success") != "true"
+    If part == ""
+        ; nowhere to come up unseen
+    ElseIf IntelEngine.StoryResponseGetField(part, "success") != "true"
         DropOrphans(part)
     Else
         champion = SoldierFromId(IntelEngine.GetJsonArrayInt(part, "champion", 0))
+        SettleSoldiers()
     EndIf
     RememberBattleSoldiers()
     SendToTheFight(before)
@@ -1394,8 +1422,14 @@ Function SpringFlank(String side)
     Int before = SpawnedSoldierCount
     Int made = 0
     Int first = 0
+    If IntelEngine.BattlePrepareGroup(side, 1, player) <= 0
+        first = 4               ; nowhere to break cover unseen: they stay hidden
+    Else
+        Utility.WaitMenuMode(0.03)
+    EndIf
     While first < 4
         String part = IntelEngine.BattleFlankLine(side, first, 1, player)
+        Utility.WaitMenuMode(0.03)          ; the frame of the making holds nothing else
         If IntelEngine.StoryResponseGetField(part, "success") != "true"
             DropOrphans(part)
             first = 4
@@ -1406,7 +1440,7 @@ Function SpringFlank(String side)
             Else
                 made += came
                 first += 1
-                Utility.WaitMenuMode(0.03)
+                SettleSoldiers()
             EndIf
         EndIf
     EndWhile
@@ -2912,6 +2946,16 @@ Function ManifestEvent(String manifestJson)
     Actor assassin = IntelEngine.ExecuteAssassination(targetFaction, attackerFaction)
     If assassin == None
         Core.DebugMsg("Battle: no attempt on a leader of " + targetFaction + " can be shown here")
+        IntelEngine.ManifestationFailed()
+        return
+    EndIf
+    ; Made in one frame, set down where they come from in the next (see SettleSoldiers). Nothing is left when it went
+    ; well; the killer's own id when the ground they were to start from is no longer there.
+    Utility.WaitMenuMode(0.03)
+    String unsettled = IntelEngine.BattleSettle()
+    If unsettled != ""
+        DropOrphans(unsettled)
+        Core.DebugMsg("Battle: the killer could not be set down where they were to come from")
         IntelEngine.ManifestationFailed()
         return
     EndIf
