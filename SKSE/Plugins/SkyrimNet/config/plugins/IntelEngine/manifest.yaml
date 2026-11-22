@@ -180,7 +180,7 @@ schema:
     - name: "NPCs sent into dangerous places"
       path: "stories.danger_zone_policy"
       type: "select"
-      description: "Who may be sent to you while you are in a dungeon or another dangerous place."
+      description: "Who may be sent to you while you are out in the wilds, away from any settlement. Above Classic nobody is sent into a dungeon after you whatever this says (they wait until you are out), and nobody is ever sent to another plane."
       options:
         - "Allow all NPCs"
         - "Block civilians only"

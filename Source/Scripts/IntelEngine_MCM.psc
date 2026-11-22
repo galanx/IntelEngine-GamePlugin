@@ -1425,11 +1425,11 @@ Event OnOptionHighlight(Int optionId)
     ElseIf optionId == OID_DangerAllowAll
         SetInfoText("No danger zone filtering. All NPC types can visit you in dungeons and caves. Informants always turn back.")
     ElseIf optionId == OID_DangerBlockCivilians
-        SetInfoText("Farmers, merchants and other civilians stay away from dangerous locations. Warriors and mages can still visit. Informants always turn back.")
+        SetInfoText("Farmers, merchants and other civilians are not sent out into the wilds after you; warriors and mages may be. Above Classic nobody is sent into a dungeon after you whatever this says (they wait until you are out), and nobody is ever sent to another plane.")
     ElseIf optionId == OID_DangerFollowersOnly
-        SetInfoText("Only NPCs who can be recruited as followers (PotentialFollowerFaction) can visit you in dangerous locations. Informants always turn back.")
+        SetInfoText("Only people who can be followers are sent out into the wilds after you. Above Classic nobody is sent into a dungeon after you whatever this says (they wait until you are out), and nobody is ever sent to another plane.")
     ElseIf optionId == OID_DangerBlockAll
-        SetInfoText("Nobody visits you in dangerous locations (dungeons, caves, etc).")
+        SetInfoText("Nobody is sent to you anywhere but in a settlement.")
     ElseIf optionId == OID_HomeAllowAll
         SetInfoText("No home visit filtering. All NPC types can visit you when you're at home.")
     ElseIf optionId == OID_HomeBlockCivilians
