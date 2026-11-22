@@ -5,12 +5,15 @@
 You read one conversation in a Skyrim story and say which prepared outcome it came to. Answer with ONLY a JSON object, nothing else.
 
 [ user ]
-{{ player_name }} has been talking with {{ npc_name }}. What {{ player_name }} set out to do: {{ goal }}
+{% if decision %}{{ player_name }} has a decision to make in front of {{ npc_name }}: {{ goal }}
+{% else %}{{ player_name }} has been talking with {{ npc_name }}. What {{ player_name }} set out to do: {{ goal }}
+{% endif %}
 
 {{ transcript }}
 
-Going only by what was actually said, which of these outcomes has the conversation come to?
-{% for o in outcomes %}
+{% if decision %}Has {{ player_name }} already told {{ npc_name }} their decision, in their own words? Name the answer that says the same as what {{ player_name }} actually said to {{ npc_name }}. Only {{ player_name }}'s own lines count, and only a plain statement of it: a question, a hint, a greeting, or words about something else is no decision, and then the answer is none.
+{% else %}Going only by what was actually said, which of these outcomes has the conversation come to? An outcome about {{ npc_name }} has happened only when {{ npc_name }}'s own lines say it: what {{ player_name }} claims, asks or already knows is not {{ npc_name }}'s answer, and neither is a greeting, a gesture or talk about something else.
+{% endif %}{% for o in outcomes %}
 - {{ o.key }}: {{ o.text }}
 {% endfor %}
 {% if allow_none %}- none: none of these has happened yet

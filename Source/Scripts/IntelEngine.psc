@@ -763,6 +763,16 @@ String Function BondDescribe(Actor akWho) Global Native
 ; Someone of this story (not its asker) who stands beside the player right now, or None: nobody brings their trouble
 ; to the player in front of the people it is about.
 Actor Function ArcCompany(Int id) Global Native
+; Somebody other than this visitor is talking with the player right now (a line to the player on its way or being
+; said, one that ended within twenty seconds, or one the player answered within twenty seconds): the visitor waits
+; their turn.
+Bool Function ArcTalkWithAnother(Actor visitor) Global Native
+; No other story came to the player or ended within the hour (asked again when a story's asker has reached the player:
+; another story may have ended while they were on their way).
+Bool Function ArcQuietNow(Int id) Global Native
+; Test hook: the player is in the middle of a quest of the journal (one that moved on in the last quarter of an hour and
+; that the journal shows). Asking writes a log line for each quest that moved on lately.
+Bool Function ArcQuestBusyNow() Global Native
 ; How far a line said to the player carries (SkyrimNet's interaction distance): the measure of "stands with the player".
 Function ArcEarshot(Float units) Global Native
 ; The "Stories" switch: off, no new story of the town begins (ArcBridge::Pace); those open go on to their end.

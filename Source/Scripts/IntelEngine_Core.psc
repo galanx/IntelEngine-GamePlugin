@@ -3342,6 +3342,18 @@ String Function ShowChoice(String asTitle, String asKind, String asBody, String 
     If asB3 != ""
         n = 3
     EndIf
+    ; Never over a menu or a text box the player is in (the inventory, the map, SkyrimNet's chat box): the window's
+    ; keys are 1 to 3, the arrows, Enter and Escape, and whatever was being typed or picked there would answer it
+    ; (a line typed to an NPC declined that NPC's offer, 2026-11-22). It waits until the game runs again, a minute at
+    ; the most, and then opens anyway rather than be lost.
+    Float heldByMenu = 0.0
+    While Utility.IsInMenuMode() && heldByMenu < 60.0
+        Utility.WaitMenuMode(0.25)
+        heldByMenu += 0.25
+    EndWhile
+    If heldByMenu > 0.0
+        Utility.WaitMenuMode(0.75)   ; a moment for the player to look up from what they were doing
+    EndIf
     ; What is shown goes through the language pack; what is returned stays the English the callers compare with.
     String shownBody = IntelEngine.L(asBody)
     String shown1 = IntelEngine.L(asB1)
