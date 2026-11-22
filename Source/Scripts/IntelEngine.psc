@@ -1348,11 +1348,25 @@ Actor[] Function SpawnBattleSoldiers(String factionIdWithCount, ObjectReference 
 String Function BattlePickField(Actor player, ObjectReference place) Global Native
 
 ; Part of one army of the active battle drawn up on its field ("A" or "B"): soldiers first to first + count - 1
-; of its first wave, in ranks, the commander (number 0) in front, facing the other line, standing down. Created
-; where they stand, switched off: the script lets them fade in. A few at a time: making a soldier costs about a
-; quarter of a millisecond of the game's frame.
+; of its first wave, in ranks, the commander (number 0) in front, facing the other line, standing down. Made
+; switched off and not yet where they are to stand: BattleSettle, a frame later, does the rest, and then the script
+; lets them fade in. One at a time: the game's own making of a soldier costs 0.4 ms of its frame.
 ; Returns JSON: {success, count, formIds, commander: [id] (with number 0), error}
 String Function BattleMusterLine(String side, Int first, Int count, Actor player) Global Native
+
+; The second half of making soldiers (BattleMusterLine, BattleReinforceLine, BattleFlankLine, BattleChampionLine, the
+; killer of ExecuteAssassination), to be called a frame after the first: everybody made and not yet settled is set
+; down where they are to stand, loses the factions they came with and gets their side and their orders. Nobody is
+; switched on before this.
+; Returns "" when all were settled, else JSON {count, formIds} of those who could not be (the battle ended in
+; between, or their ground is no longer loaded): they were never seen, and the script deletes them.
+String Function BattleSettle() Global Native
+
+; Before a group comes up (kind 0 a wave: BattleReinforceLine; 1 the hidden force: BattleFlankLine; 2 a champion:
+; BattleChampionLine): where they come from, out of the player's sight, and who they are, chosen in a frame of its
+; own. The making of the first of them follows a frame later.
+; 1 chosen; 0 nowhere to come from unseen, or nobody to come; -1 no battle with a field.
+Int Function BattlePrepareGroup(String side, Int kind, Actor player) Global Native
 
 ; count more soldiers for one side, created behind their own line where the player is least likely to see it,
 ; switched off. first: their number in the group that comes up together (0 picks where the group comes from).
