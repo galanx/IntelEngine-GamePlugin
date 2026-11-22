@@ -473,6 +473,7 @@ Event OnUpdate()
         Float elapsed = Utility.GetCurrentRealTime() - DeferredCleanupStart
         Int remaining = SpawnedSoldierCount
         If SweepDue(AftermathInterval) || elapsed >= 180.0
+            CeaseFire(true)         ; nobody of the battle is still at another's throat
             remaining = SweepSoldiers(false)
         EndIf
         If remaining == 0 || elapsed >= 180.0
@@ -827,6 +828,10 @@ Int Function DrawUpLine(String side, Actor player)
     Int total = BattleLineSize
     Int made = 0
     Int first = 0
+    ; Who they are is rolled first, in a frame of its own (on a large load order the roll of a line and the making of
+    ; its first soldier in one frame took 1.1 ms).
+    IntelEngine.BattlePrepareGroup(side, 3, player)
+    Utility.WaitMenuMode(0.03)
     While first < total
         String part = IntelEngine.BattleMusterLine(side, first, 1, player)
         ; The frame a soldier is made in holds nothing else: what the call answered is read in the next one.
@@ -1291,9 +1296,13 @@ Int Function SendToTheFight(Int first)
     middle of the field, where they meet the enemy.}
     Int sent = 0
     Int i = first
+    ; Decided while they were being made: nobody has seen them, and they do not come. (Switched off as they are, the
+    ; aftermath's next look takes them out of the world.) They used to fade in and run to the middle of a field
+    ; whose battle was over, ready to fight.
+    Bool over = !IntelEngine.IsBattleActive()
     While i < SpawnedSoldierCount && i < SpawnedSoldiers.Length
         Actor soldier = SpawnedSoldiers[i]
-        If soldier != None
+        If soldier != None && !over
             soldier.EnableNoWait(true)
             If CenterMarker != None
                 PO3_SKSEFunctions.SetLinkedRef(soldier, CenterMarker, Core.IntelEngine_TravelTarget)
@@ -1304,6 +1313,9 @@ Int Function SendToTheFight(Int first)
         EndIf
         i += 1
     EndWhile
+    If over && i > first
+        Core.DebugMsg("Battle: " + (i - first) + " made as the battle was decided do not come")
+    EndIf
     Return sent
 EndFunction
 
@@ -1947,8 +1959,33 @@ EndFunction
 ; BATTLE END
 ; =============================================================================
 
+Function CeaseFire(Bool amongThemselves)
+    {The battle is decided: from this moment nobody of it fights on. The two sides are enemies no longer (they
+    stayed enemies until the battle was wound up, minutes later), and every soldier's fight is called off, a few a
+    frame. Before, each soldier was calmed in turn while the sides stayed enemies: with fifteen soldiers that takes
+    five to eight seconds on a large load order, and whoever had not been reached yet went on striking those who
+    had, who then defended themselves. The fight went on for minutes after the verdict, and a beaten side's fresh
+    reserves cut the winners down (the user saw it, 2026-11-22). StartBattle makes the sides enemies again.
+    amongThemselves: only those still fighting another soldier of the battle (the looks of the aftermath; somebody
+    fighting a wolf is left to it).}
+    Intel_BattleSideA.SetAlly(Intel_BattleSideB)
+    Int first = 0
+    Int left = 1
+    While left > 0 && first < 96
+        ; Two a frame: ending one soldier's fight costs up to 0.17 ms on a large load order (six took 0.87 ms).
+        left = IntelEngine.BattleCeaseFire(first, 2, amongThemselves)
+        first += 2
+        If left > 0
+            Utility.WaitMenuMode(0.01)
+        EndIf
+    EndWhile
+EndFunction
+
 Function HandleBattleEnd(String result, String victor, String stateJson)
     Core.DebugMsg("Battle: Ended - result=" + result + ", victor=" + victor)
+    ; Decided: the two sides are enemies no longer, from this frame on (the rest of the cease-fire follows in
+    ; DisperseSoldiers, once the battle's books are closed).
+    Intel_BattleSideA.SetAlly(Intel_BattleSideB)
 
     ; (No UnregisterForUpdate here: the real-time timer is shared by every script of the quest, and
     ; unregistering it stopped travel, task and schedule monitoring too. OnUpdate checks the state.)
@@ -2238,6 +2275,8 @@ Function DisperseSoldiers(Int winningSide, Bool findAlly)
     _allyNear = None
     _alliesLeft = 0
     BattleEndedGameTime = Utility.GetCurrentGameTime()
+    ; First of all the fighting stops, for everybody, within a few frames; then each is sent on their way.
+    CeaseFire(false)
     RememberBattleSoldiers()
     If !SpawnedSoldiers || SpawnedSoldierCount <= 0
         Return
@@ -2344,6 +2383,8 @@ Function DisperseSoldiers(Int winningSide, Bool findAlly)
     If playerOnB
         _alliesLeft = leavingB
     EndIf
+    ; Whoever took a blow while the orders went round and turned on the one who dealt it.
+    CeaseFire(true)
     Core.DebugMsg("Battle: the field empties - " + leavingA + " soldiers leave one way, " + leavingB + " the other (" + \
         (Utility.GetCurrentRealTime() - began) + " s)")
 EndFunction
