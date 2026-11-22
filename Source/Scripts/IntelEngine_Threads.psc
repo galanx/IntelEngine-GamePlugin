@@ -572,7 +572,7 @@ Function AskPlayerForHelp(Actor akNPC, String helpKind, String subject, String p
     EndIf
     ; What they asked shows in their bio from now on (get_intelengine_storylines), so no memory is written here.
     Int id = OpenRequest(request, akNPC, other, destination, item, days, 2)
-    If id > 0 && why != "" && why != "none"
+    If id > 0 && !IntelEngine.IsNoneWord(why)
         IntelEngine.StorylineSetAbout(id, why)              ; why it was asked stays known after the talk fades
     EndIf
 EndFunction
@@ -637,7 +637,7 @@ Function ChangeWhatIAsked(Actor akNPC, String change, String subject, String pla
             EndIf
         ElseIf request == REQ_ESCORT
             String goal = place
-            If goal == "" || goal == "none"
+            If IntelEngine.IsNoneWord(goal)
                 goal = subject
             EndIf
             target = Core().ResolveTravelTarget(akNPC, goal)

@@ -1,0 +1,68 @@
+# IntelEngine language pack: Japanese.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	ja
+meta	codes	ja|jpn|japanese
+meta	name	Japanese
+meta	game	japanese
+meta	script	kana
+
+time	in 2 days	明後日|あさって
+time	tomorrow	明日|あした|あす
+time	today	今日|きょう|本日
+time	tonight	今夜|今晩|こんや|こんばん
+time	midnight	真夜中|深夜|夜中
+time	dawn	夜明け|明け方|日の出
+time	sunset	日没|日暮れ|日の入り
+time	dusk	夕暮れ|黄昏|たそがれ
+time	noon	正午|お昼|昼
+time	morning	午前中|午前|朝|あさ
+time	afternoon	午後|昼過ぎ|ごご
+time	evening	夕方|晩|ゆうがた
+time	night	夜|よる
+time	half an hour	三十分|30分|半時間
+time	hours later	時間後|時間以内
+time	hours	時間
+time	o'clock	時
+time	minutes	分
+time	days later	日後
+time	days	日間
+time	weeks later	週間後
+time	weeks	週間
+time	later	後|あと
+time	one	一|１
+time	two	二|２
+time	three	三|３
+time	four	四|４
+time	five	五|５
+time	six	六|６
+time	seven	七|７
+time	eight	八|８
+time	nine	九|９
+time	ten	十|１０
+time	eleven	十一|１１
+time	twelve	十二|１２
+
+place	home	家に帰る|自宅|我が家|私の家|俺の家|家|うち|帰宅
+place	your home	あなたの家|君の家|お前の家|貴方の家
+place	outside	外に出る|外へ|外|屋外|おもて
+place	inside	中へ|中|屋内|室内
+place	upstairs	二階|上の階|上へ|階上
+place	downstairs	一階|下の階|下へ|階下
+place	cellar	地下室|地下
+place	bedroom	寝室|私の部屋|自分の部屋|ベッド
+place	kitchen	台所|キッチン|厨房
+place	bath	風呂|浴場|温泉|お風呂
+place	river	川|河
+place	lake	湖
+
+none	none	なし|無し|ない|無い|誰もいない|何もない|該当なし|特になし
+
+free	*	の|へ|に|で|を|が|は|と|まで|から

@@ -492,6 +492,17 @@ Six settings under "Living world" (SkyrimNet's plugin settings page, the MCM's S
 
 ---
 
+## Languages (4.0)
+
+IntelEngine works in games of other languages, and in a game of one language whose people speak another (an English game with Albanian speech through SkyrimNet's translator, for one).
+
+- **Names** of people and places are found as people say them: with a case ending, an article, an ending or a particle hung behind, in any script.
+- **Language packs** are files in `SKSE/Plugins/IntelEngine/languages/`: one per language, tab-separated, with its words of time ("tomorrow", "in the evening"), of place ("home", "outside"), for "none", and the little words beside a name. Russian, German, French, Spanish, Italian, Polish, Japanese, Korean, Chinese and Albanian ship. To add a language, copy one and fill it in.
+- **What you read** (notices, buttons, battle lines) can be translated: copy the lines you want from `_labels_template.tsv` into your language's pack and replace the third field. `{1}`, `{2}` stand for names. What a pack does not have reads English. The stories of a town are written in your language by the model.
+- **Which language** is decided by itself: what you read by your game's language (also for translations the game never shipped, told by the script of its place names), what people speak by SkyrimNet's translator settings. "Language of journal and messages" and "Languages people speak" on SkyrimNet's plugin settings page and the dashboard override it.
+
+Not tried yet in a game that is itself in another language; reports are welcome. Japanese, Korean and Chinese text in the journal needs a font that has the letters, as the game itself does.
+
 ## Planned Features
 
 IntelEngine is under active development. The following features are planned for future releases:

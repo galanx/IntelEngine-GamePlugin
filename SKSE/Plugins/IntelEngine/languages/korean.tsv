@@ -1,0 +1,66 @@
+# IntelEngine language pack: Korean.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	ko
+meta	codes	ko|kor|korean
+meta	name	Korean
+meta	script	hangul
+
+time	in 2 days	모레
+time	tomorrow	내일
+time	today	오늘
+time	tonight	오늘 밤|오늘밤
+time	midnight	자정|한밤중
+time	dawn	새벽|동틀 녘|동틀녘|해 뜰 때|해뜰 때|일출
+time	sunset	해 질 녘|해질녘|해질 녘|일몰
+time	dusk	황혼|땅거미
+time	noon	정오|점심때|점심
+time	morning	오전 중|오전|아침
+time	afternoon	오후
+time	evening	저녁
+time	night	밤
+time	half an hour	삼십 분|30분|반 시간
+time	hours later	시간 후|시간 뒤|시간후|시간뒤|시간 안에
+time	hours	시간
+time	o'clock	시
+time	minutes	분
+time	days later	일 후|일 뒤|일후|일뒤
+time	weeks later	주 후|주 뒤|주일 후|주일 뒤
+time	weeks	주일
+time	later	후에|뒤에|후|뒤
+time	one	한|하나
+time	two	두|둘
+time	three	세|셋
+time	four	네|넷
+time	five	다섯
+time	six	여섯
+time	seven	일곱
+time	eight	여덟
+time	nine	아홉
+time	ten	열
+time	eleven	열한
+time	twelve	열두
+
+place	home	집으로|집에|내 집|우리 집|집|자택
+place	your home	네 집|너의 집|당신의 집|당신 집
+place	outside	밖으로|바깥으로|밖에|밖|바깥|야외
+place	inside	안으로|안에|안|실내
+place	upstairs	위층|이층|윗층|2층
+place	downstairs	아래층|아랫층|1층
+place	cellar	지하실|지하
+place	bedroom	침실|내 방|침대
+place	kitchen	부엌|주방
+place	bath	목욕탕|욕탕|온천|목욕
+place	river	강가|강
+place	lake	호숫가|호수
+
+none	none	없음|없다|없어|아무도 없음|아무도|아무것도|해당 없음|해당없음
+
+free	*	으로|로|에|에서|에게|을|를|이|가|은|는|의|와|과|까지|부터

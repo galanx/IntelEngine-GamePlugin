@@ -1,0 +1,68 @@
+# IntelEngine language pack: German.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	de
+meta	codes	de|deu|ger|german|deutsch
+meta	name	German
+meta	game	german
+meta	script	latin
+
+time	in 2 days	übermorgen|uebermorgen
+time	tomorrow morning	morgen früh|morgen frueh
+time	tomorrow	morgen
+time	today	heute
+time	tonight	heute nacht
+time	evening	heute abend|abends|am abend|abend
+time	morning	morgens|am morgen|am vormittag|vormittags|vormittag|in der früh|frühmorgens
+time	noon	mittags|am mittag|zu mittag|zur mittagszeit|mittag
+time	afternoon	nachmittags|am nachmittag|nachmittag
+time	night	nachts|in der nacht|nacht
+time	midnight	um mitternacht|mitternacht
+time	dawn	im morgengrauen|morgengrauen|bei tagesanbruch|tagesanbruch|bei sonnenaufgang|sonnenaufgang
+time	sunset	bei sonnenuntergang|sonnenuntergang
+time	dusk	in der abenddämmerung|abenddämmerung|in der dämmerung|dämmerung
+time	half an hour	einer halben stunde|halben stunde|halbe stunde
+time	in	in
+time	hours	stunden
+time	hour	stunde
+time	minutes	minuten|minute
+time	days	tagen|tage|tag
+time	weeks	wochen|woche
+time	at	um|gegen
+time	o'clock	uhr
+time	one	eine|einer|einem|ein|eins
+time	two	zwei
+time	three	drei
+time	four	vier
+time	five	fünf|fuenf
+time	six	sechs
+time	seven	sieben
+time	eight	acht
+time	nine	neun
+time	ten	zehn
+time	eleven	elf
+time	twelve	zwölf|zwoelf
+
+place	home	nach hause|nachhause|zuhause|zu hause|heim|mein zuhause|mein haus|zu mir nach hause|zu mir
+place	your home	zu dir nach hause|dein zuhause|dein haus|zu dir|euer haus|ihr haus
+place	outside	nach draußen|draußen|draussen|nach draussen|hinaus|raus|ins freie|vor die tür
+place	inside	nach drinnen|drinnen|hinein|rein
+place	upstairs	nach oben|oben|die treppe hinauf|ins obergeschoss
+place	downstairs	nach unten|unten|die treppe hinunter|ins erdgeschoss
+place	cellar	in den keller|keller
+place	bedroom	ins schlafzimmer|schlafzimmer|mein zimmer|in mein zimmer|ins bett
+place	kitchen	in die küche|küche|kueche
+place	bath	ins bad|bad|badehaus|ins badehaus|heiße quelle
+place	river	zum fluss|fluss|an den fluss
+place	lake	zum see|see|an den see
+
+none	none	keine|keiner|keinen|kein|keines|niemand|nichts|nirgends|nirgendwo|ohne|entfällt
+
+free	*	der|die|das|den|dem|des|zu|zur|zum|in|im|ins|an|am|ans|auf|bei|beim|nach|von|vom|vor|aus|mit|bis|ein|eine|einen|einem|einer

@@ -94,6 +94,9 @@ parameterMapping:
       Others who were told to go there too, by name and separated by commas (e.g. "Uthgerd the Unbroken,
       Lydia"): only people who are here with you. They come along at your pace and you arrive together.
       "none" when you go alone.
+      Write the word "none" in English, whatever language you are speaking.
+      Write the name exactly as it stands in the game and the context, in the game's language and in its plain
+      form: no case ending, no article, never translated.
 
 eligibilityRules:
   - conditions:

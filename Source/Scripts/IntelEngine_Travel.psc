@@ -373,7 +373,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     Core.RequestTick(Core.UPDATE_INTERVAL)
 
     Core.DebugMsg(akNPC.GetDisplayName() + " traveling to " + destination)
-    If companions != "" && companions != "none"
+    If !IntelEngine.IsNoneWord(companions)
         BringCompanions(akNPC, destination, speed, waitForPlayer, taskOrigin, companions)
     EndIf
     Return true
@@ -383,14 +383,14 @@ Function BringCompanions(Actor leader, String destination, Int speed, Int waitFo
     {4.0 group travel: the people named go along to the same spot at the leader's pace, so they walk together.
     Only people here with the leader and free to go, at most three; each becomes a travel task of its own, so the
     usual arrival, stuck and off-screen handling applies to every one of them.}
-    String[] names = StringUtil.Split(companions, ",")
+    String[] names = StringUtil.Split(IntelEngine.CommaList(companions), ",")   ; also the commas of other scripts
     Actor player = Game.GetPlayer()
     Int i = 0
     Int count = 0
     While i < names.Length && count < 3
         String who = TrimSpaces(names[i])
         Actor companion = None
-        If who != "" && who != "none"
+        If !IntelEngine.IsNoneWord(who)
             companion = IntelEngine.FindNPCByNameNear(who, leader)
         EndIf
         If companion != None && companion != leader && companion != player && !companion.IsDead() && !companion.IsInCombat() \

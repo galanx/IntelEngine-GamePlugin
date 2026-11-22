@@ -82,6 +82,20 @@ schema:
       defaultValue: ""
       category: "Story Engine"
 
+    - name: "Language of journal and messages"
+      path: "language.text"
+      type: "string"
+      description: "What you read (notices, the journal of a story, the words on buttons). auto: the language your game is in, told by the game's own setting and, where that says English, by the script its place names are written in (a translation the game never shipped). Or a language pack by name (russian, german, japanese, korean, chinese, french, spanish, italian, polish), or english. Packs are files in Data/SKSE/Plugins/IntelEngine/languages; a language without translated sentences reads English."
+      defaultValue: "auto"
+      category: "Language"
+
+    - name: "Languages people speak"
+      path: "language.spoken"
+      type: "string"
+      description: "The languages people speak besides the game's own, so that a time, a place or a name they say in it is understood. auto: read from SkyrimNet's translator settings (an English game whose people speak Albanian is told that way). Or names with commas between them (albanian, russian)."
+      defaultValue: "auto"
+      category: "Language"
+
     # >>> settings shared with the game: generated from SKSE/src/SettingsBridge.cpp (SKSE/tests/RunSettingsBridgeCheck.py --write)
     # ── Stories ──
     - name: "Stories"
