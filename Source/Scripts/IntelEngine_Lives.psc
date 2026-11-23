@@ -16,6 +16,13 @@ Int Property ORDER_MOVE = 1 AutoReadOnly
 Int Property ORDER_HOME = 2 AutoReadOnly
 Int Property ORDER_RELEASE = 3 AutoReadOnly
 Int Property ORDER_GREET = 4 AutoReadOnly
+Int Property ORDER_KEEPSAKE = 5 AutoReadOnly
+
+; Natives of this script (LivingWorldLives.cpp): the item a keepsake order hands over, and the test hooks below.
+Form Function LivesOrderItem() Global Native
+String Function LivesDebugApart(Actor npc, Float days) Global Native
+String Function LivesDebugComeBack(Actor npc, Int outcome) Global Native
+String Function LivesDebugKeepsake(Actor npc) Global Native
 
 Float lastTick = 0.0
 
@@ -126,6 +133,10 @@ Function CarryOut(Actor npc)
         Greet(npc)
         Return
     EndIf
+    If kind == ORDER_KEEPSAKE
+        GiveKeepsake(npc)
+        Return
+    EndIf
     If kind != ORDER_MOVE
         IntelEngine.LivingWorldOrderDone(false)
         Return
@@ -213,4 +224,64 @@ Function Greet(Actor npc)
     If keeper != None
         keeper.MeetHere(npc)
     EndIf
+EndFunction
+
+Function GiveKeepsake(Actor npc)
+    {A former follower who came back from an adventure of their own with something kept for the player puts it into
+    the player's hand, face to face, once the two have met again (the DLL chose the moment: close, nobody else talking
+    with the player, no private moment). The item has been in their pack since they came back.}
+    Actor player = Game.GetPlayer()
+    Form item = LivesOrderItem()
+    If npc.IsDead() || !npc.Is3DLoaded() || npc.IsInCombat() || player.IsInCombat() || npc.GetDistance(player) > 300.0
+        IntelEngine.LivingWorldOrderDone(false)
+        Return
+    EndIf
+    If item == None || npc.GetItemCount(item) <= 0
+        ; Not with them now: the DLL looks again and lets it go when it is truly gone.
+        IntelEngine.LivingWorldOrderDone(false)
+        Return
+    EndIf
+    String narration = IntelEngine.LivingWorldOrderNarration()
+    npc.RemoveItem(item, 1, false, player)
+    If narration != ""
+        SkyrimNetApi.DirectNarration(narration, npc, player)
+    EndIf
+    IntelEngine.LivingWorldOrderDone(true)
+EndFunction
+
+; ---------------------------------------------------------------- test hooks (ie.py call --quest IntelEngine_Lives IntelEngine_Lives ...)
+
+Function DebugApart(Actor npc, Float days = 5.0)
+    {Test hook: as if the player had last been near this former follower `days` ago (three at the least). The next look
+    that finds the player near them begins a reunion: their greeting says how long it has been and what they did.}
+    If npc == None
+        Return
+    EndIf
+    Debug.Trace("IntelEngine: Lives: test: " + npc.GetDisplayName() + ": " + LivesDebugApart(npc, days))
+EndFunction
+
+Function DebugComeBack(Actor npc, Int outcome = 0)
+    {Test hook: the adventure of their own life they are on ends at the next look the player cannot see them. outcome:
+    0 by chance; else 1 a find, 2 hurt, 3 both, 5 a find kept for the player, 7 all of it, 8 back with nothing.}
+    If npc == None
+        Return
+    EndIf
+    Debug.Trace("IntelEngine: Lives: test: " + npc.GetDisplayName() + ": " + LivesDebugComeBack(npc, outcome))
+EndFunction
+
+Function DebugKeepsake(Actor npc)
+    {Test hook: a gem kept for the player goes into this former follower's pack, as if they had greeted the player
+    already; walking up to them (within 250 units) shows the hand-over.}
+    If npc == None
+        Return
+    EndIf
+    Debug.Trace("IntelEngine: Lives: test: " + npc.GetDisplayName() + ": " + LivesDebugKeepsake(npc))
+EndFunction
+
+Function DebugDescribe(Actor npc)
+    {Test hook: the record of one life (where they are, the reunion, the keepsake, the steps they will tell).}
+    If npc == None
+        Return
+    EndIf
+    Debug.Trace("IntelEngine: Lives: " + npc.GetDisplayName() + ": " + IntelEngine.LivingWorldDescribe(npc))
 EndFunction

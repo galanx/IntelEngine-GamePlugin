@@ -67,3 +67,310 @@ place	lake	al lago|lago
 none	none	ninguno|ninguna|ningún|nadie|nada|ninguna parte|sin
 
 free	*	el|la|los|las|un|una|unos|unas|de|del|a|al|en|con|por|para|hacia|hasta|desde
+
+# ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
+# {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.
+# Longer, more particular sentences are tried first; a sentence no row has stays English.
+# Not here on purpose: "{1} will {2} {3}" (its one fixed word, " will ", is a German word: the row would
+# rewrite German sentences of a story). Its particular forms (will meet at, will fetch, ...) are below.
+label	A champion of the {1} takes the field.	Un campeón de {1} entra en liza.
+label	A champion of {1} takes the field.	Un campeón de {1} entra en liza.
+label	A second force of the {1} breaks from cover on the flank!	¡Una segunda fuerza de {1} sale de su escondite por el flanco!
+label	A second force of {1} breaks from cover on the flank!	¡Una segunda fuerza de {1} sale de su escondite por el flanco!
+label	Champion of the {1}	Campeón de {1}
+label	Champion of {1}	Campeón de {1}
+label	Charge!	¡A la carga!
+label	Fighting has broken out near {1}.	Ha estallado la lucha cerca de {1}.
+label	Hold a little longer	Aguantad un poco más
+label	Men of the {1} and of the {2} have run into each other near {3}.	Hombres de {1} y de {2} se han topado cerca de {3}.
+label	Men of {1} and of {2} have run into each other near {3}.	Hombres de {1} y de {2} se han topado cerca de {3}.
+label	Men of the {1} are coming for you.	Hombres de {1} vienen a por ti.
+label	Men of {1} are coming for you.	Hombres de {1} vienen a por ti.
+label	More soldiers of the {1} come up.	Llegan más soldados de {1}.
+label	More soldiers of {1} come up.	Llegan más soldados de {1}.
+label	Stand with the {1}	Luchar con {1}
+label	Stand with {1}	Luchar con {1}
+label	Stay out of it	No meterse
+label	Stranger	Forastero
+label	The captain of the {1} has fallen.	El capitán de {1} ha caído.
+label	The captain of {1} has fallen.	El capitán de {1} ha caído.
+label	The champion of the {1} has fallen.	El campeón de {1} ha caído.
+label	The champion of {1} has fallen.	El campeón de {1} ha caído.
+label	The last of the {1} come up.	Llegan los últimos de {1}.
+label	The last of {1} come up.	Llegan los últimos de {1}.
+label	The line of the {1} waits for your word, {2}.	La línea de {1} espera tu orden, {2}.
+label	The line of {1} waits for your word, {2}.	La línea de {1} espera tu orden, {2}.
+label	The line of the {1} waits for your word, Captain.	La línea de {1} espera tu orden, Capitán.
+label	The line of the {1} waits for your word, Champion.	La línea de {1} espera tu orden, Campeón.
+label	The line of the {1} waits for your word, Lieutenant.	La línea de {1} espera tu orden, Teniente.
+label	The line of the {1} waits for your word, Right Hand.	La línea de {1} espera tu orden, Mano derecha.
+label	The line of the {1} waits for your word, Sworn Captain.	La línea de {1} espera tu orden, Capitán juramentado.
+label	The line of the {1} waits for your word, Champion of the House.	La línea de {1} espera tu orden, Campeón de la Casa.
+label	Treachery! Men of the {1} turn on their own.	¡Traición! Hombres de {1} se vuelven contra los suyos.
+label	Treachery! Men of {1} turn on their own.	¡Traición! Hombres de {1} se vuelven contra los suyos.
+label	Turncoat	Renegado
+label	Two armies are drawn up near {1}: the {2} and the {3}.	Dos ejércitos forman cerca de {1}: {2} y {3}.
+label	Two armies are drawn up near {1}: {2} and {3}.	Dos ejércitos forman cerca de {1}: {2} y {3}.
+label	Word reaches you: neither side held the field near {1}.	Te llegan noticias: ningún bando se impuso cerca de {1}.
+label	Word reaches you: the {1} won the battle near {2}.	Te llegan noticias: victoria de {1} en la batalla cerca de {2}.
+label	Word reaches you: {1} won the battle near {2}.	Te llegan noticias: victoria de {1} en la batalla cerca de {2}.
+label	You stand with the {1}.	Luchas junto a {1}.
+label	You stand with {1}.	Luchas junto a {1}.
+label	{1} Captain	Capitán de {1}
+label	The {1} now count you a {2}.	{1}: tu rango es ahora {2}.
+label	The {1} now count you an {2}.	{1}: tu rango es ahora {2}.
+label	{1} now count you {2}.	{1}: tu rango es ahora {2}.
+label	The {1} send your pay on to you: {2} gold.	{1}: te envían tu paga, {2} de oro.
+label	{1} send your pay on to you: {2} gold.	{1}: te envían tu paga, {2} de oro.
+label	Two soldiers of the {1} keep by your side.	Dos soldados de {1} se mantienen a tu lado.
+label	Four soldiers of the {1} keep by your side.	Cuatro soldados de {1} se mantienen a tu lado.
+label	{1} soldiers of {2} keep by your side.	{2}: unos soldados se mantienen a tu lado ({1}).
+label	Near {1}, the {2} and the {3} are fighting. {4} calls you to their line.	Cerca de {1} luchan {2} y {3}. {4} te llama a sus filas.
+label	Near {1}, the {2} and the {3} are about to fight. {4} calls you to their line.	Cerca de {1}, {2} y {3} están a punto de luchar. {4} te llama a sus filas.
+label	Stand with the {1} near {2} before the battle is decided	Únete a {1} cerca de {2} antes de que se decida la batalla
+label	The skirmish is over. Neither side had the better of it.	La escaramuza ha terminado. Ningún bando se llevó la mejor parte.
+label	The skirmish is over. The {1} had the better of it.	La escaramuza ha terminado. La mejor parte fue para {1}.
+label	The fighting dies down. Neither side holds the field at {1}.	La lucha se apaga. Ningún bando domina el campo en {1}.
+label	The day is won. The field at {1} belongs to the {2}.	El día es nuestro. El campo de {1} queda para {2}.
+label	The day is lost. The field at {1} belongs to the {2}.	El día está perdido. El campo de {1} queda para {2}.
+label	The fighting ends. The field at {1} belongs to the {2}.	La lucha termina. El campo de {1} queda para {2}.
+label	The {1} will remember that you stood by.	{1}: recordarán que te quedaste mirando.
+label	An assassin strikes at {1}!	¡Un asesino ataca a {1}!
+label	Battle	Batalla
+label	The field is yours, though none of your side is left standing to share it.	El campo es tuyo, aunque no queda en pie nadie de tu bando para compartirlo.
+label	You stand alone among the fallen.	Solo tú quedas en pie entre los caídos.
+label	The attempt on {1}'s life is foiled.	El atentado contra {1} ha sido frustrado.
+label	{1} lives. The killer is dead.	{1} vive. El asesino ha muerto.
+label	The attempt on {1}'s life has failed.	El atentado contra {1} ha fracasado.
+label	{1} is dead.	{1} ha muerto.
+label	The killer has got away.	El asesino ha escapado.
+label	The {1} will remember your valor at {2}.	{1}: recordarán tu valor en {2}.
+label	Word reaches you: the {1} and the {2} are drawing up for battle near {3}.	Te llegan noticias: {1} y {2} forman para la batalla cerca de {3}.
+label	Hand it over	Entregar
+label	Hand over	Entrega
+label	I'll do it	Lo haré
+label	Not now	Ahora no
+label	Not yet	Todavía no
+label	Put up your fists	A puñetazos
+label	Quest offer	Oferta de misión
+label	Search the body	Registrar el cuerpo
+label	Something else	Otra cosa
+label	Stand up	Levantarse
+label	Story	Historia
+label	What you see	Lo que ves
+label	Allow	Permitir
+label	Deny	Denegar
+label	Deny (Silent)	Denegar (en silencio)
+label	Task permission	Permiso de tarea
+label	Come along	Invitación
+label	I'll come along	Voy contigo
+label	Not this time	Esta vez no
+label	At the door	En la puerta
+label	I'll check it out	Echaré un vistazo
+label	I'll go alone	Iré por mi cuenta
+label	Ignore	Ignorar
+label	Lead the way	Guíame
+label	Let them in	Dejar pasar
+label	Not interested	No me interesa
+label	Send them away	Despedir
+label	{1} is knocking at your door.	{1} llama a tu puerta.
+label	Give the {1} back to {2}?	¿Devolver {1} a {2}?
+label	Give {1} back to {2}?	¿Devolver {1} a {2}?
+label	Give {1} to {2}?	¿Dar {1} a {2}?
+label	A Thief Among Us	Un ladrón entre nosotros
+label	Bad Blood	Mala sangre
+label	Murder in {1}	Asesinato en {1}
+label	A Story	Una historia
+label	Tell {1} how it ended	Cuenta a {1} cómo acabó
+label	Someone stole {1}. {2} asks you to find the thief and bring it back. Reward: {3} gold.	Alguien ha robado {1}. {2} te pide que encuentres al ladrón y lo devuelvas. Recompensa: {3} de oro.
+label	Bad blood: {1} and {2} fell out over two hundred gold {3} borrowed. {4} asks you to settle it with {5}, one way or another. Reward: {6} gold.	Mala sangre: {1} y {2} riñeron por doscientas monedas de oro que pidió prestadas {3}. {4} te pide que lo arregles con {5}, de un modo u otro. Recompensa: {6} de oro.
+label	Bad blood: {1} has been telling the inn that {2} cheats people. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Mala sangre: {1} anda diciendo en la posada que {2} engaña a la gente. {3} te pide que lo arregles con {4}, de un modo u otro. Recompensa: {5} de oro.
+label	Bad blood: {1} insulted {2}'s family in public. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Mala sangre: {1} insultó en público a la familia de {2}. {3} te pide que lo arregles con {4}, de un modo u otro. Recompensa: {5} de oro.
+label	Bad blood: {1} says {2} cheated at dice. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Mala sangre: {1} dice que {2} hizo trampas a los dados. {3} te pide que lo arregles con {4}, de un modo u otro. Recompensa: {5} de oro.
+label	{1} asks you to find out who killed {2}, and name them with proof. Reward: {3} gold.	{1} te pide que averigües quién mató a {2} y lo nombres con pruebas. Recompensa: {3} de oro.
+label	{1} Reward: {2} gold.	{1} Recompensa: {2} de oro.
+label	Settle it with {1} here and now, with your fists?	¿Arreglarlo con {1} aquí y ahora, a puñetazos?
+label	{1} stole {2}. What will you do with {3}?	{1} robó {2}. ¿Qué harás con {3}?
+label	How will you settle it between {1} and {2}?	¿Cómo lo arreglarás entre {1} y {2}?
+label	How will you make peace with {1}?	¿Cómo harás las paces con {1}?
+label	Who killed {1}?	¿Quién mató a {1}?
+label	What will you do?	¿Qué harás?
+label	Hand {1} over to the guard	Entregar a {1} a la guardia
+label	Let {1} go	Dejar marchar a {1}
+label	Settle it with your fists against {1}	Arreglarlo a puñetazos con {1}
+label	Talk them into making peace	Convencerlos de hacer las paces
+label	Talk {1} round (Speech)	Convencer a {1} (Elocuencia)
+label	Pay {1} {2} gold to let it go	Pagar para zanjarlo: {1} {2} de oro
+label	Accuse {1}	Acusar a {1}
+label	{1} (Speech)	{1} (Elocuencia)
+label	Bounty: {1}	Se busca: {1}
+label	Into {1} with {2}	A {1} con {2}
+label	A Request	Una petición
+label	{1} asks you to recover his stolen {2} from {3}. Reward: {4} gold.	{1} te pide que recuperes de {3} algo que le robaron: {2}. Recompensa: {4} de oro.
+label	{1} asks you to recover her stolen {2} from {3}. Reward: {4} gold.	{1} te pide que recuperes de {3} algo que le robaron: {2}. Recompensa: {4} de oro.
+label	{1} asks you to recover their stolen {2} from {3}. Reward: {4} gold.	{1} te pide que recuperes de {3} algo que le robaron: {2}. Recompensa: {4} de oro.
+label	{1} asks you to deal with {2} at {3}. Reward: {4} gold.	{1} te pide que te ocupes de {2} en {3}. Recompensa: {4} de oro.
+label	{1} and {2} are about to clear out {3} and ask you to come in with them. Say yes and they follow you in and share what you find; say no and they go in alone.	{1} y {2} están a punto de limpiar {3} y te piden que entres con ellos. Si dices que sí, te siguen dentro y comparten lo que encontréis; si dices que no, entran sin ti.
+label	{1} is about to clear out {2} and asks you to come in too. Say yes and {3} follows you in and shares what you find; say no and {4} goes in alone.	{1} está a punto de limpiar {2} y te pide que entres también. Si dices que sí, {3} te sigue dentro y comparte lo que encontréis; si dices que no, {4} entra sin ti.
+label	{1} and {2} are on their way to clear out {3} and ask you to come along. Say yes and they follow you there and share what you find; say no and they go alone.	{1} y {2} van de camino a limpiar {3} y te piden que los acompañes. Si dices que sí, te siguen hasta allí y comparten lo que encontréis; si dices que no, van sin ti.
+label	{1} is on the way to clear out {2} and asks you to come along. Say yes and {3} follows you there and shares what you find; say no and {4} goes alone.	{1} va de camino a limpiar {2} y te pide que le acompañes. Si dices que sí, {3} te sigue hasta allí y comparte lo que encontréis; si dices que no, {4} va sin ti.
+label	Your share of the spoils: {1} gold.	Tu parte del botín: {1} de oro.
+label	{1} pleads for help rescuing {2} near {3}.	{1} suplica ayuda para rescatar a {2} cerca de {3}.
+label	{1} tells you about {2} near {3}.	{1} te habla de {2} cerca de {3}.
+label	{1} rallies you to fight alongside the {2} near {3}.	{1} te anima a luchar junto a {2} cerca de {3}.
+label	{1} urges you to rescue {2} for the {3} near {4}.	{1} te urge a rescatar a {2} para {3} cerca de {4}.
+label	{1} tells you about trouble near {2}.	{1} te habla de problemas cerca de {2}.
+label	You gave {1} {2} gold.	Le das a {1} {2} de oro.
+label	{1} gave you {2} (2).	{1} te da {2} (2).
+label	{1} gave you {2} gold.	{1} te da {2} de oro.
+label	{1} gave you {2}.	{1} te da {2}.
+label	Someone gave you {1}.	Alguien te da {1}.
+label	Informant dispatch refused: {1}.	Envío del informante rechazado: {1}.
+label	IntelEngine: All tasks reset	IntelEngine: todas las tareas reiniciadas
+label	IntelEngine: Resetting all tasks...	IntelEngine: reiniciando todas las tareas...
+label	Political event refused: {1} between {2} and {3}. The reason is in the IntelEngine log.	Evento político rechazado: {1} entre {2} y {3}. El motivo está en el registro de IntelEngine.
+label	Political event: {1} between {2} and {3}.	Evento político: {1} entre {2} y {3}.
+label	Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.	Envío social rechazado: falta la narración, tipo no válido, PNJ idénticos o StoryEngine no disponible.
+label	Social replacement refused: active trip changed; refresh and confirm replacement.	Sustitución social rechazada: el viaje activo ha cambiado; actualiza y confirma la sustitución.
+label	Social replacement refused: previous trip or task is still active after cancellation.	Sustitución social rechazada: el viaje o la tarea anterior sigue activo tras la cancelación.
+label	Story dispatch refused: narration is empty.	Envío de historia rechazado: la narración está vacía.
+label	Story dispatch refused: StoryEngine is unavailable.	Envío de historia rechazado: StoryEngine no está disponible.
+label	Story engine is busy with {1} ({2}). Cancel it first.	El motor de historias está ocupado con {1} ({2}). Cancélalo primero.
+label	Story replacement refused: previous story or task is still active after cancellation.	Sustitución de historia rechazada: la historia o la tarea anterior sigue activa tras la cancelación.
+label	Story replacement refused: unknown type or missing message content / informant subject and gossip.	Sustitución de historia rechazada: tipo desconocido, o falta el contenido del mensaje / el sujeto y el rumor del informante.
+label	{1} and {2}: {3} started.	{1} y {2}: {3} iniciado.
+label	{1} has no task to cancel.	{1} no tiene ninguna tarea que cancelar.
+label	{1} is already busy ({2}). Cancel it first.	{1} ya tiene una tarea ({2}). Cancélala primero.
+label	{1} sets out ({2}).	{1} se pone en marcha ({2}).
+label	{1}'s task cancelled.	Tarea de {1} cancelada.
+label	{1}'s task was cancelled.	Tarea de {1} cancelada.
+label	{1}'s task was cancelled	Tarea de {1} cancelada
+label	{1}: conduct reported.	{1}: conducta comunicada.
+label	{1}: {2} failed.	{1}: {2} ha fallado.
+label	{1}: {2} started.	{1}: {2} iniciado.
+label	{1} isn't loaded right now (they only exist near their home), so they can't be sent from here.	{1} no está en el juego ahora mismo (solo existe cerca de su casa), así que no se le puede enviar desde aquí.
+label	Couldn't find NPC '{1}' (no unique match).	No se ha encontrado al PNJ '{1}' (sin coincidencia única).
+label	{1} arrived - {2} is still on the way	{1} ya está aquí - {2} sigue de camino
+label	{1} brought {2}	{1} ha traído a {2}
+label	{1} cannot deliver a message to themselves.	{1} no puede ser a la vez mensajero y destinatario.
+label	{1} cannot deliver a message to {2}, who is dead.	{1} no puede entregar un mensaje a {2}: {2} ha muerto.
+label	{1} could not be found.	No se ha podido encontrar a {1}.
+label	{1} could not be found. The closest known name is {2}.	No se ha podido encontrar a {1}. El nombre conocido más parecido es {2}.
+label	{1} could not find the recipient	{1} no ha encontrado al destinatario
+label	{1} could not find their target	{1} no ha encontrado a quien buscaba
+label	{1} could not find {2} to deliver the message.	{1} no ha encontrado a {2} para entregar el mensaje.
+label	{1} delivered a message to {2} and is heading back	{1} ha entregado el mensaje a {2} y ya vuelve
+label	{1} delivered the message	{1} ha entregado el mensaje
+label	{1} escorted {2} to {3}	{1} ha escoltado a {2} hasta {3}
+label	{1} found {2}	{1} ha encontrado a {2}
+label	{1} gave up the search for {2}	{1} ha abandonado la búsqueda de {2}
+label	{1} is already right here; no delivery task started.	{1} ya está aquí; no se inicia ninguna entrega.
+label	{1} is escorting {2} to {3}	{1} escolta a {2} hasta {3}
+label	{1} is going to escort {2} to {3}	{1} va a escoltar a {2} hasta {3}
+label	{1} is going to search for {2}	{1} va a buscar a {2}
+label	{1} lost their escort target	{1} ha perdido a quien escoltaba
+label	{1} returned from delivering message to {2}	{1} ha vuelto de llevar el mensaje a {2}
+label	{1} went to deliver a message to {2}	{1} ha salido a llevar un mensaje a {2}
+label	{1} went to find {2}	{1} ha ido a buscar a {2}
+label	{1}: {2} refused - {3}	{1}: {2} se ha negado - {3}
+label	{1} wants to go fetch {2}.	{1} quiere ir a buscar a {2}.
+label	{1} wants to help search for {2}.	{1} quiere ayudar a buscar a {2}.
+label	{1} wants to escort {2} to {3}.	{1} quiere escoltar a {2} hasta {3}.
+label	{1} wants to travel to {2}.	{1} quiere viajar a {2}.
+label	{1} wants to deliver a message to {2}.	{1} quiere llevar un mensaje a {2}.
+label	{1} wants to deliver a message to {2} tomorrow {3}.	{1} quiere llevar un mensaje a {2} mañana, {3}.
+label	{1} wants to deliver a message to {2} in {3} days {4}.	{1} quiere llevar un mensaje a {2} dentro de {3} días, {4}.
+label	{1} wants to fetch {2}.	{1} quiere ir a buscar a alguien: {2}.
+label	{1} wants to fetch {2} tomorrow {3}.	{1} quiere ir a buscar a {2} mañana, {3}.
+label	{1} wants to fetch {2} in {3} days {4}.	{1} quiere ir a buscar a {2} dentro de {3} días, {4}.
+label	{1} wants to meet at {2}.	{1} quiere reunirse contigo: {2}.
+label	{1} wants to meet {2}.	{1} quiere reunirse contigo a las {2}.
+label	{1} wants to meet at {2} tomorrow {3}.	{1} quiere reunirse contigo mañana, {3}: {2}.
+label	{1} wants to meet at {2} in {3} days {4}.	{1} quiere reunirse contigo dentro de {3} días, {4}: {2}.
+label	{1} wants to meet tomorrow {2}.	{1} quiere reunirse contigo mañana, {2}.
+label	{1} wants to meet in {2} days {3}.	{1} quiere reunirse contigo dentro de {2} días, {3}.
+label	{1} will meet at {2}	{1} se reunirá contigo: {2}
+label	{1} will meet {2}	{1} se reunirá contigo a las {2}
+label	{1} will meet at {2} tomorrow {3}	{1} se reunirá contigo mañana, {3}: {2}
+label	{1} will meet at {2} in {3} days {4}	{1} se reunirá contigo dentro de {3} días, {4}: {2}
+label	{1} will meet tomorrow {2}	{1} se reunirá contigo mañana, {2}
+label	{1} will meet in {2} days {3}	{1} se reunirá contigo dentro de {2} días, {3}
+label	{1} will fetch {2} {3}	{1} irá a buscar a {2} {3}
+label	{1} will fetch {2} tomorrow {3}	{1} irá a buscar a {2} mañana, {3}
+label	{1} will fetch {2} in {3} days {4}	{1} irá a buscar a {2} dentro de {3} días, {4}
+label	{1} will deliver message to {2} {3}	{1} llevará un mensaje a {2} {3}
+label	{1} will deliver message to {2} tomorrow {3}	{1} llevará un mensaje a {2} mañana, {3}
+label	{1} will deliver message to {2} in {3} days {4}	{1} llevará un mensaje a {2} dentro de {3} días, {4}
+label	Not scheduled: {1} will not meet at {2}.	No programado: {1} no se reunirá contigo en {2}.
+label	Not scheduled: {1} will not meet.	No programado: {1} no se reunirá contigo.
+label	Not scheduled: {1} will not fetch {2}.	No programado: {1} no irá a buscar a {2}.
+label	Not scheduled: {1} will not deliver a message to {2}.	No programado: {1} no llevará ningún mensaje a {2}.
+label	Not scheduled: {1} will not {2}.	No programado: {1} ({2}).
+label	Not scheduled: all {1} schedule slots are in use.	No programado: los {1} huecos de la agenda están ocupados.
+label	All scheduled tasks cancelled	Todas las tareas programadas canceladas
+label	{1} could not set out for the meeting at {2}. It is off.	{1} no ha podido salir hacia el encuentro en {2}. Queda cancelado.
+label	Quest marker unavailable (alias not found)	Marcador de misión no disponible (alias no encontrado)
+label	Quest: {1} [{2}]	Misión: {1} [{2}]
+label	Rescue completed!	¡Rescate completado!
+label	Something feels wrong...	Algo no va bien...
+label	Sounds of fighting carry from up ahead.	Llegan ruidos de lucha desde más adelante.
+label	Story: {1} couldn't reach you - story ended	Historia: {1} no ha podido llegar hasta ti - historia terminada
+label	Story: {1} gave up	Historia: {1} se ha rendido
+label	The area is quiet. The threat seems to have moved on.	La zona está tranquila. La amenaza parece haberse marchado.
+label	The fighting has ended before you arrived.	La lucha terminó antes de que llegaras.
+label	The fighting is already underway elsewhere.	La lucha ya ha empezado en otro lugar.
+label	The forces have already moved on.	Las tropas ya se han marchado.
+label	The threat has been dealt with.	La amenaza ha sido eliminada.
+label	The {1} acknowledge your intent to fight.	{1}: reconocen tu intención de luchar.
+label	The {1} acknowledge your willingness to help.	{1}: reconocen tu disposición a ayudar.
+label	The {1} held the field unopposed.	{1}: dominaron el campo sin oposición.
+label	The {1} speak your name with respect.	{1}: pronuncian tu nombre con respeto.
+label	They seem to have more to ask...	Parece que aún tienen algo que pedirte...
+label	Word of your deeds reaches the {1}.	{1}: les llegan noticias de tus hazañas.
+label	Word reaches you: the battle has moved on.	Te llegan noticias: la batalla se ha desplazado.
+label	You claim the {1}.	Te quedas con: {1}.
+label	You hear the clink of armor ahead.	Oyes el tintineo de armaduras más adelante.
+label	You should hurry - the situation won't hold much longer.	Deberías darte prisa - la situación no aguantará mucho más.
+label	Your name carries weight among the {1}.	{1}: tu nombre tiene peso entre ellos.
+label	{1} can no longer lead the way. The map marker shows where to go.	{1} ya no puede guiarte. El marcador del mapa indica adónde ir.
+label	{1} didn't make it.	{1} no lo ha conseguido.
+label	{1} has been freed!	¡{1} está libre!
+label	{1} gave you an answer for {2}.	{1} te da una respuesta para {2}.
+label	{1} gave you more time.	{1} te da más tiempo.
+label	{1} is coming with you to see {2}.	{1} te acompaña a ver a {2}.
+label	{1} needs it within half a day now.	{1} lo necesita ahora en menos de medio día.
+label	{1} no longer needs your help with it.	{1} ya no necesita tu ayuda con eso.
+label	{1} will come with you to see {2} once done here.	{1} te acompañará a ver a {2} en cuanto termine aquí.
+label	{1} will give you {2} gold for it.	{1} te dará {2} de oro por ello.
+label	{1} arrived at {2}	{1} ha llegado a {2}
+label	{1} arrived late to {2} and eventually gave up waiting for you	{1} llegó tarde a {2} y al final se cansó de esperarte
+label	{1} arrived too late for the meeting at {2}	{1} llegó demasiado tarde al encuentro en {2}
+label	{1} could not come to the meeting at {2}. It is off.	{1} no ha podido acudir al encuentro en {2}. Queda cancelado.
+label	{1} got tired of waiting for you at {2}	{1} se cansó de esperarte en {2}
+label	{1} headed off after the meeting	{1} se ha marchado tras el encuentro
+label	{1} headed off to {2}	{1} ha partido hacia {2}
+label	{1} left {2}	{1} ha dejado {2}
+label	{1} met you at {2}	{1} se ha reunido contigo en {2}
+label	{1} never made it to the meeting at {2}	{1} nunca llegó al encuentro en {2}
+label	The {1} now count you an Auxiliary.	{1}: tu rango es ahora Auxiliar.
+label	The {1} now count you a Sworn Sword.	{1}: tu rango es ahora Espada juramentada.
+label	The {1} now count you a Veteran.	{1}: tu rango es ahora Veterano.
+label	The {1} now count you a Captain.	{1}: tu rango es ahora Capitán.
+label	The {1} now count you a Champion.	{1}: tu rango es ahora Campeón.
+label	The {1} now count you an Associate.	{1}: tu rango es ahora Asociado.
+label	The {1} now count you a Trusted Hand.	{1}: tu rango es ahora Mano de confianza.
+label	The {1} now count you a Lieutenant.	{1}: tu rango es ahora Teniente.
+label	The {1} now count you a Right Hand.	{1}: tu rango es ahora Mano derecha.
+label	The {1} now count you a Hired Blade.	{1}: tu rango es ahora Espada a sueldo.
+label	The {1} now count you a Retainer.	{1}: tu rango es ahora Vasallo.
+label	The {1} now count you a Trusted Retainer.	{1}: tu rango es ahora Vasallo de confianza.
+label	The {1} now count you a Sworn Captain.	{1}: tu rango es ahora Capitán juramentado.
+label	The {1} now count you a Champion of the House.	{1}: tu rango es ahora Campeón de la Casa.
+label	The trail leads on to the north.	El rastro sigue hacia el norte.
+label	The trail leads on to the north-east.	El rastro sigue hacia el noreste.
+label	The trail leads on to the east.	El rastro sigue hacia el este.
+label	The trail leads on to the south-east.	El rastro sigue hacia el sureste.
+label	The trail leads on to the south.	El rastro sigue hacia el sur.
+label	The trail leads on to the south-west.	El rastro sigue hacia el suroeste.
+label	The trail leads on to the west.	El rastro sigue hacia el oeste.
+label	The trail leads on to the north-west.	El rastro sigue hacia el noroeste.

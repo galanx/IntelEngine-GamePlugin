@@ -1,6 +1,6 @@
 plugin:
   name: IntelEngine
-  version: "3.8.3"
+  version: "4.0.0"
   description: "NPC task & story automation engine"
   icon: "\U0001F9E0"
 
@@ -94,6 +94,20 @@ schema:
       type: "string"
       description: "The languages people speak besides the game's own, so that a time, a place or a name they say in it is understood. auto: read from SkyrimNet's translator settings (an English game whose people speak Albanian is told that way). Or names with commas between them (albanian, russian)."
       defaultValue: "auto"
+      category: "Language"
+
+    - name: "Code page of old text"
+      path: "language.codepage"
+      type: "string"
+      description: "How a name or a text the game hands over is read when it is not UTF-8 (a plugin translated for the old game and never converted, a mod's names in a Russian or Polish code page). auto: by the language you read, else by the game's own language, else Windows-1252; a word of high letters from end to end is read as Cyrillic. Or a Windows code page by its number (1250, 1251, 1252, 932, 936, 949, 950), or a language's name (polish). Text that is UTF-8 is never touched."
+      defaultValue: "auto"
+      category: "Language"
+
+    - name: "Code page the game shows"
+      path: "language.display"
+      type: "string"
+      description: "What the game shows text in. UTF-8 for the game as it ships, in every language. Only a setup whose fonts show an old code page (some translations made for the old game) needs that page here, by its number (1251); then notices and the journal are written in it."
+      defaultValue: "UTF-8"
       category: "Language"
 
     # >>> settings shared with the game: generated from SKSE/src/SettingsBridge.cpp (SKSE/tests/RunSettingsBridgeCheck.py --write)

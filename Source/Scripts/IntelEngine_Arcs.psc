@@ -881,8 +881,11 @@ Function PlaceAmbush(Int id)
                                 AmbushLeaders[slot] = t
                             EndIf
                         Else
-                            t.Disable()
-                            t.Delete()
+                            ; Nowhere to hide him, and the game holds his body by now (it was waited for above): he
+                            ; is not switched off and deleted where he stands, which is what crashed the game on a
+                            ; big mod list. Not shown as he is (alpha 0), he steps out of the loaded ground the
+                            ; game's own way and is taken away after that (Core.StepOut).
+                            c.StepOut(t)
                             t = None
                             given = true
                         EndIf
@@ -1033,25 +1036,11 @@ Function StandDown(Int id)
     Int why = IntelEngine.ArcField(id, "ambushend")
     Actor leader = IntelEngine.ArcForm(id, "thug0") as Actor
     Actor sender = IntelEngine.ArcForm(id, "thugsender") as Actor
-    Faction bandits = Game.GetFormFromFile(0x0001BCC0, "Skyrim.esm") as Faction
     Int k = 0
     While k < 3 && c != None
         Actor t = IntelEngine.ArcForm(id, "thug" + k) as Actor
         If t != None && !t.IsDead()
-            If bandits != None
-                t.RemoveFromFaction(bandits)
-            EndIf
-            t.SetActorValue("Aggression", 0.0)
-            t.StopCombat()
-            t.ClearLookAt()
-            StopComing(t)
-            If sender != None
-                PO3_SKSEFunctions.SetLinkedRef(t, sender as ObjectReference, c.IntelEngine_TravelTarget)
-                ActorUtil.AddPackageOverride(t, c.TravelPackage_Walk, c.PRIORITY_TRAVEL, 1)
-            EndIf
-            t.EvaluatePackage()
-            t.SheatheWeapon()
-            StorageUtil.FormListAdd(self, "Intel_ArcLeavers", t, false)
+            WalkOff(t, sender, c)
         EndIf
         k += 1
     EndWhile
@@ -1078,6 +1067,31 @@ Function StandDown(Int id)
     EndIf
 EndFunction
 
+Function WalkOff(Actor t, Actor sender, IntelEngine_Core c)
+    {One of the men is done here: a cutthroat no more, weapon away, walking back toward whoever sent them, and on the
+    list of those who are gone once nobody is there to see it (WatchLeavers). (StandDown's own lines, shared with a
+    story that ends while its men are still in the game: CallOff.) Only one of the men a story made, who carries its
+    mark (PlaceAmbush): whoever is on that list is deleted once out of the game.}
+    If t == None || StorageUtil.GetIntValue(t, "Intel_ArcThug", 0) <= 0
+        Return
+    EndIf
+    Faction bandits = Game.GetFormFromFile(0x0001BCC0, "Skyrim.esm") as Faction
+    If bandits != None
+        t.RemoveFromFaction(bandits)
+    EndIf
+    t.SetActorValue("Aggression", 0.0)
+    t.StopCombat()
+    t.ClearLookAt()
+    StopComing(t)
+    If sender != None
+        PO3_SKSEFunctions.SetLinkedRef(t, sender as ObjectReference, c.IntelEngine_TravelTarget)
+        ActorUtil.AddPackageOverride(t, c.TravelPackage_Walk, c.PRIORITY_TRAVEL, 1)
+    EndIf
+    t.EvaluatePackage()
+    t.SheatheWeapon()
+    StorageUtil.FormListAdd(self, "Intel_ArcLeavers", t, false)
+EndFunction
+
 Int Function MenStanding(Int id)
     Int n = 0
     Int k = 0
@@ -1092,20 +1106,19 @@ Int Function MenStanding(Int id)
 EndFunction
 
 Function WatchLeavers()
-    {Men of an ambush who stood down: gone from the world once nobody can see it.}
+    {Men of an ambush who stood down: gone from the world once nobody can see it, which is once the game no longer
+    holds their body (they walk back toward whoever sent them, out of the loaded ground, or the player leaves). They
+    used to be switched off and deleted from 3,000 units when out of view, their bodies still in the game: that is
+    what crashed the game on a big mod list (Core.RemoveUnloaded has the rule; it also takes their mark off).}
     Int i = StorageUtil.FormListCount(self, "Intel_ArcLeavers") - 1
     If i < 0
         Return
     EndIf
-    Actor player = Game.GetPlayer()
     IntelEngine_Core c = Core()
     While i >= 0
         Actor t = StorageUtil.FormListGet(self, "Intel_ArcLeavers", i) as Actor
         Bool gone = t == None || t.IsDead() || t.IsDisabled()
-        If !gone && (!t.Is3DLoaded() || (t.GetDistance(player) > 3000.0 && c != None && !c.PlayerCanSee(t)))
-            StorageUtil.UnsetIntValue(t, "Intel_ArcThug")
-            t.Disable()
-            t.Delete()
+        If !gone && c != None && c.RemoveUnloaded(t)
             gone = true
         EndIf
         If gone
@@ -1162,20 +1175,26 @@ EndFunction
 
 Function CallOff(Int id, Bool answer)
     {The player got away, reached a town, or the story is over: the men still alive stop coming, and leave the world
-    once nobody can see it (asked again until they have).}
-    Actor player = Game.GetPlayer()
+    once nobody can see it (asked again until they have). Only somebody whose body the game no longer holds is taken
+    away (Core.RemoveUnloaded; it used to be done from 3,000 units when out of view, to bodies still in the game).
+    Whoever is still there when the story is over is not asked about again: he walks off like the men who stood
+    down and goes with them (WalkOff, WatchLeavers); he used to be left in the world.
+    Only a man who still carries this story's mark (PlaceAmbush): the story keeps him by his id, and the id of one taken
+    away already is handed out again by the game, to somebody this must never delete (Core.RemoveUnloaded takes the
+    mark off with him).}
     IntelEngine_Core c = Core()
+    Actor sender = IntelEngine.ArcForm(id, "thugsender") as Actor
     Int k = 0
     While k < 3
         Actor t = IntelEngine.ArcForm(id, "thug" + k) as Actor
-        If t != None && !t.IsDead() && StorageUtil.FormListFind(self, "Intel_ArcLeavers", t) < 0
-            If !t.Is3DLoaded() || (t.GetDistance(player) > 3000.0 && c != None && !c.PlayerCanSee(t))
-                StorageUtil.UnsetIntValue(t, "Intel_ArcThug")
-                t.Disable()
-                t.Delete()
-            Else
-                StopComing(t)
-                t.EvaluatePackage()
+        If t != None && StorageUtil.GetIntValue(t, "Intel_ArcThug", 0) == id && !t.IsDead() && StorageUtil.FormListFind(self, "Intel_ArcLeavers", t) < 0
+            If c == None || !c.RemoveUnloaded(t)
+                If answer || c == None
+                    StopComing(t)
+                    t.EvaluatePackage()
+                Else
+                    WalkOff(t, sender, c)
+                EndIf
             EndIf
         EndIf
         k += 1
@@ -2139,6 +2158,8 @@ Function TendSpirit(Int id)
         If named != ""
             shade.SetDisplayName(named, true)
         EndIf
+        ; The story's mark: only what carries it is ever taken out of the game as this story's shade (ShadeGoes).
+        StorageUtil.SetIntValue(shade, "Intel_ArcShade", id)
         shade.Enable(true)
         IntelEngine.ArcSpiritOut(id, shade)
         Core().DebugMsg("Arcs: #" + id + " " + shade.GetDisplayName() + " walks outside " + IntelEngine.ArcText(id, "spiritplace") + " tonight")
@@ -2146,8 +2167,7 @@ Function TendSpirit(Int id)
         Float day = Utility.GetCurrentGameTime()
         Float hour = (day - Math.Floor(day)) * 24.0
         If hour >= 5.0 && hour < 21.0 && !shade.IsDead() && !shade.IsInCombat()
-            shade.Disable(true)
-            shade.Delete()
+            ShadeGoes(id, shade)
             IntelEngine.ArcSpiritGone(id, 0)
             Core().DebugMsg("Arcs: #" + id + " what walked there fades with the light")
         EndIf
@@ -2161,7 +2181,8 @@ Event OnArcSpirit(String eventName, String strArg, Float numArg, Form sender)
     Int id = numArg as Int
     Actor shade = sender as Actor
     Actor player = Game.GetPlayer()
-    If shade == None || shade.IsDead()
+    ; Only the shade this story made (TendSpirit): laying it to rest takes it out of the game (ShadeGoes).
+    If shade == None || shade.IsDead() || IntelEngine.ArcForm(id, "spirit") != shade
         Return
     EndIf
     If strArg == "rest"
@@ -2173,8 +2194,7 @@ Event OnArcSpirit(String eventName, String strArg, Float numArg, Form sender)
         Core().SendTaskNarration(shade, "is given " + thing + " by " + player.GetDisplayName() + ", the one thing that held them here, and can rest at last; they say their last words to the living before they are gone", player)
         Utility.Wait(2.0)
         Quests().WaitForTheirSay(shade, 30.0)
-        shade.Disable(true)
-        shade.Delete()
+        ShadeGoes(id, shade)
         IntelEngine.ArcSpiritGone(id, 3)
     Else
         Float now = Utility.GetCurrentRealTime()
@@ -2192,11 +2212,42 @@ Function ReleaseSpirit(Int id)
     Actor shade = IntelEngine.ArcForm(id, "spirit") as Actor
     If shade != None
         If !shade.IsDead()
-            shade.Disable(true)
-            shade.Delete()
+            ShadeGoes(id, shade)
         EndIf
         IntelEngine.ArcSpiritGone(id, 0)
     EndIf
+EndFunction
+
+Function ShadeGoes(Int id, Actor shade)
+    {A shade is gone: it fades with the light, is laid to rest, or its story is over. It fades out where it stands,
+    as it always did, but it is no longer switched off and deleted there: the game holds its body, and that is what
+    crashed the game on a big mod list (Core, "People the mod made"). The fade is the game's own, with the game's own
+    wait (its fading ghosts go by SetAlpha and two and a half seconds: DLC1FadingGhostScript.FadeOut); not shown any
+    more, the shade steps out of the loaded ground the game's own way (Core.StepOut) and is taken away once its body
+    is out of the game. Not in the game at all (the player is elsewhere): gone at once.
+    Only the shade this story made: the story keeps it by its id, which the game hands out again once a body is gone
+    (one struck down leaves its remains, and the story still names it), and Core deletes whoever it is given. So it
+    has to carry the story's mark (TendSpirit), or, made before shades carried one, the story's name for it.}
+    IntelEngine_Core c = Core()
+    If c == None || shade == None
+        Return
+    EndIf
+    Int mark = StorageUtil.GetIntValue(shade, "Intel_ArcShade", 0)
+    Bool ours = mark == id
+    If !ours && mark == 0
+        String named = IntelEngine.ArcText(id, "spiritname")
+        ours = named != "" && shade.GetDisplayName() == named
+    EndIf
+    If !ours
+        c.DebugMsg("Arcs: #" + id + " " + shade + " is not the shade this story made - left alone")
+        Return
+    EndIf
+    If c.RemoveUnloaded(shade)
+        Return
+    EndIf
+    shade.SetAlpha(0.0, true)
+    Utility.Wait(2.5)
+    c.StepOut(shade)
 EndFunction
 
 Function ReleaseClues(Int id)
@@ -2357,11 +2408,23 @@ Function WatchCaptives()
             If at == CAPTIVE_TOTAKE
                 If !live
                     ForgetCaptive(who, i)   ; never taken: nothing to undo
-                ElseIf Unseen(who)
+                ElseIf !who.Is3DLoaded()
+                    ; Switched off only when the game does not hold their body. (Unseen() alone used to do: from
+                    ; 3,000 units and out of view they were switched off as they stood, which is what crashed the
+                    ; game on a big mod list: Core, "People the mod made".)
                     who.Disable()
                     StorageUtil.SetIntValue(who, "Intel_ArcCaptiveAt", CAPTIVE_AWAY)
                     IntelEngine.ArcCaptive(id, CAPTIVE_AWAY)
                     Core().DebugMsg("Arcs: #" + id + " " + who.GetDisplayName() + " has been taken (away from the game)")
+                ElseIf Unseen(who)
+                    ; Far off and out of view, but their body is in the game: they go to where they will be held,
+                    ; the game's own way out of the loaded ground (MoveTo, as through any door), when that ground
+                    ; is not in the game. The next look finds their body gone and switches them off. Nowhere to
+                    ; go yet: they are taken once they or the player have left.
+                    ObjectReference held = IntelEngine.ArcForm(id, "captiveanchor") as ObjectReference
+                    If held != None && !Core().GroundInGame(held)
+                        who.MoveTo(held, 110.0, 80.0, 0.0)
+                    EndIf
                 EndIf
             ElseIf at == CAPTIVE_AWAY
                 If !live
@@ -2452,7 +2515,10 @@ Function WatchAway()
         If who == None || who.IsDead()
             StorageUtil.FormListRemoveAt(self, "Intel_ArcAwayList", i)
         ElseIf StorageUtil.GetIntValue(who, "Intel_ArcAway", 0) == 0
-            If Unseen(who)
+            ; Only when the game does not hold their body (they went indoors or out of the loaded ground, or the
+            ; player did). Unseen() used to do: switched off as they stood from 3,000 units when out of view, which is
+            ; what crashed the game on a big mod list (Core, "People the mod made"). They leave a little later now.
+            If !who.Is3DLoaded()
                 who.Disable()
                 StorageUtil.SetIntValue(who, "Intel_ArcAway", 1)
                 Core().DebugMsg("Arcs: " + who.GetDisplayName() + " has left town")

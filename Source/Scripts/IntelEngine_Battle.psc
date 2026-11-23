@@ -236,6 +236,9 @@ Function CallAtMuster(Int pendingId, String place)
     Legion a few fields away, and nothing in the journal). Whoever holds a rank with one of the two is called
     now, by the same rule (the side they stand higher with; equal ranks, neither), and the journal points at
     that side's commander: the one who will hail them.}
+    If !CallsWanted()
+        Return
+    EndIf
     Int rankA = IntelEngine.PlayerFactionRank(BattleFactionA)
     Int rankB = IntelEngine.PlayerFactionRank(BattleFactionB)
     String caller = ""
@@ -284,6 +287,9 @@ Function TendCall()
         EndIf
         Return
     EndIf
+    If !CallsWanted()
+        Return
+    EndIf
     String call = IntelEngine.BattleCall()
     If call == "" || call == "{}"
         Return
@@ -319,6 +325,17 @@ Function TendCall()
     jq.SetObjectiveDisplayed(0, true, true)
     jq.SetActive(true)
     Core.DebugMsg("Battle: " + CallFaction + " calls the player to its line near " + CallPlace + " (gathering " + CallBattleId + ")")
+EndFunction
+
+Bool Function CallsWanted()
+    {The settings' "Quest kind: join a faction's battle" (with "Story type: someone has work for you", which it belongs
+    to, as in 3.8's mask of the dungeon master's types): off, no faction calls the player to its line, neither when its
+    armies gather nor once they are drawn up near the player. 4.0's call went by rank alone, and the switch governed
+    nothing. A call already open runs to its end.}
+    If Core == None || Core.StoryEngine == None
+        Return true
+    EndIf
+    Return Core.StoryEngine.TypeQuestEnabled && Core.StoryEngine.QuestSubTypeFactionBattleEnabled
 EndFunction
 
 Function EndCall(Int stage)
@@ -2666,7 +2683,7 @@ Int Function SweepSoldiers(Bool letGo)
     switch all of them off at once, three minutes after the battle, wherever the player was looking. The dead
     are not taken away at all for BodiesStayHours.
     letGo: the list is needed for another battle. Whoever is in view is released instead: no travel order, no
-    side, marked for removal, which the game carries out when the area unloads.}
+    side, and handed to Core's list of those who go once their body is out of the game (Core.LeaveWhenGone).}
     If !SpawnedSoldiers
         SpawnedSoldierCount = 0
         Return 0
@@ -2713,8 +2730,16 @@ Int Function SweepSoldiers(Bool letGo)
                     soldier.RemoveFromFaction(Intel_BattleSideB)
                     soldier.EvaluatePackage()
                 EndIf
-                soldier.Delete()
-                released += 1
+                ; Not flagged for deletion as they stand: the game still holds their body, and the rule above holds
+                ; for a deletion as much as for switching off. Core's list (shared with everybody else the mod makes)
+                ; takes them, and they go once their body is out of the game. With no room on it (128 waiting, never
+                ; seen) they stay on this list instead, released all the same, and a later sweep takes them.
+                If Core.LeaveWhenGone(soldier)
+                    released += 1
+                Else
+                    SpawnedSoldiers[kept] = soldier
+                    kept += 1
+                EndIf
             Else
                 SpawnedSoldiers[kept] = soldier
                 kept += 1
@@ -3019,8 +3044,15 @@ Function ManifestEvent(String manifestJson)
     EndIf
     If assTarget == None || slot < 0
         Core.DebugMsg("Battle: the attempt cannot go ahead (target " + assTarget + ", slot " + slot + ")")
-        assassin.DisableNoWait()
-        assassin.Delete()
+        ; Out of doors the killer is still switched off here and goes at once. Indoors the DLL makes them switched
+        ; on, at a door (ExecuteAssassination), and the game may hold their body by now: then they are not switched
+        ; off and deleted where they stand (the rule of SweepSoldiers, shared through Core) but walk off, a
+        ; stranger who came to nothing (named as that, not as what they were made from), and go once out of the
+        ; loaded ground.
+        If assassin.Is3DLoaded()
+            assassin.SetDisplayName(IntelEngine.BattleSay("stranger"), true)
+        EndIf
+        Core.SeeOff(assassin, Core.WayOut(assassin, attackerFaction))
         IntelEngine.ManifestationFailed()
         return
     EndIf
@@ -3320,23 +3352,20 @@ Function CleanupManifestation(Bool report = true)
     Int i = 0
     While i < ManifestCount
         If ManifestActors[i] != None
+            ; Nobody is switched off or deleted here while the game holds their body (the rule of SweepSoldiers, shared
+            ; through Core): this used to switch off whoever the player was not looking at, in the next room or behind
+            ; their back, and delete everybody on the spot. Core's list takes them, and they go once their body is
+            ; out of the game.
             If ManifestActors[i].IsDead()
-                ; A body the player is looking at is not blinked away (this runs fifteen seconds after the
-                ; fight): it is only flagged for deletion, like the survivors below, and goes with the area.
-                If !Core.PlayerCanSee(ManifestActors[i])
-                    ManifestActors[i].DisableNoWait()
-                EndIf
-                ManifestActors[i].Delete()
+                ; The body lies where it fell until the player has left.
+                Core.LeaveWhenGone(ManifestActors[i])
             Else
                 ManifestActors[i].RemoveFromFaction(Intel_BattleSideA)
                 ManifestActors[i].RemoveFromFaction(Intel_BattleSideB)
-                ; Delete only flags a living actor: it stays until the area unloads. It must not stay armed
-                ; and looking for a fight, and where nobody is watching it can go at once.
+                ; They must not stay armed and looking for a fight: weapon away, and off they walk (toward where
+                ; those who sent them are at home), to be taken away once out of the loaded ground.
                 CalmManifestActor(ManifestActors[i])
-                If !Core.PlayerCanSee(ManifestActors[i])
-                    ManifestActors[i].DisableNoWait()
-                EndIf
-                ManifestActors[i].Delete() ; fix98: spawned survivors used to stay forever (live 2026-11-12)
+                Core.SeeOff(ManifestActors[i], Core.WayOut(ManifestActors[i], _assassinAttackerFaction))
             EndIf
             ManifestActors[i] = None
         EndIf
@@ -3504,10 +3533,27 @@ Function OnGameReload()
         Core.RequestTick(MarkerRestSeconds)
     EndIf
 
-    ; Clean up any active manifestation from pre-reload (nothing is recorded of it: who knows how it would have gone)
+    ; Clean up any active manifestation from pre-reload (nothing of how it went is recorded: who knows how it would
+    ; have gone; the event itself is told as written, below)
     _manifestCleaning = false   ; a save made in the middle of a cleanup would otherwise block every later one
     If ManifestActive
         CleanupManifestation(false)
+    EndIf
+
+    ; Whatever was held back to be seen when the game was saved (an attempt on a leader's life, a brawl, a skirmish:
+    ; FactionPolitics keeps it with the save) can no longer be shown: it is told as it was written, as one that could
+    ; not be shown at the time is. 4.0 lost it on a load: it had been held back unrecorded, and nothing recorded it.
+    IntelEngine.ManifestationFailed()
+
+    ; A battle 3.8 announced for an hour of its own (ScheduleBattle) is not fought in 4.0: a battle of a war is a
+    ; gathering at a place now, and the next one of that war comes that way. A 3.8 save still holds the hour; it goes
+    ; here, said in the log (it used to go in silence, through the clean-up below, as "a battle in progress").
+    If (ScheduledBattleTime > 0.0 || BattleScheduled) && !BattleSpawned && ActiveBattleId < 0 && BattlePhase == 0
+        Core.DebugMsg("Battle: a battle 3.8 announced for game time " + ScheduledBattleTime + " (" + BattleFactionA + " vs " + BattleFactionB + \
+            ") is dropped: in 4.0 a war's battles are gatherings at a place, and its next one comes that way")
+        ScheduledBattleTime = 0.0
+        BattleScheduled = false
+        ForgetBattleNames()
     EndIf
 
     ; If a battle was in progress when the game was saved, clean up

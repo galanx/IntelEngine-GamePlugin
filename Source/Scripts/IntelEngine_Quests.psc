@@ -1285,10 +1285,24 @@ Function Place(Int id, Quest jq)
         If tmpl == TPL_BOUNTY
             Int wanted = IntelEngine.QuestField(id, "foefemale")
             Int tries = 0
+            IntelEngine_Core c = Core()
             While foe != None && tries < 6 && foe.GetLeveledActorBase().GetSex() != wanted
-                foe.Delete()
-                foe = IntelEngine.SpawnQuestBoss(anchor, foeKind)
-                tries += 1
+                If c.PlayerCanSee(foe)
+                    ; Made where the player is looking (the place is in the game and in view): kept as made, never
+                    ; taken away in front of the player.
+                    tries = 6
+                Else
+                    ; The one who does not fit goes through Core: at once when the game does not hold their body (the
+                    ; place is not loaded, or the body has not come in yet), else, not shown, out of the loaded ground
+                    ; and taken away there (Core.StepOut). Deleted on the spot before, whether or not their body was in
+                    ; the game; left to stand, a second foe of the place would have waited there, armed.
+                    If foe.Is3DLoaded()
+                        foe.SetAlpha(0.0, false)
+                    EndIf
+                    c.StepOut(foe)
+                    foe = IntelEngine.SpawnQuestBoss(anchor, foeKind)
+                    tries += 1
+                EndIf
             EndWhile
         EndIf
         If foe == None

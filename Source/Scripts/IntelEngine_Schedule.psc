@@ -37,6 +37,10 @@ Float Property HOUR_MIDNIGHT = 0.0 AutoReadOnly
 ; Gives pathfinding time to navigate across the map
 Float Property DEPARTURE_BUFFER_HOURS = 2.0 AutoReadOnly
 
+; Someone a quest of the game holds when their arranged hour comes is asked again this often, this many times.
+Int Property SCHEDULE_HELD_TRIES = 8 AutoReadOnly
+Float Property SCHEDULE_HELD_WAIT_HOURS = 0.25 AutoReadOnly
+
 ; =============================================================================
 ; SCHEDULED TASK TRACKING
 ; =============================================================================
@@ -491,6 +495,8 @@ Function ClearScheduleSlot(Int slot)
         StorageUtil.UnsetStringValue(npc, "Intel_ScheduledOrigin")
         StorageUtil.UnsetFloatValue(npc, "Intel_ScheduledStartTime")
         StorageUtil.UnsetStringValue(npc, "Intel_ScheduledReason")
+        StorageUtil.UnsetIntValue(npc, "Intel_ScheduleHeldTries")
+        StorageUtil.UnsetFloatValue(npc, "Intel_ScheduleHeldUntil")
     EndIf
 
     ScheduledAgents[slot] = None
@@ -633,6 +639,30 @@ Function RunScheduledTask(Int slot)
         ClearScheduleSlot(slot)
         Return
     EndIf
+
+    ; Held by the game right now (a real quest's scene, an objective of the player's that points at them): what was
+    ; arranged waits and is tried again, SCHEDULE_HELD_TRIES times a quarter of a game hour apart. 4.0 called a meeting
+    ; off at the first look and dropped a fetch or a message without a word (a scene of the background, the bard's
+    ; songs or a chat at the inn, holds nobody: Core.HeldByTheGame).
+    If Core.HeldByTheGame(npc)
+        Int heldTries = StorageUtil.GetIntValue(npc, "Intel_ScheduleHeldTries") + 1
+        If heldTries <= SCHEDULE_HELD_TRIES
+            StorageUtil.SetIntValue(npc, "Intel_ScheduleHeldTries", heldTries)
+            StorageUtil.SetFloatValue(npc, "Intel_ScheduleHeldUntil", Utility.GetCurrentGameTime() + SCHEDULE_HELD_WAIT_HOURS / 24.0)
+            Core.DebugMsg("Schedule: " + npc.GetDisplayName() + " is held by a quest of the game right now - " + taskType + " tried again in a quarter of an hour (" + heldTries + " of " + SCHEDULE_HELD_TRIES + ")")
+            Return
+        EndIf
+        Core.DebugMsg("Schedule: " + npc.GetDisplayName() + " was held by a quest of the game at every try - " + taskType + " is off")
+        String heldWhat = destination
+        If taskType != "travel"
+            heldWhat = targetName
+        EndIf
+        Core.NotifyPlayer(npc.GetDisplayName() + " is still caught up in something and could not keep what was arranged (" + heldWhat + "). It is off.")
+        ClearScheduleSlot(slot)
+        Return
+    EndIf
+    StorageUtil.UnsetIntValue(npc, "Intel_ScheduleHeldTries")
+    StorageUtil.UnsetFloatValue(npc, "Intel_ScheduleHeldUntil")
 
     ; If NPC is already on a task, clear it first so the scheduled task takes priority
     If npc.IsInFaction(Core.IntelEngine_TaskFaction)
@@ -803,6 +833,11 @@ Float Function GetSlotDispatchTime(Int slot)
     If ScheduledTaskTypes[slot] == "travel"
         Float departHours = StorageUtil.GetFloatValue(ScheduledAgents[slot], "Intel_ScheduledDepartureHours", DEPARTURE_BUFFER_HOURS)
         dispatchTime = ScheduledTimes[slot] - (departHours / 24.0)
+    EndIf
+    ; Held by a quest of the game at the last try: not before the next one (RunScheduledTask).
+    Float heldUntil = StorageUtil.GetFloatValue(ScheduledAgents[slot], "Intel_ScheduleHeldUntil", 0.0)
+    If heldUntil > dispatchTime
+        dispatchTime = heldUntil
     EndIf
     Return dispatchTime
 EndFunction
