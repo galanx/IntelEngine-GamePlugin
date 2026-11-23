@@ -65,7 +65,7 @@ place	lake	湖
 
 none	none	なし|無し|ない|無い|誰もいない|何もない|該当なし|特になし
 
-free	*	の|へ|に|で|を|が|は|と|まで|から
+free	*	の|へ|に|で|を|が|は|と|まで|から|宿屋|酒場
 
 # ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
 # {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.
