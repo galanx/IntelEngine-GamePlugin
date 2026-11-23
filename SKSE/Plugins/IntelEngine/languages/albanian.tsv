@@ -283,13 +283,11 @@ label	{1} wants to fetch {2}.	{1} don me shku me marrë dikë: {2}.
 label	{1} wants to fetch {2} tomorrow {3}.	{1} don me shku me e marrë {2} nesër në orën {3}.
 label	{1} wants to fetch {2} in {3} days {4}.	{1} don me shku me e marrë {2} mbas {3} ditësh në orën {4}.
 label	{1} wants to meet at {2}.	{1} don me u taku me ty: {2}.
-label	{1} wants to meet {2}.	{1} don me u taku me ty në orën {2}.
 label	{1} wants to meet at {2} tomorrow {3}.	{1} don me u taku me ty nesër në orën {3}: {2}.
 label	{1} wants to meet at {2} in {3} days {4}.	{1} don me u taku me ty mbas {3} ditësh në orën {4}: {2}.
 label	{1} wants to meet tomorrow {2}.	{1} don me u taku me ty nesër në orën {2}.
 label	{1} wants to meet in {2} days {3}.	{1} don me u taku me ty mbas {2} ditësh në orën {3}.
 label	{1} will meet at {2}	{1} ka me u taku me ty: {2}
-label	{1} will meet {2}	{1} ka me u taku me ty në orën {2}
 label	{1} will meet at {2} tomorrow {3}	{1} ka me u taku me ty nesër në orën {3}: {2}
 label	{1} will meet at {2} in {3} days {4}	{1} ka me u taku me ty mbas {3} ditësh në orën {4}: {2}
 label	{1} will meet tomorrow {2}	{1} ka me u taku me ty nesër në orën {2}
@@ -300,7 +298,6 @@ label	{1} will fetch {2} in {3} days {4}	{1} ka me shku me e marrë {2} mbas {3}
 label	{1} will deliver message to {2} {3}	{1} ka me i çue nji porosi {2} {3}
 label	{1} will deliver message to {2} tomorrow {3}	{1} ka me i çue nji porosi {2} nesër në orën {3}
 label	{1} will deliver message to {2} in {3} days {4}	{1} ka me i çue nji porosi {2} mbas {3} ditësh në orën {4}
-label	Not scheduled: {1} will not meet at {2}.	S'u caktue: {1} s'ka me u taku me ty te {2}.
 label	Not scheduled: {1} will not meet.	S'u caktue: {1} s'ka me u taku me ty.
 label	Not scheduled: {1} will not fetch {2}.	S'u caktue: {1} s'ka me shku me e marrë {2}.
 label	Not scheduled: {1} will not deliver a message to {2}.	S'u caktue: {1} s'ka me i çue porosi {2}.
@@ -373,3 +370,18 @@ label	The trail leads on to the south.	Gjurma vazhdon kah jugu.
 label	The trail leads on to the south-west.	Gjurma vazhdon kah jugperëndimi.
 label	The trail leads on to the west.	Gjurma vazhdon kah perëndimi.
 label	The trail leads on to the north-west.	Gjurma vazhdon kah veriperëndimi.
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	(sot, ora {1})
+label	tomorrow at {1}	(nesër, ora {1})
+label	in {1} days at {2}	(mbas {1} ditësh, ora {2})
+label	{1} will meet at {2} {3}	Takim me {1} – vendi: {2} {3}
+label	{1} will meet {2}	Takim me {1} {2}
+label	{1} wants to meet at {2} {3}.	{1} don me u takue me ty – vendi: {2} {3}.
+label	{1} wants to meet {2}.	{1} don me u takue me ty {2}.
+label	{1} wants to fetch {2} {3}.	{1} don me shku me e marrë {2} {3}.
+label	{1} wants to deliver a message to {2} {3}.	{1} don me i çue nji porosi {2} {3}.
+label	Not scheduled: {1} will not meet at {2}.	S'u caktue: s'ka takim me {1} – vendi: {2}.
+label	{1} soldiers of the {2} keep by your side.	{1} ushtarë të palës {2} të rrijnë afër.
+label	Quest dispatch refused: {1}.	Dërgimi i kuestit u refuzue: {1}.
+label	IntelEngine: Slot {1} cleared	IntelEngine: vendi {1} u lirue
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} ka ende punë tjetër e s'mujti me mbajtë çka u la ({2}). U anulue.

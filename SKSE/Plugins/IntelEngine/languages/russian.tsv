@@ -284,13 +284,11 @@ label	{1} wants to fetch {2}.	{1} хочет сходить за спутник�
 label	{1} wants to fetch {2} tomorrow {3}.	{1} хочет завтра в {3} сходить за спутником: {2}.
 label	{1} wants to fetch {2} in {3} days {4}.	{1} хочет через {3} дн. в {4} сходить за спутником: {2}.
 label	{1} wants to meet at {2}.	{1} хочет с вами встретиться: {2}.
-label	{1} wants to meet {2}.	{1} хочет встретиться с вами в {2}.
 label	{1} wants to meet at {2} tomorrow {3}.	{1} хочет встретиться с вами завтра в {3}. Место: {2}.
 label	{1} wants to meet at {2} in {3} days {4}.	{1} хочет встретиться с вами через {3} дн. в {4}. Место: {2}.
 label	{1} wants to meet tomorrow {2}.	{1} хочет встретиться с вами завтра в {2}.
 label	{1} wants to meet in {2} days {3}.	{1} хочет встретиться с вами через {2} дн. в {3}.
 label	{1} will meet at {2}	{1} встретится с вами: {2}
-label	{1} will meet {2}	{1} встретится с вами в {2}
 label	{1} will meet at {2} tomorrow {3}	{1} встретится с вами завтра в {3}. Место: {2}
 label	{1} will meet at {2} in {3} days {4}	{1} встретится с вами через {3} дн. в {4}. Место: {2}
 label	{1} will meet tomorrow {2}	{1} встретится с вами завтра в {2}
@@ -301,7 +299,6 @@ label	{1} will fetch {2} in {3} days {4}	{1} через {3} дн. в {4} схо�
 label	{1} will deliver message to {2} {3}	{1} доставит послание. Адресат: {2} {3}
 label	{1} will deliver message to {2} tomorrow {3}	{1} завтра в {3} доставит послание. Адресат: {2}
 label	{1} will deliver message to {2} in {3} days {4}	{1} через {3} дн. в {4} доставит послание. Адресат: {2}
-label	Not scheduled: {1} will not meet at {2}.	Не запланировано: встречи не будет. {1}, место: {2}.
 label	Not scheduled: {1} will not meet.	Не запланировано: встречи не будет ({1}).
 label	Not scheduled: {1} will not fetch {2}.	Не запланировано: {1} не пойдёт за спутником ({2}).
 label	Not scheduled: {1} will not deliver a message to {2}.	Не запланировано: {1} не понесёт послание. Адресат: {2}.
@@ -374,3 +371,18 @@ label	The trail leads on to the south.	След ведёт дальше на ю�
 label	The trail leads on to the south-west.	След ведёт дальше на юго-запад.
 label	The trail leads on to the west.	След ведёт дальше на запад.
 label	The trail leads on to the north-west.	След ведёт дальше на северо-запад.
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	(сегодня, {1})
+label	tomorrow at {1}	(завтра, {1})
+label	in {1} days at {2}	(через {1} дн., {2})
+label	{1} will meet at {2} {3}	{1}: встреча, место — {2} {3}
+label	{1} will meet {2}	{1}: встреча {2}
+label	{1} wants to meet at {2} {3}.	{1} хочет встретиться с вами. Место — {2} {3}.
+label	{1} wants to meet {2}.	{1} хочет встретиться с вами {2}.
+label	{1} wants to fetch {2} {3}.	{1} хочет сходить за спутником: {2} {3}.
+label	{1} wants to deliver a message to {2} {3}.	{1} хочет доставить послание. Адресат: {2} {3}.
+label	Not scheduled: {1} will not meet at {2}.	Не запланировано: {1} — встречи не будет (место — {2}).
+label	{1} soldiers of the {2} keep by your side.	{2}: солдаты рядом с вами ({1}).
+label	Quest dispatch refused: {1}.	Отправка задания отклонена: {1}.
+label	IntelEngine: Slot {1} cleared	IntelEngine: ячейка {1} очищена
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} всё ещё не может освободиться и выполнить уговор ({2}). Отменяется.

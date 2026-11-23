@@ -4,32 +4,37 @@
 # {1} {2} stand for a name or a number and may change places in the translation; none may be added.
 # A sentence no pack has stays English. Longer, more particular sentences are tried first.
 
-label	A champion of {1} takes the field.	A champion of {1} takes the field.
-label	A second force of {1} breaks from cover on the flank!	A second force of {1} breaks from cover on the flank!
-label	Champion of {1}	Champion of {1}
+label	A champion of the {1} takes the field.	A champion of the {1} takes the field.
+label	A second force of the {1} breaks from cover on the flank!	A second force of the {1} breaks from cover on the flank!
+label	Champion of the {1}	Champion of the {1}
 label	Charge!	Charge!
 label	Fighting has broken out near {1}.	Fighting has broken out near {1}.
+label	Four soldiers of the {1} keep by your side.	Four soldiers of the {1} keep by your side.
 label	Hold a little longer	Hold a little longer
-label	Men of {1} and of {2} have run into each other near {3}.	Men of {1} and of {2} have run into each other near {3}.
-label	Men of {1} are coming for you.	Men of {1} are coming for you.
-label	More soldiers of {1} come up.	More soldiers of {1} come up.
-label	Stand with {1}	Stand with {1}
+label	Men of the {1} and of the {2} have run into each other near {3}.	Men of the {1} and of the {2} have run into each other near {3}.
+label	Men of the {1} are coming for you.	Men of the {1} are coming for you.
+label	More soldiers of the {1} come up.	More soldiers of the {1} come up.
+label	Near {1}, the {2} and the {3} are about to fight. {4} calls you to their line.	Near {1}, the {2} and the {3} are about to fight. {4} calls you to their line.
+label	Near {1}, the {2} and the {3} are fighting. {4} calls you to their line.	Near {1}, the {2} and the {3} are fighting. {4} calls you to their line.
+label	Stand with the {1}	Stand with the {1}
 label	Stay out of it	Stay out of it
 label	Stranger	Stranger
-label	The captain of {1} has fallen.	The captain of {1} has fallen.
-label	The champion of {1} has fallen.	The champion of {1} has fallen.
-label	The last of {1} come up.	The last of {1} come up.
-label	The line of {1} waits for your word, {2}.	The line of {1} waits for your word, {2}.
-label	Treachery! Men of {1} turn on their own.	Treachery! Men of {1} turn on their own.
+label	The captain of the {1} has fallen.	The captain of the {1} has fallen.
+label	The champion of the {1} has fallen.	The champion of the {1} has fallen.
+label	The last of the {1} come up.	The last of the {1} come up.
+label	The line of the {1} waits for your word, {2}.	The line of the {1} waits for your word, {2}.
+label	The {1} now count you a {2}.	The {1} now count you a {2}.
+label	The {1} now count you an {2}.	The {1} now count you an {2}.
+label	The {1} send your pay on to you: {2} gold.	The {1} send your pay on to you: {2} gold.
+label	Treachery! Men of the {1} turn on their own.	Treachery! Men of the {1} turn on their own.
 label	Turncoat	Turncoat
-label	Two armies are drawn up near {1}: {2} and {3}.	Two armies are drawn up near {1}: {2} and {3}.
+label	Two armies are drawn up near {1}: the {2} and the {3}.	Two armies are drawn up near {1}: the {2} and the {3}.
+label	Two soldiers of the {1} keep by your side.	Two soldiers of the {1} keep by your side.
 label	Word reaches you: neither side held the field near {1}.	Word reaches you: neither side held the field near {1}.
-label	Word reaches you: {1} won the battle near {2}.	Word reaches you: {1} won the battle near {2}.
-label	You stand with {1}.	You stand with {1}.
+label	Word reaches you: the {1} won the battle near {2}.	Word reaches you: the {1} won the battle near {2}.
+label	You stand with the {1}.	You stand with the {1}.
 label	{1} Captain	{1} Captain
-label	{1} now count you {2}.	{1} now count you {2}.
-label	{1} send your pay on to you: {2} gold.	{1} send your pay on to you: {2} gold.
-label	{1} soldiers of {2} keep by your side.	{1} soldiers of {2} keep by your side.
+label	{1} soldiers of the {2} keep by your side.	{1} soldiers of the {2} keep by your side.
 label	Hand it over	Hand it over
 label	Hand over	Hand over
 label	I'll do it	I'll do it
@@ -99,6 +104,10 @@ label	{1} is going to escort {2} to {3}	{1} is going to escort {2} to {3}
 label	{1} is going to search for {2}	{1} is going to search for {2}
 label	{1} lost their escort target	{1} lost their escort target
 label	{1} returned from delivering message to {2}	{1} returned from delivering message to {2}
+label	{1} wants to deliver a message to {2}.	{1} wants to deliver a message to {2}.
+label	{1} wants to escort {2} to {3}.	{1} wants to escort {2} to {3}.
+label	{1} wants to go fetch {2}.	{1} wants to go fetch {2}.
+label	{1} wants to help search for {2}.	{1} wants to help search for {2}.
 label	{1} went to deliver a message to {2}	{1} went to deliver a message to {2}
 label	{1} went to find {2}	{1} went to find {2}
 label	{1}: {2} refused - {3}	{1}: {2} refused - {3}
@@ -108,13 +117,25 @@ label	I'll come along	I'll come along
 label	Not this time	Not this time
 label	Your share of the spoils: {1} gold.	Your share of the spoils: {1} gold.
 label	All scheduled tasks cancelled	All scheduled tasks cancelled
+label	at {1}	at {1}
+label	in {1} days at {2}	in {1} days at {2}
 label	Not scheduled: all {1} schedule slots are in use.	Not scheduled: all {1} schedule slots are in use.
+label	Not scheduled: {1} will not deliver a message to {2}.	Not scheduled: {1} will not deliver a message to {2}.
+label	Not scheduled: {1} will not fetch {2}.	Not scheduled: {1} will not fetch {2}.
+label	Not scheduled: {1} will not meet at {2}.	Not scheduled: {1} will not meet at {2}.
+label	Not scheduled: {1} will not meet.	Not scheduled: {1} will not meet.
 label	Not scheduled: {1} will not {2}.	Not scheduled: {1} will not {2}.
+label	tomorrow at {1}	tomorrow at {1}
 label	{1} could not set out for the meeting at {2}. It is off.	{1} could not set out for the meeting at {2}. It is off.
 label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.
+label	{1} wants to deliver a message to {2} {3}.	{1} wants to deliver a message to {2} {3}.
+label	{1} wants to fetch {2} {3}.	{1} wants to fetch {2} {3}.
+label	{1} wants to meet at {2} {3}.	{1} wants to meet at {2} {3}.
+label	{1} wants to meet {2}.	{1} wants to meet {2}.
 label	{1} will deliver message to {2} {3}	{1} will deliver message to {2} {3}
 label	{1} will fetch {2} {3}	{1} will fetch {2} {3}
-label	{1} will {2} {3}	{1} will {2} {3}
+label	{1} will meet at {2} {3}	{1} will meet at {2} {3}
+label	{1} will meet {2}	{1} will meet {2}
 label	At the door	At the door
 label	I'll check it out	I'll check it out
 label	I'll go alone	I'll go alone
@@ -167,3 +188,4 @@ label	{1} headed off to {2}	{1} headed off to {2}
 label	{1} left {2}	{1} left {2}
 label	{1} met you at {2}	{1} met you at {2}
 label	{1} never made it to the meeting at {2}	{1} never made it to the meeting at {2}
+label	{1} wants to travel to {2}.	{1} wants to travel to {2}.

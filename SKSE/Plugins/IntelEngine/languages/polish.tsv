@@ -283,13 +283,11 @@ label	{1} wants to fetch {2}.	{1} chce pójść po osobę: {2}.
 label	{1} wants to fetch {2} tomorrow {3}.	{1} chce jutro o {3} pójść po osobę: {2}.
 label	{1} wants to fetch {2} in {3} days {4}.	{1} chce za {3} dni o {4} pójść po osobę: {2}.
 label	{1} wants to meet at {2}.	{1} chce się z tobą spotkać: {2}.
-label	{1} wants to meet {2}.	{1} chce się z tobą spotkać o {2}.
 label	{1} wants to meet at {2} tomorrow {3}.	{1} chce się z tobą spotkać jutro o {3}. Miejsce: {2}.
 label	{1} wants to meet at {2} in {3} days {4}.	{1} chce się z tobą spotkać za {3} dni o {4}. Miejsce: {2}.
 label	{1} wants to meet tomorrow {2}.	{1} chce się z tobą spotkać jutro o {2}.
 label	{1} wants to meet in {2} days {3}.	{1} chce się z tobą spotkać za {2} dni o {3}.
 label	{1} will meet at {2}	{1} spotka się z tobą: {2}
-label	{1} will meet {2}	{1} spotka się z tobą o {2}
 label	{1} will meet at {2} tomorrow {3}	{1} spotka się z tobą jutro o {3}. Miejsce: {2}
 label	{1} will meet at {2} in {3} days {4}	{1} spotka się z tobą za {3} dni o {4}. Miejsce: {2}
 label	{1} will meet tomorrow {2}	{1} spotka się z tobą jutro o {2}
@@ -300,7 +298,6 @@ label	{1} will fetch {2} in {3} days {4}	{1} za {3} dni o {4} pójdzie po osobę
 label	{1} will deliver message to {2} {3}	{1} dostarczy wiadomość. Adresat: {2} {3}
 label	{1} will deliver message to {2} tomorrow {3}	{1} jutro o {3} dostarczy wiadomość. Adresat: {2}
 label	{1} will deliver message to {2} in {3} days {4}	{1} za {3} dni o {4} dostarczy wiadomość. Adresat: {2}
-label	Not scheduled: {1} will not meet at {2}.	Nie zaplanowano: spotkania nie będzie. {1}, miejsce: {2}.
 label	Not scheduled: {1} will not meet.	Nie zaplanowano: spotkania nie będzie ({1}).
 label	Not scheduled: {1} will not fetch {2}.	Nie zaplanowano: {1} nie pójdzie po osobę ({2}).
 label	Not scheduled: {1} will not deliver a message to {2}.	Nie zaplanowano: {1} nie dostarczy wiadomości. Adresat: {2}.
@@ -373,3 +370,18 @@ label	The trail leads on to the south.	Trop prowadzi dalej na południe.
 label	The trail leads on to the south-west.	Trop prowadzi dalej na południowy zachód.
 label	The trail leads on to the west.	Trop prowadzi dalej na zachód.
 label	The trail leads on to the north-west.	Trop prowadzi dalej na północny zachód.
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	(dziś, {1})
+label	tomorrow at {1}	(jutro, {1})
+label	in {1} days at {2}	(za {1} dni, {2})
+label	{1} will meet at {2} {3}	{1}: spotkanie, miejsce: {2} {3}
+label	{1} will meet {2}	{1}: spotkanie {2}
+label	{1} wants to meet at {2} {3}.	{1} chce się z tobą spotkać. Miejsce: {2} {3}.
+label	{1} wants to meet {2}.	{1} chce się z tobą spotkać {2}.
+label	{1} wants to fetch {2} {3}.	{1} chce pójść po osobę: {2} {3}.
+label	{1} wants to deliver a message to {2} {3}.	{1} chce dostarczyć wiadomość. Adresat: {2} {3}.
+label	Not scheduled: {1} will not meet at {2}.	Nie zaplanowano: {1} – spotkania nie będzie (miejsce: {2}).
+label	{1} soldiers of the {2} keep by your side.	{2}: żołnierze przy tobie ({1}).
+label	Quest dispatch refused: {1}.	Wysłanie zadania odrzucone: {1}.
+label	IntelEngine: Slot {1} cleared	IntelEngine: miejsce {1} zwolnione
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} wciąż ma inne sprawy i nie może dotrzymać ustaleń ({2}). Odwołane.

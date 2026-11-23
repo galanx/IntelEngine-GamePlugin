@@ -283,13 +283,11 @@ label	{1} wants to fetch {2}.	{1}が人を呼びに行きたがっている：{2
 label	{1} wants to fetch {2} tomorrow {3}.	{1}が明日{3}に{2}を呼びに行きたがっている。
 label	{1} wants to fetch {2} in {3} days {4}.	{1}が{3}日後の{4}に{2}を呼びに行きたがっている。
 label	{1} wants to meet at {2}.	{1}が会いたがっている：{2}。
-label	{1} wants to meet {2}.	{1}が{2}に会いたがっている。
 label	{1} wants to meet at {2} tomorrow {3}.	{1}が明日{3}に会いたがっている：{2}。
 label	{1} wants to meet at {2} in {3} days {4}.	{1}が{3}日後の{4}に会いたがっている：{2}。
 label	{1} wants to meet tomorrow {2}.	{1}が明日{2}に会いたがっている。
 label	{1} wants to meet in {2} days {3}.	{1}が{2}日後の{3}に会いたがっている。
 label	{1} will meet at {2}	{1}と会う約束：{2}
-label	{1} will meet {2}	{1}と{2}に会う約束
 label	{1} will meet at {2} tomorrow {3}	{1}と明日{3}に会う約束：{2}
 label	{1} will meet at {2} in {3} days {4}	{1}と{3}日後の{4}に会う約束：{2}
 label	{1} will meet tomorrow {2}	{1}と明日{2}に会う約束
@@ -300,7 +298,6 @@ label	{1} will fetch {2} in {3} days {4}	{1}が{3}日後の{4}に{2}を呼びに
 label	{1} will deliver message to {2} {3}	{1}が伝言を届ける：{2} {3}
 label	{1} will deliver message to {2} tomorrow {3}	{1}が明日{3}に{2}へ伝言を届ける
 label	{1} will deliver message to {2} in {3} days {4}	{1}が{3}日後の{4}に{2}へ伝言を届ける
-label	Not scheduled: {1} will not meet at {2}.	予定なし：{1}との待ち合わせ（{2}）は成立しなかった。
 label	Not scheduled: {1} will not meet.	予定なし：{1}との待ち合わせは成立しなかった。
 label	Not scheduled: {1} will not fetch {2}.	予定なし：{1}は{2}を呼びに行かない。
 label	Not scheduled: {1} will not deliver a message to {2}.	予定なし：{1}は{2}へ伝言を届けない。
@@ -373,3 +370,18 @@ label	The trail leads on to the south.	痕跡は南へ続いている。
 label	The trail leads on to the south-west.	痕跡は南西へ続いている。
 label	The trail leads on to the west.	痕跡は西へ続いている。
 label	The trail leads on to the north-west.	痕跡は北西へ続いている。
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	（今日 {1}）
+label	tomorrow at {1}	（明日 {1}）
+label	in {1} days at {2}	（{1}日後 {2}）
+label	{1} will meet at {2} {3}	{1}と待ち合わせ。場所：{2} {3}
+label	{1} will meet {2}	{1}と待ち合わせ {2}
+label	{1} wants to meet at {2} {3}.	{1}が会いたがっている。場所：{2} {3}。
+label	{1} wants to meet {2}.	{1}が会いたがっている {2}。
+label	{1} wants to fetch {2} {3}.	{1}が呼びに行きたがっている：{2} {3}。
+label	{1} wants to deliver a message to {2} {3}.	{1}が伝言を届けたがっている：{2} {3}。
+label	Not scheduled: {1} will not meet at {2}.	予定なし：{1}との待ち合わせはない（場所：{2}）。
+label	{1} soldiers of the {2} keep by your side.	{2}の兵士（{1}）がそばに付いた。
+label	Quest dispatch refused: {1}.	クエストの派遣は却下：{1}。
+label	IntelEngine: Slot {1} cleared	IntelEngine：枠{1}を空けた
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1}はまだ手が離せず、取り決めを守れなかった（{2}）。取り消しだ。
