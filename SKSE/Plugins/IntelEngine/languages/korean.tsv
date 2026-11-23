@@ -63,7 +63,7 @@ place	lake	호숫가|호수
 
 none	none	없음|없다|없어|아무도 없음|아무도|아무것도|해당 없음|해당없음
 
-free	*	으로|로|에|에서|에게|을|를|이|가|은|는|의|와|과|까지|부터
+free	*	으로|로|에|에서|에게|을|를|이|가|은|는|의|와|과|까지|부터|여관|여인숙|주점
 
 # ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
 # {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.

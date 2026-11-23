@@ -65,7 +65,7 @@ place	lake	湖边|湖邊|湖
 
 none	none	无|無|没有|沒有|没有人|沒有人|无人|無人|什么都没有|什麼都沒有|不适用|不適用
 
-free	*	的|去|到|在|往|向|从|從|把
+free	*	的|去|到|在|往|向|从|從|把|客棧|客栈|旅店|旅館|旅馆|酒館|酒馆
 
 # ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
 # {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.
