@@ -24,6 +24,8 @@ parameterMapping:
     description: >
       Who to deliver the message to. Must be a named NPC or hold guard (e.g., "Nazeem", "Riften Guard").
       INVALID: "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
+      Write the name exactly as it stands in the game and the context, in the game's language and in its plain
+      form: no case ending, no article, never translated.
   - type: dynamic
     name: msgContent
     description: >
@@ -33,6 +35,9 @@ parameterMapping:
     name: timeCondition
     description: >
       When to deliver. Examples: "at dawn", "after sunset", "tonight"
+      Write it in English in one of these forms, whatever language you are speaking: "today 18:00",
+      "tomorrow 08:00", "in 2 hours", "in 3 days 12:00", or a part of the day in English ("at dawn", "tonight",
+      "tomorrow morning").
   - type: dynamic
     name: meetLocation
     description: >
@@ -44,7 +49,11 @@ parameterMapping:
     name: meetTime
     description: >
       If the message includes a meeting time, provide it.
+      Write it in English in one of these forms, whatever language you are speaking: "today 18:00",
+      "tomorrow 08:00", "in 2 hours", "in 3 days 12:00", or a part of the day in English ("at dawn", "tonight",
+      "tomorrow morning").
       If NOT a meeting request: set this to "none"
+      Write the word "none" in English, whatever language you are speaking.
   - type: static
     value: "Schedule"
     name: taskOrigin

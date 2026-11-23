@@ -11,7 +11,7 @@
 {% set myFactionName = "" %}
 {% set isFactionLeader = false %}
 {% set isFactionMember = false %}
-{% for fac in polState.factions %}{% for lname in fac.leaders %}{% if lname == npcName %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% set isFactionLeader = true %}{% endif %}{% endfor %}{% if myFactionId == "" and existsIn(fac, "skyrim_faction_id") and fac.skyrim_faction_id != "" and is_in_faction(actorUUID, fac.skyrim_faction_id) %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% set isFactionMember = true %}{% endif %}{% if myFactionId == "" and existsIn(fac, "type") and fac.type == "political" and fac.hold != "" and contains(npcLocation, fac.hold) %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% endif %}{% endfor %}
+{% for fac in polState.factions %}{% for lname in fac.leaders %}{% if lname == npcName %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% set isFactionLeader = true %}{% endif %}{% endfor %}{% if existsIn(fac, "leaders_shown") %}{% for lname in fac.leaders_shown %}{% if lname == npcName %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% set isFactionLeader = true %}{% endif %}{% endfor %}{% endif %}{% if myFactionId == "" and existsIn(fac, "skyrim_faction_id") and fac.skyrim_faction_id != "" and is_in_faction(actorUUID, fac.skyrim_faction_id) %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% set isFactionMember = true %}{% endif %}{% if myFactionId == "" and existsIn(fac, "type") and fac.type == "political" and fac.hold != "" and contains(npcLocation, fac.hold) %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% endif %}{% if myFactionId == "" and existsIn(fac, "type") and fac.type == "political" and existsIn(fac, "hold_shown") and contains(npcLocation, fac.hold_shown) %}{% set myFactionId = fac.id %}{% set myFactionName = fac.name %}{% endif %}{% endfor %}
 {% set relevantEvents = [] %}
 {% for evt in polState.recent_events %}{% set evtFactionB = "" %}{% if existsIn(evt, "faction_b") %}{% set evtFactionB = evt.faction_b %}{% endif %}{% if evt.type == "pe_territory" or evt.type == "pe_campaign" or evt.type == "pe_ruler" or evt.type == "pe_visit" or evt.type == "pe_gift" or evt.type == "pe_dispute" or evt.type == "war_declaration" or evt.type == "surrender" or evt.type == "alliance_proposal" or evt.type == "mutual_defense_pact" or evt.type == "battle_result" or evt.type == "peace_offer" or evt.type == "embargo" %}{% set relevantEvents = append(relevantEvents, evt) %}{% else if myFactionId != "" and (evt.faction_a == myFactionId or evtFactionB == myFactionId) %}{% set relevantEvents = append(relevantEvents, evt) %}{% endif %}{% endfor %}
 {% set relevantRelations = [] %}
@@ -19,7 +19,9 @@
 {% set hasPlayerStanding = false %}
 {% if (isFactionLeader or isFactionMember) and existsIn(polState, "player_standings") %}{% for ps in polState.player_standings %}{% if ps.faction_id == myFactionId %}{% set hasPlayerStanding = true %}{% endif %}{% endfor %}{% endif %}
 {% if length(relevantEvents) > 0 or length(relevantRelations) > 0 or hasPlayerStanding %}
-## Political Awareness
+## Political Awareness{% if existsIn(polState, "civil_war") and polState.civil_war != "" %}
+{{ replace(polState.civil_war, "{player}", player.name) }}{% endif %}{% if existsIn(polState, "player_known") %}
+{{ player.name }} is talked of in Skyrim as {{ polState.player_known }}.{% endif %}
 {% if myFactionName != "" %}
 {{ npcName }}{% if isFactionLeader %} is a leader of{% elif isFactionMember %} is a member of{% else %} is currently in the territory of{% endif %} {{ myFactionName }}.
 {% endif %}
@@ -39,7 +41,7 @@ Current faction standings:
 {% endif %}
 {% if hasPlayerStanding %}{% for ps in polState.player_standings %}{% if ps.faction_id == myFactionId %}
 
-{{ myFactionName }} views {{ player.name }} as {{ ps.status }} (standing: {{ ps.standing }}).
+{{ myFactionName }} views {{ player.name }} as {{ ps.status }} (standing: {{ ps.standing }}).{% if existsIn(ps, "known_as") %} Among them {{ player.name }} is known as {{ ps.known_as }}.{% endif %}
 {% endif %}{% endfor %}{% endif %}
 {% endif %}
 {% endif %}

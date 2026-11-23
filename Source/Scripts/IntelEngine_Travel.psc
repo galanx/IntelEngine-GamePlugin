@@ -186,7 +186,7 @@ EndFunction
 ; MAIN API - GoToLocation
 ; =============================================================================
 
-Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int waitForPlayer = 1, Bool isScheduled = false, String taskOrigin = "SkyrimNet dialogue action")
+Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int waitForPlayer = 1, Bool isScheduled = false, String taskOrigin = "SkyrimNet dialogue action", String companions = "")
     {
     Send an NPC to a destination. Supports both named and semantic locations.
 
@@ -210,11 +210,28 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
         Core.DebugMsg("GoToLocation: Dead actor")
         Return false
     EndIf
+    ; A trip of one's own (BringCompanions marks a companion again right after this returns).
+    StorageUtil.UnsetFormValue(akNPC, "Intel_PartyLeader")
+    StorageUtil.UnsetIntValue(akNPC, "Intel_PlayerWasThere")
 
-    ; Carriage drivers and children are never sent travelling (see Core.IsUnsuitableTaskAgent).
-    If Core.IsUnsuitableTaskAgent(akNPC)
-        Core.DebugMsg("GoToLocation: " + akNPC.GetDisplayName() + " is not sent on tasks (carriage driver)")
+    ; Carriage drivers are never sent travelling, nor anyone a quest of the game holds right now (told why: see
+    ; Core.RefusesTask).
+    If Core.RefusesTask(akNPC, "GoToLocation")
         Return false
+    EndIf
+
+    ; 4.0: somebody with a part in a story under way goes where the player sends them: their part is in what they
+    ; know (their bio), the story's marks follow them wherever they are, and a step that needs them waits for them.
+    ; (The action used to be hidden from them altogether, for days on end: told "wait for me at the inn", they agreed
+    ; and stayed.) A trip of their own idea waits until the story is over, as before: the asker walked off before
+    ; hearing the answer, a suspect left town in the middle of it.
+    If !isScheduled && waitForPlayer == 0 && taskOrigin == "SkyrimNet dialogue action"
+        Int arcId = IntelEngine.ArcOfActor(akNPC)
+        If arcId > 0
+            Core.DebugMsg("GoToLocation: " + akNPC.GetDisplayName() + " has a part in story " + arcId + " and set out on their own idea - stays")
+            Core.TellFailure(akNPC, akNPC.GetDisplayName() + " stays for now: they have a part in something still under way here, and nobody asked them to go.")
+            Return false
+        EndIf
     EndIf
 
     If destination == ""
@@ -244,7 +261,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     ObjectReference destMarker = ResolveDestination(akNPC, destination)
     If destMarker == None
         ; Couldn't resolve - describe the situation factually
-        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " was asked to travel to '" + destination + "' but a route could not be determined.")
+        Core.TellFailure(akNPC, akNPC.GetDisplayName() + " was asked to travel to '" + destination + "' but a route could not be determined.")
         Return false
     EndIf
     ; Read at once: the next resolution (for any NPC) replaces it, and the prompt below can take a while.
@@ -253,7 +270,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     ; A slot has to be there: a free one, or the one this NPC's current task gives up.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akNPC) < 0
         Core.DebugMsg("GoToLocation: No free slots")
-        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
+        Core.TellFailure(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
         Return false
     EndIf
 
@@ -278,7 +295,7 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
         Core.DebugMsg("GoToLocation: No free slots")
-        Core.SendTaskNarration(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
+        Core.TellFailure(akNPC, akNPC.GetDisplayName() + " cannot take on another task right now.")
         Return false
     EndIf
 
@@ -304,6 +321,8 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
 
     ; Store destination marker
     StorageUtil.SetFormValue(akNPC, "Intel_DestMarker", destMarker)
+    ; Where they set out from: someone sent out of the room the player is in is not brought back into it on arrival.
+    StorageUtil.SetFormValue(akNPC, "Intel_TravelFromCell", akNPC.GetParentCell())
 
     ; Asked in conversation: let them finish the sentence before they turn and go. A scheduled trip starts
     ; on the clock, not on a spoken line, so it sets off at once.
@@ -368,7 +387,56 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     Core.RequestTick(Core.UPDATE_INTERVAL)
 
     Core.DebugMsg(akNPC.GetDisplayName() + " traveling to " + destination)
+    If !IntelEngine.IsNoneWord(companions)
+        BringCompanions(akNPC, destination, speed, waitForPlayer, taskOrigin, companions)
+    EndIf
     Return true
+EndFunction
+
+Function BringCompanions(Actor leader, String destination, Int speed, Int waitForPlayer, String taskOrigin, String companions)
+    {4.0 group travel: the people named go along to the same spot at the leader's pace, so they walk together.
+    Only people here with the leader and free to go, at most three; each becomes a travel task of its own, so the
+    usual arrival, stuck and off-screen handling applies to every one of them.}
+    String[] names = StringUtil.Split(IntelEngine.CommaList(companions), ",")   ; also the commas of other scripts
+    Actor player = Game.GetPlayer()
+    Int i = 0
+    Int count = 0
+    While i < names.Length && count < 3
+        String who = TrimSpaces(names[i])
+        Actor companion = None
+        If !IntelEngine.IsNoneWord(who)
+            companion = IntelEngine.FindNPCByNameNear(who, leader)
+        EndIf
+        If companion != None && companion != leader && companion != player && !companion.IsDead() && !companion.IsInCombat() \
+            && companion.GetWorldSpace() == leader.GetWorldSpace() && (!leader.IsInInterior() || companion.GetParentCell() == leader.GetParentCell()) \
+            && companion.GetDistance(leader) <= 2000.0 && Core.FindSlotByAgent(companion) < 0
+            If GoToLocation(companion, destination, speed, waitForPlayer, false, taskOrigin + " (with " + leader.GetDisplayName() + ")")
+                StorageUtil.SetFormValue(companion, "Intel_PartyLeader", leader)
+                count += 1
+            EndIf
+        Else
+            Core.DebugMsg("Group travel: " + who + " does not come along (not here, busy or no such person)")
+        EndIf
+        i += 1
+    EndWhile
+    If count > 0
+        Core.DebugMsg(leader.GetDisplayName() + " sets off for " + destination + " with " + count + " companion(s)")
+    EndIf
+EndFunction
+
+String Function TrimSpaces(String text)
+    Int first = 0
+    Int last = StringUtil.GetLength(text) - 1
+    While first <= last && StringUtil.GetNthChar(text, first) == " "
+        first += 1
+    EndWhile
+    While last >= first && StringUtil.GetNthChar(text, last) == " "
+        last -= 1
+    EndWhile
+    If last < first
+        Return ""
+    EndIf
+    Return StringUtil.Substring(text, first, last - first + 1)
 EndFunction
 
 
@@ -381,7 +449,7 @@ ObjectReference Function ResolveDestination(Actor akNPC, String destination)
     {Resolve any destination string to a travel target. All intelligence is in C++.}
 
     Core.DebugMsg("Resolving: " + destination)
-    ObjectReference result = IntelEngine.ResolveAnyDestination(akNPC, destination)
+    ObjectReference result = Core.ResolveTravelTarget(akNPC, destination)
     If result != None
         Core.DebugMsg("Resolved to: " + result)
     Else
@@ -746,7 +814,28 @@ Function OnProximityArrived(String slotStr)
     CheckForArrival(slot, npc)
 EndFunction
 
+; Slots whose arrival is being handled right now, one bit per slot. The state check below reads Core, and reading
+; another script can hand the thread over: the door step and the 3 s poll both got past it before the first one
+; set the state, so the arrival ran twice and the player was told "Uthgerd arrived at Drunken Huntsman" twice
+; (2026-11-17). This is checked and set before any call that can hand the thread to another one.
+Int ArrivingSlots = 0
+
 Function OnArrival(Int slot, Actor npc)
+    Int bit = 1
+    Int k = 0
+    While k < slot
+        bit *= 2
+        k += 1
+    EndWhile
+    If (ArrivingSlots / bit) % 2 == 1
+        Return
+    EndIf
+    ArrivingSlots += bit
+    HandleArrival(slot, npc)
+    ArrivingSlots -= bit
+EndFunction
+
+Function HandleArrival(Int slot, Actor npc)
     ; Idempotency guard — C++ proximity fast path and Papyrus 3s poll can race.
     ; Only the first caller should run the arrival logic.
     If Core.SlotStates[slot] != 1
@@ -855,11 +944,28 @@ Function OnArrival(Int slot, Actor npc)
     ; the door naturally (no teleport — preserves immersion and approach flow).
     Actor player = Game.GetPlayer()
     Cell playerCell = player.GetParentCell()
+    ; Was the player there when they came? Then they arrive where the player is, however far across the room:
+    ; Jenassa came into the Bannered Mare while the player stood at the bar, walked over, and the scene was told
+    ; "Prisoner arrived at Bannered Mare where Jenassa was waiting" (2026-11-18). 1: indoors, so the player was
+    ; there first (they came in through the door); 2: outdoors, where they may have walked there together.
+    ; Forgotten if the player leaves. ArrivalLine says it.
+    If !isSelfMotivated && playerCell != None && npc.GetParentCell() == playerCell
+        If playerCell.IsInterior()
+            StorageUtil.SetIntValue(npc, "Intel_PlayerWasThere", 1)
+        ElseIf npc.GetDistance(player) < MEETING_PLAYER_PROXIMITY
+            StorageUtil.SetIntValue(npc, "Intel_PlayerWasThere", 2)
+        EndIf
+    EndIf
     If playerCell != None && playerCell.IsInterior() && npc.GetParentCell() != playerCell
         ObjectReference destRef = StorageUtil.GetFormValue(npc, "Intel_DestMarker") as ObjectReference
         If destRef != None
             ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destRef)
-            If doorDest != None && doorDest.GetParentCell() == playerCell
+            ; Not for someone who set out from this very room: they were sent out of it ("get lost", "wait
+            ; outside"), reached the door, and were walked straight back in to the player.
+            If doorDest != None && doorDest.GetParentCell() == playerCell && (StorageUtil.GetFormValue(npc, "Intel_TravelFromCell") as Cell) != playerCell
+                If !isSelfMotivated
+                    StorageUtil.SetIntValue(npc, "Intel_PlayerWasThere", 1)   ; inside the building they came to
+                EndIf
                 ; Unlock the door so the NPC can walk through it
                 IntelEngine.SetHomeDoorAccessForCell(playerCell.GetFormID(), true)
                 StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", playerCell.GetFormID())
@@ -877,9 +983,10 @@ Function OnArrival(Int slot, Actor npc)
                 ; Scheduled meeting — run the meeting flow (lateness, linger, etc.)
                 OnPlayerArrived(slot, npc)
             ElseIf StorageUtil.GetIntValue(npc, "Intel_WaitForPlayer") == 1
-                ; Player-directed travel — arrived with player nearby (traveled together)
-                Core.SendTaskNarration(npc, npc.GetDisplayName() + " arrived at " \
-                    + destination + " together with " + player.GetDisplayName() + ".", player)
+                ; Player-directed travel, the player there when they arrive: maybe they came together, maybe the
+                ; player was there first (Brenuin "arrived together with" a player who had been waiting inside for
+                ; a minute and a half, 2026-11-17). Only what is true.
+                Core.SendTaskNarration(npc, ArrivalLine(npc, destination), player)
                 If IsStayAtDestination(destination)
                     StartStayAtDestLinger(slot, npc)
                 Else
@@ -892,6 +999,19 @@ Function OnArrival(Int slot, Actor npc)
             Return
         EndIf
     EndIf
+EndFunction
+
+String Function ArrivalLine(Actor npc, String destination)
+    {The scene line for an NPC who arrives where the player already is. Indoors the player was there first, and it
+    is said in so many words: "arrived at the Drunken Huntsman, where Prisoner is" was read as the player coming
+    second (Brenuin: "Got here before you, like I said", 2026-11-18). Outdoors they may have walked there together,
+    so it says only that both are there.}
+    String npcName = npc.GetDisplayName()
+    String playerName = Game.GetPlayer().GetDisplayName()
+    If StorageUtil.GetIntValue(npc, "Intel_PlayerWasThere") == 1
+        Return npcName + " arrived at " + destination + ". " + playerName + " was already there."
+    EndIf
+    Return npcName + " and " + playerName + " are both at " + destination + " now."
 EndFunction
 
 Function ComeThroughDoor(Actor npc)
@@ -1013,7 +1133,7 @@ Function CheckWaiting(Int slot, Actor npc)
                 Cell pCell = player.GetParentCell()
                 If pCell != None && pCell.IsInterior()
                     ObjectReference doorDest = IntelEngine.GetDoorDestinationRef(destMarker)
-                    If doorDest != None && doorDest.GetParentCell() == pCell
+                    If doorDest != None && doorDest.GetParentCell() == pCell && (StorageUtil.GetFormValue(npc, "Intel_TravelFromCell") as Cell) != pCell
                         If npc.GetParentCell() != pCell && StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") != 1
                             IntelEngine.SetHomeDoorAccessForCell(pCell.GetFormID(), true)
                             StorageUtil.SetIntValue(npc, "Intel_UnlockedHomeCellId", pCell.GetFormID())
@@ -1050,6 +1170,9 @@ Function CheckWaiting(Int slot, Actor npc)
             Return  ; Don't timeout while player is nearby
         ElseIf !comingThroughDoor
             ; Player left the area — stop approaching and return to destination sandbox
+            If player.GetParentCell() != npc.GetParentCell() || !npc.Is3DLoaded()
+                StorageUtil.UnsetIntValue(npc, "Intel_PlayerWasThere")   ; when they come back, it is they who arrive
+            EndIf
             If StorageUtil.GetIntValue(npc, "Intel_MeetingApproaching") == 1
                 StopApproachingPlayer(npc)
                 ; Restore sandbox at destination (not player)
@@ -1110,7 +1233,13 @@ Function OnPlayerArrived(Int slot, Actor npc)
             ; NPC was significantly late getting to the meeting spot
             outcome = "npc_arrived_late"
             StorageUtil.SetFloatValue(npc, "Intel_MeetingLateHours", npcHoursLate)
-            Core.SendTaskNarration(npc, npcName + " arrived at " + meetDest + " about " + (npcHoursLate as Int) + " hours late. " + playerName + " was already waiting.", player)
+            ; Who was there first, as it happened: Mikael, held three hours by his songs, reached the inn before
+            ; the player did, and the scene was told the player "was already waiting" (2026-11-18).
+            If StorageUtil.GetIntValue(npc, "Intel_PlayerWasThere") > 0
+                Core.SendTaskNarration(npc, npcName + " arrived at " + meetDest + " about " + (npcHoursLate as Int) + " hours late. " + playerName + " was already waiting.", player)
+            Else
+                Core.SendTaskNarration(npc, npcName + " arrived at " + meetDest + " about " + (npcHoursLate as Int) + " hours late, and " + playerName + " came later still.", player)
+            EndIf
             Core.DebugMsg(npcName + ": NPC was " + (npcHoursLate as Int) + "h late to meeting")
         ElseIf playerLateness == "late"
             ; Player is significantly late (beyond grace period)
@@ -1131,6 +1260,9 @@ Function OnPlayerArrived(Int slot, Actor npc)
 
         ; Store structured outcome for prompts
         Core.StoreMeetingOutcome(npc, outcome, meetDest)
+        ; The meeting has happened. A task given during the linger that follows replaced it in the NPC's own
+        ; history as "Attempted a task involving Drunken Huntsman" (Mikael, 2026-11-18): it is done from here.
+        StorageUtil.SetStringValue(npc, "Intel_Result", "player_arrived")
 
         Core.NotifyPlayer(npcName + " met you at " + meetDest)
 
@@ -1148,7 +1280,16 @@ Function OnPlayerArrived(Int slot, Actor npc)
                 waitHours = (Utility.GetCurrentGameTime() - arrivalTime) * 24.0
             EndIf
 
-            If waitHours > 2.0
+            ; One who came along with someone else's party is not greeted on their own: each member's own
+            ; "arrived where X was waiting" made the leader start the same talk twice (Ysolda offered the same
+            ; deal twice in a row, 2026-11-17). They hear of it; the leader speaks.
+            Actor partyLeader = StorageUtil.GetFormValue(npc, "Intel_PartyLeader") as Actor
+            If partyLeader != None && partyLeader != npc && partyLeader.Is3DLoaded() && partyLeader.GetDistance(npc) < 2000.0
+                Core.SendTransientEvent(npc, player, playerName + " arrived at " + destination + " where " + npcName \
+                    + " was waiting with " + partyLeader.GetDisplayName() + ".")
+            ElseIf StorageUtil.GetIntValue(npc, "Intel_PlayerWasThere") > 0
+                Core.SendTaskNarration(npc, ArrivalLine(npc, destination), player)
+            ElseIf waitHours > 2.0
                 Core.SendTaskNarration(npc, playerName + " finally arrived at " \
                     + destination + ". " + npcName + " had been waiting for a long time.", player)
             Else
@@ -1243,6 +1384,10 @@ Function CheckIfStuck(Int slot, Actor npc)
     ; by design, not actually stuck. Reset the C++ counter so time spent
     ; talking/fighting doesn't accumulate toward a false stuck trigger.
     ; (A dialogue target alone does not count: SkyrimNet leaves it set for minutes. See Core.IsHeldByTalk.)
+    ; A bard performing counts as talking for the whole song: his songs are ended first.
+    If Core.ReleasePerformingBard(slot, npc)
+        Return
+    EndIf
     If npc.IsInCombat() || Core.IsHeldByTalk(npc)
         IntelEngine.ResetStuckSlot(slot, npc)
         Return
@@ -1405,6 +1550,11 @@ Bool Function CheckMeetingDeparture(Int slot, Actor npc)
     ; departure: the count starts again when they are free. It used to call the meeting off ("could not set
     ; out") fifteen seconds into a conversation that was going on when the hour came.
     ; (Really held by talk, that is: a dialogue target alone says nothing, see Core.IsHeldByTalk.)
+    ; A bard performing counts as talking for the whole song: his songs are ended first.
+    If Core.ReleasePerformingBard(slot, npc)
+        Core.InitializeDepartureTracking(slot, npc)
+        Return false
+    EndIf
     If npc.IsInCombat() || Core.IsHeldByTalk(npc)
         Core.InitializeDepartureTracking(slot, npc)
         Return false

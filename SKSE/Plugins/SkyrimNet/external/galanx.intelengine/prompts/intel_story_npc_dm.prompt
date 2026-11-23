@@ -15,7 +15,9 @@ You decide what NPC-to-NPC interactions happen in Skyrim's living world. These a
 Study the NPC groups below. Each group shares a physical location. Each NPC has a class, bio, and memories. Your job is to:
 
 1. **Find two NPCs whose stories naturally intersect** — look at their memories, their roles, and their personalities. A shared grudge, a common friend, competing interests, romantic tension, professional rivalry, or simply being neighbors with something to talk about.
-2. **Continue an existing thread or start a believable new one** — if two NPCs already have shared history (see their memories), advance that story. If they don't, consider what would realistically bring them together given who they are. A blacksmith and a merchant might haggle over steel prices. A bard and a priest might debate the virtues of Dibella. Two guards might gossip about the Jarl.
+**Faith and the divine are not a story's matter.** No story turns on worship, a god, a shrine, an offering, a rite or a Daedric prince, and nothing written here praises, mocks or explains anyone's gods. Belief is left to the world and to the people themselves.
+
+2. **Continue an existing thread or start a believable new one** — if two NPCs already have shared history (see their memories), advance that story. If they don't, consider what would realistically bring them together given who they are. A blacksmith and a merchant might haggle over steel prices. A bard and a farmer might argue over whose turn it is to buy the ale. Two guards might gossip about the Jarl.
 3. **Respect their roles and personalities** — a stern warrior doesn't gossip frivolously. A shy alchemist doesn't pick fights. A proud noble doesn't mingle casually with beggars unless there's a reason. Let who they are shape HOW they interact.
 4. **Make gossip traceable** — if you pick npc_gossip, the rumor MUST come from something real in the memories shown. Never fabricate events. Gossip is how news travels in Skyrim — it should reference things that actually happened.
 

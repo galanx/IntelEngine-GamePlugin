@@ -1,0 +1,8 @@
+{% if render_mode == "full" %}
+{% if actorUUID and isValidActor(actorUUID) %}
+{% set intelStorylines = get_intelengine_storylines(actorUUID) %}
+{% if intelStorylines != "" %}
+{{ intelStorylines }}
+{% endif %}
+{% endif %}
+{% endif %}

@@ -163,7 +163,7 @@ Bool Function OnPoliticalDMResponse(String response, Int success)
     ; Papyrus-only: battle notifications + pending poll start (requires engine operations)
     String notification = IntelEngine.StoryResponseGetOptionalField(resultJson, "notification")
     If notification != ""
-        Debug.Notification(notification)
+        Debug.Notification(IntelEngine.L(notification))
     EndIf
 
     ; Start pending battle polling if a pending battle was created

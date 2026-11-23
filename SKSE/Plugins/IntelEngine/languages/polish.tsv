@@ -1,0 +1,387 @@
+# IntelEngine language pack: Polish.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	pl
+meta	codes	pl|pol|polish
+meta	name	Polish
+meta	game	polish
+meta	script	latin
+
+time	in 2 days	pojutrze
+time	tomorrow	jutro
+time	today	dziś|dzisiaj|dzis
+time	tonight	dziś w nocy|dzisiejszej nocy|tej nocy
+time	evening	dziś wieczorem|wieczorem|wieczór|pod wieczór
+time	morning	rano|z rana|rankiem|o poranku|poranek
+time	noon	w południe|południe|poludnie
+time	afternoon	po południu|popołudniu|popołudnie|po poludniu
+time	night	w nocy|nocą|noc
+time	midnight	o północy|północ|polnoc
+time	dawn	o świcie|świt|świcie|o wschodzie słońca|wschód słońca
+time	sunset	o zachodzie słońca|zachód słońca|o zachodzie
+time	dusk	o zmierzchu|zmierzch
+time	pm	wieczorem|po południu
+time	am	rano
+time	half an hour	pół godziny|pol godziny
+time	in	za
+time	hours	godziny|godzin
+time	hour	godzinę|godzina|godzine
+time	minutes	minut|minuty|minutę
+time	days	dni|dzień|dnia
+time	weeks	tygodni|tygodnie|tydzień
+time	at	o|około
+time	one	jedną|jedna|jeden|pierwszej
+time	two	dwie|dwa|drugiej
+time	three	trzy|trzeciej
+time	four	cztery|czwartej
+time	five	pięć|piątej
+time	six	sześć|szóstej
+time	seven	siedem|siódmej
+time	eight	osiem|ósmej
+time	nine	dziewięć|dziewiątej
+time	ten	dziesięć|dziesiątej
+time	eleven	jedenaście|jedenastej
+time	twelve	dwanaście|dwunastej
+
+place	home	do domu|w domu|mój dom|do mojego domu|do siebie
+place	your home	do twojego domu|twój dom|do ciebie|wasz dom
+place	outside	na zewnątrz|na dwór|na dworze|zewnątrz
+place	inside	do środka|w środku|wewnątrz
+place	upstairs	na górę|na górze|piętro wyżej
+place	downstairs	na dół|na dole|piętro niżej
+place	cellar	do piwnicy|piwnica|piwnicy
+place	bedroom	do sypialni|sypialnia|mój pokój|do mojego pokoju|do łóżka
+place	kitchen	do kuchni|kuchnia|kuchni
+place	bath	do łaźni|łaźnia|kąpiel|gorące źródła
+place	river	nad rzekę|rzeka|do rzeki
+place	lake	nad jezioro|jezioro
+
+none	none	żaden|żadna|żadne|nikt|nic|nigdzie|brak
+
+free	*	do|w|we|na|u|z|ze|od|po|za|przy|nad|pod|ku|dla|o
+
+# ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
+# {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.
+# Longer, more particular sentences are tried first; a sentence no row has stays English.
+# Not here on purpose: "{1} will {2} {3}" (its one fixed word, " will ", is a German word: the row would
+# rewrite German sentences of a story). Its particular forms (will meet at, will fetch, ...) are below.
+label	A champion of the {1} takes the field.	{1}: do boju rusza czempion.
+label	A champion of {1} takes the field.	{1}: do boju rusza czempion.
+label	A second force of the {1} breaks from cover on the flank!	{1}: drugi oddział uderza z ukrycia na flankę!
+label	A second force of {1} breaks from cover on the flank!	{1}: drugi oddział uderza z ukrycia na flankę!
+label	Champion of the {1}	Czempion ({1})
+label	Champion of {1}	Czempion ({1})
+label	Charge!	Do ataku!
+label	Fighting has broken out near {1}.	W pobliżu wybuchły walki. Miejsce: {1}.
+label	Hold a little longer	Trzymać się jeszcze chwilę
+label	Men of the {1} and of the {2} have run into each other near {3}.	{1} i {2}: oddziały wpadły na siebie. Miejsce: {3}.
+label	Men of {1} and of {2} have run into each other near {3}.	{1} i {2}: oddziały wpadły na siebie. Miejsce: {3}.
+label	Men of the {1} are coming for you.	{1}: ich ludzie idą po ciebie.
+label	Men of {1} are coming for you.	{1}: ich ludzie idą po ciebie.
+label	More soldiers of the {1} come up.	{1}: nadciągają kolejni żołnierze.
+label	More soldiers of {1} come up.	{1}: nadciągają kolejni żołnierze.
+label	Stand with the {1}	Stanąć po stronie: {1}
+label	Stand with {1}	Stanąć po stronie: {1}
+label	Stay out of it	Nie mieszać się
+label	Stranger	Nieznajomy
+label	The captain of the {1} has fallen.	{1}: kapitan poległ.
+label	The captain of {1} has fallen.	{1}: kapitan poległ.
+label	The champion of the {1} has fallen.	{1}: czempion poległ.
+label	The champion of {1} has fallen.	{1}: czempion poległ.
+label	The last of the {1} come up.	{1}: nadciągają ostatnie siły.
+label	The last of {1} come up.	{1}: nadciągają ostatnie siły.
+label	The line of the {1} waits for your word, {2}.	{1}: szereg czeka na twoje słowo, {2}.
+label	The line of {1} waits for your word, {2}.	{1}: szereg czeka na twoje słowo, {2}.
+label	The line of the {1} waits for your word, Captain.	{1}: szereg czeka na twoje słowo, kapitanie.
+label	The line of the {1} waits for your word, Champion.	{1}: szereg czeka na twoje słowo, czempionie.
+label	The line of the {1} waits for your word, Lieutenant.	{1}: szereg czeka na twoje słowo, poruczniku.
+label	The line of the {1} waits for your word, Right Hand.	{1}: szereg czeka na twoje słowo, prawa ręko.
+label	The line of the {1} waits for your word, Sworn Captain.	{1}: szereg czeka na twoje słowo, zaprzysiężony kapitanie.
+label	The line of the {1} waits for your word, Champion of the House.	{1}: szereg czeka na twoje słowo, czempionie rodu.
+label	Treachery! Men of the {1} turn on their own.	Zdrada! {1}: żołnierze zwracają się przeciw swoim.
+label	Treachery! Men of {1} turn on their own.	Zdrada! {1}: żołnierze zwracają się przeciw swoim.
+label	Turncoat	Zdrajca
+label	Two armies are drawn up near {1}: the {2} and the {3}.	Dwie armie stoją naprzeciw siebie ({1}): {2} i {3}.
+label	Two armies are drawn up near {1}: {2} and {3}.	Dwie armie stoją naprzeciw siebie ({1}): {2} i {3}.
+label	Word reaches you: neither side held the field near {1}.	Dochodzi cię wieść: żadna ze stron nie utrzymała pola ({1}).
+label	Word reaches you: the {1} won the battle near {2}.	Dochodzi cię wieść: bitwę wygrała strona „{1}” ({2}).
+label	Word reaches you: {1} won the battle near {2}.	Dochodzi cię wieść: bitwę wygrała strona „{1}” ({2}).
+label	You stand with the {1}.	Stoisz po stronie „{1}”.
+label	You stand with {1}.	Stoisz po stronie „{1}”.
+label	{1} Captain	Kapitan ({1})
+label	The {1} now count you a {2}.	{1}: twoja ranga to teraz {2}.
+label	The {1} now count you an {2}.	{1}: twoja ranga to teraz {2}.
+label	{1} now count you {2}.	{1}: twoja ranga to teraz {2}.
+label	The {1} send your pay on to you: {2} gold.	{1}: przysłano ci żołd. Złoto: {2}.
+label	{1} send your pay on to you: {2} gold.	{1}: przysłano ci żołd. Złoto: {2}.
+label	Two soldiers of the {1} keep by your side.	{1}: dwóch żołnierzy trzyma się przy tobie.
+label	Four soldiers of the {1} keep by your side.	{1}: czterech żołnierzy trzyma się przy tobie.
+label	{1} soldiers of {2} keep by your side.	{2}: żołnierze trzymają się przy tobie ({1}).
+label	Near {1}, the {2} and the {3} are fighting. {4} calls you to their line.	Trwa bitwa ({1}): {2} i {3}. {4} wzywa cię do swojego szeregu.
+label	Near {1}, the {2} and the {3} are about to fight. {4} calls you to their line.	Zaraz zacznie się bitwa ({1}): {2} i {3}. {4} wzywa cię do swojego szeregu.
+label	Stand with the {1} near {2} before the battle is decided	Stań po stronie „{1}”, zanim bitwa się rozstrzygnie. Miejsce: {2}
+label	The skirmish is over. Neither side had the better of it.	Potyczka skończona. Żadna ze stron nie wzięła góry.
+label	The skirmish is over. The {1} had the better of it.	Potyczka skończona. Górą była strona „{1}”.
+label	The fighting dies down. Neither side holds the field at {1}.	Walka cichnie. Żadna ze stron nie trzyma pola ({1}).
+label	The day is won. The field at {1} belongs to the {2}.	Dzień jest wygrany. Pole ({1}) należy do strony „{2}”.
+label	The day is lost. The field at {1} belongs to the {2}.	Dzień jest przegrany. Pole ({1}) należy do strony „{2}”.
+label	The fighting ends. The field at {1} belongs to the {2}.	Walka dobiegła końca. Pole ({1}) należy do strony „{2}”.
+label	The {1} will remember that you stood by.	{1}: zapamiętają twoją bezczynność.
+label	An assassin strikes at {1}!	Zabójca uderza! Cel: {1}!
+label	Battle	Bitwa
+label	The field is yours, though none of your side is left standing to share it.	Pole jest twoje, lecz z twoich nie ostał się nikt, by je z tobą dzielić.
+label	You stand alone among the fallen.	Stoisz samotnie pośród poległych.
+label	The attempt on {1}'s life is foiled.	Zamach udaremniony. Cel: {1}.
+label	{1} lives. The killer is dead.	{1} żyje. Zabójca nie żyje.
+label	The attempt on {1}'s life has failed.	Zamach się nie powiódł. Cel: {1}.
+label	{1} is dead.	{1} nie żyje.
+label	The killer has got away.	Zabójca uciekł.
+label	The {1} will remember your valor at {2}.	{1}: twoje męstwo nie zostanie zapomniane ({2}).
+label	Word reaches you: the {1} and the {2} are drawing up for battle near {3}.	Dochodzi cię wieść: {1} i {2} stają do bitwy. Miejsce: {3}.
+label	Hand it over	Oddaj
+label	Hand over	Przekazanie
+label	I'll do it	Zrobię to
+label	Not now	Nie teraz
+label	Not yet	Jeszcze nie
+label	Put up your fists	Na pięści
+label	Quest offer	Propozycja zadania
+label	Search the body	Przeszukaj ciało
+label	Something else	Coś innego
+label	Stand up	Wstań
+label	Story	Opowieść
+label	What you see	Co widzisz
+label	Allow	Zezwól
+label	Deny	Odmów
+label	Deny (Silent)	Odmów (po cichu)
+label	Task permission	Zgoda na zadanie
+label	Come along	Zaproszenie
+label	I'll come along	Idę z wami
+label	Not this time	Nie tym razem
+label	At the door	U drzwi
+label	I'll check it out	Sprawdzę to
+label	I'll go alone	Pójdę na własną rękę
+label	Ignore	Zignoruj
+label	Lead the way	Prowadź
+label	Let them in	Wpuść
+label	Not interested	Nie interesuje mnie to
+label	Send them away	Odpraw
+label	{1} is knocking at your door.	{1} puka do twoich drzwi.
+label	Give the {1} back to {2}?	{2}: oddać {1}?
+label	Give {1} back to {2}?	{2}: oddać {1}?
+label	Give {1} to {2}?	{2}: dać {1}?
+label	A Thief Among Us	Złodziej wśród nas
+label	Bad Blood	Zła krew
+label	Murder in {1}	Morderstwo ({1})
+label	A Story	Pewna opowieść
+label	Tell {1} how it ended	Opowiedz, jak to się skończyło. Komu: {1}
+label	Someone stole {1}. {2} asks you to find the thief and bring it back. Reward: {3} gold.	Skradziono: {1}. {2} prosi o znalezienie złodzieja i zwrot zguby. Nagroda: {3} szt. złota.
+label	Bad blood: {1} and {2} fell out over two hundred gold {3} borrowed. {4} asks you to settle it with {5}, one way or another. Reward: {6} gold.	Zła krew: {1} i {2} kłócą się o dwieście sztuk złota (dłużnik: {3}). {4} prosi o załatwienie sprawy, tak czy inaczej. Druga strona: {5}. Nagroda: {6} szt. złota.
+label	Bad blood: {1} has been telling the inn that {2} cheats people. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Zła krew: {1} rozpowiada w gospodzie, że {2} oszukuje ludzi. {3} prosi o załatwienie sprawy, tak czy inaczej. Druga strona: {4}. Nagroda: {5} szt. złota.
+label	Bad blood: {1} insulted {2}'s family in public. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Zła krew: publiczna zniewaga rodziny. Kto znieważył: {1}, kogo: {2}. {3} prosi o załatwienie sprawy, tak czy inaczej. Druga strona: {4}. Nagroda: {5} szt. złota.
+label	Bad blood: {1} says {2} cheated at dice. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Zła krew: {1} twierdzi, że w kościach doszło do oszustwa. Kogo obwinia: {2}. {3} prosi o załatwienie sprawy, tak czy inaczej. Druga strona: {4}. Nagroda: {5} szt. złota.
+label	{1} asks you to find out who killed {2}, and name them with proof. Reward: {3} gold.	{1} prosi o ustalenie, kto zabił, i wskazanie winnego z dowodem. Ofiara: {2}. Nagroda: {3} szt. złota.
+label	{1} Reward: {2} gold.	{1} Nagroda: {2} szt. złota.
+label	Settle it with {1} here and now, with your fists?	Załatwić to na pięści, tu i teraz? Przeciwnik: {1}.
+label	{1} stole {2}. What will you do with {3}?	Złodziej to {1}. Skradziono: {2}. Co zrobisz?
+label	How will you settle it between {1} and {2}?	Jak załatwisz tę sprawę? Strony: {1} i {2}.
+label	How will you make peace with {1}?	Jak doprowadzisz do zgody? Druga strona: {1}.
+label	Who killed {1}?	Kto zabił? Ofiara: {1}.
+label	What will you do?	Co zrobisz?
+label	Hand {1} over to the guard	Oddaj straży: {1}
+label	Let {1} go	Puść wolno: {1}
+label	Settle it with your fists against {1}	Załatw to na pięści. Przeciwnik: {1}
+label	Talk them into making peace	Namów ich do zgody
+label	Talk {1} round (Speech)	Przekonaj: {1} (Retoryka)
+label	Pay {1} {2} gold to let it go	Zapłać za zgodę: {1} {2} szt. złota
+label	Accuse {1}	Oskarż: {1}
+label	{1} (Speech)	{1} (Retoryka)
+label	Bounty: {1}	Nagroda za głowę: {1}
+label	Into {1} with {2}	Wyprawa ({1}), towarzysz: {2}
+label	A Request	Prośba
+label	{1} asks you to recover his stolen {2} from {3}. Reward: {4} gold.	{1} prosi o odzyskanie skradzionej rzeczy ({2}). Miejsce: {3}. Nagroda: {4} szt. złota.
+label	{1} asks you to recover her stolen {2} from {3}. Reward: {4} gold.	{1} prosi o odzyskanie skradzionej rzeczy ({2}). Miejsce: {3}. Nagroda: {4} szt. złota.
+label	{1} asks you to recover their stolen {2} from {3}. Reward: {4} gold.	{1} prosi o odzyskanie skradzionej rzeczy ({2}). Miejsce: {3}. Nagroda: {4} szt. złota.
+label	{1} asks you to deal with {2} at {3}. Reward: {4} gold.	{1} prosi o rozprawienie się z bandytą. Cel: {2}. Miejsce: {3}. Nagroda: {4} szt. złota.
+label	{1} and {2} are about to clear out {3} and ask you to come in with them. Say yes and they follow you in and share what you find; say no and they go in alone.	{1} i {2} zaraz ruszą oczyścić to miejsce ({3}) i zapraszają cię do środka. Zgoda: wejdą za tobą i podzielą się łupem. Odmowa: wejdą bez ciebie.
+label	{1} is about to clear out {2} and asks you to come in too. Say yes and {3} follows you in and shares what you find; say no and {4} goes in alone.	{1} zaraz rusza oczyścić to miejsce ({2}) i zaprasza cię do środka. Zgoda: {3} wejdzie za tobą i podzieli się łupem. Odmowa: {4} wejdzie bez ciebie.
+label	{1} and {2} are on their way to clear out {3} and ask you to come along. Say yes and they follow you there and share what you find; say no and they go alone.	{1} i {2} są w drodze, by oczyścić to miejsce ({3}), i zapraszają cię ze sobą. Zgoda: pójdą za tobą i podzielą się łupem. Odmowa: pójdą bez ciebie.
+label	{1} is on the way to clear out {2} and asks you to come along. Say yes and {3} follows you there and shares what you find; say no and {4} goes alone.	{1} jest w drodze, by oczyścić to miejsce ({2}), i zaprasza cię ze sobą. Zgoda: {3} pójdzie za tobą i podzieli się łupem. Odmowa: {4} pójdzie bez ciebie.
+label	Your share of the spoils: {1} gold.	Twoja część łupu. Złoto: {1}.
+label	{1} pleads for help rescuing {2} near {3}.	{1} błaga o pomoc w ratunku. Kogo ratować: {2}. Miejsce: {3}.
+label	{1} tells you about {2} near {3}.	{1} opowiada ci o czymś takim: {2}. Miejsce: {3}.
+label	{1} rallies you to fight alongside the {2} near {3}.	{1} wzywa cię do walki po stronie „{2}”. Miejsce: {3}.
+label	{1} urges you to rescue {2} for the {3} near {4}.	{1} nalega na ratunek dla strony „{3}”. Kogo ratować: {2}. Miejsce: {4}.
+label	{1} tells you about trouble near {2}.	{1} opowiada ci o kłopotach w pobliżu. Miejsce: {2}.
+label	You gave {1} {2} gold.	Oddajesz złoto: {1} {2}.
+label	{1} gave you {2} (2).	{1} daje ci: {2} (2).
+label	{1} gave you {2} gold.	{1} daje ci złoto: {2}.
+label	{1} gave you {2}.	{1} daje ci: {2}.
+label	Someone gave you {1}.	Ktoś daje ci: {1}.
+label	Informant dispatch refused: {1}.	Wysłanie informatora odrzucone: {1}.
+label	IntelEngine: All tasks reset	IntelEngine: wszystkie zadania zresetowane
+label	IntelEngine: Resetting all tasks...	IntelEngine: resetowanie wszystkich zadań...
+label	Political event refused: {1} between {2} and {3}. The reason is in the IntelEngine log.	Wydarzenie polityczne odrzucone: {1}, strony: {2} i {3}. Powód jest w logu IntelEngine.
+label	Political event: {1} between {2} and {3}.	Wydarzenie polityczne: {1}, strony: {2} i {3}.
+label	Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.	Wysłanie towarzyskie odrzucone: brak narracji, błędny typ, dwa razy ta sama postać albo StoryEngine niedostępny.
+label	Social replacement refused: active trip changed; refresh and confirm replacement.	Zamiana towarzyska odrzucona: trwająca podróż się zmieniła; odśwież i potwierdź zamianę.
+label	Social replacement refused: previous trip or task is still active after cancellation.	Zamiana towarzyska odrzucona: poprzednia podróż lub zadanie nadal trwa po anulowaniu.
+label	Story dispatch refused: narration is empty.	Wysłanie opowieści odrzucone: narracja jest pusta.
+label	Story dispatch refused: StoryEngine is unavailable.	Wysłanie opowieści odrzucone: StoryEngine jest niedostępny.
+label	Story engine is busy with {1} ({2}). Cancel it first.	Silnik opowieści jest zajęty: {1} ({2}). Najpierw anuluj.
+label	Story replacement refused: previous story or task is still active after cancellation.	Zamiana opowieści odrzucona: poprzednia opowieść lub zadanie nadal trwa po anulowaniu.
+label	Story replacement refused: unknown type or missing message content / informant subject and gossip.	Zamiana opowieści odrzucona: nieznany typ albo brak treści wiadomości / tematu i plotki informatora.
+label	{1} and {2}: {3} started.	{1} i {2}: {3} — start.
+label	{1} has no task to cancel.	{1}: brak zadania do anulowania.
+label	{1} is already busy ({2}). Cancel it first.	{1}: trwa już zadanie ({2}). Najpierw je anuluj.
+label	{1} sets out ({2}).	{1} rusza w drogę ({2}).
+label	{1}'s task cancelled.	{1}: zadanie anulowane.
+label	{1}'s task was cancelled.	{1}: zadanie anulowane.
+label	{1}'s task was cancelled	{1}: zadanie anulowane
+label	{1}: conduct reported.	{1}: postępek zgłoszony.
+label	{1}: {2} failed.	{1}: {2} — niepowodzenie.
+label	{1}: {2} started.	{1}: {2} — start.
+label	{1} isn't loaded right now (they only exist near their home), so they can't be sent from here.	{1}: postać nie jest teraz wczytana (istnieje tylko w pobliżu swojego domu), więc nie da się jej stąd wysłać.
+label	Couldn't find NPC '{1}' (no unique match).	Nie znaleziono NPC '{1}' (brak jednoznacznego dopasowania).
+label	{1} arrived - {2} is still on the way	{1} jest na miejscu - {2} jeszcze w drodze
+label	{1} brought {2}	{1} przyprowadza: {2}
+label	{1} cannot deliver a message to themselves.	{1}: nie można dostarczyć wiadomości samemu sobie.
+label	{1} cannot deliver a message to {2}, who is dead.	{1}: wiadomości nie da się dostarczyć. Adresat nie żyje: {2}.
+label	{1} could not be found.	Nie udało się znaleźć: {1}.
+label	{1} could not be found. The closest known name is {2}.	Nie udało się znaleźć: {1}. Najbliższe znane imię: {2}.
+label	{1} could not find the recipient	{1}: adresat nieodnaleziony
+label	{1} could not find their target	{1}: cel nieodnaleziony
+label	{1} could not find {2} to deliver the message.	{1}: wiadomość niedostarczona. Nie znaleziono adresata: {2}.
+label	{1} delivered a message to {2} and is heading back	{1}: wiadomość dostarczona ({2}), trwa powrót
+label	{1} delivered the message	{1}: wiadomość dostarczona
+label	{1} escorted {2} to {3}	{1}: eskorta zakończona. Osoba: {2}, miejsce: {3}
+label	{1} found {2}	{1}: poszukiwania zakończone, cel: {2}
+label	{1} gave up the search for {2}	{1}: poszukiwania przerwane. Cel: {2}
+label	{1} is already right here; no delivery task started.	{1} jest już tutaj; dostarczanie nie ruszyło.
+label	{1} is escorting {2} to {3}	{1} eskortuje osobę: {2}. Dokąd: {3}
+label	{1} is going to escort {2} to {3}	{1} podejmuje się eskorty: {2}. Dokąd: {3}
+label	{1} is going to search for {2}	{1} rusza na poszukiwania. Cel: {2}
+label	{1} lost their escort target	{1}: eskortowana osoba zgubiona
+label	{1} returned from delivering message to {2}	{1}: powrót po dostarczeniu wiadomości ({2})
+label	{1} went to deliver a message to {2}	{1} niesie wiadomość. Adresat: {2}
+label	{1} went to find {2}	{1} idzie po osobę: {2}
+label	{1}: {2} refused - {3}	{1}: odmowa ({2}) - {3}
+label	{1} wants to go fetch {2}.	{1} chce pójść po osobę: {2}.
+label	{1} wants to help search for {2}.	{1} chce pomóc w poszukiwaniach. Szukana osoba: {2}.
+label	{1} wants to escort {2} to {3}.	{1} chce eskortować osobę: {2}. Dokąd: {3}.
+label	{1} wants to travel to {2}.	{1} chce wyruszyć w drogę. Cel: {2}.
+label	{1} wants to deliver a message to {2}.	{1} chce dostarczyć wiadomość. Adresat: {2}.
+label	{1} wants to deliver a message to {2} tomorrow {3}.	{1} chce jutro o {3} dostarczyć wiadomość. Adresat: {2}.
+label	{1} wants to deliver a message to {2} in {3} days {4}.	{1} chce za {3} dni o {4} dostarczyć wiadomość. Adresat: {2}.
+label	{1} wants to fetch {2}.	{1} chce pójść po osobę: {2}.
+label	{1} wants to fetch {2} tomorrow {3}.	{1} chce jutro o {3} pójść po osobę: {2}.
+label	{1} wants to fetch {2} in {3} days {4}.	{1} chce za {3} dni o {4} pójść po osobę: {2}.
+label	{1} wants to meet at {2}.	{1} chce się z tobą spotkać: {2}.
+label	{1} wants to meet at {2} tomorrow {3}.	{1} chce się z tobą spotkać jutro o {3}. Miejsce: {2}.
+label	{1} wants to meet at {2} in {3} days {4}.	{1} chce się z tobą spotkać za {3} dni o {4}. Miejsce: {2}.
+label	{1} wants to meet tomorrow {2}.	{1} chce się z tobą spotkać jutro o {2}.
+label	{1} wants to meet in {2} days {3}.	{1} chce się z tobą spotkać za {2} dni o {3}.
+label	{1} will meet at {2}	{1} spotka się z tobą: {2}
+label	{1} will meet at {2} tomorrow {3}	{1} spotka się z tobą jutro o {3}. Miejsce: {2}
+label	{1} will meet at {2} in {3} days {4}	{1} spotka się z tobą za {3} dni o {4}. Miejsce: {2}
+label	{1} will meet tomorrow {2}	{1} spotka się z tobą jutro o {2}
+label	{1} will meet in {2} days {3}	{1} spotka się z tobą za {2} dni o {3}
+label	{1} will fetch {2} {3}	{1} pójdzie po osobę: {2} {3}
+label	{1} will fetch {2} tomorrow {3}	{1} jutro o {3} pójdzie po osobę: {2}
+label	{1} will fetch {2} in {3} days {4}	{1} za {3} dni o {4} pójdzie po osobę: {2}
+label	{1} will deliver message to {2} {3}	{1} dostarczy wiadomość. Adresat: {2} {3}
+label	{1} will deliver message to {2} tomorrow {3}	{1} jutro o {3} dostarczy wiadomość. Adresat: {2}
+label	{1} will deliver message to {2} in {3} days {4}	{1} za {3} dni o {4} dostarczy wiadomość. Adresat: {2}
+label	Not scheduled: {1} will not meet.	Nie zaplanowano: spotkania nie będzie ({1}).
+label	Not scheduled: {1} will not fetch {2}.	Nie zaplanowano: {1} nie pójdzie po osobę ({2}).
+label	Not scheduled: {1} will not deliver a message to {2}.	Nie zaplanowano: {1} nie dostarczy wiadomości. Adresat: {2}.
+label	Not scheduled: {1} will not {2}.	Nie zaplanowano: {1} ({2}).
+label	Not scheduled: all {1} schedule slots are in use.	Nie zaplanowano: wszystkie miejsca w planie są zajęte ({1}).
+label	All scheduled tasks cancelled	Wszystkie zaplanowane zadania anulowane
+label	{1} could not set out for the meeting at {2}. It is off.	{1} nie może wyruszyć na spotkanie ({2}). Spotkanie odwołane.
+label	Quest marker unavailable (alias not found)	Znacznik zadania niedostępny (nie znaleziono aliasu)
+label	Quest: {1} [{2}]	Zadanie: {1} [{2}]
+label	Rescue completed!	Ratunek się powiódł!
+label	Something feels wrong...	Coś tu jest nie tak...
+label	Sounds of fighting carry from up ahead.	Z przodu dobiegają odgłosy walki.
+label	Story: {1} couldn't reach you - story ended	Opowieść: {1} nie może do ciebie dotrzeć - opowieść zakończona
+label	Story: {1} gave up	Opowieść: {1} rezygnuje
+label	The area is quiet. The threat seems to have moved on.	Okolica jest spokojna. Zagrożenie chyba odeszło.
+label	The fighting has ended before you arrived.	Walka skończyła się przed twoim przybyciem.
+label	The fighting is already underway elsewhere.	Walka toczy się już gdzie indziej.
+label	The forces have already moved on.	Wojska już odeszły.
+label	The threat has been dealt with.	Zagrożenie zostało usunięte.
+label	The {1} acknowledge your intent to fight.	{1}: twoja gotowość do walki została doceniona.
+label	The {1} acknowledge your willingness to help.	{1}: twoja gotowość do pomocy została doceniona.
+label	The {1} held the field unopposed.	{1}: pole utrzymane bez walki.
+label	The {1} speak your name with respect.	{1}: twoje imię wymawia się tam z szacunkiem.
+label	They seem to have more to ask...	Chyba mają jeszcze jakąś prośbę...
+label	Word of your deeds reaches the {1}.	{1}: dotarła tam wieść o twoich czynach.
+label	Word reaches you: the battle has moved on.	Dochodzi cię wieść: bitwa przeniosła się dalej.
+label	You claim the {1}.	Zabierasz: {1}.
+label	You hear the clink of armor ahead.	Z przodu słychać szczęk zbroi.
+label	You should hurry - the situation won't hold much longer.	Lepiej się pospiesz - to długo nie potrwa.
+label	Your name carries weight among the {1}.	{1}: twoje imię ma tam swoją wagę.
+label	{1} can no longer lead the way. The map marker shows where to go.	{1} nie może dłużej prowadzić. Znacznik na mapie wskaże drogę.
+label	{1} didn't make it.	{1}: nie udało się uratować.
+label	{1} has been freed!	{1} jest na wolności!
+label	{1} gave you an answer for {2}.	{1} przekazuje przez ciebie odpowiedź. Dla kogo: {2}.
+label	{1} gave you more time.	{1} daje ci więcej czasu.
+label	{1} is coming with you to see {2}.	{1} idzie z tobą. Do kogo: {2}.
+label	{1} needs it within half a day now.	{1}: teraz to potrzebne w ciągu pół dnia.
+label	{1} no longer needs your help with it.	{1}: twoja pomoc w tej sprawie nie jest już potrzebna.
+label	{1} will come with you to see {2} once done here.	{1} pójdzie z tobą, gdy tylko skończy tutaj. Do kogo: {2}.
+label	{1} will give you {2} gold for it.	{1} zapłaci ci za to. Złoto: {2}.
+label	{1} arrived at {2}	{1} jest na miejscu: {2}
+label	{1} arrived late to {2} and eventually gave up waiting for you	{1}: spóźnienie na spotkanie ({2}); w końcu przestano na ciebie czekać
+label	{1} arrived too late for the meeting at {2}	{1}: zbyt późne przybycie na spotkanie ({2})
+label	{1} could not come to the meeting at {2}. It is off.	{1} nie może przyjść na spotkanie ({2}). Spotkanie odwołane.
+label	{1} got tired of waiting for you at {2}	{1}: dość czekania na ciebie ({2})
+label	{1} headed off after the meeting	{1} odchodzi po spotkaniu
+label	{1} headed off to {2}	{1} rusza w drogę. Cel: {2}
+label	{1} left {2}	{1} opuszcza miejsce: {2}
+label	{1} met you at {2}	{1}: spotkanie doszło do skutku ({2})
+label	{1} never made it to the meeting at {2}	{1}: nie udało się dotrzeć na spotkanie ({2})
+label	The {1} now count you an Auxiliary.	{1}: twoja ranga to teraz Auksyliariusz.
+label	The {1} now count you a Sworn Sword.	{1}: twoja ranga to teraz Zaprzysiężony miecz.
+label	The {1} now count you a Veteran.	{1}: twoja ranga to teraz Weteran.
+label	The {1} now count you a Captain.	{1}: twoja ranga to teraz Kapitan.
+label	The {1} now count you a Champion.	{1}: twoja ranga to teraz Czempion.
+label	The {1} now count you an Associate.	{1}: twoja ranga to teraz Wspólnik.
+label	The {1} now count you a Trusted Hand.	{1}: twoja ranga to teraz Zaufana ręka.
+label	The {1} now count you a Lieutenant.	{1}: twoja ranga to teraz Porucznik.
+label	The {1} now count you a Right Hand.	{1}: twoja ranga to teraz Prawa ręka.
+label	The {1} now count you a Hired Blade.	{1}: twoja ranga to teraz Najemny miecz.
+label	The {1} now count you a Retainer.	{1}: twoja ranga to teraz Sługa rodu.
+label	The {1} now count you a Trusted Retainer.	{1}: twoja ranga to teraz Zaufany sługa rodu.
+label	The {1} now count you a Sworn Captain.	{1}: twoja ranga to teraz Zaprzysiężony kapitan.
+label	The {1} now count you a Champion of the House.	{1}: twoja ranga to teraz Czempion rodu.
+label	The trail leads on to the north.	Trop prowadzi dalej na północ.
+label	The trail leads on to the north-east.	Trop prowadzi dalej na północny wschód.
+label	The trail leads on to the east.	Trop prowadzi dalej na wschód.
+label	The trail leads on to the south-east.	Trop prowadzi dalej na południowy wschód.
+label	The trail leads on to the south.	Trop prowadzi dalej na południe.
+label	The trail leads on to the south-west.	Trop prowadzi dalej na południowy zachód.
+label	The trail leads on to the west.	Trop prowadzi dalej na zachód.
+label	The trail leads on to the north-west.	Trop prowadzi dalej na północny zachód.
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	(dziś, {1})
+label	tomorrow at {1}	(jutro, {1})
+label	in {1} days at {2}	(za {1} dni, {2})
+label	{1} will meet at {2} {3}	{1}: spotkanie, miejsce: {2} {3}
+label	{1} will meet {2}	{1}: spotkanie {2}
+label	{1} wants to meet at {2} {3}.	{1} chce się z tobą spotkać. Miejsce: {2} {3}.
+label	{1} wants to meet {2}.	{1} chce się z tobą spotkać {2}.
+label	{1} wants to fetch {2} {3}.	{1} chce pójść po osobę: {2} {3}.
+label	{1} wants to deliver a message to {2} {3}.	{1} chce dostarczyć wiadomość. Adresat: {2} {3}.
+label	Not scheduled: {1} will not meet at {2}.	Nie zaplanowano: {1} – spotkania nie będzie (miejsce: {2}).
+label	{1} soldiers of the {2} keep by your side.	{2}: żołnierze przy tobie ({1}).
+label	Quest dispatch refused: {1}.	Wysłanie zadania odrzucone: {1}.
+label	IntelEngine: Slot {1} cleared	IntelEngine: miejsce {1} zwolnione
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} wciąż ma inne sprawy i nie może dotrzymać ustaleń ({2}). Odwołane.

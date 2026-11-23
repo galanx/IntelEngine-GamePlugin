@@ -1,0 +1,387 @@
+# IntelEngine language pack: Japanese.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	ja
+meta	codes	ja|jpn|japanese
+meta	name	Japanese
+meta	game	japanese
+meta	script	kana
+
+time	in 2 days	明後日|あさって
+time	tomorrow	明日|あした|あす
+time	today	今日|きょう|本日
+time	tonight	今夜|今晩|こんや|こんばん
+time	midnight	真夜中|深夜|夜中
+time	dawn	夜明け|明け方|日の出
+time	sunset	日没|日暮れ|日の入り
+time	dusk	夕暮れ|黄昏|たそがれ
+time	noon	正午|お昼|昼
+time	morning	午前中|午前|朝|あさ
+time	afternoon	午後|昼過ぎ|ごご
+time	evening	夕方|晩|ゆうがた
+time	night	夜|よる
+time	half an hour	三十分|30分|半時間
+time	hours later	時間後|時間以内
+time	hours	時間
+time	o'clock	時
+time	minutes	分
+time	days later	日後
+time	days	日間
+time	weeks later	週間後
+time	weeks	週間
+time	later	後|あと
+time	one	一|１
+time	two	二|２
+time	three	三|３
+time	four	四|４
+time	five	五|５
+time	six	六|６
+time	seven	七|７
+time	eight	八|８
+time	nine	九|９
+time	ten	十|１０
+time	eleven	十一|１１
+time	twelve	十二|１２
+
+place	home	家に帰る|自宅|我が家|私の家|俺の家|家|うち|帰宅
+place	your home	あなたの家|君の家|お前の家|貴方の家
+place	outside	外に出る|外へ|外|屋外|おもて
+place	inside	中へ|中|屋内|室内
+place	upstairs	二階|上の階|上へ|階上
+place	downstairs	一階|下の階|下へ|階下
+place	cellar	地下室|地下
+place	bedroom	寝室|私の部屋|自分の部屋|ベッド
+place	kitchen	台所|キッチン|厨房
+place	bath	風呂|浴場|温泉|お風呂
+place	river	川|河
+place	lake	湖
+
+none	none	なし|無し|ない|無い|誰もいない|何もない|該当なし|特になし
+
+free	*	の|へ|に|で|を|が|は|と|まで|から|宿屋|酒場
+
+# ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
+# {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.
+# Longer, more particular sentences are tried first; a sentence no row has stays English.
+# Not here on purpose: "{1} will {2} {3}" (its one fixed word, " will ", is a German word: the row would
+# rewrite German sentences of a story). Its particular forms (will meet at, will fetch, ...) are below.
+label	A champion of the {1} takes the field.	{1}の勇士が戦場に現れた。
+label	A champion of {1} takes the field.	{1}の勇士が戦場に現れた。
+label	A second force of the {1} breaks from cover on the flank!	{1}の別働隊が側面から飛び出してきた！
+label	A second force of {1} breaks from cover on the flank!	{1}の別働隊が側面から飛び出してきた！
+label	Champion of the {1}	{1}の勇士
+label	Champion of {1}	{1}の勇士
+label	Charge!	突撃！
+label	Fighting has broken out near {1}.	{1}の近くで戦いが始まった。
+label	Hold a little longer	もう少し持ちこたえろ
+label	Men of the {1} and of the {2} have run into each other near {3}.	{3}の近くで{1}と{2}の兵が鉢合わせした。
+label	Men of {1} and of {2} have run into each other near {3}.	{3}の近くで{1}と{2}の兵が鉢合わせした。
+label	Men of the {1} are coming for you.	{1}の兵がこちらを狙って来る。
+label	Men of {1} are coming for you.	{1}の兵がこちらを狙って来る。
+label	More soldiers of the {1} come up.	{1}の増援が到着した。
+label	More soldiers of {1} come up.	{1}の増援が到着した。
+label	Stand with the {1}	{1}に加勢する
+label	Stand with {1}	{1}に加勢する
+label	Stay out of it	関わらない
+label	Stranger	見知らぬ者
+label	The captain of the {1} has fallen.	{1}の隊長が倒れた。
+label	The captain of {1} has fallen.	{1}の隊長が倒れた。
+label	The champion of the {1} has fallen.	{1}の勇士が倒れた。
+label	The champion of {1} has fallen.	{1}の勇士が倒れた。
+label	The last of the {1} come up.	{1}の最後の兵が到着した。
+label	The last of {1} come up.	{1}の最後の兵が到着した。
+label	The line of the {1} waits for your word, {2}.	{2}殿、{1}の戦列が号令を待っている。
+label	The line of {1} waits for your word, {2}.	{2}殿、{1}の戦列が号令を待っている。
+label	The line of the {1} waits for your word, Captain.	隊長殿、{1}の戦列が号令を待っている。
+label	The line of the {1} waits for your word, Champion.	勇士殿、{1}の戦列が号令を待っている。
+label	The line of the {1} waits for your word, Lieutenant.	副官殿、{1}の戦列が号令を待っている。
+label	The line of the {1} waits for your word, Right Hand.	右腕殿、{1}の戦列が号令を待っている。
+label	The line of the {1} waits for your word, Sworn Captain.	誓約の隊長殿、{1}の戦列が号令を待っている。
+label	The line of the {1} waits for your word, Champion of the House.	一門の勇士殿、{1}の戦列が号令を待っている。
+label	Treachery! Men of the {1} turn on their own.	裏切りだ！{1}の兵が味方に刃を向けた。
+label	Treachery! Men of {1} turn on their own.	裏切りだ！{1}の兵が味方に刃を向けた。
+label	Turncoat	寝返った兵
+label	Two armies are drawn up near {1}: the {2} and the {3}.	{1}の近くで二つの軍が対峙している：{2}と{3}。
+label	Two armies are drawn up near {1}: {2} and {3}.	{1}の近くで二つの軍が対峙している：{2}と{3}。
+label	Word reaches you: neither side held the field near {1}.	知らせが届いた：{1}近くの戦いは、どちらも戦場を守れなかった。
+label	Word reaches you: the {1} won the battle near {2}.	知らせが届いた：{2}近くの戦いは{1}が勝った。
+label	Word reaches you: {1} won the battle near {2}.	知らせが届いた：{2}近くの戦いは{1}が勝った。
+label	You stand with the {1}.	{1}に加勢した。
+label	You stand with {1}.	{1}に加勢した。
+label	{1} Captain	{1}の隊長
+label	The {1} now count you a {2}.	{1}での階級が「{2}」になった。
+label	The {1} now count you an {2}.	{1}での階級が「{2}」になった。
+label	{1} now count you {2}.	{1}での階級が「{2}」になった。
+label	The {1} send your pay on to you: {2} gold.	{1}から報酬が届いた：{2}ゴールド。
+label	{1} send your pay on to you: {2} gold.	{1}から報酬が届いた：{2}ゴールド。
+label	Two soldiers of the {1} keep by your side.	{1}の兵士二人がそばに付いた。
+label	Four soldiers of the {1} keep by your side.	{1}の兵士四人がそばに付いた。
+label	{1} soldiers of {2} keep by your side.	{2}の兵士がそばに付いた（{1}）。
+label	Near {1}, the {2} and the {3} are fighting. {4} calls you to their line.	{1}の近くで{2}と{3}が戦っている。{4}が戦列に加われと呼んでいる。
+label	Near {1}, the {2} and the {3} are about to fight. {4} calls you to their line.	{1}の近くで{2}と{3}がまもなくぶつかる。{4}が戦列に加われと呼んでいる。
+label	Stand with the {1} near {2} before the battle is decided	戦いの決着がつく前に、{2}の近くで{1}に加勢する
+label	The skirmish is over. Neither side had the better of it.	小競り合いは終わった。どちらも優位には立てなかった。
+label	The skirmish is over. The {1} had the better of it.	小競り合いは終わった。優勢だったのは{1}だ。
+label	The fighting dies down. Neither side holds the field at {1}.	戦いは収まった。{1}の戦場はどちらのものでもない。
+label	The day is won. The field at {1} belongs to the {2}.	今日の戦いは勝った。{1}の戦場は{2}のものだ。
+label	The day is lost. The field at {1} belongs to the {2}.	今日の戦いは負けた。{1}の戦場は{2}のものだ。
+label	The fighting ends. The field at {1} belongs to the {2}.	戦いは終わった。{1}の戦場は{2}のものだ。
+label	The {1} will remember that you stood by.	{1}は、あなたが傍観していたことを忘れない。
+label	An assassin strikes at {1}!	暗殺者が{1}を襲った！
+label	Battle	戦い
+label	The field is yours, though none of your side is left standing to share it.	戦場はあなたのものだ。だが、分かち合う味方はもう誰も立っていない。
+label	You stand alone among the fallen.	倒れた者たちの中、立っているのはあなただけだ。
+label	The attempt on {1}'s life is foiled.	{1}の暗殺は阻止された。
+label	{1} lives. The killer is dead.	{1}は無事だ。暗殺者は死んだ。
+label	The attempt on {1}'s life has failed.	{1}の暗殺は失敗に終わった。
+label	{1} is dead.	{1}は死んだ。
+label	The killer has got away.	暗殺者は逃げた。
+label	The {1} will remember your valor at {2}.	{1}は、{2}でのあなたの武勇を忘れない。
+label	Word reaches you: the {1} and the {2} are drawing up for battle near {3}.	知らせが届いた：{3}の近くで{1}と{2}が戦いの陣を敷いている。
+label	Hand it over	渡す
+label	Hand over	受け渡し
+label	I'll do it	引き受ける
+label	Not now	今はやめておく
+label	Not yet	まだ渡さない
+label	Put up your fists	拳で決着をつける
+label	Quest offer	クエストの依頼
+label	Search the body	遺体を調べる
+label	Something else	ほかの選択
+label	Stand up	立ち上がる
+label	Story	物語
+label	What you see	目に入るもの
+label	Allow	許可する
+label	Deny	断る
+label	Deny (Silent)	断る（黙って）
+label	Task permission	任務の許可
+label	Come along	同行の誘い
+label	I'll come along	一緒に行く
+label	Not this time	今回はやめておく
+label	At the door	戸口に来客
+label	I'll check it out	見に行ってみる
+label	I'll go alone	一人で行く
+label	Ignore	無視する
+label	Lead the way	案内してくれ
+label	Let them in	中に入れる
+label	Not interested	興味はない
+label	Send them away	追い返す
+label	{1} is knocking at your door.	{1}が戸を叩いている。
+label	Give the {1} back to {2}?	{1}を{2}に返す？
+label	Give {1} back to {2}?	{1}を{2}に返す？
+label	Give {1} to {2}?	{1}を{2}に渡す？
+label	A Thief Among Us	身近にいる盗人
+label	Bad Blood	いさかい
+label	Murder in {1}	{1}での殺人
+label	A Story	ある物語
+label	Tell {1} how it ended	結末を{1}に伝える
+label	Someone stole {1}. {2} asks you to find the thief and bring it back. Reward: {3} gold.	{1}が盗まれた。{2}は、盗人を見つけて品を取り戻してほしいと頼んでいる。報酬：{3}ゴールド。
+label	Bad blood: {1} and {2} fell out over two hundred gold {3} borrowed. {4} asks you to settle it with {5}, one way or another. Reward: {6} gold.	いさかい：{1}と{2}は、{3}が借りた二百ゴールドをめぐって仲たがいした。{4}は、どんな形でもいいから{5}との件に片をつけてほしいと頼んでいる。報酬：{6}ゴールド。
+label	Bad blood: {1} has been telling the inn that {2} cheats people. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	いさかい：{1}は宿屋で、{2}が人をだましていると言いふらしている。{3}は、どんな形でもいいから{4}との件に片をつけてほしいと頼んでいる。報酬：{5}ゴールド。
+label	Bad blood: {1} insulted {2}'s family in public. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	いさかい：{1}は人前で{2}の家族を侮辱した。{3}は、どんな形でもいいから{4}との件に片をつけてほしいと頼んでいる。報酬：{5}ゴールド。
+label	Bad blood: {1} says {2} cheated at dice. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	いさかい：{1}は、{2}がサイコロでいかさまをしたと言っている。{3}は、どんな形でもいいから{4}との件に片をつけてほしいと頼んでいる。報酬：{5}ゴールド。
+label	{1} asks you to find out who killed {2}, and name them with proof. Reward: {3} gold.	{1}は、{2}を殺した者を突き止め、証拠を添えて名指ししてほしいと頼んでいる。報酬：{3}ゴールド。
+label	{1} Reward: {2} gold.	{1} 報酬：{2}ゴールド。
+label	Settle it with {1} here and now, with your fists?	今ここで、{1}と拳で決着をつける？
+label	{1} stole {2}. What will you do with {3}?	{1}が{2}を盗んだ。{3}をどうする？
+label	How will you settle it between {1} and {2}?	{1}と{2}の件をどう収める？
+label	How will you make peace with {1}?	{1}とどうやって和解する？
+label	Who killed {1}?	{1}を殺したのは誰か？
+label	What will you do?	どうする？
+label	Hand {1} over to the guard	{1}を衛兵に引き渡す
+label	Let {1} go	{1}を見逃す
+label	Settle it with your fists against {1}	{1}と拳で決着をつける
+label	Talk them into making peace	和解するよう説得する
+label	Talk {1} round (Speech)	{1}を説き伏せる（話術）
+label	Pay {1} {2} gold to let it go	金で手を引かせる：{1} {2}ゴールド
+label	Accuse {1}	{1}を告発する
+label	{1} (Speech)	{1}（話術）
+label	Bounty: {1}	賞金首：{1}
+label	Into {1} with {2}	{2}と共に{1}へ
+label	A Request	頼みごと
+label	{1} asks you to recover his stolen {2} from {3}. Reward: {4} gold.	{1}は、盗まれた{2}を{3}から取り戻してほしいと頼んでいる。報酬：{4}ゴールド。
+label	{1} asks you to recover her stolen {2} from {3}. Reward: {4} gold.	{1}は、盗まれた{2}を{3}から取り戻してほしいと頼んでいる。報酬：{4}ゴールド。
+label	{1} asks you to recover their stolen {2} from {3}. Reward: {4} gold.	{1}は、盗まれた{2}を{3}から取り戻してほしいと頼んでいる。報酬：{4}ゴールド。
+label	{1} asks you to deal with {2} at {3}. Reward: {4} gold.	{1}は、{3}にいる{2}を始末してほしいと頼んでいる。報酬：{4}ゴールド。
+label	{1} and {2} are about to clear out {3} and ask you to come in with them. Say yes and they follow you in and share what you find; say no and they go in alone.	{1}と{2}がこれから{3}を掃討しようとしていて、一緒に入ってほしいと頼んでいる。受ければ二人はあなたに続いて中へ入り、見つけた物を分け合う。断れば二人だけで入る。
+label	{1} is about to clear out {2} and asks you to come in too. Say yes and {3} follows you in and shares what you find; say no and {4} goes in alone.	{1}がこれから{2}を掃討しようとしていて、一緒に入ってほしいと頼んでいる。受ければ{3}はあなたに続いて中へ入り、見つけた物を分け合う。断れば{4}は一人で入る。
+label	{1} and {2} are on their way to clear out {3} and ask you to come along. Say yes and they follow you there and share what you find; say no and they go alone.	{1}と{2}が{3}の掃討に向かう途中で、一緒に来てほしいと頼んでいる。受ければ二人はあなたについて行き、見つけた物を分け合う。断れば二人だけで行く。
+label	{1} is on the way to clear out {2} and asks you to come along. Say yes and {3} follows you there and shares what you find; say no and {4} goes alone.	{1}が{2}の掃討に向かう途中で、一緒に来てほしいと頼んでいる。受ければ{3}はあなたについて行き、見つけた物を分け合う。断れば{4}は一人で行く。
+label	Your share of the spoils: {1} gold.	戦利品の取り分：{1}ゴールド。
+label	{1} pleads for help rescuing {2} near {3}.	{1}が、{3}の近くにいる{2}を助け出してほしいと懇願している。
+label	{1} tells you about {2} near {3}.	{1}が、{3}の近くの{2}について話してくれた。
+label	{1} rallies you to fight alongside the {2} near {3}.	{1}が、{3}の近くで{2}と共に戦えと呼びかけている。
+label	{1} urges you to rescue {2} for the {3} near {4}.	{1}が、{3}のために{4}の近くにいる{2}を救えと迫っている。
+label	{1} tells you about trouble near {2}.	{1}が、{2}の近くで起きている厄介事について話してくれた。
+label	You gave {1} {2} gold.	支払い：{1} {2}ゴールド。
+label	{1} gave you {2} (2).	{1}から{2}（2）を受け取った。
+label	{1} gave you {2} gold.	{1}から{2}ゴールドを受け取った。
+label	{1} gave you {2}.	{1}から{2}を受け取った。
+label	Someone gave you {1}.	誰かから{1}を受け取った。
+label	Informant dispatch refused: {1}.	情報屋の派遣は却下：{1}。
+label	IntelEngine: All tasks reset	IntelEngine：すべての任務をリセットした
+label	IntelEngine: Resetting all tasks...	IntelEngine：すべての任務をリセット中...
+label	Political event refused: {1} between {2} and {3}. The reason is in the IntelEngine log.	政治イベントは却下：{1}（{2}と{3}の間）。理由はIntelEngineのログにある。
+label	Political event: {1} between {2} and {3}.	政治イベント：{1}（{2}と{3}の間）。
+label	Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.	社交の派遣は却下：ナレーションがない、種類が無効、同一NPC、またはStoryEngineが利用不可。
+label	Social replacement refused: active trip changed; refresh and confirm replacement.	社交の差し替えは却下：進行中の移動が変わった。更新して差し替えを確認すること。
+label	Social replacement refused: previous trip or task is still active after cancellation.	社交の差し替えは却下：取り消し後も前の移動または任務がまだ続いている。
+label	Story dispatch refused: narration is empty.	ストーリーの派遣は却下：ナレーションが空。
+label	Story dispatch refused: StoryEngine is unavailable.	ストーリーの派遣は却下：StoryEngineが利用不可。
+label	Story engine is busy with {1} ({2}). Cancel it first.	ストーリーエンジンは{1}の件で使用中（{2}）。先に取り消すこと。
+label	Story replacement refused: previous story or task is still active after cancellation.	ストーリーの差し替えは却下：取り消し後も前のストーリーまたは任務がまだ続いている。
+label	Story replacement refused: unknown type or missing message content / informant subject and gossip.	ストーリーの差し替えは却下：種類が不明、または伝言の内容／情報屋の対象と噂がない。
+label	{1} and {2}: {3} started.	{1}と{2}：{3}を開始。
+label	{1} has no task to cancel.	{1}には取り消す任務がない。
+label	{1} is already busy ({2}). Cancel it first.	{1}はすでに任務中（{2}）。先に取り消すこと。
+label	{1} sets out ({2}).	{1}が出発した（{2}）。
+label	{1}'s task cancelled.	{1}の任務は取り消された。
+label	{1}'s task was cancelled.	{1}の任務は取り消された。
+label	{1}'s task was cancelled	{1}の任務は取り消された
+label	{1}: conduct reported.	{1}：行いを報告した。
+label	{1}: {2} failed.	{1}：{2}は失敗。
+label	{1}: {2} started.	{1}：{2}を開始。
+label	{1} isn't loaded right now (they only exist near their home), so they can't be sent from here.	{1}は今ロードされていない（自宅の近くにしか存在しない）ため、ここからは送り出せない。
+label	Couldn't find NPC '{1}' (no unique match).	NPC「{1}」が見つからない（一致が一つに絞れない）。
+label	{1} arrived - {2} is still on the way	{1}が到着 - {2}はまだ向かっている
+label	{1} brought {2}	{1}が{2}を連れてきた
+label	{1} cannot deliver a message to themselves.	{1}は自分自身に伝言を届けられない。
+label	{1} cannot deliver a message to {2}, who is dead.	{1}は{2}に伝言を届けられない。{2}はすでに死んでいる。
+label	{1} could not be found.	{1}は見つからなかった。
+label	{1} could not be found. The closest known name is {2}.	{1}は見つからなかった。最も近い名前は{2}。
+label	{1} could not find the recipient	{1}は届け先を見つけられなかった
+label	{1} could not find their target	{1}は相手を見つけられなかった
+label	{1} could not find {2} to deliver the message.	{1}は伝言を届ける相手の{2}を見つけられなかった。
+label	{1} delivered a message to {2} and is heading back	{1}は{2}に伝言を届け、戻ってくるところだ
+label	{1} delivered the message	{1}が伝言を届けた
+label	{1} escorted {2} to {3}	{1}が{2}を{3}まで送り届けた
+label	{1} found {2}	{1}が{2}を見つけた
+label	{1} gave up the search for {2}	{1}は{2}の捜索を諦めた
+label	{1} is already right here; no delivery task started.	{1}はすでにここにいる。配達の任務は始まらなかった。
+label	{1} is escorting {2} to {3}	{1}が{2}を{3}まで護衛している
+label	{1} is going to escort {2} to {3}	{1}が{2}を{3}まで護衛することになった
+label	{1} is going to search for {2}	{1}が{2}を捜しに行く
+label	{1} lost their escort target	{1}は護衛していた相手を見失った
+label	{1} returned from delivering message to {2}	{1}が{2}への伝言を届けて戻ってきた
+label	{1} went to deliver a message to {2}	{1}が{2}へ伝言を届けに出た
+label	{1} went to find {2}	{1}が{2}を呼びに行った
+label	{1}: {2} refused - {3}	{1}：{2}は断った - {3}
+label	{1} wants to go fetch {2}.	{1}が{2}を呼びに行きたがっている。
+label	{1} wants to help search for {2}.	{1}が{2}の捜索を手伝いたがっている。
+label	{1} wants to escort {2} to {3}.	{1}が{2}を{3}まで護衛したがっている。
+label	{1} wants to travel to {2}.	{1}が{2}へ向かいたがっている。
+label	{1} wants to deliver a message to {2}.	{1}が伝言を届けたがっている。相手：{2}。
+label	{1} wants to deliver a message to {2} tomorrow {3}.	{1}が明日{3}に{2}へ伝言を届けたがっている。
+label	{1} wants to deliver a message to {2} in {3} days {4}.	{1}が{3}日後の{4}に{2}へ伝言を届けたがっている。
+label	{1} wants to fetch {2}.	{1}が人を呼びに行きたがっている：{2}。
+label	{1} wants to fetch {2} tomorrow {3}.	{1}が明日{3}に{2}を呼びに行きたがっている。
+label	{1} wants to fetch {2} in {3} days {4}.	{1}が{3}日後の{4}に{2}を呼びに行きたがっている。
+label	{1} wants to meet at {2}.	{1}が会いたがっている：{2}。
+label	{1} wants to meet at {2} tomorrow {3}.	{1}が明日{3}に会いたがっている：{2}。
+label	{1} wants to meet at {2} in {3} days {4}.	{1}が{3}日後の{4}に会いたがっている：{2}。
+label	{1} wants to meet tomorrow {2}.	{1}が明日{2}に会いたがっている。
+label	{1} wants to meet in {2} days {3}.	{1}が{2}日後の{3}に会いたがっている。
+label	{1} will meet at {2}	{1}と会う約束：{2}
+label	{1} will meet at {2} tomorrow {3}	{1}と明日{3}に会う約束：{2}
+label	{1} will meet at {2} in {3} days {4}	{1}と{3}日後の{4}に会う約束：{2}
+label	{1} will meet tomorrow {2}	{1}と明日{2}に会う約束
+label	{1} will meet in {2} days {3}	{1}と{2}日後の{3}に会う約束
+label	{1} will fetch {2} {3}	{1}が呼びに行く：{2} {3}
+label	{1} will fetch {2} tomorrow {3}	{1}が明日{3}に{2}を呼びに行く
+label	{1} will fetch {2} in {3} days {4}	{1}が{3}日後の{4}に{2}を呼びに行く
+label	{1} will deliver message to {2} {3}	{1}が伝言を届ける：{2} {3}
+label	{1} will deliver message to {2} tomorrow {3}	{1}が明日{3}に{2}へ伝言を届ける
+label	{1} will deliver message to {2} in {3} days {4}	{1}が{3}日後の{4}に{2}へ伝言を届ける
+label	Not scheduled: {1} will not meet.	予定なし：{1}との待ち合わせは成立しなかった。
+label	Not scheduled: {1} will not fetch {2}.	予定なし：{1}は{2}を呼びに行かない。
+label	Not scheduled: {1} will not deliver a message to {2}.	予定なし：{1}は{2}へ伝言を届けない。
+label	Not scheduled: {1} will not {2}.	予定なし：{1}（{2}）。
+label	Not scheduled: all {1} schedule slots are in use.	予定なし：予定枠{1}件がすべて埋まっている。
+label	All scheduled tasks cancelled	予定された任務をすべて取り消した
+label	{1} could not set out for the meeting at {2}. It is off.	{1}は{2}での待ち合わせに出発できなかった。約束は取り消しだ。
+label	Quest marker unavailable (alias not found)	クエストマーカーを表示できない（エイリアスが見つからない）
+label	Quest: {1} [{2}]	クエスト：{1}［{2}］
+label	Rescue completed!	救出成功！
+label	Something feels wrong...	何かがおかしい...
+label	Sounds of fighting carry from up ahead.	前方から戦いの音が聞こえてくる。
+label	Story: {1} couldn't reach you - story ended	物語：{1}はあなたのもとへ辿り着けなかった - 物語は終了
+label	Story: {1} gave up	物語：{1}は諦めた
+label	The area is quiet. The threat seems to have moved on.	辺りは静かだ。脅威は去ったらしい。
+label	The fighting has ended before you arrived.	到着する前に戦いは終わっていた。
+label	The fighting is already underway elsewhere.	戦いはすでに別の場所で始まっている。
+label	The forces have already moved on.	部隊はすでに立ち去った。
+label	The threat has been dealt with.	脅威は取り除かれた。
+label	The {1} acknowledge your intent to fight.	{1}は、戦おうとしたあなたの意志を認めている。
+label	The {1} acknowledge your willingness to help.	{1}は、力を貸そうとしたあなたの意志を認めている。
+label	The {1} held the field unopposed.	{1}は戦わずして戦場を押さえた。
+label	The {1} speak your name with respect.	{1}では、あなたの名が敬意をもって語られている。
+label	They seem to have more to ask...	まだ頼みたいことがあるようだ...
+label	Word of your deeds reaches the {1}.	あなたの働きが{1}の耳に届いた。
+label	Word reaches you: the battle has moved on.	知らせが届いた：戦いの場は移った。
+label	You claim the {1}.	{1}を手に入れた。
+label	You hear the clink of armor ahead.	前方から鎧の触れ合う音が聞こえる。
+label	You should hurry - the situation won't hold much longer.	急いだほうがいい - この状況は長くはもたない。
+label	Your name carries weight among the {1}.	{1}の間で、あなたの名は重みを持っている。
+label	{1} can no longer lead the way. The map marker shows where to go.	{1}はもう案内できない。行き先はマップのマーカーが示している。
+label	{1} didn't make it.	{1}は助からなかった。
+label	{1} has been freed!	{1}を解放した！
+label	{1} gave you an answer for {2}.	{1}から{2}への返事を預かった。
+label	{1} gave you more time.	{1}が期限を延ばしてくれた。
+label	{1} is coming with you to see {2}.	{1}が{2}に会いに同行する。
+label	{1} needs it within half a day now.	{1}は半日以内にそれを必要としている。
+label	{1} no longer needs your help with it.	{1}はもうその件であなたの助けを必要としていない。
+label	{1} will come with you to see {2} once done here.	{1}は、ここでの用が済み次第{2}に会いに同行する。
+label	{1} will give you {2} gold for it.	{1}はその礼に{2}ゴールドを払う。
+label	{1} arrived at {2}	{1}が{2}に到着した
+label	{1} arrived late to {2} and eventually gave up waiting for you	{1}は{2}に遅れて着き、結局あなたを待つのをやめた
+label	{1} arrived too late for the meeting at {2}	{1}は{2}での待ち合わせに間に合わなかった
+label	{1} could not come to the meeting at {2}. It is off.	{1}は{2}での待ち合わせに来られなかった。約束は取り消しだ。
+label	{1} got tired of waiting for you at {2}	{1}は{2}であなたを待ちくたびれた
+label	{1} headed off after the meeting	{1}は待ち合わせの後、立ち去った
+label	{1} headed off to {2}	{1}が{2}へ向かった
+label	{1} left {2}	{1}が{2}を後にした
+label	{1} met you at {2}	{1}と{2}で落ち合った
+label	{1} never made it to the meeting at {2}	{1}は{2}での待ち合わせに現れなかった
+label	The {1} now count you an Auxiliary.	{1}での階級が「補助兵」になった。
+label	The {1} now count you a Sworn Sword.	{1}での階級が「誓いの剣」になった。
+label	The {1} now count you a Veteran.	{1}での階級が「古参兵」になった。
+label	The {1} now count you a Captain.	{1}での階級が「隊長」になった。
+label	The {1} now count you a Champion.	{1}での階級が「勇士」になった。
+label	The {1} now count you an Associate.	{1}での階級が「協力者」になった。
+label	The {1} now count you a Trusted Hand.	{1}での階級が「腹心」になった。
+label	The {1} now count you a Lieutenant.	{1}での階級が「副官」になった。
+label	The {1} now count you a Right Hand.	{1}での階級が「右腕」になった。
+label	The {1} now count you a Hired Blade.	{1}での階級が「雇われ剣士」になった。
+label	The {1} now count you a Retainer.	{1}での階級が「家臣」になった。
+label	The {1} now count you a Trusted Retainer.	{1}での階級が「信任厚い家臣」になった。
+label	The {1} now count you a Sworn Captain.	{1}での階級が「誓約の隊長」になった。
+label	The {1} now count you a Champion of the House.	{1}での階級が「一門の勇士」になった。
+label	The trail leads on to the north.	痕跡は北へ続いている。
+label	The trail leads on to the north-east.	痕跡は北東へ続いている。
+label	The trail leads on to the east.	痕跡は東へ続いている。
+label	The trail leads on to the south-east.	痕跡は南東へ続いている。
+label	The trail leads on to the south.	痕跡は南へ続いている。
+label	The trail leads on to the south-west.	痕跡は南西へ続いている。
+label	The trail leads on to the west.	痕跡は西へ続いている。
+label	The trail leads on to the north-west.	痕跡は北西へ続いている。
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	（今日 {1}）
+label	tomorrow at {1}	（明日 {1}）
+label	in {1} days at {2}	（{1}日後 {2}）
+label	{1} will meet at {2} {3}	{1}と待ち合わせ。場所：{2} {3}
+label	{1} will meet {2}	{1}と待ち合わせ {2}
+label	{1} wants to meet at {2} {3}.	{1}が会いたがっている。場所：{2} {3}。
+label	{1} wants to meet {2}.	{1}が会いたがっている {2}。
+label	{1} wants to fetch {2} {3}.	{1}が呼びに行きたがっている：{2} {3}。
+label	{1} wants to deliver a message to {2} {3}.	{1}が伝言を届けたがっている：{2} {3}。
+label	Not scheduled: {1} will not meet at {2}.	予定なし：{1}との待ち合わせはない（場所：{2}）。
+label	{1} soldiers of the {2} keep by your side.	{2}の兵士（{1}）がそばに付いた。
+label	Quest dispatch refused: {1}.	クエストの派遣は却下：{1}。
+label	IntelEngine: Slot {1} cleared	IntelEngine：枠{1}を空けた
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1}はまだ手が離せず、取り決めを守れなかった（{2}）。取り消しだ。
