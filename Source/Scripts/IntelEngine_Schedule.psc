@@ -201,8 +201,7 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledDepartureHours", travelHoursEstimate)
     Core.DebugMsg("Departure buffer for " + akNPC.GetDisplayName() + ": " + travelHoursEstimate + "h (meeting in " + hoursUntilMeeting + "h)")
 
-    String timeDesc = GetPreciseTimeDescription(targetHour)
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " will " + meetingDescription + " " + timeDesc)
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " will " + meetingDescription + " " + ShownTime(targetHour))
     Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", condition='" + timeCondition + "')")
 
     ; 4.0: the meeting goes in the journal ("Meet <name> at <place>") until the waiting time after it is over
@@ -242,8 +241,7 @@ Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition
     ScheduledTargetNames[slot] = targetName
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledTargetName", targetName)
 
-    String timeDesc = GetPreciseTimeDescription(targetHour)
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " will fetch " + targetName + " " + timeDesc)
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " will fetch " + targetName + " " + ShownTime(targetHour))
     Core.DebugMsg("Scheduled fetch: " + akNPC.GetDisplayName() + " ? fetch " + targetName + " at game time " + ScheduledTimes[slot])
 
     RegisterForNextDispatch()
@@ -280,8 +278,7 @@ Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetLocation", meetLocation)
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetTime", meetTime)
 
-    String timeDesc = GetPreciseTimeDescription(targetHour)
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " will deliver message to " + targetName + " " + timeDesc)
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " will deliver message to " + targetName + " " + ShownTime(targetHour))
     Core.DebugMsg("Scheduled delivery: " + akNPC.GetDisplayName() + " ? message to " + targetName + " at game time " + ScheduledTimes[slot])
 
     RegisterForNextDispatch()
@@ -322,8 +319,7 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
 
     ; Per-action confirmation prompt — BEFORE clearing any existing schedules
     String npcName = akNPC.GetDisplayName()
-    String timePreview = GetPreciseTimeDescription(targetHour)
-    String promptText = npcName + " wants to " + taskDescription + " " + timePreview + "."
+    String promptText = npcName + " wants to " + taskDescription + " " + ShownTime(targetHour) + "."
     Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, promptText, scheduleActionName, taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule that.")
@@ -442,6 +438,37 @@ EndFunction
 String Function GetPreciseTimeDescription(Float hour)
     ; C++ handles all time formatting logic (stale-bytecode-safe)
     return IntelEngine.GetPreciseTimeDescription(hour, Utility.GetCurrentGameTime())
+EndFunction
+
+; The time of an appointment as the player reads it. In English as before ("tomorrow 8 AM"); in a language with a pack
+; on the clock of twenty-four hours, through the pack ("tomorrow at 20:30" -> "morgen um 20:30"): AM and PM are no
+; part of German, French, Russian or Spanish. What the model is told stays GetPreciseTimeDescription's English.
+String Function ShownTime(Float hour)
+    String english = GetPreciseTimeDescription(hour)
+    If IntelEngine.TextLanguage() == ""
+        Return english
+    EndIf
+    String prefix = ""
+    If StringUtil.Find(english, "tomorrow ") == 0
+        prefix = "tomorrow "
+    ElseIf StringUtil.Find(english, "in ") == 0
+        Int days = StringUtil.Find(english, " days ")
+        If days > 3
+            prefix = StringUtil.Substring(english, 0, days + 6)
+        EndIf
+    EndIf
+    Float h = hour
+    While h >= 24.0
+        h -= 24.0
+    EndWhile
+    Int whole = h as Int
+    Int minute = ((h - whole) * 60.0) as Int
+    String clock = whole + ":"
+    If minute < 10
+        clock += "0"
+    EndIf
+    clock += minute
+    Return IntelEngine.L(prefix + "at " + clock)
 EndFunction
 
 String Function GetTimeDescription(Float hour)

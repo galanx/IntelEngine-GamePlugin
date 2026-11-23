@@ -283,13 +283,11 @@ label	{1} wants to fetch {2}.	{1}想去把人找來：{2}。
 label	{1} wants to fetch {2} tomorrow {3}.	{1}想在明天{3}去把{2}找來。
 label	{1} wants to fetch {2} in {3} days {4}.	{1}想在{3}天後{4}去把{2}找來。
 label	{1} wants to meet at {2}.	{1}想與你會面：{2}。
-label	{1} wants to meet {2}.	{1}想在{2}與你會面。
 label	{1} wants to meet at {2} tomorrow {3}.	{1}想在明天{3}與你會面：{2}。
 label	{1} wants to meet at {2} in {3} days {4}.	{1}想在{3}天後{4}與你會面：{2}。
 label	{1} wants to meet tomorrow {2}.	{1}想在明天{2}與你會面。
 label	{1} wants to meet in {2} days {3}.	{1}想在{2}天後{3}與你會面。
 label	{1} will meet at {2}	{1}將與你會面：{2}
-label	{1} will meet {2}	{1}將於{2}與你會面
 label	{1} will meet at {2} tomorrow {3}	{1}將於明天{3}與你會面：{2}
 label	{1} will meet at {2} in {3} days {4}	{1}將於{3}天後{4}與你會面：{2}
 label	{1} will meet tomorrow {2}	{1}將於明天{2}與你會面
@@ -300,7 +298,6 @@ label	{1} will fetch {2} in {3} days {4}	{1}將於{3}天後{4}去找{2}
 label	{1} will deliver message to {2} {3}	{1}將送口信給{2} {3}
 label	{1} will deliver message to {2} tomorrow {3}	{1}將於明天{3}給{2}送口信
 label	{1} will deliver message to {2} in {3} days {4}	{1}將於{3}天後{4}給{2}送口信
-label	Not scheduled: {1} will not meet at {2}.	未排定：{1}不會在{2}與你會面。
 label	Not scheduled: {1} will not meet.	未排定：{1}不會與你會面。
 label	Not scheduled: {1} will not fetch {2}.	未排定：{1}不會去找{2}。
 label	Not scheduled: {1} will not deliver a message to {2}.	未排定：{1}不會給{2}送口信。
@@ -373,3 +370,18 @@ label	The trail leads on to the south.	蹤跡向南延伸。
 label	The trail leads on to the south-west.	蹤跡向西南延伸。
 label	The trail leads on to the west.	蹤跡向西延伸。
 label	The trail leads on to the north-west.	蹤跡向西北延伸。
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	（今天 {1}）
+label	tomorrow at {1}	（明天 {1}）
+label	in {1} days at {2}	（{1}天後 {2}）
+label	{1} will meet at {2} {3}	與{1}會面，地點：{2} {3}
+label	{1} will meet {2}	與{1}會面 {2}
+label	{1} wants to meet at {2} {3}.	{1}想與你會面，地點：{2} {3}。
+label	{1} wants to meet {2}.	{1}想與你會面 {2}。
+label	{1} wants to fetch {2} {3}.	{1}想去找人：{2} {3}。
+label	{1} wants to deliver a message to {2} {3}.	{1}想送口信給：{2} {3}。
+label	Not scheduled: {1} will not meet at {2}.	未排定：不會與{1}會面（地點：{2}）。
+label	{1} soldiers of the {2} keep by your side.	{2}的士兵（{1}）守在你身邊。
+label	Quest dispatch refused: {1}.	任務派遣遭拒：{1}。
+label	IntelEngine: Slot {1} cleared	IntelEngine：欄位{1}已清空
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1}仍被其他事情纏身，無法履行約定（{2}）。已取消。

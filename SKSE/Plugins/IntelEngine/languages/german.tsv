@@ -283,13 +283,11 @@ label	{1} wants to fetch {2}.	{1} möchte jemanden holen: {2}.
 label	{1} wants to fetch {2} tomorrow {3}.	{1} möchte {2} morgen um {3} holen.
 label	{1} wants to fetch {2} in {3} days {4}.	{1} möchte {2} in {3} Tagen um {4} holen.
 label	{1} wants to meet at {2}.	{1} möchte Euch treffen: {2}.
-label	{1} wants to meet {2}.	{1} möchte Euch um {2} treffen.
 label	{1} wants to meet at {2} tomorrow {3}.	{1} möchte Euch morgen um {3} treffen: {2}.
 label	{1} wants to meet at {2} in {3} days {4}.	{1} möchte Euch in {3} Tagen um {4} treffen: {2}.
 label	{1} wants to meet tomorrow {2}.	{1} möchte Euch morgen um {2} treffen.
 label	{1} wants to meet in {2} days {3}.	{1} möchte Euch in {2} Tagen um {3} treffen.
 label	{1} will meet at {2}	{1} trifft Euch: {2}
-label	{1} will meet {2}	{1} trifft Euch um {2}
 label	{1} will meet at {2} tomorrow {3}	{1} trifft Euch morgen um {3}: {2}
 label	{1} will meet at {2} in {3} days {4}	{1} trifft Euch in {3} Tagen um {4}: {2}
 label	{1} will meet tomorrow {2}	{1} trifft Euch morgen um {2}
@@ -300,7 +298,6 @@ label	{1} will fetch {2} in {3} days {4}	{1} holt {2} in {3} Tagen um {4}
 label	{1} will deliver message to {2} {3}	{1} überbringt eine Nachricht: {2} {3}
 label	{1} will deliver message to {2} tomorrow {3}	{1} überbringt {2} morgen um {3} eine Nachricht
 label	{1} will deliver message to {2} in {3} days {4}	{1} überbringt {2} in {3} Tagen um {4} eine Nachricht
-label	Not scheduled: {1} will not meet at {2}.	Nicht geplant: kein Treffen mit {1} bei {2}.
 label	Not scheduled: {1} will not meet.	Nicht geplant: kein Treffen mit {1}.
 label	Not scheduled: {1} will not fetch {2}.	Nicht geplant: {1} holt {2} nicht.
 label	Not scheduled: {1} will not deliver a message to {2}.	Nicht geplant: {1} überbringt {2} keine Nachricht.
@@ -373,3 +370,18 @@ label	The trail leads on to the south.	Die Spur führt weiter nach Süden.
 label	The trail leads on to the south-west.	Die Spur führt weiter nach Südwesten.
 label	The trail leads on to the west.	Die Spur führt weiter nach Westen.
 label	The trail leads on to the north-west.	Die Spur führt weiter nach Nordwesten.
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	(heute, {1} Uhr)
+label	tomorrow at {1}	(morgen, {1} Uhr)
+label	in {1} days at {2}	(in {1} Tagen, {2} Uhr)
+label	{1} will meet at {2} {3}	Treffen mit {1} – Ort: {2} {3}
+label	{1} will meet {2}	Treffen mit {1} {2}
+label	{1} wants to meet at {2} {3}.	{1} möchte sich mit Euch treffen – Ort: {2} {3}.
+label	{1} wants to meet {2}.	{1} möchte sich mit Euch treffen {2}.
+label	{1} wants to fetch {2} {3}.	{1} möchte jemanden holen: {2} {3}.
+label	{1} wants to deliver a message to {2} {3}.	{1} möchte eine Nachricht überbringen: {2} {3}.
+label	Not scheduled: {1} will not meet at {2}.	Nicht geplant: kein Treffen mit {1} – Ort: {2}.
+label	{1} soldiers of the {2} keep by your side.	{1} Soldaten von {2} bleiben an Eurer Seite.
+label	Quest dispatch refused: {1}.	Quest-Entsendung abgelehnt: {1}.
+label	IntelEngine: Slot {1} cleared	IntelEngine: Platz {1} freigegeben
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} ist noch anderweitig gebunden und konnte die Abmachung nicht einhalten ({2}). Sie fällt aus.
