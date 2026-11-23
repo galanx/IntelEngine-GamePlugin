@@ -1,8 +1,16 @@
 # Changelog
 
-## 4.0.0 — unreleased
+## 4.0.0-alpha.1 — 2026-11-23, a test build for the community
 
 The living world, by Galanx. People you know get on with their lives while you are away, ask things of you that the journal keeps, and come back to what is still open between you. Six new settings under "Living world" decide how much of it you get; at "Classic" everything stays as it was in 3.8.
+
+**This is an alpha.** All of 4.0 is in it and every offline check passes, but it has been played only on the author's own setups: a small test setup and one full Nolvus Awakening load order, on Skyrim SE 1.5.97 with SkyrimNet 1.2.0 and 1.3.1. On the big load order, battles were played many times; a story, a quest, a haunting and the talk of the day were not yet played there to their end. Not played anywhere on this build: a tale from its beginning to its end, a faction's own quest above "Classic", the director's rescue, a skirmish in the new battle form. A 3.8 save carried over to 4.0 was not tested on a real playthrough: start a new game, or keep a copy of your save. Please report what you see, with `IntelEngine.log` and `SkyrimNet.log`.
+
+### Contributors
+- **Galanx** designed and wrote 4.0.
+- **Gerkinfeltser**: eight pull requests against 3.8.3, taken into this version (see "From Gerkinfeltser's pull requests" below), and 3.8.3 itself, on which 4.0 is built.
+- **Nikolay Polukhin**: an NPC asked to escort you leads you, instead of escorting somebody whose name is like yours (in 3.8.3).
+- **Lanosity**: the natural-language time parser (since 3.8.0), which 4.0's readers of other languages build on.
 
 ### No stutter
 Nothing IntelEngine does takes more than about half a millisecond of one frame of play any more (measured on the test profile, every round logged):
