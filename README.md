@@ -564,7 +564,7 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 ## Requirements
 
-- Skyrim Special Edition / Anniversary Edition. 4.0 (alpha) and 3.8 were tested on Skyrim SE 1.5.97, on a small test setup and on a full Nolvus Awakening load order; they were not retested on the newer runtimes. 4.0 alpha 2 also loads and plays on Skyrim VR 1.4.15 (the load crash of alpha 1 is fixed). 3.6.0 was tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested.
+- Skyrim Special Edition / Anniversary Edition. 4.0 (alpha) and 3.8 were tested on Skyrim SE 1.5.97, on a small test setup and on a full Nolvus Awakening load order; beyond that, the maintainer ran alpha 3's fix for Skyrim 1.7 on 1.6.1170, 1.7.104 and VR 1.4.15, on the build just before alpha 3 (the game starts, a save loads, arrivals are logged; the start-up crash on 1.7 and the load crash on VR of the earlier alphas are fixed), and nothing more of 4.0 has been played on those versions yet. 3.6.0 was tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested.
 - [SKSE](https://skse.silverlock.org/)
 - [SkyrimNet](https://github.com/MinLL/SkyrimNet-GamePlugin): 4.0 (alpha) was played with SkyrimNet 1.2.0 and 1.3.1; 3.8 was tested with SkyrimNet 1.1.1 Alpha; Beta 28 was used for 3.6.0 testing. Declared minimum: Beta 27.
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
