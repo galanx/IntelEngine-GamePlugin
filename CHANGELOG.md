@@ -193,7 +193,6 @@ Found by going through 3.8 feature by feature:
 - **What was being shown when you saved is not lost.** An attempt on a leader's life, a brawl or a skirmish held back to be seen is kept with the save, and told as written if it cannot be shown after loading. A battle 3.8 announced for an hour of its own is dropped with a line in the log, not in silence.
 - **An older save does not announce old deaths as news.** The leaders already dead in a save made before 4.0 are remembered as dead, not told as fresh news.
 - **A second, different failure is told.** An NPC who could not do one thing was muted for two minutes for anything else that failed too, and promised what never happened. The same failure is still told once.
-- **Your own model for IntelEngine is used for everything.** With "LLM Overrides" set on SkyrimNet's page, the director's judging, the bond readings and a tale's turns went to SkyrimNet's decision model anyway. They go to yours now, as every call of 3.8 did.
 - **Upgrading a save.** A save made on 3.7.1 was loaded with this version: it comes up at "Lives" with the default pace, not at "Classic" (a script comment in the mod claimed new settings read zero on old saves; they take their defaults).
 
 ### Followers you left behind
