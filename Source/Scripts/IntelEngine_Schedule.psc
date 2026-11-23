@@ -37,6 +37,10 @@ Float Property HOUR_MIDNIGHT = 0.0 AutoReadOnly
 ; Gives pathfinding time to navigate across the map
 Float Property DEPARTURE_BUFFER_HOURS = 2.0 AutoReadOnly
 
+; Someone a quest of the game holds when their arranged hour comes is asked again this often, this many times.
+Int Property SCHEDULE_HELD_TRIES = 8 AutoReadOnly
+Float Property SCHEDULE_HELD_WAIT_HOURS = 0.25 AutoReadOnly
+
 ; =============================================================================
 ; SCHEDULED TASK TRACKING
 ; =============================================================================
@@ -63,8 +67,10 @@ Int Property MAX_SCHEDULED = 10 AutoReadOnly
 ; =============================================================================
 
 Event OnInit()
+    ; Nothing here may call another script: an OnInit that waits on Core while Core's first Maintenance waits for
+    ; this OnInit to finish left the whole quest stuck on new games (3.8.2; dashboard empty, MCM frozen). The
+    ; game-time tick is asked for by RestartMonitoring, which Maintenance calls on the first load too.
     InitializeScheduleArrays()
-    Core.RequestGameTimeTick(1.0)  ; Check every game hour
 EndEvent
 
 ; NOTE: Quest scripts do NOT receive OnPlayerLoadGame events.
@@ -129,6 +135,15 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
         Return false
     EndIf
 
+    ; A place nobody can find is no place to meet: said now, before the player is asked and before anyone is told
+    ; it is agreed. It used to be put in the calendar and announced, and only fell through when the hour came ("I get
+    ; the popup but nothing gets scheduled"; "meet Dromeda at . I should already be there").
+    If destination != "none" && IntelEngine.ResolveAnyDestination(akNPC, destination) == None && IntelEngine.ResolveSkyrimNetPlace(akNPC, destination) == None
+        Core.DebugMsg("Schedule: no meeting for " + akNPC.GetDisplayName() + ": '" + destination + "' is no place that can be found")
+        Core.TellFailure(akNPC, akNPC.GetDisplayName() + " does not know a place called '" + destination + "' to meet at: nothing was arranged.")
+        Return false
+    EndIf
+
     ; Shared scheduling scaffolding: time parse ? MCM confirm ? override ? allocate
     String meetingDescription = "meet"
     If destination != "none"
@@ -164,6 +179,10 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     Float currentGameTime = Utility.GetCurrentGameTime()
     Float hoursUntilMeeting = (meetingGameTime - currentGameTime) * 24.0
     ObjectReference destRef = IntelEngine.ResolveAnyDestination(akNPC, destination)
+    If destRef == None
+        ; A place named in SkyrimNet: its anchor is close enough for the estimate (the trip itself resolves it again).
+        destRef = IntelEngine.ResolveSkyrimNetPlace(akNPC, destination)
+    EndIf
     Float travelHoursEstimate = DEPARTURE_BUFFER_HOURS
     If destRef != None
         Float travelDeadline = IntelEngine.CalculateDeadlineFromDistance(akNPC, destRef, false, 1.0, 12.0)
@@ -182,9 +201,15 @@ Bool Function ScheduleMeeting(Actor akNPC, String destination, String timeCondit
     StorageUtil.SetFloatValue(akNPC, "Intel_ScheduledDepartureHours", travelHoursEstimate)
     Core.DebugMsg("Departure buffer for " + akNPC.GetDisplayName() + ": " + travelHoursEstimate + "h (meeting in " + hoursUntilMeeting + "h)")
 
-    String timeDesc = GetPreciseTimeDescription(targetHour)
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " will " + meetingDescription + " " + timeDesc)
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " will " + meetingDescription + " " + ShownTime(targetHour))
     Core.DebugMsg("Scheduled: " + akNPC.GetDisplayName() + " ? " + destination + " at game time " + meetingGameTime + " (hour " + targetHour + ", condition='" + timeCondition + "')")
+
+    ; 4.0: the meeting goes in the journal ("Meet <name> at <place>") until the waiting time after it is over
+    IntelEngine_Threads threads = Quest.GetQuest("IntelEngine_Threads") as IntelEngine_Threads
+    If threads != None && destRef != None
+        Float waitHours = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 5.0)
+        threads.OpenMeeting(akNPC, destRef, (meetingGameTime - currentGameTime) + waitHours / 24.0)
+    EndIf
 
     RegisterForNextDispatch()
     Return true
@@ -216,8 +241,7 @@ Bool Function ScheduleFetch(Actor akNPC, String targetName, String timeCondition
     ScheduledTargetNames[slot] = targetName
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledTargetName", targetName)
 
-    String timeDesc = GetPreciseTimeDescription(targetHour)
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " will fetch " + targetName + " " + timeDesc)
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " will fetch " + targetName + " " + ShownTime(targetHour))
     Core.DebugMsg("Scheduled fetch: " + akNPC.GetDisplayName() + " ? fetch " + targetName + " at game time " + ScheduledTimes[slot])
 
     RegisterForNextDispatch()
@@ -254,8 +278,7 @@ Bool Function ScheduleDelivery(Actor akNPC, String targetName, String msgContent
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetLocation", meetLocation)
     StorageUtil.SetStringValue(akNPC, "Intel_ScheduledMeetTime", meetTime)
 
-    String timeDesc = GetPreciseTimeDescription(targetHour)
-    Core.NotifyPlayer(akNPC.GetDisplayName() + " will deliver message to " + targetName + " " + timeDesc)
+    Core.NotifyPlayer(akNPC.GetDisplayName() + " will deliver message to " + targetName + " " + ShownTime(targetHour))
     Core.DebugMsg("Scheduled delivery: " + akNPC.GetDisplayName() + " ? message to " + targetName + " at game time " + ScheduledTimes[slot])
 
     RegisterForNextDispatch()
@@ -282,6 +305,13 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
     ; Parse time condition
     Float targetHour = IntelEngine.ParseTimeCondition(timeCondition)
     If targetHour < 0.0
+        If timeCondition != ""
+            ; A time was named and could not be read: nothing is arranged, and they are told. It used to become "this
+            ; evening" without a word, in the popup and in the calendar ("tomorrow at 10 am" fell back to the evening).
+            Core.DebugMsg("Schedule: the time '" + timeCondition + "' could not be read: nothing arranged")
+            Core.TellFailure(akNPC, akNPC.GetDisplayName() + " could not make out when that was meant to be (\"" + timeCondition + "\"): nothing was arranged.")
+            Return -1
+        EndIf
         targetHour = HOUR_EVENING
     EndIf
     Float currentHour = GetCurrentGameHour()
@@ -289,8 +319,7 @@ Int Function PrepareScheduleSlot(Actor akNPC, String taskType, String taskDescri
 
     ; Per-action confirmation prompt — BEFORE clearing any existing schedules
     String npcName = akNPC.GetDisplayName()
-    String timePreview = GetPreciseTimeDescription(targetHour)
-    String promptText = npcName + " wants to " + taskDescription + " " + timePreview + "."
+    String promptText = npcName + " wants to " + taskDescription + " " + ShownTime(targetHour) + "."
     Int confirmResult = Core.ShowTaskConfirmationForAction(akNPC, promptText, scheduleActionName, taskOrigin)
     If confirmResult == 1
         Core.SendTaskNarration(akNPC, Game.GetPlayer().GetDisplayName() + " told " + npcName + " not to schedule that.")
@@ -411,6 +440,37 @@ String Function GetPreciseTimeDescription(Float hour)
     return IntelEngine.GetPreciseTimeDescription(hour, Utility.GetCurrentGameTime())
 EndFunction
 
+; The time of an appointment as the player reads it. In English as before ("tomorrow 8 AM"); in a language with a pack
+; on the clock of twenty-four hours, through the pack ("tomorrow at 20:30" -> "morgen um 20:30"): AM and PM are no
+; part of German, French, Russian or Spanish. What the model is told stays GetPreciseTimeDescription's English.
+String Function ShownTime(Float hour)
+    String english = GetPreciseTimeDescription(hour)
+    If IntelEngine.TextLanguage() == ""
+        Return english
+    EndIf
+    String prefix = ""
+    If StringUtil.Find(english, "tomorrow ") == 0
+        prefix = "tomorrow "
+    ElseIf StringUtil.Find(english, "in ") == 0
+        Int days = StringUtil.Find(english, " days ")
+        If days > 3
+            prefix = StringUtil.Substring(english, 0, days + 6)
+        EndIf
+    EndIf
+    Float h = hour
+    While h >= 24.0
+        h -= 24.0
+    EndWhile
+    Int whole = h as Int
+    Int minute = ((h - whole) * 60.0) as Int
+    String clock = whole + ":"
+    If minute < 10
+        clock += "0"
+    EndIf
+    clock += minute
+    Return IntelEngine.L(prefix + "at " + clock)
+EndFunction
+
 String Function GetTimeDescription(Float hour)
     ; C++ handles hour-to-description mapping
     return IntelEngine.GetTimeDescription(hour)
@@ -462,6 +522,8 @@ Function ClearScheduleSlot(Int slot)
         StorageUtil.UnsetStringValue(npc, "Intel_ScheduledOrigin")
         StorageUtil.UnsetFloatValue(npc, "Intel_ScheduledStartTime")
         StorageUtil.UnsetStringValue(npc, "Intel_ScheduledReason")
+        StorageUtil.UnsetIntValue(npc, "Intel_ScheduleHeldTries")
+        StorageUtil.UnsetFloatValue(npc, "Intel_ScheduleHeldUntil")
     EndIf
 
     ScheduledAgents[slot] = None
@@ -604,6 +666,30 @@ Function RunScheduledTask(Int slot)
         ClearScheduleSlot(slot)
         Return
     EndIf
+
+    ; Held by the game right now (a real quest's scene, an objective of the player's that points at them): what was
+    ; arranged waits and is tried again, SCHEDULE_HELD_TRIES times a quarter of a game hour apart. 4.0 called a meeting
+    ; off at the first look and dropped a fetch or a message without a word (a scene of the background, the bard's
+    ; songs or a chat at the inn, holds nobody: Core.HeldByTheGame).
+    If Core.HeldByTheGame(npc)
+        Int heldTries = StorageUtil.GetIntValue(npc, "Intel_ScheduleHeldTries") + 1
+        If heldTries <= SCHEDULE_HELD_TRIES
+            StorageUtil.SetIntValue(npc, "Intel_ScheduleHeldTries", heldTries)
+            StorageUtil.SetFloatValue(npc, "Intel_ScheduleHeldUntil", Utility.GetCurrentGameTime() + SCHEDULE_HELD_WAIT_HOURS / 24.0)
+            Core.DebugMsg("Schedule: " + npc.GetDisplayName() + " is held by a quest of the game right now - " + taskType + " tried again in a quarter of an hour (" + heldTries + " of " + SCHEDULE_HELD_TRIES + ")")
+            Return
+        EndIf
+        Core.DebugMsg("Schedule: " + npc.GetDisplayName() + " was held by a quest of the game at every try - " + taskType + " is off")
+        String heldWhat = destination
+        If taskType != "travel"
+            heldWhat = targetName
+        EndIf
+        Core.NotifyPlayer(npc.GetDisplayName() + " is still caught up in something and could not keep what was arranged (" + heldWhat + "). It is off.")
+        ClearScheduleSlot(slot)
+        Return
+    EndIf
+    StorageUtil.UnsetIntValue(npc, "Intel_ScheduleHeldTries")
+    StorageUtil.UnsetFloatValue(npc, "Intel_ScheduleHeldUntil")
 
     ; If NPC is already on a task, clear it first so the scheduled task takes priority
     If npc.IsInFaction(Core.IntelEngine_TaskFaction)
@@ -774,6 +860,11 @@ Float Function GetSlotDispatchTime(Int slot)
     If ScheduledTaskTypes[slot] == "travel"
         Float departHours = StorageUtil.GetFloatValue(ScheduledAgents[slot], "Intel_ScheduledDepartureHours", DEPARTURE_BUFFER_HOURS)
         dispatchTime = ScheduledTimes[slot] - (departHours / 24.0)
+    EndIf
+    ; Held by a quest of the game at the last try: not before the next one (RunScheduledTask).
+    Float heldUntil = StorageUtil.GetFloatValue(ScheduledAgents[slot], "Intel_ScheduleHeldUntil", 0.0)
+    If heldUntil > dispatchTime
+        dispatchTime = heldUntil
     EndIf
     Return dispatchTime
 EndFunction

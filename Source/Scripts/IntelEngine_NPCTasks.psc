@@ -259,7 +259,7 @@ Function StartTargetLinger(Actor target, Actor agent)
     Core.RemoveIntelPackages(target, false)
 
     ; Phase 1: Walk toward the player
-    Core.ReleaseFromBardHold(target)
+    Core.ReleaseFromBardHold(target, true)
     PO3_SKSEFunctions.SetLinkedRef(target, player as ObjectReference, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
@@ -502,11 +502,9 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         true if fetch task started successfully
     }
 
-    ; Carriage drivers are never sent on errands (see Core.IsUnsuitableTaskAgent).
-    If Core.IsUnsuitableTaskAgent(akAgent)
-        If akAgent != None
-            Core.DebugMsg("FetchNPC: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver)")
-        EndIf
+    ; Carriage drivers are never sent on errands, nor anyone a quest of the game holds right now (told why: see
+    ; Core.RefusesTask).
+    If Core.RefusesTask(akAgent, "FetchNPC")
         Return false
     EndIf
 
@@ -553,9 +551,9 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
         ; NPC not found - describe the situation, let NPC decide their response
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
+            Core.TellFailure(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
+            Core.TellFailure(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -567,7 +565,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     EndIf
 
     If targetNPC.IsDisabled()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
         Return false
     EndIf
 
@@ -593,13 +591,13 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     ; of their own would, and the carriage service is broken from then on (see Core.IsUnsuitableTaskAgent).
     If Core.IsCarriageDriver(targetNPC)
         Core.DebugMsg("FetchNPC: " + targetNPC.GetDisplayName() + " is a carriage driver - not fetched")
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to fetch " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " was asked to fetch " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
         Return false
     EndIf
 
     ; A slot has to be there: a free one, or the one this agent's current task gives up.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -625,7 +623,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     ; Find free slot
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -651,7 +649,7 @@ Bool Function FetchNPC(Actor akAgent, String targetName, String failReason = "no
     StorageUtil.SetFormValue(akAgent, "Intel_DestMarker", destMarker)
     ; Derive shouldFail from failReason (merged parameter)
     Int shouldFail = 0
-    If failReason != "none" && failReason != ""
+    If !IntelEngine.IsNoneWord(failReason)   ; "none" in any language in force (it came back as "net", and was a reason)
         shouldFail = 1
     EndIf
     StorageUtil.SetIntValue(akAgent, "Intel_ShouldFail", shouldFail)
@@ -724,11 +722,9 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
         true if delivery task started
     }
 
-    ; Carriage drivers are never sent on errands (see Core.IsUnsuitableTaskAgent).
-    If Core.IsUnsuitableTaskAgent(akAgent)
-        If akAgent != None
-            Core.DebugMsg("DeliverMessage: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver)")
-        EndIf
+    ; Carriage drivers are never sent on errands, nor anyone a quest of the game holds right now (told why: see
+    ; Core.RefusesTask).
+    If Core.RefusesTask(akAgent, "DeliverMessage")
         Return false
     EndIf
 
@@ -800,7 +796,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     ; A slot has to be there: a free one, or the one this agent's current task gives up. Checked before
     ; that task is called off: with no slot to be had it was cancelled for nothing.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -810,7 +806,7 @@ Bool Function DeliverMessage(Actor akAgent, String targetName, String msgContent
     ; Find slot
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -901,11 +897,9 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
         true if search task started successfully
     }
 
-    ; Carriage drivers are never sent on errands (see Core.IsUnsuitableTaskAgent).
-    If Core.IsUnsuitableTaskAgent(akAgent)
-        If akAgent != None
-            Core.DebugMsg("SearchForActor: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver)")
-        EndIf
+    ; Carriage drivers are never sent on errands, nor anyone a quest of the game holds right now (told why: see
+    ; Core.RefusesTask).
+    If Core.RefusesTask(akAgent, "SearchForActor")
         Return false
     EndIf
 
@@ -949,9 +943,9 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     If targetNPC == None
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
+            Core.TellFailure(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
+            Core.TellFailure(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -962,7 +956,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     EndIf
 
     If targetNPC.IsDisabled()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
         Return false
     EndIf
 
@@ -978,7 +972,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
 
     ; A slot has to be there: a free one, or the one this agent's current task gives up.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -991,7 +985,7 @@ Bool Function SearchForActor(Actor akAgent, String targetName, Int speed = 0, St
     ; Find free slot
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -1068,11 +1062,9 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
         true if escort task started successfully
     }
 
-    ; Carriage drivers are never sent on errands (see Core.IsUnsuitableTaskAgent).
-    If Core.IsUnsuitableTaskAgent(akAgent)
-        If akAgent != None
-            Core.DebugMsg("EscortTarget: " + akAgent.GetDisplayName() + " is not sent on tasks (carriage driver)")
-        EndIf
+    ; Carriage drivers are never sent on errands, nor anyone a quest of the game holds right now (told why: see
+    ; Core.RefusesTask).
+    If Core.RefusesTask(akAgent, "EscortTarget")
         Return false
     EndIf
 
@@ -1091,6 +1083,15 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     If akAgent.IsDead() || akAgent.IsInCombat()
         Core.DebugMsg("EscortTarget: Agent dead or in combat")
         Return false
+    EndIf
+
+    ; "Take me to X": models pick EscortTarget with the player as target despite the action rules. The name
+    ; lookup below never returns the player, so it grabbed an NPC whose name merely contains the player's
+    ; (a summoned "Shadow <player name>" across the map) and walked off to it. Lead the player instead.
+    Actor player = Game.GetPlayer()
+    If targetName == player.GetDisplayName() || targetName == player.GetActorBase().GetName()
+        Core.DebugMsg("EscortTarget: target is the player, leading them there via GoToLocation")
+        Return Travel.GoToLocation(akAgent, destination, 0, 1, false, taskOrigin)
     EndIf
 
     ; Duplicate action guard
@@ -1122,9 +1123,9 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     If targetNPC == None
         String suggestion = GetNPCSuggestion(targetName)
         If suggestion != ""
-            Core.SendTaskNarration(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
+            Core.TellFailure(akAgent, targetName + " could not be found. The closest known name is " + suggestion + ".")
         Else
-            Core.SendTaskNarration(akAgent, targetName + " could not be found.")
+            Core.TellFailure(akAgent, targetName + " could not be found.")
         EndIf
         Return false
     EndIf
@@ -1136,7 +1137,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     EndIf
 
     If targetNPC.IsDisabled()
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " could not find " + targetNPC.GetDisplayName() + ".")
         Return false
     EndIf
 
@@ -1164,22 +1165,23 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     ; A carriage driver is not walked away from the cart (see FetchNPC).
     If Core.IsCarriageDriver(targetNPC)
         Core.DebugMsg("EscortTarget: " + targetNPC.GetDisplayName() + " is a carriage driver - not escorted")
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " was asked to escort " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " was asked to escort " + targetNPC.GetDisplayName() + ", who cannot leave the carriage.")
         Return false
     EndIf
 
     ; Resolve destination
+    destination = IntelEngine.PlaceInEnglish(destination)   ; "nach Hause", "n'shpi", "domoi": "home"
     ObjectReference destMarkerRef
     If destination == "home"
         destMarkerRef = IntelEngine.ResolveAnyDestination(targetNPC, "home")
         If destMarkerRef == None
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " could not figure out where " + targetNPC.GetDisplayName() + " lives.")
+            Core.TellFailure(akAgent, akAgent.GetDisplayName() + " could not figure out where " + targetNPC.GetDisplayName() + " lives.")
             Return false
         EndIf
     Else
-        destMarkerRef = IntelEngine.ResolveAnyDestination(akAgent, destination)
+        destMarkerRef = Core.ResolveTravelTarget(akAgent, destination)
         If destMarkerRef == None
-            Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " does not know where " + destination + " is.")
+            Core.TellFailure(akAgent, akAgent.GetDisplayName() + " does not know where " + destination + " is.")
             Return false
         EndIf
     EndIf
@@ -1194,7 +1196,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
 
     ; A slot has to be there: a free one, or the one this agent's current task gives up.
     If Core.FindFreeAgentSlot() < 0 && Core.FindSlotByAgent(akAgent) < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -1218,7 +1220,7 @@ Bool Function EscortTarget(Actor akAgent, String targetName, String destination 
     ; Find free slot
     Int slot = Core.ClaimFreeAgentSlot()
     If slot < 0
-        Core.SendTaskNarration(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
+        Core.TellFailure(akAgent, akAgent.GetDisplayName() + " cannot take on this task right now.")
         Return false
     EndIf
 
@@ -1823,7 +1825,7 @@ Function HandleFetchFailure(Int slot, Actor agent, Actor target)
     String agentName = agent.GetDisplayName()
     String targetName = target.GetDisplayName()
     String failReason = StorageUtil.GetStringValue(agent, "Intel_FailReason")
-    If failReason == "" || failReason == "none"
+    If IntelEngine.IsNoneWord(failReason)
         failReason = "was busy"
     EndIf
 
@@ -1897,7 +1899,7 @@ Function BeginReturn(Int slot, Actor agent, Actor target, Actor player)
     ; Target pathfinds to player independently — same priority as agent.
     ; Must use PRIORITY_TRAVEL to override sandbox and other ambient packages.
     ; (Someone fetched from the bard's audience, or the bard himself, would otherwise stay put.)
-    Core.ReleaseFromBardHold(target)
+    Core.ReleaseFromBardHold(target, true)
     PO3_SKSEFunctions.SetLinkedRef(target, player, Core.IntelEngine_TravelTarget)
     If sameCell
         ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
@@ -2116,7 +2118,33 @@ Function CheckReturnArrival(Int slot, Actor agent, Actor target)
     EndIf
 EndFunction
 
+; Slots whose return is being handled right now, one bit per slot. The proximity watch and the 0.5 s monitoring
+; loop can both see the agent arrive in the same moment; both ran the whole return (the player got "Jenassa
+; brought Ysolda" twice and the history held the errand twice, 2026-11-17). Checked and set before any call that
+; can hand the thread to another one, so it cannot be raced.
+Int ReturningSlots = 0
+
 Function OnReturnedWithTarget(Int slot, Actor agent, Actor target)
+    Int bit = 1
+    Int k = 0
+    While k < slot
+        bit *= 2
+        k += 1
+    EndWhile
+    If (ReturningSlots / bit) % 2 == 1
+        Return
+    EndIf
+    ReturningSlots += bit
+    HandleReturnWithTarget(slot, agent, target)
+    ReturningSlots -= bit
+EndFunction
+
+Function HandleReturnWithTarget(Int slot, Actor agent, Actor target)
+    ; A caller that saw the arrival before the first one finished comes too late: the slot is free already.
+    If !Core.SlotHolds(slot, agent)
+        Core.DebugMsg(agent.GetDisplayName() + " return skipped (slot " + slot + " is no longer theirs)")
+        Return
+    EndIf
     ; Immediately mark slot inactive so the 0.5s monitoring loop doesn't re-enter
     Core.MarkSlotProcessing(slot, agent)
 
@@ -2188,7 +2216,7 @@ EndFunction
 Function OnReturnedAfterFailure(Int slot, Actor agent)
     String targetName = StorageUtil.GetStringValue(agent, "Intel_Target")
     String failReason = StorageUtil.GetStringValue(agent, "Intel_FailReason")
-    If failReason == "" || failReason == "none"
+    If IntelEngine.IsNoneWord(failReason)
         failReason = "was busy"
     EndIf
 
@@ -2313,6 +2341,12 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
         StorageUtil.SetIntValue(target, "Intel_WasAccompanying", 1)
         Core.DebugMsg(target.GetDisplayName() + " FollowPlayer package removed for escort")
     EndIf
+    ; The same for SeverActions' casual follow (StartFollowing, fired by the dialogue model): its packages come back
+    ; on every cell load, and Olava, walked home, went back to trailing the player for good (2026-11-18).
+    If IntelEngine.StopCasualFollow(target)
+        StorageUtil.SetIntValue(target, "Intel_WasAccompanying", 1)
+        Core.DebugMsg(target.GetDisplayName() + "'s SeverActions follow ended for the escort")
+    EndIf
 
     ; Remove sandbox from OnArrivedAtTarget before adding travel packages
     Core.RemoveIntelPackages(agent, false)
@@ -2321,7 +2355,7 @@ Function BeginEscortToDestination(Int slot, Actor agent, Actor target)
     ForgetLinger(target)
 
     ; Both NPCs walk to destination together
-    Core.ReleaseFromBardHold(target)
+    Core.ReleaseFromBardHold(target, true)
     PO3_SKSEFunctions.SetLinkedRef(target, destMarkerRef, Core.IntelEngine_TravelTarget)
     ActorUtil.AddPackageOverride(target, Core.TravelPackage_Walk, Core.PRIORITY_TRAVEL, 1)
     Utility.Wait(0.1)
@@ -2635,7 +2669,7 @@ Function OnArrivedToDeliver(Int slot, Actor agent, Actor target)
     String meetLoc = StorageUtil.GetStringValue(agent, "Intel_DeliveryMeetLocation")
     String meetTimeStr = StorageUtil.GetStringValue(agent, "Intel_DeliveryMeetTime")
     Core.DebugMsg("Delivery meet check: loc='" + meetLoc + "' time='" + meetTimeStr + "'")
-    If meetLoc != "none" && meetLoc != "" && meetTimeStr != "none" && meetTimeStr != ""
+    If !IntelEngine.IsNoneWord(meetLoc) && !IntelEngine.IsNoneWord(meetTimeStr)
         If Core.Schedule != None
             Core.DebugMsg("Scheduling meeting for " + target.GetDisplayName() + " at " + meetLoc + " " + meetTimeStr)
             Bool scheduled = Core.Schedule.ScheduleMeeting(target, meetLoc, meetTimeStr)
@@ -2912,6 +2946,11 @@ Bool Function CheckDeparture(Int slot, Actor agent)
     ; departure: the count starts again when they are free. The task used to be called off ("was unable
     ; to carry out the task") fifteen seconds into a conversation that held them where they stood.
     ; (Really held by talk, that is: a dialogue target alone says nothing, see Core.IsHeldByTalk.)
+    ; A bard performing counts as talking for the whole song: his songs are ended first.
+    If Core.ReleasePerformingBard(slot, agent)
+        Core.InitializeDepartureTracking(slot, agent)
+        Return false
+    EndIf
     If agent.IsInCombat() || Core.IsHeldByTalk(agent)
         Core.InitializeDepartureTracking(slot, agent)
         Return false
@@ -2972,6 +3011,10 @@ Function CheckIfStuck(Int slot, Actor npc)
     ; The same while they are speaking: a SkyrimNet conversation sets no dialogue target, so an agent
     ; who stopped to answer was "stuck", narrated as stumbling and, further on, teleported.
     ; (A dialogue target alone does not count: SkyrimNet leaves it set for minutes. See Core.IsHeldByTalk.)
+    ; A bard performing counts as talking for the whole song: his songs are ended first.
+    If Core.ReleasePerformingBard(slot, npc)
+        Return
+    EndIf
     If npc.IsInCombat() || Core.IsHeldByTalk(npc)
         IntelEngine.ResetStuckSlot(slot, npc)
         Return

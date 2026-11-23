@@ -1,6 +1,6 @@
 plugin:
   name: IntelEngine
-  version: "3.8.1"
+  version: "4.0.0"
   description: "NPC task & story automation engine"
   icon: "\U0001F9E0"
 
@@ -82,6 +82,34 @@ schema:
       defaultValue: ""
       category: "Story Engine"
 
+    - name: "Language of journal and messages"
+      path: "language.text"
+      type: "string"
+      description: "What you read (notices, the journal of a story, the words on buttons). auto: the language your game is in, told by the game's own setting and, where that says English, by the script its place names are written in (a translation the game never shipped). Or a language pack by name (russian, german, japanese, korean, chinese, french, spanish, italian, polish), or english. Packs are files in Data/SKSE/Plugins/IntelEngine/languages; a language without translated sentences reads English."
+      defaultValue: "auto"
+      category: "Language"
+
+    - name: "Languages people speak"
+      path: "language.spoken"
+      type: "string"
+      description: "The languages people speak besides the game's own, so that a time, a place or a name they say in it is understood. auto: read from SkyrimNet's translator settings (an English game whose people speak Albanian is told that way). Or names with commas between them (albanian, russian)."
+      defaultValue: "auto"
+      category: "Language"
+
+    - name: "Code page of old text"
+      path: "language.codepage"
+      type: "string"
+      description: "How a name or a text the game hands over is read when it is not UTF-8 (a plugin translated for the old game and never converted, a mod's names in a Russian or Polish code page). auto: by the language you read, else by the game's own language, else Windows-1252; a word of high letters from end to end is read as Cyrillic. Or a Windows code page by its number (1250, 1251, 1252, 932, 936, 949, 950), or a language's name (polish). Text that is UTF-8 is never touched."
+      defaultValue: "auto"
+      category: "Language"
+
+    - name: "Code page the game shows"
+      path: "language.display"
+      type: "string"
+      description: "What the game shows text in. UTF-8 for the game as it ships, in every language. Only a setup whose fonts show an old code page (some translations made for the old game) needs that page here, by its number (1251); then notices and the journal are written in it."
+      defaultValue: "UTF-8"
+      category: "Language"
+
     # >>> settings shared with the game: generated from SKSE/src/SettingsBridge.cpp (SKSE/tests/RunSettingsBridgeCheck.py --write)
     # ── Stories ──
     - name: "Stories"
@@ -94,7 +122,7 @@ schema:
     - name: "Check interval (game hours)"
       path: "stories.check_interval_hours"
       type: "float"
-      description: "How often the dungeon master considers starting something."
+      description: "At Classic: how often the dungeon master looks for somebody with a reason to come to you. Above Classic it is not used: the pace is 'How often something happens', and the dungeon master looks when you arrive somewhere, when you wake, and every three game hours besides."
       defaultValue: 3
       min: 0.5
       max: 168
@@ -152,31 +180,35 @@ schema:
     - name: "Story type: someone has work for you"
       path: "stories.type_quest"
       type: "bool"
+      description: "People who need your help. Off: nobody brings you their trouble, and no story of the town begins."
       defaultValue: true
       category: "Stories"
 
     - name: "Story type: an ambush"
       path: "stories.type_ambush"
       type: "bool"
+      description: "Someone with a grudge lies in wait on the road. Off: no ambush inside a town's story either."
       defaultValue: true
       category: "Stories"
 
     - name: "Story type: a faction's patrol hunts you"
       path: "stories.type_faction_ambush"
       type: "bool"
+      description: "A faction that holds you for an enemy (standing -40 or worse) sends men after you on the road, now and then. Never while you are with somebody, resting or settled somewhere."
       defaultValue: true
       category: "Stories"
 
     - name: "Story type: someone follows you unseen"
       path: "stories.type_stalker"
       type: "bool"
+      description: "Someone shadows you from a distance, out of doors. Off: nobody does inside a town's story either."
       defaultValue: true
       category: "Stories"
 
     - name: "NPCs sent into dangerous places"
       path: "stories.danger_zone_policy"
       type: "select"
-      description: "Who may be sent to you while you are in a dungeon or another dangerous place."
+      description: "Who may be sent to you while you are out in the wilds, away from any settlement. Above Classic nobody is sent into a dungeon after you whatever this says (they wait until you are out), and nobody is ever sent to another plane."
       options:
         - "Allow all NPCs"
         - "Block civilians only"
@@ -197,6 +229,76 @@ schema:
       defaultValue: "Allow all NPCs"
       category: "Stories"
 
+    # ── Living world ──
+    - name: "How alive the world is"
+      path: "living_world.level"
+      type: "select"
+      description: "Classic: as before 4.0. Rumors: the world moves on while you are away and you hear about it, but followers you left wait where you left them. Lives: followers you left behind live lives of their own (work at an inn, an adventure, a trip) and you can come upon them later; people close to you miss you while you are away."
+      options:
+        - "Classic"
+        - "Rumors"
+        - "Lives"
+      defaultValue: "Lives"
+      category: "Living world"
+
+    - name: "Interruptions at bad moments"
+      path: "living_world.interruptions"
+      type: "select"
+      description: "Whether someone may turn up during a fight, a conversation, a scene or a menu: never, only for something urgent, or now and then, as in real life."
+      options:
+        - "Never"
+        - "If urgent"
+        - "Realistic"
+      defaultValue: "If urgent"
+      category: "Living world"
+
+    - name: "Quest NPCs may move"
+      path: "living_world.quest_npcs_move"
+      type: "select"
+      description: "Whether NPCs who take part in a running quest may travel or move for a story. The target of an objective you have open never moves."
+      options:
+        - "Never"
+        - "If important"
+        - "Freely"
+      defaultValue: "If important"
+      category: "Living world"
+
+    - name: "How often something happens"
+      path: "living_world.pacing"
+      type: "select"
+      description: "About one notable moment every two game days, every game day, or twice a game day. Moments wait for a good time: arriving in a town or an inn, coming home, leaving a dungeon, waking up."
+      options:
+        - "Calm"
+        - "Normal"
+        - "Lively"
+      defaultValue: "Normal"
+      category: "Living world"
+
+    - name: "Skipped time counts toward the pace"
+      path: "living_world.skipped_time_counts"
+      type: "bool"
+      description: "Off: waiting, sleeping and fast travel do not bring the next moment sooner. It also takes time actually played: eight minutes between two moments, four minutes in a town before a story of its own begins there, twenty minutes between two such stories. On: the game's clock alone counts: skip a day and a day's worth of moments is due."
+      defaultValue: false
+      category: "Living world"
+
+    - name: "A follower told to wait waits (days)"
+      path: "living_world.wait_order_days"
+      type: "float"
+      description: "How long after you told a follower to wait they start a life of their own, once their follower mod lets them go. While it still holds them, they keep waiting."
+      defaultValue: 30
+      min: 1
+      max: 120
+      category: "Living world"
+
+    - name: "A follower left behind moves on (days)"
+      path: "living_world.life_start_days"
+      type: "float"
+      description: "How long a follower you dismissed stays where you left them before starting a life of their own."
+      defaultValue: 7
+      min: 1
+      max: 60
+      category: "Living world"
+
     # ── Stories: how far NPCs travel ──
     - name: "Someone comes to see you"
       path: "stories.reach_seek_player"
@@ -216,7 +318,7 @@ schema:
     - name: "Someone brings a rumor"
       path: "stories.reach_informant"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -246,7 +348,7 @@ schema:
     - name: "A message is delivered"
       path: "stories.reach_message"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -261,7 +363,7 @@ schema:
     - name: "Someone has work for you"
       path: "stories.reach_quest"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -276,7 +378,7 @@ schema:
     - name: "An ambush"
       path: "stories.reach_ambush"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -291,7 +393,7 @@ schema:
     - name: "Someone follows you unseen"
       path: "stories.reach_stalker"
       type: "select"
-      description: "How far this kind of story may reach for its NPC."
+      description: "How far this kind of story may reach for its NPC. Above Classic the director keeps people of other holds at home all the same, unless they are close to you and the matter presses."
       options:
         - "No restriction"
         - "Same hold (civilians)"
@@ -307,18 +409,21 @@ schema:
     - name: "Quest kind: clear out enemies"
       path: "stories.quest_combat"
       type: "bool"
+      description: "A bounty on what lives at a place. Off: no bounty, and no master of a place to kill inside a town's story."
       defaultValue: true
       category: "Stories: quests"
 
     - name: "Quest kind: rescue someone"
       path: "stories.quest_rescue"
       type: "bool"
+      description: "Someone of the town held at a place out in the world. Off: nobody is held in a story."
       defaultValue: true
       category: "Stories: quests"
 
     - name: "Quest kind: find an item"
       path: "stories.quest_find_item"
       type: "bool"
+      description: "A keepsake lost at a place. Off: no keepsake hunt."
       defaultValue: true
       category: "Stories: quests"
 
@@ -343,7 +448,7 @@ schema:
     - name: "Quest expires after (days)"
       path: "stories.quest_timeout_days"
       type: "float"
-      description: "A quest you were offered and did not finish ends after this many days."
+      description: "A quest of the dungeon master's own that you were offered and did not finish ends after this many days. A story of the town says in its offer how long it waits."
       defaultValue: 1
       min: 1
       max: 30

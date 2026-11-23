@@ -1,0 +1,388 @@
+# IntelEngine language pack: Russian.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	ru
+meta	codes	ru|rus|russian
+meta	name	Russian
+meta	game	russian
+meta	script	cyrillic
+
+time	in 2 days	послезавтра
+time	tomorrow	завтра|назавтра
+time	today	сегодня
+time	tonight	сегодня ночью|этой ночью
+time	morning	утром|утро|с утра|поутру|с утра пораньше
+time	noon	в полдень|полдень|к полудню|полудню
+time	afternoon	после полудня|после обеда|днём|днем
+time	evening	вечером|вечер|под вечер|к вечеру
+time	night	ночью|ночь
+time	midnight	в полночь|полночь|к полуночи
+time	dawn	на рассвете|с рассветом|рассвет|рассвете|на заре|на восходе|восход
+time	sunset	на закате|закат|закате|к закату
+time	dusk	в сумерках|сумерки|сумерках
+time	pm	часов вечера|часа вечера|час вечера|вечера|часов дня|часа дня|час дня|пополудни
+time	am	часов утра|часа утра|час утра|утра
+time	at night	часов ночи|часа ночи|час ночи|ночи
+time	half an hour	полчаса|пол часа
+time	in	через|спустя
+time	hours	часов|часа|часы
+time	hour	час
+time	minutes	минут|минуты|минуту|минута
+time	days	дней|дня|день|суток|сутки
+time	weeks	недель|недели|неделю|неделя
+time	at	в|во|к|около
+time	one	один|одну|одна|одного
+time	two	два|две|двух
+time	three	три|трёх|трех
+time	four	четыре|четырёх
+time	five	пять|пяти
+time	six	шесть|шести
+time	seven	семь|семи
+time	eight	восемь|восьми
+time	nine	девять|девяти
+time	ten	десять|десяти
+time	eleven	одиннадцать|одиннадцати
+time	twelve	двенадцать|двенадцати
+
+place	home	домой|к себе домой|к себе|у себя дома|мой дом|в мой дом|ко мне домой
+place	your home	к тебе домой|твой дом|в твой дом|к вам домой|ваш дом|в ваш дом
+place	outside	наружу|снаружи|на улицу|на улице|во двор|вон|за дверь
+place	inside	внутрь|внутри
+place	upstairs	наверх|наверху|на второй этаж|этажом выше
+place	downstairs	вниз|внизу|на первый этаж|этажом ниже
+place	cellar	в подвал|подвал|погреб|в погреб
+place	bedroom	в спальню|спальня|спальню|моя комната|в мою комнату|в постель
+place	kitchen	на кухню|кухня|кухню|на кухне
+place	bath	в баню|баня|в купальню|купальня|горячий источник
+place	river	к реке|река|на реку|реку
+place	lake	к озеру|озеро|на озеро
+
+none	none	нет|никто|ничего|ничто|никуда|никого|никак|отсутствует|не указано
+
+free	*	к|ко|в|во|на|у|из|до|от|с|со|за|по|об|о|для|около|возле|мимо|через
+
+# ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
+# {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.
+# Longer, more particular sentences are tried first; a sentence no row has stays English.
+# Not here on purpose: "{1} will {2} {3}" (its one fixed word, " will ", is a German word: the row would
+# rewrite German sentences of a story). Its particular forms (will meet at, will fetch, ...) are below.
+label	A champion of the {1} takes the field.	{1}: в бой вступает чемпион.
+label	A champion of {1} takes the field.	{1}: в бой вступает чемпион.
+label	A second force of the {1} breaks from cover on the flank!	{1}: второй отряд бьёт из засады во фланг!
+label	A second force of {1} breaks from cover on the flank!	{1}: второй отряд бьёт из засады во фланг!
+label	Champion of the {1}	Чемпион ({1})
+label	Champion of {1}	Чемпион ({1})
+label	Charge!	В атаку!
+label	Fighting has broken out near {1}.	Неподалёку завязался бой. Место: {1}.
+label	Hold a little longer	Держаться ещё немного
+label	Men of the {1} and of the {2} have run into each other near {3}.	{1} и {2}: отряды столкнулись. Место: {3}.
+label	Men of {1} and of {2} have run into each other near {3}.	{1} и {2}: отряды столкнулись. Место: {3}.
+label	Men of the {1} are coming for you.	{1}: за вами выслали людей.
+label	Men of {1} are coming for you.	{1}: за вами выслали людей.
+label	More soldiers of the {1} come up.	{1}: подходит подкрепление.
+label	More soldiers of {1} come up.	{1}: подходит подкрепление.
+label	Stand with the {1}	Встать за: {1}
+label	Stand with {1}	Встать за: {1}
+label	Stay out of it	Не вмешиваться
+label	Stranger	Незнакомец
+label	The captain of the {1} has fallen.	{1}: капитан пал.
+label	The captain of {1} has fallen.	{1}: капитан пал.
+label	The champion of the {1} has fallen.	{1}: чемпион пал.
+label	The champion of {1} has fallen.	{1}: чемпион пал.
+label	The last of the {1} come up.	{1}: подходят последние силы.
+label	The last of {1} come up.	{1}: подходят последние силы.
+label	The line of the {1} waits for your word, {2}.	{1}: строй ждёт вашего слова, {2}.
+label	The line of {1} waits for your word, {2}.	{1}: строй ждёт вашего слова, {2}.
+label	The line of the {1} waits for your word, Captain.	{1}: строй ждёт вашего слова, капитан.
+label	The line of the {1} waits for your word, Champion.	{1}: строй ждёт вашего слова, чемпион.
+label	The line of the {1} waits for your word, Lieutenant.	{1}: строй ждёт вашего слова, лейтенант.
+label	The line of the {1} waits for your word, Right Hand.	{1}: строй ждёт вашего слова, правая рука.
+label	The line of the {1} waits for your word, Sworn Captain.	{1}: строй ждёт вашего слова, присягнувший капитан.
+label	The line of the {1} waits for your word, Champion of the House.	{1}: строй ждёт вашего слова, чемпион дома.
+label	Treachery! Men of the {1} turn on their own.	Измена! {1}: бойцы обратились против своих.
+label	Treachery! Men of {1} turn on their own.	Измена! {1}: бойцы обратились против своих.
+label	Turncoat	Перебежчик
+label	Two armies are drawn up near {1}: the {2} and the {3}.	Два войска стоят друг против друга ({1}): {2} и {3}.
+label	Two armies are drawn up near {1}: {2} and {3}.	Два войска стоят друг против друга ({1}): {2} и {3}.
+label	Word reaches you: neither side held the field near {1}.	До вас дошла весть: поле боя не осталось ни за кем ({1}).
+label	Word reaches you: the {1} won the battle near {2}.	До вас дошла весть: в битве победила сторона «{1}» ({2}).
+label	Word reaches you: {1} won the battle near {2}.	До вас дошла весть: в битве победила сторона «{1}» ({2}).
+label	You stand with the {1}.	Вы сражаетесь на стороне «{1}».
+label	You stand with {1}.	Вы сражаетесь на стороне «{1}».
+label	{1} Captain	Капитан ({1})
+label	The {1} now count you a {2}.	{1}: теперь ваше звание — {2}.
+label	The {1} now count you an {2}.	{1}: теперь ваше звание — {2}.
+label	{1} now count you {2}.	{1}: теперь ваше звание — {2}.
+label	The {1} send your pay on to you: {2} gold.	{1}: вам переслали жалованье. Золото: {2}.
+label	{1} send your pay on to you: {2} gold.	{1}: вам переслали жалованье. Золото: {2}.
+label	Two soldiers of the {1} keep by your side.	{1}: двое солдат держатся рядом с вами.
+label	Four soldiers of the {1} keep by your side.	{1}: четверо солдат держатся рядом с вами.
+label	{1} soldiers of {2} keep by your side.	{2}: солдаты держатся рядом с вами ({1}).
+label	Near {1}, the {2} and the {3} are fighting. {4} calls you to their line.	Идёт бой ({1}): {2} и {3}. {4} зовёт вас в свой строй.
+label	Near {1}, the {2} and the {3} are about to fight. {4} calls you to their line.	Вот-вот начнётся бой ({1}): {2} и {3}. {4} зовёт вас в свой строй.
+label	Stand with the {1} near {2} before the battle is decided	Встаньте на сторону «{1}», пока битва не решена. Место: {2}
+label	The skirmish is over. Neither side had the better of it.	Стычка окончена. Ни одна сторона не взяла верх.
+label	The skirmish is over. The {1} had the better of it.	Стычка окончена. Верх взяла сторона «{1}».
+label	The fighting dies down. Neither side holds the field at {1}.	Бой стихает. Поле не осталось ни за кем ({1}).
+label	The day is won. The field at {1} belongs to the {2}.	Победа за нами. Поле ({1}) осталось за стороной «{2}».
+label	The day is lost. The field at {1} belongs to the {2}.	Битва проиграна. Поле ({1}) осталось за стороной «{2}».
+label	The fighting ends. The field at {1} belongs to the {2}.	Бой окончен. Поле ({1}) осталось за стороной «{2}».
+label	The {1} will remember that you stood by.	{1}: там запомнят, что вы стояли в стороне.
+label	An assassin strikes at {1}!	Убийца наносит удар! Цель: {1}!
+label	Battle	Битва
+label	The field is yours, though none of your side is left standing to share it.	Поле боя за вами, но из ваших не осталось никого, кто разделил бы победу.
+label	You stand alone among the fallen.	Вы стоите в одиночестве среди павших.
+label	The attempt on {1}'s life is foiled.	Покушение сорвано. Цель: {1}.
+label	{1} lives. The killer is dead.	{1}: жизнь спасена. Убийца мёртв.
+label	The attempt on {1}'s life has failed.	Покушение провалилось. Цель: {1}.
+label	{1} is dead.	{1}: жизнь оборвалась.
+label	The killer has got away.	Убийца скрылся.
+label	The {1} will remember your valor at {2}.	{1}: вашу доблесть не забудут ({2}).
+label	Word reaches you: the {1} and the {2} are drawing up for battle near {3}.	До вас дошла весть: {1} и {2} строятся к битве. Место: {3}.
+label	Hand it over	Отдать
+label	Hand over	Передача
+label	I'll do it	Я возьмусь
+label	Not now	Не сейчас
+label	Not yet	Пока нет
+label	Put up your fists	На кулаках
+label	Quest offer	Предложение задания
+label	Search the body	Обыскать тело
+label	Something else	Другое
+label	Stand up	Встать
+label	Story	История
+label	What you see	Что вы видите
+label	Allow	Разрешить
+label	Deny	Отказать
+label	Deny (Silent)	Отказать (молча)
+label	Task permission	Разрешение на задание
+label	Come along	Приглашение
+label	I'll come along	Я с вами
+label	Not this time	Не в этот раз
+label	At the door	У двери
+label	I'll check it out	Я проверю
+label	I'll go alone	Пойду в одиночку
+label	Ignore	Не отвечать
+label	Lead the way	Ведите
+label	Let them in	Впустить
+label	Not interested	Мне это неинтересно
+label	Send them away	Прогнать
+label	{1} is knocking at your door.	{1} стучится в вашу дверь.
+label	Give the {1} back to {2}?	{2}: вернуть {1}?
+label	Give {1} back to {2}?	{2}: вернуть {1}?
+label	Give {1} to {2}?	{2}: отдать {1}?
+label	A Thief Among Us	Вор среди нас
+label	Bad Blood	Дурная кровь
+label	Murder in {1}	Убийство ({1})
+label	A Story	Одна история
+label	Tell {1} how it ended	Расскажите, чем всё кончилось. Кому: {1}
+label	Someone stole {1}. {2} asks you to find the thief and bring it back. Reward: {3} gold.	Украдена вещь: {1}. {2} просит вас найти вора и вернуть пропажу. Награда: {3} золотых.
+label	Bad blood: {1} and {2} fell out over two hundred gold {3} borrowed. {4} asks you to settle it with {5}, one way or another. Reward: {6} gold.	Дурная кровь: {1} и {2} в ссоре из-за двухсот золотых, взятых в долг (должник: {3}). {4} просит вас так или иначе уладить дело. Вторая сторона: {5}. Награда: {6} золотых.
+label	Bad blood: {1} has been telling the inn that {2} cheats people. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Дурная кровь: {1} рассказывает в таверне, будто {2} обманывает людей. {3} просит вас так или иначе уладить дело. Вторая сторона: {4}. Награда: {5} золотых.
+label	Bad blood: {1} insulted {2}'s family in public. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Дурная кровь: прилюдное оскорбление семьи. Обидчик: {1}, обиженная сторона: {2}. {3} просит вас так или иначе уладить дело. Вторая сторона: {4}. Награда: {5} золотых.
+label	Bad blood: {1} says {2} cheated at dice. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Дурная кровь: {1} винит соперника в нечестной игре в кости. Обвиняемая сторона: {2}. {3} просит вас так или иначе уладить дело. Вторая сторона: {4}. Награда: {5} золотых.
+label	{1} asks you to find out who killed {2}, and name them with proof. Reward: {3} gold.	{1} просит вас выяснить, кто убийца, и назвать его с доказательствами. Жертва: {2}. Награда: {3} золотых.
+label	{1} Reward: {2} gold.	{1} Награда: {2} золотых.
+label	Settle it with {1} here and now, with your fists?	Решить дело на кулаках здесь и сейчас? Противник: {1}.
+label	{1} stole {2}. What will you do with {3}?	Вор найден: {1}. Украдено: {2}. Как вы поступите?
+label	How will you settle it between {1} and {2}?	Как вы уладите дело? Стороны: {1} и {2}.
+label	How will you make peace with {1}?	Как вы добьётесь мира? Вторая сторона: {1}.
+label	Who killed {1}?	Кто убийца? Жертва: {1}.
+label	What will you do?	Как вы поступите?
+label	Hand {1} over to the guard	Сдать страже: {1}
+label	Let {1} go	Отпустить: {1}
+label	Settle it with your fists against {1}	Решить на кулаках. Противник: {1}
+label	Talk them into making peace	Уговорить помириться
+label	Talk {1} round (Speech)	Переубедить: {1} (Красноречие)
+label	Pay {1} {2} gold to let it go	Заплатить за мир: {1} {2} золотых
+label	Accuse {1}	Обвинить: {1}
+label	{1} (Speech)	{1} (Красноречие)
+label	Bounty: {1}	Награда за голову: {1}
+label	Into {1} with {2}	Поход ({1}), спутник: {2}
+label	A Request	Просьба
+label	{1} asks you to recover his stolen {2} from {3}. Reward: {4} gold.	{1} просит вас вернуть украденную вещь ({2}). Место: {3}. Награда: {4} золотых.
+label	{1} asks you to recover her stolen {2} from {3}. Reward: {4} gold.	{1} просит вас вернуть украденную вещь ({2}). Место: {3}. Награда: {4} золотых.
+label	{1} asks you to recover their stolen {2} from {3}. Reward: {4} gold.	{1} просит вас вернуть украденную вещь ({2}). Место: {3}. Награда: {4} золотых.
+label	{1} asks you to deal with {2} at {3}. Reward: {4} gold.	{1} просит вас разобраться с разбойником. Цель: {2}. Место: {3}. Награда: {4} золотых.
+label	{1} and {2} are about to clear out {3} and ask you to come in with them. Say yes and they follow you in and share what you find; say no and they go in alone.	{1} и {2} вот-вот начнут зачистку ({3}) и зовут вас с собой. Согласитесь — они пойдут за вами внутрь и разделят добычу; откажетесь — войдут без вас.
+label	{1} is about to clear out {2} and asks you to come in too. Say yes and {3} follows you in and shares what you find; say no and {4} goes in alone.	{1} вот-вот начнёт зачистку ({2}) и зовёт вас с собой. Согласитесь — {3} пойдёт за вами внутрь и разделит добычу; откажетесь — {4} войдёт без вас.
+label	{1} and {2} are on their way to clear out {3} and ask you to come along. Say yes and they follow you there and share what you find; say no and they go alone.	{1} и {2} идут на зачистку ({3}) и зовут вас с собой. Согласитесь — они пойдут за вами и разделят добычу; откажетесь — пойдут без вас.
+label	{1} is on the way to clear out {2} and asks you to come along. Say yes and {3} follows you there and shares what you find; say no and {4} goes alone.	{1} идёт на зачистку ({2}) и зовёт вас с собой. Согласитесь — {3} пойдёт за вами и разделит добычу; откажетесь — {4} пойдёт без вас.
+label	Your share of the spoils: {1} gold.	Ваша доля добычи. Золото: {1}.
+label	{1} pleads for help rescuing {2} near {3}.	{1} умоляет помочь со спасением. Пленник: {2}. Место: {3}.
+label	{1} tells you about {2} near {3}.	{1} рассказывает вам вот о чём: {2}. Место: {3}.
+label	{1} rallies you to fight alongside the {2} near {3}.	{1} призывает вас сражаться на стороне «{2}». Место: {3}.
+label	{1} urges you to rescue {2} for the {3} near {4}.	{1} просит вас спасти пленника ради стороны «{3}». Пленник: {2}. Место: {4}.
+label	{1} tells you about trouble near {2}.	{1} рассказывает вам о беде неподалёку. Место: {2}.
+label	You gave {1} {2} gold.	Вы отдаёте золото: {1} {2}.
+label	{1} gave you {2} (2).	{1} отдаёт вам: {2} (2).
+label	{1} gave you {2} gold.	{1} отдаёт вам золото: {2}.
+label	{1} gave you {2}.	{1} отдаёт вам: {2}.
+label	Someone gave you {1}.	Кто-то отдаёт вам: {1}.
+label	Informant dispatch refused: {1}.	Отправка осведомителя отклонена: {1}.
+label	IntelEngine: All tasks reset	IntelEngine: все задания сброшены
+label	IntelEngine: Resetting all tasks...	IntelEngine: сброс всех заданий...
+label	Political event refused: {1} between {2} and {3}. The reason is in the IntelEngine log.	Политическое событие отклонено: {1}, стороны: {2} и {3}. Причина — в журнале IntelEngine.
+label	Political event: {1} between {2} and {3}.	Политическое событие: {1}, стороны: {2} и {3}.
+label	Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.	Социальная отправка отклонена: нет описания, неверный тип, один и тот же персонаж дважды или StoryEngine недоступен.
+label	Social replacement refused: active trip changed; refresh and confirm replacement.	Социальная замена отклонена: текущая поездка изменилась; обновите и подтвердите замену.
+label	Social replacement refused: previous trip or task is still active after cancellation.	Социальная замена отклонена: прежняя поездка или задание всё ещё активны после отмены.
+label	Story dispatch refused: narration is empty.	Отправка сюжета отклонена: описание пусто.
+label	Story dispatch refused: StoryEngine is unavailable.	Отправка сюжета отклонена: StoryEngine недоступен.
+label	Story engine is busy with {1} ({2}). Cancel it first.	Сюжетный движок занят: {1} ({2}). Сначала отмените.
+label	Story replacement refused: previous story or task is still active after cancellation.	Замена сюжета отклонена: прежний сюжет или задание всё ещё активны после отмены.
+label	Story replacement refused: unknown type or missing message content / informant subject and gossip.	Замена сюжета отклонена: неизвестный тип либо нет текста послания / темы и слуха осведомителя.
+label	{1} and {2}: {3} started.	{1} и {2}: {3} — начато.
+label	{1} has no task to cancel.	{1}: нет задания, которое можно отменить.
+label	{1} is already busy ({2}). Cancel it first.	{1}: уже есть задание ({2}). Сначала отмените его.
+label	{1} sets out ({2}).	{1} отправляется в путь ({2}).
+label	{1}'s task cancelled.	{1}: задание отменено.
+label	{1}'s task was cancelled.	{1}: задание отменено.
+label	{1}'s task was cancelled	{1}: задание отменено
+label	{1}: conduct reported.	{1}: о поступке доложено.
+label	{1}: {2} failed.	{1}: {2} — не удалось.
+label	{1}: {2} started.	{1}: {2} — начато.
+label	{1} isn't loaded right now (they only exist near their home), so they can't be sent from here.	{1}: персонаж сейчас не загружен (существует только возле своего дома), отправить его отсюда нельзя.
+label	Couldn't find NPC '{1}' (no unique match).	NPC '{1}' не найден (нет однозначного совпадения).
+label	{1} arrived - {2} is still on the way	{1} на месте - {2} ещё в пути
+label	{1} brought {2}	{1} приводит спутника: {2}
+label	{1} cannot deliver a message to themselves.	{1}: нельзя доставить послание самому себе.
+label	{1} cannot deliver a message to {2}, who is dead.	{1}: послание не доставить. Адресата нет в живых: {2}.
+label	{1} could not be found.	Не удалось найти: {1}.
+label	{1} could not be found. The closest known name is {2}.	Не удалось найти: {1}. Самое похожее известное имя: {2}.
+label	{1} could not find the recipient	{1}: адресат не найден
+label	{1} could not find their target	{1}: цель не найдена
+label	{1} could not find {2} to deliver the message.	{1}: послание не доставлено. Адресат не найден: {2}.
+label	{1} delivered a message to {2} and is heading back	{1}: послание доставлено ({2}), обратный путь начат
+label	{1} delivered the message	{1}: послание доставлено
+label	{1} escorted {2} to {3}	{1}: сопровождение завершено. Спутник: {2}, место: {3}
+label	{1} found {2}	{1}: поиск окончен, цель найдена: {2}
+label	{1} gave up the search for {2}	{1}: поиски прекращены. Цель: {2}
+label	{1} is already right here; no delivery task started.	{1} и так здесь; доставка не начата.
+label	{1} is escorting {2} to {3}	{1} сопровождает спутника: {2}. Куда: {3}
+label	{1} is going to escort {2} to {3}	{1} берётся сопроводить спутника: {2}. Куда: {3}
+label	{1} is going to search for {2}	{1} отправляется на поиски. Цель: {2}
+label	{1} lost their escort target	{1}: подопечный потерян
+label	{1} returned from delivering message to {2}	{1}: возвращение после доставки послания ({2})
+label	{1} went to deliver a message to {2}	{1} несёт послание. Адресат: {2}
+label	{1} went to find {2}	{1} идёт за спутником: {2}
+label	{1}: {2} refused - {3}	{1}: отказ ({2}) - {3}
+label	{1} wants to go fetch {2}.	{1} хочет сходить за спутником: {2}.
+label	{1} wants to help search for {2}.	{1} хочет помочь в поисках. Кого ищут: {2}.
+label	{1} wants to escort {2} to {3}.	{1} хочет проводить спутника: {2}. Куда: {3}.
+label	{1} wants to travel to {2}.	{1} хочет отправиться в путь. Цель: {2}.
+label	{1} wants to deliver a message to {2}.	{1} хочет доставить послание. Адресат: {2}.
+label	{1} wants to deliver a message to {2} tomorrow {3}.	{1} хочет завтра в {3} доставить послание. Адресат: {2}.
+label	{1} wants to deliver a message to {2} in {3} days {4}.	{1} хочет через {3} дн. в {4} доставить послание. Адресат: {2}.
+label	{1} wants to fetch {2}.	{1} хочет сходить за спутником: {2}.
+label	{1} wants to fetch {2} tomorrow {3}.	{1} хочет завтра в {3} сходить за спутником: {2}.
+label	{1} wants to fetch {2} in {3} days {4}.	{1} хочет через {3} дн. в {4} сходить за спутником: {2}.
+label	{1} wants to meet at {2}.	{1} хочет с вами встретиться: {2}.
+label	{1} wants to meet at {2} tomorrow {3}.	{1} хочет встретиться с вами завтра в {3}. Место: {2}.
+label	{1} wants to meet at {2} in {3} days {4}.	{1} хочет встретиться с вами через {3} дн. в {4}. Место: {2}.
+label	{1} wants to meet tomorrow {2}.	{1} хочет встретиться с вами завтра в {2}.
+label	{1} wants to meet in {2} days {3}.	{1} хочет встретиться с вами через {2} дн. в {3}.
+label	{1} will meet at {2}	{1} встретится с вами: {2}
+label	{1} will meet at {2} tomorrow {3}	{1} встретится с вами завтра в {3}. Место: {2}
+label	{1} will meet at {2} in {3} days {4}	{1} встретится с вами через {3} дн. в {4}. Место: {2}
+label	{1} will meet tomorrow {2}	{1} встретится с вами завтра в {2}
+label	{1} will meet in {2} days {3}	{1} встретится с вами через {2} дн. в {3}
+label	{1} will fetch {2} {3}	{1} сходит за спутником: {2} {3}
+label	{1} will fetch {2} tomorrow {3}	{1} завтра в {3} сходит за спутником: {2}
+label	{1} will fetch {2} in {3} days {4}	{1} через {3} дн. в {4} сходит за спутником: {2}
+label	{1} will deliver message to {2} {3}	{1} доставит послание. Адресат: {2} {3}
+label	{1} will deliver message to {2} tomorrow {3}	{1} завтра в {3} доставит послание. Адресат: {2}
+label	{1} will deliver message to {2} in {3} days {4}	{1} через {3} дн. в {4} доставит послание. Адресат: {2}
+label	Not scheduled: {1} will not meet.	Не запланировано: встречи не будет ({1}).
+label	Not scheduled: {1} will not fetch {2}.	Не запланировано: {1} не пойдёт за спутником ({2}).
+label	Not scheduled: {1} will not deliver a message to {2}.	Не запланировано: {1} не понесёт послание. Адресат: {2}.
+label	Not scheduled: {1} will not {2}.	Не запланировано: {1} ({2}).
+label	Not scheduled: all {1} schedule slots are in use.	Не запланировано: все ячейки расписания заняты ({1}).
+label	All scheduled tasks cancelled	Все запланированные задания отменены
+label	{1} could not set out for the meeting at {2}. It is off.	{1} не может выйти на встречу ({2}). Встреча отменяется.
+label	Quest marker unavailable (alias not found)	Маркер задания недоступен (псевдоним не найден)
+label	Quest: {1} [{2}]	Задание: {1} [{2}]
+label	Rescue completed!	Спасение удалось!
+label	Something feels wrong...	Что-то здесь не так...
+label	Sounds of fighting carry from up ahead.	Впереди слышен шум боя.
+label	Story: {1} couldn't reach you - story ended	История: {1} не может до вас добраться - история окончена
+label	Story: {1} gave up	История: {1} оставляет попытки
+label	The area is quiet. The threat seems to have moved on.	Вокруг тихо. Похоже, угроза ушла.
+label	The fighting has ended before you arrived.	Бой закончился до вашего прихода.
+label	The fighting is already underway elsewhere.	Бой уже идёт в другом месте.
+label	The forces have already moved on.	Войска уже ушли.
+label	The threat has been dealt with.	С угрозой покончено.
+label	The {1} acknowledge your intent to fight.	{1}: ваше намерение сражаться оценили.
+label	The {1} acknowledge your willingness to help.	{1}: вашу готовность помочь оценили.
+label	The {1} held the field unopposed.	{1}: поле удержано без боя.
+label	The {1} speak your name with respect.	{1}: ваше имя произносят с уважением.
+label	They seem to have more to ask...	Похоже, вас хотят попросить о чём-то ещё...
+label	Word of your deeds reaches the {1}.	{1}: туда дошла весть о ваших делах.
+label	Word reaches you: the battle has moved on.	До вас дошла весть: битва переместилась.
+label	You claim the {1}.	Вы забираете: {1}.
+label	You hear the clink of armor ahead.	Впереди слышен лязг доспехов.
+label	You should hurry - the situation won't hold much longer.	Вам стоит поспешить - долго так не продержится.
+label	Your name carries weight among the {1}.	{1}: ваше имя там имеет вес.
+label	{1} can no longer lead the way. The map marker shows where to go.	{1} больше не может вести вас. Куда идти, покажет метка на карте.
+label	{1} didn't make it.	{1}: спасти не удалось.
+label	{1} has been freed!	{1} на свободе!
+label	{1} gave you an answer for {2}.	{1} передаёт с вами ответ. Кому: {2}.
+label	{1} gave you more time.	{1} даёт вам больше времени.
+label	{1} is coming with you to see {2}.	{1} идёт с вами. К кому: {2}.
+label	{1} needs it within half a day now.	{1}: теперь это нужно в течение полудня.
+label	{1} no longer needs your help with it.	{1}: ваша помощь в этом больше не нужна.
+label	{1} will come with you to see {2} once done here.	{1} пойдёт с вами, как только закончит здесь. К кому: {2}.
+label	{1} will give you {2} gold for it.	{1} заплатит вам за это. Золото: {2}.
+label	{1} arrived at {2}	{1} на месте: {2}
+label	{1} arrived late to {2} and eventually gave up waiting for you	{1}: опоздание на встречу ({2}); в конце концов ждать вас перестали
+label	{1} arrived too late for the meeting at {2}	{1}: слишком позднее прибытие на встречу ({2})
+label	{1} could not come to the meeting at {2}. It is off.	{1} не может прийти на встречу ({2}). Встреча отменяется.
+label	{1} got tired of waiting for you at {2}	{1}: ждать вас надоело ({2})
+label	{1} headed off after the meeting	{1} уходит после встречи
+label	{1} headed off to {2}	{1} отправляется в путь. Цель: {2}
+label	{1} left {2}	{1} покидает место: {2}
+label	{1} met you at {2}	{1}: встреча состоялась ({2})
+label	{1} never made it to the meeting at {2}	{1}: до места встречи дойти не удалось ({2})
+label	The {1} now count you an Auxiliary.	{1}: теперь ваше звание — Ауксиларий.
+label	The {1} now count you a Sworn Sword.	{1}: теперь ваше звание — Клинок присяги.
+label	The {1} now count you a Veteran.	{1}: теперь ваше звание — Ветеран.
+label	The {1} now count you a Captain.	{1}: теперь ваше звание — Капитан.
+label	The {1} now count you a Champion.	{1}: теперь ваше звание — Чемпион.
+label	The {1} now count you an Associate.	{1}: теперь ваше звание — Соратник.
+label	The {1} now count you a Trusted Hand.	{1}: теперь ваше звание — Доверенное лицо.
+label	The {1} now count you a Lieutenant.	{1}: теперь ваше звание — Лейтенант.
+label	The {1} now count you a Right Hand.	{1}: теперь ваше звание — Правая рука.
+label	The {1} now count you a Hired Blade.	{1}: теперь ваше звание — Наёмный клинок.
+label	The {1} now count you a Retainer.	{1}: теперь ваше звание — Вассал.
+label	The {1} now count you a Trusted Retainer.	{1}: теперь ваше звание — Доверенный вассал.
+label	The {1} now count you a Sworn Captain.	{1}: теперь ваше звание — Присягнувший капитан.
+label	The {1} now count you a Champion of the House.	{1}: теперь ваше звание — Чемпион дома.
+label	The trail leads on to the north.	След ведёт дальше на север.
+label	The trail leads on to the north-east.	След ведёт дальше на северо-восток.
+label	The trail leads on to the east.	След ведёт дальше на восток.
+label	The trail leads on to the south-east.	След ведёт дальше на юго-восток.
+label	The trail leads on to the south.	След ведёт дальше на юг.
+label	The trail leads on to the south-west.	След ведёт дальше на юго-запад.
+label	The trail leads on to the west.	След ведёт дальше на запад.
+label	The trail leads on to the north-west.	След ведёт дальше на северо-запад.
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	(сегодня, {1})
+label	tomorrow at {1}	(завтра, {1})
+label	in {1} days at {2}	(через {1} дн., {2})
+label	{1} will meet at {2} {3}	{1}: встреча, место — {2} {3}
+label	{1} will meet {2}	{1}: встреча {2}
+label	{1} wants to meet at {2} {3}.	{1} хочет встретиться с вами. Место — {2} {3}.
+label	{1} wants to meet {2}.	{1} хочет встретиться с вами {2}.
+label	{1} wants to fetch {2} {3}.	{1} хочет сходить за спутником: {2} {3}.
+label	{1} wants to deliver a message to {2} {3}.	{1} хочет доставить послание. Адресат: {2} {3}.
+label	Not scheduled: {1} will not meet at {2}.	Не запланировано: {1} — встречи не будет (место — {2}).
+label	{1} soldiers of the {2} keep by your side.	{2}: солдаты рядом с вами ({1}).
+label	Quest dispatch refused: {1}.	Отправка задания отклонена: {1}.
+label	IntelEngine: Slot {1} cleared	IntelEngine: ячейка {1} очищена
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} всё ещё не может освободиться и выполнить уговор ({2}). Отменяется.

@@ -24,6 +24,8 @@ parameterMapping:
     description: >
       The person to search for. Must be a named NPC or a hold guard.
       Valid: "Ysolda", "Faendal", "Riften Guard"
+      Write the name exactly as it stands in the game and the context, in the game's language and in its plain
+      form: no case ending, no article, never translated.
       INVALID: "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
       If you cannot name a specific person, do NOT use this action.
       Examples: "Nazeem", "Jarl Balgruuf", "Adrianne Avenicci"
