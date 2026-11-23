@@ -716,6 +716,8 @@ Function ArcBossPlaced(Int id, Int site, Actor akBoss) Global Native
 Function ArcCaptive(Int id, Int captiveState) Global Native
 ; A rescue asked for: a tale about someone held at a place near the giver's town is written, or nothing (false).
 Bool Function ArcRequestRescue(Actor akGiver) Global Native
+; The story (planned or open) this actor has a part in, 0 when none.
+Int Function ArcOfActor(Actor akActor) Global Native
 ; What a tale leaves outside a place to be looked at closely (a victim's remains): the script laid it there.
 ; Where a sign of a trail is laid: x, y, z of a point on the ground out from the place; empty for what lies by the
 ; place itself (and when no ground was found).
@@ -1101,6 +1103,13 @@ Int Function GetPlayerFactionStanding(String factionId) Global Native
 String Function FactionPatrolDue() Global Native
 Function FactionPatrolSent() Global Native
 Function FactionPatrolTest(Bool always) Global Native
+; 4.0: a faction the player stands well with asks them for help now and then (a fort of its enemy to clear, one of its
+; people held there, a battle of its war). Asked at a moment the director lets land, with the story-type switches
+; (StoryEngine.PackToggleBitmask): the dungeon master's answer for a faction's quest, as 3.8's was written, or "".
+; FactionQuestSent: one went out (the rest between two starts). FactionQuestTest: every roll comes up (a test hook).
+String Function FactionQuestDue(Int toggles) Global Native
+Function FactionQuestSent() Global Native
+Function FactionQuestTest(Bool always) Global Native
 ; Why nobody in arms would come upon the player now (a scene, a talk, resting, undressed, settled); "" when they may.
 String Function PrivateMomentNow() Global Native
 ; How often the dungeon master looks by the clock above Classic (game hours): the director's smallest gap between
@@ -1439,10 +1448,11 @@ Int Function BattleCeaseFire(Int first, Int count, Bool amongThemselves) Global 
 ; Test hook: where the battle's dead lie and who is held in a killing blow, into IntelEngine.log.
 Function BattleDebugBodies() Global Native
 
-; Cleanup battle soldiers by proximity. Returns count of remaining actors.
+; Switches off the battle soldiers whose bodies the game no longer holds (unloaded ones only, whatever the arguments say:
+; a loaded one switched off crashed a physics mod). Returns how many are left. Unused since 4.0 (SweepSoldiers).
 Int Function CleanupBattleSoldiers(Float playerX, Float playerY, Float playerZ, Float playerAngleZ, Bool forceAll) Global Native
 
-; Force cleanup ALL battle soldiers (hard timeout).
+; The same for all of them at once; loaded ones are left alone and kept for a later pass. Unused since 4.0.
 Function ForceCleanupAllSoldiers() Global Native
 
 ; Drops the DLL's list of soldiers left to clean up without touching them. The battle script removes the

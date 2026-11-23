@@ -71,12 +71,12 @@ Match conflict events to the faction's type:
 
 ## Lore & Geography
 
-**Skyrim's own civil war is the game's to decide, not yours.** `civil_war` in the state above says how it stands right now, as fact. Never write an event that contradicts it: no surrender, victory, peace treaty, alliance or trade pact between the Empire and the Stormcloaks that it does not state; no fighting between them while it says a truce holds or the war is over; no war or open break between the Empire and the Thalmor while it says the Concordat binds them (spying, pressure and quarrels over Talos are theirs; open war is not). Pairs the state marks `war_possible: false` never go to war.
+**Skyrim's own civil war is the game's to decide, not yours.** `civil_war` in the state above says how it stands right now, as fact. Never write an event that contradicts it: no surrender, victory, peace treaty, alliance or trade pact between the Empire and the Stormcloaks that it does not state; no fighting between them while it says a truce holds or the war is over; no war or open break between the Empire and the Thalmor while it says the Concordat binds them (spying, pressure and quarrels over the Concordat's terms are theirs; open war is not). Pairs the state marks `war_possible: false` never go to war.
 
 Each faction controls a specific hold. Events should reflect geographic reality:
 - **Imperial Legion** controls Solitude. Their patrols cover western Skyrim and trade routes through Haafingar.
 - **Stormcloaks** control Windhelm and eastern Skyrim. Windhelm is their fortified capital — they have no need for "safehouses" there.
-- **Thalmor** operate from the Thalmor Embassy near Solitude. They have agents and justiciars across Skyrim but no territory of their own — they scheme through espionage, diplomacy, and Talos worship crackdowns.
+- **Thalmor** operate from the Thalmor Embassy near Solitude. They have agents and justiciars across Skyrim but no territory of their own — they scheme through espionage, diplomacy, and crackdowns on dissent.
 - **Companions** operate from Jorrvaskr in Whiterun. They are warriors-for-hire, not political schemers.
 - **Thieves Guild** operates from the Ratway beneath Riften. Their power is information and stolen goods.
 - **College of Winterhold** is isolated in the frozen north. They deal in magical research and are distrusted by locals.

@@ -64,3 +64,310 @@ place	lake	호숫가|호수
 none	none	없음|없다|없어|아무도 없음|아무도|아무것도|해당 없음|해당없음
 
 free	*	으로|로|에|에서|에게|을|를|이|가|은|는|의|와|과|까지|부터
+
+# ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
+# {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.
+# Longer, more particular sentences are tried first; a sentence no row has stays English.
+# Not here on purpose: "{1} will {2} {3}" (its one fixed word, " will ", is a German word: the row would
+# rewrite German sentences of a story). Its particular forms (will meet at, will fetch, ...) are below.
+label	A champion of the {1} takes the field.	{1}의 용사가 전장에 나섰습니다.
+label	A champion of {1} takes the field.	{1}의 용사가 전장에 나섰습니다.
+label	A second force of the {1} breaks from cover on the flank!	{1}의 두 번째 부대가 측면에서 튀어나왔습니다!
+label	A second force of {1} breaks from cover on the flank!	{1}의 두 번째 부대가 측면에서 튀어나왔습니다!
+label	Champion of the {1}	{1}의 용사
+label	Champion of {1}	{1}의 용사
+label	Charge!	돌격!
+label	Fighting has broken out near {1}.	{1} 근처에서 전투가 벌어졌습니다.
+label	Hold a little longer	조금만 더 버텨라
+label	Men of the {1} and of the {2} have run into each other near {3}.	{3} 근처에서 {1} 측과 {2} 측 병사들이 맞닥뜨렸습니다.
+label	Men of {1} and of {2} have run into each other near {3}.	{3} 근처에서 {1} 측과 {2} 측 병사들이 맞닥뜨렸습니다.
+label	Men of the {1} are coming for you.	{1}의 병사들이 당신을 노리고 옵니다.
+label	Men of {1} are coming for you.	{1}의 병사들이 당신을 노리고 옵니다.
+label	More soldiers of the {1} come up.	{1}의 병사들이 더 올라옵니다.
+label	More soldiers of {1} come up.	{1}의 병사들이 더 올라옵니다.
+label	Stand with the {1}	{1} 편에 서기
+label	Stand with {1}	{1} 편에 서기
+label	Stay out of it	끼어들지 않기
+label	Stranger	낯선 자
+label	The captain of the {1} has fallen.	{1}의 대장이 쓰러졌습니다.
+label	The captain of {1} has fallen.	{1}의 대장이 쓰러졌습니다.
+label	The champion of the {1} has fallen.	{1}의 용사가 쓰러졌습니다.
+label	The champion of {1} has fallen.	{1}의 용사가 쓰러졌습니다.
+label	The last of the {1} come up.	{1}의 마지막 병력이 올라옵니다.
+label	The last of {1} come up.	{1}의 마지막 병력이 올라옵니다.
+label	The line of the {1} waits for your word, {2}.	{2}, {1}의 전열이 당신의 명령을 기다립니다.
+label	The line of {1} waits for your word, {2}.	{2}, {1}의 전열이 당신의 명령을 기다립니다.
+label	The line of the {1} waits for your word, Captain.	대장님, {1}의 전열이 당신의 명령을 기다립니다.
+label	The line of the {1} waits for your word, Champion.	용사님, {1}의 전열이 당신의 명령을 기다립니다.
+label	The line of the {1} waits for your word, Lieutenant.	부관님, {1}의 전열이 당신의 명령을 기다립니다.
+label	The line of the {1} waits for your word, Right Hand.	오른팔, {1}의 전열이 당신의 명령을 기다립니다.
+label	The line of the {1} waits for your word, Sworn Captain.	맹세한 대장님, {1}의 전열이 당신의 명령을 기다립니다.
+label	The line of the {1} waits for your word, Champion of the House.	가문의 용사님, {1}의 전열이 당신의 명령을 기다립니다.
+label	Treachery! Men of the {1} turn on their own.	배신입니다! {1}의 병사들이 아군에게 칼을 돌렸습니다.
+label	Treachery! Men of {1} turn on their own.	배신입니다! {1}의 병사들이 아군에게 칼을 돌렸습니다.
+label	Turncoat	변절자
+label	Two armies are drawn up near {1}: the {2} and the {3}.	{1} 근처에 두 군대가 진을 쳤습니다: {2}, {3}.
+label	Two armies are drawn up near {1}: {2} and {3}.	{1} 근처에 두 군대가 진을 쳤습니다: {2}, {3}.
+label	Word reaches you: neither side held the field near {1}.	소식이 들려옵니다: {1} 근처 전투에서 어느 쪽도 전장을 지키지 못했습니다.
+label	Word reaches you: the {1} won the battle near {2}.	소식이 들려옵니다: {2} 근처 전투에서 {1} 측이 이겼습니다.
+label	Word reaches you: {1} won the battle near {2}.	소식이 들려옵니다: {2} 근처 전투에서 {1} 측이 이겼습니다.
+label	You stand with the {1}.	당신은 {1} 편에 섰습니다.
+label	You stand with {1}.	당신은 {1} 편에 섰습니다.
+label	{1} Captain	{1} 대장
+label	The {1} now count you a {2}.	{1}에서 당신의 계급이 올랐습니다: {2}.
+label	The {1} now count you an {2}.	{1}에서 당신의 계급이 올랐습니다: {2}.
+label	{1} now count you {2}.	{1}에서 당신의 계급이 올랐습니다: {2}.
+label	The {1} send your pay on to you: {2} gold.	{1}에서 급료를 보내왔습니다: {2}골드.
+label	{1} send your pay on to you: {2} gold.	{1}에서 급료를 보내왔습니다: {2}골드.
+label	Two soldiers of the {1} keep by your side.	{1}의 병사 둘이 당신 곁을 지킵니다.
+label	Four soldiers of the {1} keep by your side.	{1}의 병사 넷이 당신 곁을 지킵니다.
+label	{1} soldiers of {2} keep by your side.	{2}의 병사들이 당신 곁을 지킵니다 ({1}).
+label	Near {1}, the {2} and the {3} are fighting. {4} calls you to their line.	{1} 근처에서 {2}, {3} 두 세력이 싸우고 있습니다. {4}: 자기 편 전열로 오라고 부릅니다.
+label	Near {1}, the {2} and the {3} are about to fight. {4} calls you to their line.	{1} 근처에서 {2}, {3} 두 세력이 곧 맞붙습니다. {4}: 자기 편 전열로 오라고 부릅니다.
+label	Stand with the {1} near {2} before the battle is decided	전투가 판가름 나기 전에 {2} 근처에서 {1} 편에 서기
+label	The skirmish is over. Neither side had the better of it.	소규모 교전이 끝났습니다. 어느 쪽도 우위를 잡지 못했습니다.
+label	The skirmish is over. The {1} had the better of it.	소규모 교전이 끝났습니다. {1} 측이 우위를 잡았습니다.
+label	The fighting dies down. Neither side holds the field at {1}.	싸움이 잦아듭니다. {1}의 전장은 어느 쪽도 차지하지 못했습니다.
+label	The day is won. The field at {1} belongs to the {2}.	오늘의 싸움은 이겼습니다. {1}의 전장은 {2} 측의 것입니다.
+label	The day is lost. The field at {1} belongs to the {2}.	오늘의 싸움은 졌습니다. {1}의 전장은 {2} 측의 것입니다.
+label	The fighting ends. The field at {1} belongs to the {2}.	싸움이 끝났습니다. {1}의 전장은 {2} 측의 것입니다.
+label	The {1} will remember that you stood by.	{1} 측은 당신이 지켜보기만 했다는 것을 기억할 것입니다.
+label	An assassin strikes at {1}!	암살자의 습격! 표적: {1}!
+label	Battle	전투
+label	The field is yours, though none of your side is left standing to share it.	전장은 당신의 것이지만, 함께 나눌 아군은 아무도 남지 않았습니다.
+label	You stand alone among the fallen.	쓰러진 자들 사이에 당신만 홀로 서 있습니다.
+label	The attempt on {1}'s life is foiled.	{1} 암살 기도가 저지되었습니다.
+label	{1} lives. The killer is dead.	{1}: 목숨을 건졌습니다. 암살자는 죽었습니다.
+label	The attempt on {1}'s life has failed.	{1} 암살 기도가 실패했습니다.
+label	{1} is dead.	{1}: 사망했습니다.
+label	The killer has got away.	암살자가 달아났습니다.
+label	The {1} will remember your valor at {2}.	{1} 측은 {2}에서 보인 당신의 용맹을 기억할 것입니다.
+label	Word reaches you: the {1} and the {2} are drawing up for battle near {3}.	소식이 들려옵니다: {3} 근처에서 {1}, {2} 두 세력이 전투 대형을 갖추고 있습니다.
+label	Hand it over	건네주기
+label	Hand over	전달
+label	I'll do it	하겠습니다
+label	Not now	지금은 안 됩니다
+label	Not yet	아직은 아닙니다
+label	Put up your fists	주먹으로 붙자
+label	Quest offer	퀘스트 제안
+label	Search the body	시신 뒤지기
+label	Something else	다른 선택
+label	Stand up	일어서기
+label	Story	이야기
+label	What you see	눈에 보이는 것
+label	Allow	허락
+label	Deny	거절
+label	Deny (Silent)	거절 (말없이)
+label	Task permission	임무 허락
+label	Come along	동행 제안
+label	I'll come along	같이 가겠습니다
+label	Not this time	이번엔 사양합니다
+label	At the door	문 앞
+label	I'll check it out	가서 살펴보겠습니다
+label	I'll go alone	혼자 가겠습니다
+label	Ignore	무시하기
+label	Lead the way	앞장서세요
+label	Let them in	들여보내기
+label	Not interested	관심 없습니다
+label	Send them away	돌려보내기
+label	{1} is knocking at your door.	{1}: 문을 두드리고 있습니다.
+label	Give the {1} back to {2}?	{2}에게 돌려줄까요? ({1})
+label	Give {1} back to {2}?	{2}에게 돌려줄까요? ({1})
+label	Give {1} to {2}?	{2}에게 건네줄까요? ({1})
+label	A Thief Among Us	우리 가운데 도둑
+label	Bad Blood	불화
+label	Murder in {1}	{1}의 살인
+label	A Story	어떤 이야기
+label	Tell {1} how it ended	{1}에게 일이 어떻게 끝났는지 알리기
+label	Someone stole {1}. {2} asks you to find the thief and bring it back. Reward: {3} gold.	누군가 {1}을(를) 훔쳐 갔습니다. {2}이(가) 도둑을 찾아 물건을 되찾아 달라고 부탁합니다. 보상: {3}골드.
+label	Bad blood: {1} and {2} fell out over two hundred gold {3} borrowed. {4} asks you to settle it with {5}, one way or another. Reward: {6} gold.	불화: {1}, {2} 두 사람이 {3}이(가) 빌린 200골드 때문에 틀어졌습니다. {4}이(가) {5}와(과)의 일을 어떻게든 매듭지어 달라고 부탁합니다. 보상: {6}골드.
+label	Bad blood: {1} has been telling the inn that {2} cheats people. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	불화: {1}이(가) 여관에서 {2}이(가) 사람들을 속인다고 떠들고 다닙니다. {3}이(가) {4}와(과)의 일을 어떻게든 매듭지어 달라고 부탁합니다. 보상: {5}골드.
+label	Bad blood: {1} insulted {2}'s family in public. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	불화: {1}이(가) 사람들 앞에서 {2}의 가족을 모욕했습니다. {3}이(가) {4}와(과)의 일을 어떻게든 매듭지어 달라고 부탁합니다. 보상: {5}골드.
+label	Bad blood: {1} says {2} cheated at dice. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	불화: {1}이(가) {2}이(가) 주사위 노름에서 속임수를 썼다고 말합니다. {3}이(가) {4}와(과)의 일을 어떻게든 매듭지어 달라고 부탁합니다. 보상: {5}골드.
+label	{1} asks you to find out who killed {2}, and name them with proof. Reward: {3} gold.	{1}이(가) {2}을(를) 죽인 자를 밝혀내 증거와 함께 지목해 달라고 부탁합니다. 보상: {3}골드.
+label	{1} Reward: {2} gold.	{1} 보상: {2}골드.
+label	Settle it with {1} here and now, with your fists?	지금 이 자리에서 {1}와(과) 주먹으로 결판을 낼까요?
+label	{1} stole {2}. What will you do with {3}?	{1}이(가) {2}을(를) 훔쳤습니다. {3}을(를) 어떻게 하시겠습니까?
+label	How will you settle it between {1} and {2}?	{1}, {2} 두 사람 사이의 일을 어떻게 매듭짓겠습니까?
+label	How will you make peace with {1}?	{1}와(과) 어떻게 화해하시겠습니까?
+label	Who killed {1}?	{1}을(를) 죽인 자는 누구입니까?
+label	What will you do?	어떻게 하시겠습니까?
+label	Hand {1} over to the guard	경비병에게 넘기기: {1}
+label	Let {1} go	놓아주기: {1}
+label	Settle it with your fists against {1}	주먹으로 결판내기: {1}
+label	Talk them into making peace	화해하도록 설득하기
+label	Talk {1} round (Speech)	설득하기: {1} (화술)
+label	Pay {1} {2} gold to let it go	돈으로 덮기: {1} {2}골드
+label	Accuse {1}	고발하기: {1}
+label	{1} (Speech)	{1} (화술)
+label	Bounty: {1}	현상금: {1}
+label	Into {1} with {2}	{2}와(과) 함께 {1}(으)로
+label	A Request	부탁
+label	{1} asks you to recover his stolen {2} from {3}. Reward: {4} gold.	{1}이(가) 도둑맞은 {2}을(를) {3}에서 되찾아 달라고 부탁합니다. 보상: {4}골드.
+label	{1} asks you to recover her stolen {2} from {3}. Reward: {4} gold.	{1}이(가) 도둑맞은 {2}을(를) {3}에서 되찾아 달라고 부탁합니다. 보상: {4}골드.
+label	{1} asks you to recover their stolen {2} from {3}. Reward: {4} gold.	{1}이(가) 도둑맞은 {2}을(를) {3}에서 되찾아 달라고 부탁합니다. 보상: {4}골드.
+label	{1} asks you to deal with {2} at {3}. Reward: {4} gold.	{1}이(가) {3}에 있는 {2}을(를) 처리해 달라고 부탁합니다. 보상: {4}골드.
+label	{1} and {2} are about to clear out {3} and ask you to come in with them. Say yes and they follow you in and share what you find; say no and they go in alone.	{1}, {2} 두 사람이 곧 {3}을(를) 소탕하려 하며, 함께 들어가자고 청합니다. 승낙하면 당신을 따라 들어가 찾은 것을 나누고, 거절하면 둘이서만 들어갑니다.
+label	{1} is about to clear out {2} and asks you to come in too. Say yes and {3} follows you in and shares what you find; say no and {4} goes in alone.	{1}이(가) 곧 {2}을(를) 소탕하려 하며, 함께 들어가자고 청합니다. 승낙하면 {3}이(가) 당신을 따라 들어가 찾은 것을 나누고, 거절하면 {4}이(가) 혼자 들어갑니다.
+label	{1} and {2} are on their way to clear out {3} and ask you to come along. Say yes and they follow you there and share what you find; say no and they go alone.	{1}, {2} 두 사람이 {3}을(를) 소탕하러 가는 길이며, 함께 가자고 청합니다. 승낙하면 당신을 따라가 찾은 것을 나누고, 거절하면 둘이서만 갑니다.
+label	{1} is on the way to clear out {2} and asks you to come along. Say yes and {3} follows you there and shares what you find; say no and {4} goes alone.	{1}이(가) {2}을(를) 소탕하러 가는 길이며, 함께 가자고 청합니다. 승낙하면 {3}이(가) 당신을 따라가 찾은 것을 나누고, 거절하면 {4}이(가) 혼자 갑니다.
+label	Your share of the spoils: {1} gold.	전리품 중 당신 몫: {1}골드.
+label	{1} pleads for help rescuing {2} near {3}.	{1}이(가) {3} 근처에 있는 {2}을(를) 구해 달라고 애원합니다.
+label	{1} tells you about {2} near {3}.	{1}이(가) {3} 근처의 {2}에 대해 알려 줍니다.
+label	{1} rallies you to fight alongside the {2} near {3}.	{1}이(가) {3} 근처에서 {2} 편에 서서 싸우자고 호소합니다.
+label	{1} urges you to rescue {2} for the {3} near {4}.	{1}이(가) {3}을(를) 위해 {4} 근처에 있는 {2}을(를) 구하라고 재촉합니다.
+label	{1} tells you about trouble near {2}.	{1}이(가) {2} 근처에서 벌어진 말썽에 대해 알려 줍니다.
+label	You gave {1} {2} gold.	지급: {1} {2}골드.
+label	{1} gave you {2} (2).	{1}에게서 받음: {2} (2).
+label	{1} gave you {2} gold.	{1}에게서 {2}골드를 받았습니다.
+label	{1} gave you {2}.	{1}에게서 받음: {2}.
+label	Someone gave you {1}.	누군가에게서 받음: {1}.
+label	Informant dispatch refused: {1}.	정보원 파견 거부됨: {1}.
+label	IntelEngine: All tasks reset	IntelEngine: 모든 임무가 초기화되었습니다
+label	IntelEngine: Resetting all tasks...	IntelEngine: 모든 임무를 초기화하는 중...
+label	Political event refused: {1} between {2} and {3}. The reason is in the IntelEngine log.	정치 사건 거부됨: {1} ({2}, {3} 사이). 이유는 IntelEngine 로그에 있습니다.
+label	Political event: {1} between {2} and {3}.	정치 사건: {1} ({2}, {3} 사이).
+label	Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.	사교 파견 거부됨: 내레이션 누락, 잘못된 유형, 동일 NPC, 또는 StoryEngine 사용 불가.
+label	Social replacement refused: active trip changed; refresh and confirm replacement.	사교 교체 거부됨: 진행 중인 이동이 바뀌었습니다. 새로 고친 뒤 교체를 확인하십시오.
+label	Social replacement refused: previous trip or task is still active after cancellation.	사교 교체 거부됨: 취소 후에도 이전 이동 또는 임무가 아직 진행 중입니다.
+label	Story dispatch refused: narration is empty.	스토리 파견 거부됨: 내레이션이 비어 있습니다.
+label	Story dispatch refused: StoryEngine is unavailable.	스토리 파견 거부됨: StoryEngine을 사용할 수 없습니다.
+label	Story engine is busy with {1} ({2}). Cancel it first.	스토리 엔진이 사용 중입니다: {1} ({2}). 먼저 취소하십시오.
+label	Story replacement refused: previous story or task is still active after cancellation.	스토리 교체 거부됨: 취소 후에도 이전 스토리 또는 임무가 아직 진행 중입니다.
+label	Story replacement refused: unknown type or missing message content / informant subject and gossip.	스토리 교체 거부됨: 알 수 없는 유형이거나 전갈 내용 / 정보원의 대상과 소문이 없습니다.
+label	{1} and {2}: {3} started.	{1}, {2}: {3} 시작.
+label	{1} has no task to cancel.	{1}: 취소할 임무가 없습니다.
+label	{1} is already busy ({2}). Cancel it first.	{1}: 이미 임무 중입니다 ({2}). 먼저 취소하십시오.
+label	{1} sets out ({2}).	{1}: 길을 나섰습니다 ({2}).
+label	{1}'s task cancelled.	{1}의 임무가 취소되었습니다.
+label	{1}'s task was cancelled.	{1}의 임무가 취소되었습니다.
+label	{1}'s task was cancelled	{1}의 임무가 취소되었습니다
+label	{1}: conduct reported.	{1}: 행적이 보고되었습니다.
+label	{1}: {2} failed.	{1}: {2} 실패.
+label	{1}: {2} started.	{1}: {2} 시작.
+label	{1} isn't loaded right now (they only exist near their home), so they can't be sent from here.	{1}: 지금 로드되어 있지 않습니다(집 근처에서만 존재). 여기서는 보낼 수 없습니다.
+label	Couldn't find NPC '{1}' (no unique match).	NPC '{1}' 찾을 수 없음 (유일하게 일치하는 대상 없음).
+label	{1} arrived - {2} is still on the way	{1} 도착 - {2}: 아직 오는 중
+label	{1} brought {2}	{1}이(가) {2}을(를) 데려왔습니다
+label	{1} cannot deliver a message to themselves.	{1}: 자기 자신에게는 전갈을 전할 수 없습니다.
+label	{1} cannot deliver a message to {2}, who is dead.	{1}: 전갈을 전할 수 없습니다. {2}: 이미 죽었습니다.
+label	{1} could not be found.	찾을 수 없습니다: {1}.
+label	{1} could not be found. The closest known name is {2}.	찾을 수 없습니다: {1}. 가장 비슷한 이름: {2}.
+label	{1} could not find the recipient	{1}: 받는 이를 찾지 못했습니다
+label	{1} could not find their target	{1}: 찾던 사람을 찾지 못했습니다
+label	{1} could not find {2} to deliver the message.	{1}: 전갈을 전할 {2}을(를) 찾지 못했습니다.
+label	{1} delivered a message to {2} and is heading back	{1}: {2}에게 전갈을 전하고 돌아오는 중입니다
+label	{1} delivered the message	{1}: 전갈을 전했습니다
+label	{1} escorted {2} to {3}	{1}: {2}을(를) {3}까지 호위했습니다
+label	{1} found {2}	{1}: {2}을(를) 찾았습니다
+label	{1} gave up the search for {2}	{1}: {2} 수색을 포기했습니다
+label	{1} is already right here; no delivery task started.	{1}: 이미 이 자리에 있습니다. 전달 임무는 시작되지 않았습니다.
+label	{1} is escorting {2} to {3}	{1}: {2}을(를) {3}까지 호위하는 중입니다
+label	{1} is going to escort {2} to {3}	{1}: {2}을(를) {3}까지 호위하기로 했습니다
+label	{1} is going to search for {2}	{1}: {2}을(를) 찾으러 갑니다
+label	{1} lost their escort target	{1}: 호위하던 사람을 놓쳤습니다
+label	{1} returned from delivering message to {2}	{1}: {2}에게 전갈을 전하고 돌아왔습니다
+label	{1} went to deliver a message to {2}	{1}: {2}에게 전갈을 전하러 갔습니다
+label	{1} went to find {2}	{1}: {2}을(를) 데리러 갔습니다
+label	{1}: {2} refused - {3}	{1}: {2}의 거절 - {3}
+label	{1} wants to go fetch {2}.	{1}이(가) {2}을(를) 데리러 가려 합니다.
+label	{1} wants to help search for {2}.	{1}이(가) {2} 수색을 돕고 싶어 합니다.
+label	{1} wants to escort {2} to {3}.	{1}이(가) {2}을(를) {3}까지 호위하려 합니다.
+label	{1} wants to travel to {2}.	{1}이(가) {2}(으)로 가려 합니다.
+label	{1} wants to deliver a message to {2}.	{1}이(가) 전갈을 전하려 합니다. 받는 이: {2}.
+label	{1} wants to deliver a message to {2} tomorrow {3}.	{1}이(가) 내일 {3}에 {2}에게 전갈을 전하려 합니다.
+label	{1} wants to deliver a message to {2} in {3} days {4}.	{1}이(가) {3}일 뒤 {4}에 {2}에게 전갈을 전하려 합니다.
+label	{1} wants to fetch {2}.	{1}이(가) 사람을 데리러 가려 합니다: {2}.
+label	{1} wants to fetch {2} tomorrow {3}.	{1}이(가) 내일 {3}에 {2}을(를) 데리러 가려 합니다.
+label	{1} wants to fetch {2} in {3} days {4}.	{1}이(가) {3}일 뒤 {4}에 {2}을(를) 데리러 가려 합니다.
+label	{1} wants to meet at {2}.	{1}이(가) 당신과 만나려 합니다: {2}.
+label	{1} wants to meet {2}.	{1}이(가) {2}에 당신과 만나려 합니다.
+label	{1} wants to meet at {2} tomorrow {3}.	{1}이(가) 내일 {3}에 당신과 만나려 합니다. 장소: {2}.
+label	{1} wants to meet at {2} in {3} days {4}.	{1}이(가) {3}일 뒤 {4}에 당신과 만나려 합니다. 장소: {2}.
+label	{1} wants to meet tomorrow {2}.	{1}이(가) 내일 {2}에 당신과 만나려 합니다.
+label	{1} wants to meet in {2} days {3}.	{1}이(가) {2}일 뒤 {3}에 당신과 만나려 합니다.
+label	{1} will meet at {2}	{1}와(과)의 만남: {2}
+label	{1} will meet {2}	{1}와(과) {2}에 만납니다
+label	{1} will meet at {2} tomorrow {3}	{1}와(과) 내일 {3}에 만납니다. 장소: {2}
+label	{1} will meet at {2} in {3} days {4}	{1}와(과) {3}일 뒤 {4}에 만납니다. 장소: {2}
+label	{1} will meet tomorrow {2}	{1}와(과) 내일 {2}에 만납니다
+label	{1} will meet in {2} days {3}	{1}와(과) {2}일 뒤 {3}에 만납니다
+label	{1} will fetch {2} {3}	{1}: 데리러 갑니다 - {2} {3}
+label	{1} will fetch {2} tomorrow {3}	{1}: 내일 {3}에 {2}을(를) 데리러 갑니다
+label	{1} will fetch {2} in {3} days {4}	{1}: {3}일 뒤 {4}에 {2}을(를) 데리러 갑니다
+label	{1} will deliver message to {2} {3}	{1}: 전갈을 전합니다 - {2} {3}
+label	{1} will deliver message to {2} tomorrow {3}	{1}: 내일 {3}에 {2}에게 전갈을 전합니다
+label	{1} will deliver message to {2} in {3} days {4}	{1}: {3}일 뒤 {4}에 {2}에게 전갈을 전합니다
+label	Not scheduled: {1} will not meet at {2}.	예약되지 않음: {1}와(과)의 만남({2})은 없습니다.
+label	Not scheduled: {1} will not meet.	예약되지 않음: {1}와(과)의 만남은 없습니다.
+label	Not scheduled: {1} will not fetch {2}.	예약되지 않음: {1}: {2}을(를) 데리러 가지 않습니다.
+label	Not scheduled: {1} will not deliver a message to {2}.	예약되지 않음: {1}: {2}에게 전갈을 전하지 않습니다.
+label	Not scheduled: {1} will not {2}.	예약되지 않음: {1} ({2}).
+label	Not scheduled: all {1} schedule slots are in use.	예약되지 않음: 일정 칸 {1}개가 모두 사용 중입니다.
+label	All scheduled tasks cancelled	예약된 임무가 모두 취소되었습니다
+label	{1} could not set out for the meeting at {2}. It is off.	{1}: {2}에서의 만남에 나서지 못했습니다. 약속은 취소되었습니다.
+label	Quest marker unavailable (alias not found)	퀘스트 표식을 쓸 수 없습니다 (별칭을 찾지 못함)
+label	Quest: {1} [{2}]	퀘스트: {1} [{2}]
+label	Rescue completed!	구출 완료!
+label	Something feels wrong...	뭔가 이상합니다...
+label	Sounds of fighting carry from up ahead.	앞쪽에서 싸우는 소리가 들려옵니다.
+label	Story: {1} couldn't reach you - story ended	이야기: {1}이(가) 당신에게 닿지 못했습니다 - 이야기 종료
+label	Story: {1} gave up	이야기: {1}: 포기했습니다
+label	The area is quiet. The threat seems to have moved on.	주변이 조용합니다. 위협은 떠난 듯합니다.
+label	The fighting has ended before you arrived.	당신이 도착하기 전에 싸움이 끝났습니다.
+label	The fighting is already underway elsewhere.	싸움은 이미 다른 곳에서 벌어지고 있습니다.
+label	The forces have already moved on.	병력은 이미 떠났습니다.
+label	The threat has been dealt with.	위협을 처리했습니다.
+label	The {1} acknowledge your intent to fight.	{1} 측이 싸우려던 당신의 뜻을 알아줍니다.
+label	The {1} acknowledge your willingness to help.	{1} 측이 도우려던 당신의 뜻을 알아줍니다.
+label	The {1} held the field unopposed.	{1} 측이 싸움 없이 전장을 차지했습니다.
+label	The {1} speak your name with respect.	{1} 측에서 당신의 이름을 존경을 담아 부릅니다.
+label	They seem to have more to ask...	아직 부탁할 것이 더 있는 듯합니다...
+label	Word of your deeds reaches the {1}.	당신의 활약이 {1} 측에 전해졌습니다.
+label	Word reaches you: the battle has moved on.	소식이 들려옵니다: 전투가 다른 곳으로 옮겨 갔습니다.
+label	You claim the {1}.	손에 넣음: {1}.
+label	You hear the clink of armor ahead.	앞쪽에서 갑옷이 부딪는 소리가 들립니다.
+label	You should hurry - the situation won't hold much longer.	서둘러야 합니다 - 상황이 오래 버티지 못합니다.
+label	Your name carries weight among the {1}.	{1} 측에서 당신의 이름은 무게가 있습니다.
+label	{1} can no longer lead the way. The map marker shows where to go.	{1}: 더는 길을 안내할 수 없습니다. 갈 곳은 지도 표식이 알려 줍니다.
+label	{1} didn't make it.	{1}: 끝내 살아남지 못했습니다.
+label	{1} has been freed!	{1}: 풀려났습니다!
+label	{1} gave you an answer for {2}.	{1}에게서 {2}에게 전할 답을 받았습니다.
+label	{1} gave you more time.	{1}: 시간을 더 주었습니다.
+label	{1} is coming with you to see {2}.	{1}: {2}을(를) 만나러 당신과 함께 갑니다.
+label	{1} needs it within half a day now.	{1}: 이제 반나절 안에 필요하다고 합니다.
+label	{1} no longer needs your help with it.	{1}: 그 일에 더는 당신의 도움이 필요 없다고 합니다.
+label	{1} will come with you to see {2} once done here.	{1}: 여기 일이 끝나는 대로 {2}을(를) 만나러 함께 갑니다.
+label	{1} will give you {2} gold for it.	{1}: 그 대가로 {2}골드를 주겠다고 합니다.
+label	{1} arrived at {2}	{1}: {2}에 도착했습니다
+label	{1} arrived late to {2} and eventually gave up waiting for you	{1}: {2}에 늦게 도착했고, 결국 당신을 기다리다 포기했습니다
+label	{1} arrived too late for the meeting at {2}	{1}: {2}에서의 만남에 너무 늦게 도착했습니다
+label	{1} could not come to the meeting at {2}. It is off.	{1}: {2}에서의 만남에 올 수 없었습니다. 약속은 취소되었습니다.
+label	{1} got tired of waiting for you at {2}	{1}: {2}에서 당신을 기다리다 지쳤습니다
+label	{1} headed off after the meeting	{1}: 만남을 마치고 떠났습니다
+label	{1} headed off to {2}	{1}: {2}(으)로 떠났습니다
+label	{1} left {2}	{1}: {2}을(를) 떠났습니다
+label	{1} met you at {2}	{1}와(과) {2}에서 만났습니다
+label	{1} never made it to the meeting at {2}	{1}: {2}에서의 만남에 끝내 오지 못했습니다
+label	The {1} now count you an Auxiliary.	{1}에서 당신의 계급이 올랐습니다: 보조병.
+label	The {1} now count you a Sworn Sword.	{1}에서 당신의 계급이 올랐습니다: 맹세의 검.
+label	The {1} now count you a Veteran.	{1}에서 당신의 계급이 올랐습니다: 고참병.
+label	The {1} now count you a Captain.	{1}에서 당신의 계급이 올랐습니다: 대장.
+label	The {1} now count you a Champion.	{1}에서 당신의 계급이 올랐습니다: 용사.
+label	The {1} now count you an Associate.	{1}에서 당신의 계급이 올랐습니다: 협력자.
+label	The {1} now count you a Trusted Hand.	{1}에서 당신의 계급이 올랐습니다: 심복.
+label	The {1} now count you a Lieutenant.	{1}에서 당신의 계급이 올랐습니다: 부관.
+label	The {1} now count you a Right Hand.	{1}에서 당신의 계급이 올랐습니다: 오른팔.
+label	The {1} now count you a Hired Blade.	{1}에서 당신의 계급이 올랐습니다: 용병 검사.
+label	The {1} now count you a Retainer.	{1}에서 당신의 계급이 올랐습니다: 가신.
+label	The {1} now count you a Trusted Retainer.	{1}에서 당신의 계급이 올랐습니다: 신임받는 가신.
+label	The {1} now count you a Sworn Captain.	{1}에서 당신의 계급이 올랐습니다: 맹세한 대장.
+label	The {1} now count you a Champion of the House.	{1}에서 당신의 계급이 올랐습니다: 가문의 용사.
+label	The trail leads on to the north.	흔적은 북쪽으로 이어집니다.
+label	The trail leads on to the north-east.	흔적은 북동쪽으로 이어집니다.
+label	The trail leads on to the east.	흔적은 동쪽으로 이어집니다.
+label	The trail leads on to the south-east.	흔적은 남동쪽으로 이어집니다.
+label	The trail leads on to the south.	흔적은 남쪽으로 이어집니다.
+label	The trail leads on to the south-west.	흔적은 남서쪽으로 이어집니다.
+label	The trail leads on to the west.	흔적은 서쪽으로 이어집니다.
+label	The trail leads on to the north-west.	흔적은 북서쪽으로 이어집니다.

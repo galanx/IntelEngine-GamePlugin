@@ -12,6 +12,16 @@ Scriptname IntelEngine_MCM extends SKI_ConfigBase
     Requires: SkyUI (https://www.nexusmods.com/skyrimspecialedition/mods/12604)
 }
 
+; Every word the menu shows is a SkyUI translation key ("$IntelEngine_..."), so that it reads in the game's
+; language: the words are in Interface/Translations/IntelEngine_<LANGUAGE>.txt (the game repository), one line a
+; key; the English file is the source of the names (RunSettingNamesCheck reads them there, and
+; RunMcmTranslationCheck holds every language to the English keys and to the column's width). A key written with
+; braces carries values: "$IntelEngine_Slot{" + slot + "}" is the line "$IntelEngine_Slot{}" with the value put in
+; its {}. SkyUI fills the {} in order, and it looks a value up only when the whole value is a key without braces:
+; "$IntelEngine_HoldInfo{$IntelEngine_TypeSeek}{$IntelEngine_HoldNone}" works, a key with values inside another
+; key's braces does not (SkyUI's Translator.translateNested pairs each { with the next }). The translations must
+; keep the order of the values.
+
 ; =============================================================================
 ; PROPERTIES
 ; =============================================================================
@@ -191,17 +201,14 @@ String Function GetCustomControl(Int optionId)
 EndFunction
 
 Int Function GetVersion()
-    Return 4
+    ; 5: the page names became translation keys (EnsurePages puts a save's English names right).
+    Return 5
 EndFunction
 
 Event OnConfigInit()
     Debug.Trace("IntelEngine MCM: OnConfigInit fired")
     ModName = "IntelEngine"
-    Pages = new String[4]
-    Pages[0] = "Active Tasks"
-    Pages[1] = "Scheduled Tasks"
-    Pages[2] = "Settings"
-    Pages[3] = "Hold Restrictions"
+    EnsurePages()
 EndEvent
 
 Event OnVersionUpdate(Int newVersion)
@@ -221,12 +228,15 @@ Event OnConfigClose()
 EndEvent
 
 Function EnsurePages()
-    If Pages.Length != 4
+    {The page names are translation keys. A save made before they were holds the English names ("Active Tasks"),
+     which OnPageReset no longer answers to: they are replaced here. OnConfigOpen runs before SkyUI is handed the
+     names, so the menu never shows the old ones.}
+    If Pages.Length != 4 || Pages[0] != "$IntelEngine_ActiveTasks"
         Pages = new String[4]
-        Pages[0] = "Active Tasks"
-        Pages[1] = "Scheduled Tasks"
-        Pages[2] = "Settings"
-        Pages[3] = "Hold Restrictions"
+        Pages[0] = "$IntelEngine_ActiveTasks"
+        Pages[1] = "$IntelEngine_ScheduledTasks"
+        Pages[2] = "$IntelEngine_Settings"
+        Pages[3] = "$IntelEngine_HoldRestrictions"
         Debug.Trace("IntelEngine MCM: Pages rebuilt to 4")
     EndIf
 EndFunction
@@ -239,7 +249,7 @@ Event OnPageReset(String page)
     ; SkyUI reuses OID numbers across pages, so stale cancel OIDs
     ; stored in StorageUtil can collide with toggles on other pages
     ; (e.g. OID_TypeMessage on Settings == cancel OID from Scheduled).
-    If page != "Scheduled Tasks" && page != "Scheduled Meetings"
+    If page != "$IntelEngine_ScheduledTasks"
         Form mcmForm = Self as Form
         Int ci = 0
         While ci < 10
@@ -248,13 +258,13 @@ Event OnPageReset(String page)
         EndWhile
     EndIf
 
-    If page == "" || page == "Active Tasks"
+    If page == "" || page == "$IntelEngine_ActiveTasks"
         ShowStatusPage()
-    ElseIf page == "Scheduled Tasks" || page == "Scheduled Meetings"
+    ElseIf page == "$IntelEngine_ScheduledTasks"
         ShowScheduledPage()
-    ElseIf page == "Settings"
+    ElseIf page == "$IntelEngine_Settings"
         ShowSettingsPage()
-    ElseIf page == "Hold Restrictions"
+    ElseIf page == "$IntelEngine_HoldRestrictions"
         ShowHoldRestrictionsPage()
     EndIf
 EndEvent
@@ -267,28 +277,28 @@ Function ShowStatusPage()
     SetCursorFillMode(TOP_TO_BOTTOM)
     SetCursorPosition(0)
 
-    AddHeaderOption("Active Tasks")
+    AddHeaderOption("$IntelEngine_ActiveTasks")
     AddEmptyOption()
 
     ; Show each slot status
     OID_Slot0Status = AddSlotRow(0)
-    OID_ClearSlot0 = AddTextOption(SlotWhere(0), "Clear", GetClearFlag(0))
+    OID_ClearSlot0 = AddTextOption(SlotWhere(0), "$IntelEngine_Clear", GetClearFlag(0))
 
     OID_Slot1Status = AddSlotRow(1)
-    OID_ClearSlot1 = AddTextOption(SlotWhere(1), "Clear", GetClearFlag(1))
+    OID_ClearSlot1 = AddTextOption(SlotWhere(1), "$IntelEngine_Clear", GetClearFlag(1))
 
     OID_Slot2Status = AddSlotRow(2)
-    OID_ClearSlot2 = AddTextOption(SlotWhere(2), "Clear", GetClearFlag(2))
+    OID_ClearSlot2 = AddTextOption(SlotWhere(2), "$IntelEngine_Clear", GetClearFlag(2))
 
     OID_Slot3Status = AddSlotRow(3)
-    OID_ClearSlot3 = AddTextOption(SlotWhere(3), "Clear", GetClearFlag(3))
+    OID_ClearSlot3 = AddTextOption(SlotWhere(3), "$IntelEngine_Clear", GetClearFlag(3))
 
     OID_Slot4Status = AddSlotRow(4)
-    OID_ClearSlot4 = AddTextOption(SlotWhere(4), "Clear", GetClearFlag(4))
+    OID_ClearSlot4 = AddTextOption(SlotWhere(4), "$IntelEngine_Clear", GetClearFlag(4))
 
     AddEmptyOption()
-    AddHeaderOption("Actions")
-    OID_ResetAllTasks = AddTextOption("Reset All Tasks", "Click")
+    AddHeaderOption("$IntelEngine_Actions")
+    OID_ResetAllTasks = AddTextOption("$IntelEngine_ResetAllTasks", "$IntelEngine_Click")
 EndFunction
 
 Int Function AddSlotRow(Int slot)
@@ -296,28 +306,25 @@ Int Function AddSlotRow(Int slot)
      right: written as a value it was set in capitals from the right edge and lay over the "Slot N:" label
      ("SINMIR: TRAVELING TO DRUNKEN HUNTSM" over "Slot 0:", seen in the game 2026-11-22).}
     String status = GetSlotDisplay(slot)
-    If status == "Empty" || status == "Invalid" || status == "Unknown" || status == "Error: No Core"
-        Return AddTextOption("Slot " + slot + ":", status)
+    String word = SlotWord(status)
+    If word != ""
+        Return AddTextOption("$IntelEngine_Slot{" + slot + "}", word)
     EndIf
-    Int cut = StringUtil.Find(status, " (")
-    If cut > 0
-        Return AddTextOption(StringUtil.Substring(status, 0, cut), "")
-    EndIf
-    Return AddTextOption(status, "")
+    Return AddTextOption(TaskRow(status), "")
 EndFunction
 
 String Function SlotWhere(Int slot)
-    {The bracketed end of a busy slot's text ("(near The Bannered Mare)"), shown beside its Clear button: on the
-     row above it ran past the column's edge and was cut.}
+    {Where a busy slot's NPC is ("(near The Bannered Mare)"), shown beside its Clear button: on the row above it
+     ran past the column's edge and was cut.}
     String status = GetSlotDisplay(slot)
-    If status == "Empty" || status == "Invalid" || status == "Unknown" || status == "Error: No Core"
+    If SlotWord(status) != ""
         Return ""
     EndIf
-    Int cut = StringUtil.Find(status, " (")
-    If cut > 0
-        Return StringUtil.Substring(status, cut + 1)
+    String place = TaskPlace(status)
+    If place == ""
+        Return ""
     EndIf
-    Return ""
+    Return "$IntelEngine_SlotNear{" + PlaceValue(place) + "}"
 EndFunction
 
 String Function GetSlotDisplay(Int slot)
@@ -332,6 +339,21 @@ String Function GetSlotDisplay(Int slot)
     Return status
 EndFunction
 
+String Function SlotWord(String status)
+    {The key of an idle slot's word (Core.GetSlotStatus answers "Empty", "Invalid" or "Unknown"), or "" for a slot
+     in use.}
+    If status == "Empty"
+        Return "$IntelEngine_SlotEmpty"
+    ElseIf status == "Invalid"
+        Return "$IntelEngine_SlotInvalid"
+    ElseIf status == "Unknown"
+        Return "$IntelEngine_SlotUnknown"
+    ElseIf status == "Error: No Core"
+        Return "$IntelEngine_NoCore"
+    EndIf
+    Return ""
+EndFunction
+
 Int Function GetClearFlag(Int slot)
     If Core == None
         Return OPTION_FLAG_DISABLED
@@ -344,6 +366,183 @@ Int Function GetClearFlag(Int slot)
     Return OPTION_FLAG_NONE
 EndFunction
 
+; ---- A slot in use, in the menu's language ----
+; Core.GetSlotStatus gives a busy slot as the DLL words it (GetSlotStatusNative, Papyrus.cpp): who, ": ", one of
+; thirteen phrases (ten of them followed by a name), and " (near <cell>)" when the NPC is in a named cell or
+; "[IN COMBAT]". The functions below take that apart and give the phrase's key with who and the name as its
+; values; words they do not know (the DLL's wording changed) are shown as they came.
+
+String Function TaskWho(String status)
+    {Who a busy slot's text is about: what stands before its first ": ".}
+    Int colon = StringUtil.Find(status, ": ")
+    If colon <= 0
+        Return ""
+    EndIf
+    Return StringUtil.Substring(status, 0, colon)
+EndFunction
+
+String Function TaskWhat(String status)
+    {What a busy slot's NPC is doing: the text after who, without where.}
+    String what = status
+    Int colon = StringUtil.Find(status, ": ")
+    If colon > 0
+        what = StringUtil.Substring(status, colon + 2)
+    EndIf
+    Int near = StringUtil.Find(what, " (near ")
+    If near >= 0
+        what = StringUtil.Substring(what, 0, near)
+    EndIf
+    Return what
+EndFunction
+
+String Function TaskPlace(String status)
+    {Where a busy slot's NPC is: the cell's name (or "[IN COMBAT]") in its " (near ...)", or "".}
+    Int near = StringUtil.Find(status, " (near ")
+    If near < 0
+        Return ""
+    EndIf
+    Int chars = StringUtil.GetLength(status) - near - 8
+    If chars <= 0
+        Return ""
+    EndIf
+    Return StringUtil.Substring(status, near + 7, chars)
+EndFunction
+
+String Function PlaceValue(String place)
+    {A place as the value of a key: the cell's name, or the key of the words for a fight.}
+    If place == "[IN COMBAT]"
+        Return "$IntelEngine_InCombat"
+    EndIf
+    Return place
+EndFunction
+
+String[] Function TaskStarts()
+    {How GetSlotStatusNative begins each of its phrases, in the order of TaskKey: the first ten go on with a name,
+     the last three stand alone.}
+    String[] starts = new String[13]
+    starts[0] = "Going to fetch "
+    starts[1] = "Fetching "
+    starts[2] = "Returning with "
+    starts[3] = "Going to deliver a message to "
+    starts[4] = "Delivering message to "
+    starts[5] = "Searching for "
+    starts[6] = "Going to escort "
+    starts[7] = "Escorting "
+    starts[8] = "Traveling to "
+    starts[9] = "Going to visit "
+    starts[10] = "Returning after delivering message"
+    starts[11] = "Seeking out the player"
+    starts[12] = "On a task"
+    Return starts
+EndFunction
+
+Int Function TaskPhrase(String what)
+    {Which of the DLL's phrases a slot's "what" is (TaskStarts), or -1.}
+    String[] starts = TaskStarts()
+    Int i = 0
+    While i < 13
+        If (i < 10 && StringUtil.Find(what, starts[i]) == 0) || what == starts[i]
+            Return i
+        EndIf
+        i += 1
+    EndWhile
+    Return -1
+EndFunction
+
+String Function TaskName(String what, Int phrase)
+    {The name after a phrase that takes one (phrase 0 to 9).}
+    String[] starts = TaskStarts()
+    Return StringUtil.Substring(what, StringUtil.GetLength(starts[phrase]))
+EndFunction
+
+String Function TaskKey(Int phrase, Int variant)
+    {The key of one of the DLL's slot phrases: variant 0 the row (who, then "Traveling to" and a name), 1 the
+     question before clearing it, 2 that question with where the NPC is.}
+    String[] keys = new String[39]
+    keys[0] = "$IntelEngine_TaskGoingToFetch"
+    keys[1] = "$IntelEngine_ClearGoingToFetch"
+    keys[2] = "$IntelEngine_ClearGoingToFetchNear"
+    keys[3] = "$IntelEngine_TaskFetching"
+    keys[4] = "$IntelEngine_ClearFetching"
+    keys[5] = "$IntelEngine_ClearFetchingNear"
+    keys[6] = "$IntelEngine_TaskReturningWith"
+    keys[7] = "$IntelEngine_ClearReturningWith"
+    keys[8] = "$IntelEngine_ClearReturningWithNear"
+    keys[9] = "$IntelEngine_TaskGoingToDeliver"
+    keys[10] = "$IntelEngine_ClearGoingToDeliver"
+    keys[11] = "$IntelEngine_ClearGoingToDeliverNear"
+    keys[12] = "$IntelEngine_TaskDelivering"
+    keys[13] = "$IntelEngine_ClearDelivering"
+    keys[14] = "$IntelEngine_ClearDeliveringNear"
+    keys[15] = "$IntelEngine_TaskSearching"
+    keys[16] = "$IntelEngine_ClearSearching"
+    keys[17] = "$IntelEngine_ClearSearchingNear"
+    keys[18] = "$IntelEngine_TaskGoingToEscort"
+    keys[19] = "$IntelEngine_ClearGoingToEscort"
+    keys[20] = "$IntelEngine_ClearGoingToEscortNear"
+    keys[21] = "$IntelEngine_TaskEscorting"
+    keys[22] = "$IntelEngine_ClearEscorting"
+    keys[23] = "$IntelEngine_ClearEscortingNear"
+    keys[24] = "$IntelEngine_TaskTraveling"
+    keys[25] = "$IntelEngine_ClearTraveling"
+    keys[26] = "$IntelEngine_ClearTravelingNear"
+    keys[27] = "$IntelEngine_TaskVisiting"
+    keys[28] = "$IntelEngine_ClearVisiting"
+    keys[29] = "$IntelEngine_ClearVisitingNear"
+    keys[30] = "$IntelEngine_TaskReturned"
+    keys[31] = "$IntelEngine_ClearReturned"
+    keys[32] = "$IntelEngine_ClearReturnedNear"
+    keys[33] = "$IntelEngine_TaskSeekingYou"
+    keys[34] = "$IntelEngine_ClearSeekingYou"
+    keys[35] = "$IntelEngine_ClearSeekingYouNear"
+    keys[36] = "$IntelEngine_TaskOther"
+    keys[37] = "$IntelEngine_ClearOther"
+    keys[38] = "$IntelEngine_ClearOtherNear"
+    Return keys[phrase * 3 + variant]
+EndFunction
+
+String Function TaskRow(String status)
+    {A busy slot's row: who and what they are doing.}
+    String who = TaskWho(status)
+    String what = TaskWhat(status)
+    Int phrase = TaskPhrase(what)
+    If phrase < 0
+        If who == ""
+            Return what
+        EndIf
+        Return who + ": " + what
+    EndIf
+    String row = TaskKey(phrase, 0) + "{" + who + "}"
+    If phrase < 10
+        row += "{" + TaskName(what, phrase) + "}"
+    EndIf
+    Return row
+EndFunction
+
+String Function ClearQuestion(Int slot, String status)
+    {The question before clearing a slot: "Clear task in slot 2?" over the slot's text as its row and SlotWhere
+     show it.}
+    String who = TaskWho(status)
+    String what = TaskWhat(status)
+    Int phrase = TaskPhrase(what)
+    If who == "" || phrase < 0
+        Return "$IntelEngine_ClearSlot{" + slot + "}{" + status + "}"
+    EndIf
+    String place = TaskPlace(status)
+    Int variant = 1
+    If place != ""
+        variant = 2
+    EndIf
+    String ask = TaskKey(phrase, variant) + "{" + slot + "}{" + who + "}"
+    If phrase < 10
+        ask += "{" + TaskName(what, phrase) + "}"
+    EndIf
+    If place != ""
+        ask += "{" + PlaceValue(place) + "}"
+    EndIf
+    Return ask
+EndFunction
+
 ; =============================================================================
 ; SCHEDULED MEETINGS PAGE
 ; =============================================================================
@@ -353,12 +552,12 @@ Function ShowScheduledPage()
     SetCursorPosition(0)
 
     If Core == None || Core.Schedule == None
-        AddHeaderOption("Scheduled Tasks")
-        AddTextOption("Error:", "Schedule not found")
+        AddHeaderOption("$IntelEngine_ScheduledTasks")
+        AddTextOption("$IntelEngine_Error", "$IntelEngine_ScheduleNotFound")
         Return
     EndIf
 
-    AddHeaderOption("Scheduled Tasks")
+    AddHeaderOption("$IntelEngine_ScheduledTasks")
     AddEmptyOption()
 
     ; Clear previous cancel OIDs (StorageUtil avoids old-save array crash)
@@ -375,8 +574,8 @@ Function ShowScheduledPage()
         String display = Core.Schedule.GetScheduleDisplay(i)
         If display != "Empty"
             String status = Core.Schedule.GetScheduleStatus(i)
-            AddTextOption(display, status)
-            Int cancelOID = AddTextOption("", "Cancel")
+            AddTextOption(ScheduleRow(display, false), ScheduleWhen(status))
+            Int cancelOID = AddTextOption("", "$IntelEngine_Cancel")
             StorageUtil.SetIntValue(mcmForm, "MCM_CancelOID_" + i, cancelOID)
             shown += 1
         EndIf
@@ -384,17 +583,63 @@ Function ShowScheduledPage()
     EndWhile
 
     If shown == 0
-        AddTextOption("No scheduled meetings", "")
+        AddTextOption("$IntelEngine_NoScheduled", "")
     EndIf
 
     AddEmptyOption()
-    AddHeaderOption("Actions")
+    AddHeaderOption("$IntelEngine_Actions")
 
     Int flag = OPTION_FLAG_NONE
     If shown == 0
         flag = OPTION_FLAG_DISABLED
     EndIf
-    OID_CancelAllSchedules = AddTextOption("Cancel All Scheduled", "Click", flag)
+    OID_CancelAllSchedules = AddTextOption("$IntelEngine_CancelAllScheduled", "$IntelEngine_Click", flag)
+EndFunction
+
+String Function ScheduleRow(String display, Bool asking)
+    {A scheduled task as GetScheduleDisplay gives it ("Lydia @ Whiterun", "Lydia: fetch Ysolda", "Lydia: msg to
+     Ysolda"): its row, or (asking) the question before cancelling it. A text without words of its own ("@") is
+     shown as it came.}
+    Int cut = StringUtil.Find(display, ": fetch ")
+    If cut > 0
+        If asking
+            Return "$IntelEngine_CancelSchedFetch{" + StringUtil.Substring(display, 0, cut) + "}{" + StringUtil.Substring(display, cut + 8) + "}"
+        EndIf
+        Return "$IntelEngine_SchedFetch{" + StringUtil.Substring(display, 0, cut) + "}{" + StringUtil.Substring(display, cut + 8) + "}"
+    EndIf
+    cut = StringUtil.Find(display, ": msg to ")
+    If cut > 0
+        If asking
+            Return "$IntelEngine_CancelSchedMessage{" + StringUtil.Substring(display, 0, cut) + "}{" + StringUtil.Substring(display, cut + 9) + "}"
+        EndIf
+        Return "$IntelEngine_SchedMessage{" + StringUtil.Substring(display, 0, cut) + "}{" + StringUtil.Substring(display, cut + 9) + "}"
+    EndIf
+    If asking
+        Return "$IntelEngine_CancelSched{" + display + "}"
+    EndIf
+    Return display
+EndFunction
+
+String Function ScheduleWhen(String status)
+    {When a scheduled task is due, as GetScheduleStatus gives it ("overdue", "in ~5h", "en route, soon", "meeting").}
+    If status == "overdue"
+        Return "$IntelEngine_SchedOverdue"
+    ElseIf status == "very soon"
+        Return "$IntelEngine_SchedVerySoon"
+    ElseIf status == "en route, overdue"
+        Return "$IntelEngine_SchedEnRouteOverdue"
+    ElseIf status == "en route, soon"
+        Return "$IntelEngine_SchedEnRouteSoon"
+    ElseIf status == "meeting"
+        Return "$IntelEngine_SchedMeeting"
+    EndIf
+    Int chars = StringUtil.GetLength(status)
+    If chars > 5 && StringUtil.Find(status, "in ~") == 0
+        Return "$IntelEngine_SchedInHours{" + StringUtil.Substring(status, 4, chars - 5) + "}"
+    ElseIf chars > 12 && StringUtil.Find(status, "en route, ~") == 0
+        Return "$IntelEngine_SchedEnRouteHours{" + StringUtil.Substring(status, 11, chars - 12) + "}"
+    EndIf
+    Return status
 EndFunction
 
 ; =============================================================================
@@ -405,61 +650,61 @@ Function ShowSettingsPage()
     SetCursorFillMode(TOP_TO_BOTTOM)
     SetCursorPosition(0)
 
-    AddHeaderOption("General Settings")
-    AddTextOption("Mod by", "Galanx", OPTION_FLAG_DISABLED)
+    AddHeaderOption("$IntelEngine_GeneralSettings")
+    AddTextOption("$IntelEngine_ModBy", "Galanx", OPTION_FLAG_DISABLED)
 
     Bool debugEnabled = Core.IsDebugMode()
-    OID_DebugMode = AddToggleOption("Debug messages", debugEnabled)
+    OID_DebugMode = AddToggleOption("$IntelEngine_DebugMessages", debugEnabled)
 
     Float maxTasks = Core.GetMaxConcurrentTasks() as Float
-    OID_MaxTasks = AddSliderOption("NPCs on a task at once", maxTasks, "{0}")
+    OID_MaxTasks = AddSliderOption("$IntelEngine_MaxTasks", maxTasks, "{0}")
 
     Float waitHours = Core.GetDefaultWaitHours()
-    OID_DefaultWaitHours = AddSliderOption("Wait at a destination (game hours)", waitHours, "{0}")
+    OID_DefaultWaitHours = AddSliderOption("$IntelEngine_DefaultWait", waitHours, "{0}")
 
     AddEmptyOption()
-    AddHeaderOption("Ask before starting")
+    AddHeaderOption("$IntelEngine_AskBeforeStarting")
     ; 0=Disabled, 1=Followers only, 2=Everyone
     If Core != None && Core.StoryEngine != None
-        OID_ConfirmGoToLocation = AddTextOption("Go somewhere", ConfirmModeLabel(Core.StoryEngine.ConfirmGoToLocation))
-        OID_ConfirmFetchPerson = AddTextOption("Fetch someone", ConfirmModeLabel(Core.StoryEngine.ConfirmFetchPerson))
-        OID_ConfirmDeliverMessage = AddTextOption("Deliver a message", ConfirmModeLabel(Core.StoryEngine.ConfirmDeliverMessage))
-        OID_ConfirmEscortTarget = AddTextOption("Escort someone", ConfirmModeLabel(Core.StoryEngine.ConfirmEscortTarget))
-        OID_ConfirmSearchForActor = AddTextOption("Search for someone", ConfirmModeLabel(Core.StoryEngine.ConfirmSearchForActor))
-        OID_ConfirmScheduleMeeting = AddTextOption("Arrange a meeting", ConfirmModeLabel(Core.StoryEngine.ConfirmScheduleMeeting))
-        OID_ConfirmScheduleFetch = AddTextOption("Fetch someone later", ConfirmModeLabel(Core.StoryEngine.ConfirmScheduleFetch))
-        OID_ConfirmScheduleDelivery = AddTextOption("Deliver a message later", ConfirmModeLabel(Core.StoryEngine.ConfirmScheduleDelivery))
+        OID_ConfirmGoToLocation = AddTextOption("$IntelEngine_GoSomewhere", ConfirmModeLabel(Core.StoryEngine.ConfirmGoToLocation))
+        OID_ConfirmFetchPerson = AddTextOption("$IntelEngine_FetchSomeone", ConfirmModeLabel(Core.StoryEngine.ConfirmFetchPerson))
+        OID_ConfirmDeliverMessage = AddTextOption("$IntelEngine_DeliverMessage", ConfirmModeLabel(Core.StoryEngine.ConfirmDeliverMessage))
+        OID_ConfirmEscortTarget = AddTextOption("$IntelEngine_EscortSomeone", ConfirmModeLabel(Core.StoryEngine.ConfirmEscortTarget))
+        OID_ConfirmSearchForActor = AddTextOption("$IntelEngine_SearchSomeone", ConfirmModeLabel(Core.StoryEngine.ConfirmSearchForActor))
+        OID_ConfirmScheduleMeeting = AddTextOption("$IntelEngine_ArrangeMeeting", ConfirmModeLabel(Core.StoryEngine.ConfirmScheduleMeeting))
+        OID_ConfirmScheduleFetch = AddTextOption("$IntelEngine_FetchLater", ConfirmModeLabel(Core.StoryEngine.ConfirmScheduleFetch))
+        OID_ConfirmScheduleDelivery = AddTextOption("$IntelEngine_DeliverLater", ConfirmModeLabel(Core.StoryEngine.ConfirmScheduleDelivery))
     EndIf
 
     Bool reportBack = StorageUtil.GetIntValue(Game.GetPlayer(), "Intel_DeliveryReportBack") as Bool
-    OID_DeliveryReportBack = AddToggleOption("Report back after a delivery", reportBack)
+    OID_DeliveryReportBack = AddToggleOption("$IntelEngine_ReportBack", reportBack)
 
     Float meetTimeout = StorageUtil.GetFloatValue(Game.GetPlayer(), "Intel_MeetingTimeoutHours", 5.0)
-    OID_MeetingTimeoutHours = AddSliderOption("Wait for you at a meeting (game hours)", meetTimeout, "{1}")
+    OID_MeetingTimeoutHours = AddSliderOption("$IntelEngine_MeetingWait", meetTimeout, "{1}")
 
     Float gracePeriod = 0.5
     If Core != None
         gracePeriod = Core.MeetingGracePeriod
     EndIf
-    OID_MeetingGracePeriod = AddSliderOption("On time until (game hours late)", gracePeriod, "{1}")
+    OID_MeetingGracePeriod = AddSliderOption("$IntelEngine_OnTimeUntil", gracePeriod, "{1}")
 
     Float lingerDist = 800.0
     If Core != None
         lingerDist = Core.LINGER_RELEASE_DISTANCE
     EndIf
-    OID_LingerReleaseDistance = AddSliderOption("Visit ends when you walk away (units)", lingerDist, "{0}")
+    OID_LingerReleaseDistance = AddSliderOption("$IntelEngine_VisitEnds", lingerDist, "{0}")
 
     AddEmptyOption()
-    ; Spelled exactly like the switch below it. Not "Story Engine": the story script has the string
-    ; "Story engine", and Papyrus keeps one spelling per string (the heading showed with a small e).
-    AddHeaderOption("Stories")
+    ; The heading and the switch below it are the same key, as they were the same words: in English "Stories" (not
+    ; "Story Engine": the story script has the string "Story engine", and Papyrus keeps one spelling per string).
+    AddHeaderOption("$IntelEngine_Stories")
 
     Bool storyEnabled = Core.IsStoryEngineEnabled()
-    OID_StoryEngineEnabled = AddToggleOption("Stories", storyEnabled)
-    OID_StoryForceRestart = AddTextOption("Force Restart", "GO")
+    OID_StoryEngineEnabled = AddToggleOption("$IntelEngine_Stories", storyEnabled)
+    OID_StoryForceRestart = AddTextOption("$IntelEngine_ForceRestart", "$IntelEngine_Go")
 
     Float storyInterval = Core.GetStoryEngineInterval()
-    OID_StoryEngineInterval = AddSliderOption("Check interval (game hours)", storyInterval, "{1}")
+    OID_StoryEngineInterval = AddSliderOption("$IntelEngine_CheckInterval", storyInterval, "{1}")
 
     ; "Story NPC Cooldown" is not offered: the game uses the longer of it and Long Absence (three days by
     ; default), so its 6 to 72 hours changed nothing. Long Absence, under Story Tuning, is the setting.
@@ -467,68 +712,68 @@ Function ShowSettingsPage()
     OID_StoryEngineCooldown = -1
 
     AddEmptyOption()
-    ; 4.0. Spelled like the heading on SkyrimNet's settings page; no other string of the mod has these words.
-    AddHeaderOption("Living world")
+    ; 4.0. Spelled like the heading on SkyrimNet's settings page.
+    AddHeaderOption("$IntelEngine_LivingWorld")
     If Core != None && Core.StoryEngine != None
-        OID_LWLevel = AddTextOption("How alive the world is", LivingWorldLabel(0, Core.StoryEngine.LivingWorldLevel))
-        OID_LWInterruptions = AddTextOption("Interruptions at bad moments", LivingWorldLabel(1, Core.StoryEngine.LivingWorldInterruptions))
-        OID_LWQuestNpcs = AddTextOption("Quest NPCs may move", LivingWorldLabel(2, Core.StoryEngine.LivingWorldQuestNpcs))
-        OID_LWPacing = AddTextOption("How often something happens", LivingWorldLabel(3, Core.StoryEngine.LivingWorldPacing))
-        OID_LWSkippedTime = AddToggleOption("Skipped time counts toward the pace", Core.StoryEngine.LivingWorldSkippedTime)
-        OID_LWWaitDays = AddSliderOption("A follower told to wait waits (days)", Core.StoryEngine.LivingWorldWaitDays, "{0}")
-        OID_LWLifeDays = AddSliderOption("A follower left behind moves on (days)", Core.StoryEngine.LivingWorldLifeDays, "{0}")
+        OID_LWLevel = AddTextOption("$IntelEngine_WorldLevel", LivingWorldLabel(0, Core.StoryEngine.LivingWorldLevel))
+        OID_LWInterruptions = AddTextOption("$IntelEngine_Interruptions", LivingWorldLabel(1, Core.StoryEngine.LivingWorldInterruptions))
+        OID_LWQuestNpcs = AddTextOption("$IntelEngine_QuestNpcsMove", LivingWorldLabel(2, Core.StoryEngine.LivingWorldQuestNpcs))
+        OID_LWPacing = AddTextOption("$IntelEngine_Pacing", LivingWorldLabel(3, Core.StoryEngine.LivingWorldPacing))
+        OID_LWSkippedTime = AddToggleOption("$IntelEngine_SkippedTime", Core.StoryEngine.LivingWorldSkippedTime)
+        OID_LWWaitDays = AddSliderOption("$IntelEngine_WaitDays", Core.StoryEngine.LivingWorldWaitDays, "{0}")
+        OID_LWLifeDays = AddSliderOption("$IntelEngine_LifeDays", Core.StoryEngine.LivingWorldLifeDays, "{0}")
     EndIf
 
     AddEmptyOption()
-    AddHeaderOption("NPCs sent into dangerous places")
+    AddHeaderOption("$IntelEngine_DangerPolicy")
 
     Int dangerPolicy = 1
     If Core != None && Core.StoryEngine != None
         dangerPolicy = Core.StoryEngine.DangerZonePolicy
     EndIf
-    OID_DangerAllowAll = AddToggleOption("Allow all NPCs", dangerPolicy == 0)
-    OID_DangerBlockCivilians = AddToggleOption("Block civilians only", dangerPolicy == 1)
-    OID_DangerFollowersOnly = AddToggleOption("Allow followers only", dangerPolicy == 2)
-    OID_DangerBlockAll = AddToggleOption("Block all NPCs", dangerPolicy == 3)
+    OID_DangerAllowAll = AddToggleOption("$IntelEngine_AllowAll", dangerPolicy == 0)
+    OID_DangerBlockCivilians = AddToggleOption("$IntelEngine_BlockCivilians", dangerPolicy == 1)
+    OID_DangerFollowersOnly = AddToggleOption("$IntelEngine_AllowFollowers", dangerPolicy == 2)
+    OID_DangerBlockAll = AddToggleOption("$IntelEngine_BlockAll", dangerPolicy == 3)
 
     AddEmptyOption()
-    AddHeaderOption("NPCs sent into your home")
+    AddHeaderOption("$IntelEngine_HomePolicy")
 
     Int homePolicy = 0
     If Core != None && Core.StoryEngine != None
         homePolicy = Core.StoryEngine.PlayerHomePolicy
     EndIf
-    OID_HomeAllowAll = AddToggleOption("Allow all NPCs", homePolicy == 0)
-    OID_HomeBlockCivilians = AddToggleOption("Block civilians only", homePolicy == 1)
-    OID_HomeFollowersOnly = AddToggleOption("Allow followers only", homePolicy == 2)
-    OID_HomeBlockAll = AddToggleOption("Block all NPCs", homePolicy == 3)
+    OID_HomeAllowAll = AddToggleOption("$IntelEngine_AllowAll", homePolicy == 0)
+    OID_HomeBlockCivilians = AddToggleOption("$IntelEngine_BlockCivilians", homePolicy == 1)
+    OID_HomeFollowersOnly = AddToggleOption("$IntelEngine_AllowFollowers", homePolicy == 2)
+    OID_HomeBlockAll = AddToggleOption("$IntelEngine_BlockAll", homePolicy == 3)
 
     ; ---- Right column: Story Types + NPC Social + Tuning ----
     SetCursorPosition(1)
 
     ; Stored as "skip for followers"; shown the other way round (on = followers can do it), because a column of
     ; switches that are off under "Skip Action for Followers" read as "switched off for my followers".
-    AddHeaderOption("What followers can be asked to do")
+    AddHeaderOption("$IntelEngine_FollowersCanDo")
     If Core != None && Core.StoryEngine != None
-        OID_SkipFollowerGoToLocation = AddToggleOption("Go somewhere", !Core.StoryEngine.SkipFollowerGoToLocation)
-        OID_SkipFollowerFetchPerson = AddToggleOption("Fetch someone", !Core.StoryEngine.SkipFollowerFetchPerson)
-        OID_SkipFollowerDeliverMessage = AddToggleOption("Deliver a message", !Core.StoryEngine.SkipFollowerDeliverMessage)
-        OID_SkipFollowerEscortTarget = AddToggleOption("Escort someone", !Core.StoryEngine.SkipFollowerEscortTarget)
-        OID_SkipFollowerSearchForActor = AddToggleOption("Search for someone", !Core.StoryEngine.SkipFollowerSearchForActor)
-        OID_SkipFollowerScheduleMeeting = AddToggleOption("Arrange a meeting", !Core.StoryEngine.SkipFollowerScheduleMeeting)
-        OID_SkipFollowerScheduleFetch = AddToggleOption("Fetch someone later", !Core.StoryEngine.SkipFollowerScheduleFetch)
-        OID_SkipFollowerScheduleDelivery = AddToggleOption("Deliver a message later", !Core.StoryEngine.SkipFollowerScheduleDelivery)
+        OID_SkipFollowerGoToLocation = AddToggleOption("$IntelEngine_GoSomewhere", !Core.StoryEngine.SkipFollowerGoToLocation)
+        OID_SkipFollowerFetchPerson = AddToggleOption("$IntelEngine_FetchSomeone", !Core.StoryEngine.SkipFollowerFetchPerson)
+        OID_SkipFollowerDeliverMessage = AddToggleOption("$IntelEngine_DeliverMessage", !Core.StoryEngine.SkipFollowerDeliverMessage)
+        OID_SkipFollowerEscortTarget = AddToggleOption("$IntelEngine_EscortSomeone", !Core.StoryEngine.SkipFollowerEscortTarget)
+        OID_SkipFollowerSearchForActor = AddToggleOption("$IntelEngine_SearchSomeone", !Core.StoryEngine.SkipFollowerSearchForActor)
+        OID_SkipFollowerScheduleMeeting = AddToggleOption("$IntelEngine_ArrangeMeeting", !Core.StoryEngine.SkipFollowerScheduleMeeting)
+        OID_SkipFollowerScheduleFetch = AddToggleOption("$IntelEngine_FetchLater", !Core.StoryEngine.SkipFollowerScheduleFetch)
+        OID_SkipFollowerScheduleDelivery = AddToggleOption("$IntelEngine_DeliverLater", !Core.StoryEngine.SkipFollowerScheduleDelivery)
     EndIf
 
     AddEmptyOption()
-    AddHeaderOption("Auto Dynamic Bio Updates")
+    AddHeaderOption("$IntelEngine_AutoBio")
     If Core != None && Core.StoryEngine != None
-        OID_AutoBioEnabled = AddToggleOption("Refresh an NPC's profile after much talk", Core.StoryEngine.AutoBioEnabled)
-        OID_AutoBioThreshold = AddSliderOption("Lines before a profile refresh", Core.StoryEngine.AutoBioThreshold as Float, "{0}")
+        OID_AutoBioEnabled = AddToggleOption("$IntelEngine_AutoBioOn", Core.StoryEngine.AutoBioEnabled)
+        OID_AutoBioThreshold = AddSliderOption("$IntelEngine_AutoBioLines", Core.StoryEngine.AutoBioThreshold as Float, "{0}")
     EndIf
 
     AddEmptyOption()
-    AddHeaderOption("Story types")
+    AddHeaderOption("$IntelEngine_StoryTypes")
 
     Bool tSeek = true
     Bool tInformant = true
@@ -548,17 +793,17 @@ Function ShowSettingsPage()
         tMessage = Core.StoryEngine.TypeMessageEnabled
         tQuest = Core.StoryEngine.TypeQuestEnabled
     EndIf
-    OID_TypeSeekPlayer = AddToggleOption("Someone comes to see you", tSeek)
-    OID_TypeInformant = AddToggleOption("Someone brings a rumor", tInformant)
-    OID_TypeRoadEncounter = AddToggleOption("A meeting on the road", tRoad)
-    OID_TypeAmbush = AddToggleOption("An ambush", tAmbush)
-    OID_TypeFactionAmbush = AddToggleOption("A faction's patrol hunts you", tFactionAmbush)
-    OID_TypeStalker = AddToggleOption("Someone follows you unseen", tStalker)
-    OID_TypeMessage = AddToggleOption("A message is delivered", tMessage)
-    OID_TypeQuest = AddToggleOption("Someone has work for you", tQuest)
+    OID_TypeSeekPlayer = AddToggleOption("$IntelEngine_TypeSeek", tSeek)
+    OID_TypeInformant = AddToggleOption("$IntelEngine_TypeInformant", tInformant)
+    OID_TypeRoadEncounter = AddToggleOption("$IntelEngine_TypeRoad", tRoad)
+    OID_TypeAmbush = AddToggleOption("$IntelEngine_TypeAmbush", tAmbush)
+    OID_TypeFactionAmbush = AddToggleOption("$IntelEngine_TypeFactionAmbush", tFactionAmbush)
+    OID_TypeStalker = AddToggleOption("$IntelEngine_TypeStalker", tStalker)
+    OID_TypeMessage = AddToggleOption("$IntelEngine_TypeMessage", tMessage)
+    OID_TypeQuest = AddToggleOption("$IntelEngine_TypeQuest", tQuest)
 
     AddEmptyOption()
-    AddHeaderOption("NPCs among themselves")
+    AddHeaderOption("$IntelEngine_NpcsAmongThemselves")
 
     Bool npcTickEnabled = true
     Float npcTickInterval = 1.5
@@ -566,7 +811,7 @@ Function ShowSettingsPage()
         npcTickEnabled = Core.StoryEngine.NPCTickEnabled
         npcTickInterval = Core.StoryEngine.NPCTickIntervalHours
     EndIf
-    OID_NPCTickEnabled = AddToggleOption("NPCs visit and talk to each other", npcTickEnabled)
+    OID_NPCTickEnabled = AddToggleOption("$IntelEngine_NpcVisits", npcTickEnabled)
 
     Bool tInteraction = true
     Bool tGossip = true
@@ -574,19 +819,19 @@ Function ShowSettingsPage()
         tInteraction = Core.StoryEngine.TypeNPCInteractionEnabled
         tGossip = Core.StoryEngine.TypeNPCGossipEnabled
     EndIf
-    OID_TypeNPCInteraction = AddToggleOption("Kind: one NPC goes to see another", tInteraction)
-    OID_TypeNPCGossip = AddToggleOption("Kind: gossip passed on", tGossip)
+    OID_TypeNPCInteraction = AddToggleOption("$IntelEngine_KindVisit", tInteraction)
+    OID_TypeNPCGossip = AddToggleOption("$IntelEngine_KindGossip", tGossip)
 
-    OID_NPCTickInterval = AddSliderOption("Check interval (game hours)", npcTickInterval, "{1}")
+    OID_NPCTickInterval = AddSliderOption("$IntelEngine_CheckInterval", npcTickInterval, "{1}")
 
     Float npcSocialCooldown = 24.0
     If Core != None && Core.StoryEngine != None
         npcSocialCooldown = Core.StoryEngine.NPCSocialCooldownHours
     EndIf
-    OID_NPCSocialCooldown = AddSliderOption("Rest per NPC (game hours)", npcSocialCooldown, "{0}")
+    OID_NPCSocialCooldown = AddSliderOption("$IntelEngine_RestPerNpc", npcSocialCooldown, "{0}")
 
     AddEmptyOption()
-    AddHeaderOption("Story Tuning")
+    AddHeaderOption("$IntelEngine_StoryTuning")
 
     Float longAbsence = 3.0
     Float maxTravel = 1.0
@@ -594,23 +839,23 @@ Function ShowSettingsPage()
         longAbsence = Core.StoryEngine.LongAbsenceDaysConfig
         maxTravel = Core.StoryEngine.MaxTravelDaysConfig
     EndIf
-    OID_StoryLongAbsence = AddSliderOption("Long absence (days)", longAbsence, "{0}")
-    OID_StoryMaxTravel = AddSliderOption("Longest journey (days)", maxTravel, "{2}")
+    OID_StoryLongAbsence = AddSliderOption("$IntelEngine_LongAbsence", longAbsence, "{0}")
+    OID_StoryMaxTravel = AddSliderOption("$IntelEngine_LongestJourney", maxTravel, "{2}")
 
     Bool allowTeleport = true
     If Core != None && Core.StoryEngine != None
         allowTeleport = Core.StoryEngine.AllowStuckTeleport
     EndIf
-    OID_AllowStuckTeleport = AddToggleOption("Move a stuck traveller along", allowTeleport)
+    OID_AllowStuckTeleport = AddToggleOption("$IntelEngine_StuckTraveller", allowTeleport)
 
     Float questExpiry = 1.0
     If Core != None && Core.StoryEngine != None
         questExpiry = Core.StoryEngine.QUEST_EXPIRY_DAYS
     EndIf
-    OID_QuestExpiryDays = AddSliderOption("Quest expires after (days)", questExpiry, "{0}")
+    OID_QuestExpiryDays = AddSliderOption("$IntelEngine_QuestExpiry", questExpiry, "{0}")
 
     AddEmptyOption()
-    AddHeaderOption("Quest kinds")
+    AddHeaderOption("$IntelEngine_QuestKinds")
     Bool tQuestCombat = true
     Bool tQuestRescue = true
     Bool tQuestFindItem = true
@@ -627,29 +872,29 @@ Function ShowSettingsPage()
         tQuestFactionBattle = Core.StoryEngine.QuestSubTypeFactionBattleEnabled
         tQuestAllowDeath = Core.StoryEngine.QuestAllowVictimDeath
     EndIf
-    OID_QuestCombat = AddToggleOption("Clear out enemies", tQuestCombat)
-    OID_QuestRescue = AddToggleOption("Rescue someone", tQuestRescue)
-    OID_QuestFindItem = AddToggleOption("Find an item", tQuestFindItem)
-    OID_QuestFactionCombat = AddToggleOption("Fight a faction's enemies", tQuestFactionCombat)
-    OID_QuestFactionRescue = AddToggleOption("Rescue for a faction", tQuestFactionRescue)
-    OID_QuestFactionBattle = AddToggleOption("Join a faction's battle", tQuestFactionBattle)
+    OID_QuestCombat = AddToggleOption("$IntelEngine_QuestClearOut", tQuestCombat)
+    OID_QuestRescue = AddToggleOption("$IntelEngine_QuestRescue", tQuestRescue)
+    OID_QuestFindItem = AddToggleOption("$IntelEngine_QuestFindItem", tQuestFindItem)
+    OID_QuestFactionCombat = AddToggleOption("$IntelEngine_QuestFactionFight", tQuestFactionCombat)
+    OID_QuestFactionRescue = AddToggleOption("$IntelEngine_QuestFactionRescue", tQuestFactionRescue)
+    OID_QuestFactionBattle = AddToggleOption("$IntelEngine_QuestFactionBattle", tQuestFactionBattle)
     ; "Allow NPC death in rescue" is not offered: nothing reads the setting, and a rescue's victim is always
     ; kept alive (made essential) for its length.
     OID_QuestAllowDeath = -1
 
     AddEmptyOption()
-    ; Spelled exactly like the switch below it. Papyrus keeps one spelling per string, whichever it met first:
-    ; "Faction Politics" here made the switch show with a capital P. And not "Politics" alone: the politics
-    ; script hands the key "politics" to the DLL, which must not arrive in another spelling.
-    AddHeaderOption("Faction politics")
+    ; The heading and the switch below it are the same key, as they were the same words ("Faction politics"):
+    ; "Faction Politics" over the switch once made it show with a capital P (one spelling per string), and a
+    ; heading "Politics" would have met the key "politics" the politics script hands to the DLL.
+    AddHeaderOption("$IntelEngine_FactionPolitics")
 
     Bool politicsEnabled = IntelEngine.IsPoliticsEnabled()
-    OID_PoliticsEnabled = AddToggleOption("Faction politics", politicsEnabled)
+    OID_PoliticsEnabled = AddToggleOption("$IntelEngine_FactionPolitics", politicsEnabled)
 
     Float tickInterval = IntelEngine.GetPoliticsTickInterval() as Float
-    OID_PoliticsTickInterval = AddSliderOption("Check interval (game hours)", tickInterval, "{0}")
-    OID_PEIntegration = AddToggleOption("Political Engine integration (experimental)", IntelEngine.GetPEIntegration())
-    OID_PEReactions = AddToggleOption("PE reactions move relations", IntelEngine.GetPEReactionsMoveRelations())
+    OID_PoliticsTickInterval = AddSliderOption("$IntelEngine_CheckInterval", tickInterval, "{0}")
+    OID_PEIntegration = AddToggleOption("$IntelEngine_PEIntegration", IntelEngine.GetPEIntegration())
+    OID_PEReactions = AddToggleOption("$IntelEngine_PEReactions", IntelEngine.GetPEReactionsMoveRelations())
 
 EndFunction
 
@@ -661,10 +906,10 @@ Function ShowHoldRestrictionsPage()
     SetCursorFillMode(TOP_TO_BOTTOM)
     SetCursorPosition(0)
 
-    AddHeaderOption("Hold Restrictions")
-    AddTextOption("How far each kind of story may", "", OPTION_FLAG_DISABLED)
-    AddTextOption("reach for its NPC.", "", OPTION_FLAG_DISABLED)
-    AddTextOption("Defaults differ: see the help text", "", OPTION_FLAG_DISABLED)
+    AddHeaderOption("$IntelEngine_HoldRestrictions")
+    AddTextOption("$IntelEngine_HoldIntro1", "", OPTION_FLAG_DISABLED)
+    AddTextOption("$IntelEngine_HoldIntro2", "", OPTION_FLAG_DISABLED)
+    AddTextOption("$IntelEngine_HoldIntro3", "", OPTION_FLAG_DISABLED)
 
     ; The defaults of StoryEngine's HoldPolicy properties (they differ by type).
     Int pSeek = 1
@@ -685,97 +930,97 @@ Function ShowHoldRestrictionsPage()
     EndIf
 
     ; ---- Left column (4 groups × 8 rows = 32 = exactly at SkyUI limit) ----
-    AddHeaderOption("Someone comes to see you")
-    OID_HoldSeekNone = AddToggleOption("No restriction", pSeek == 0)
-    OID_HoldSeekCivilian = AddToggleOption("Same hold (civilians)", pSeek == 1)
-    OID_HoldSeekExceptFollower = AddToggleOption("Same hold (except followers)", pSeek == 2)
-    OID_HoldSeekAll = AddToggleOption("Same hold (everyone)", pSeek == 3)
-    OID_HoldSeekLocalCivilian = AddToggleOption("Same town (civilians)", pSeek == 4)
-    OID_HoldSeekLocalExceptFollower = AddToggleOption("Same town (except followers)", pSeek == 5)
-    OID_HoldSeekLocalAll = AddToggleOption("Same town (everyone)", pSeek == 6)
-    AddHeaderOption("Someone brings a rumor")
-    OID_HoldInformantNone = AddToggleOption("No restriction", pInformant == 0)
-    OID_HoldInformantCivilian = AddToggleOption("Same hold (civilians)", pInformant == 1)
-    OID_HoldInformantExceptFollower = AddToggleOption("Same hold (except followers)", pInformant == 2)
-    OID_HoldInformantAll = AddToggleOption("Same hold (everyone)", pInformant == 3)
-    OID_HoldInformantLocalCivilian = AddToggleOption("Same town (civilians)", pInformant == 4)
-    OID_HoldInformantLocalExceptFollower = AddToggleOption("Same town (except followers)", pInformant == 5)
-    OID_HoldInformantLocalAll = AddToggleOption("Same town (everyone)", pInformant == 6)
-    AddHeaderOption("A meeting on the road")
-    OID_HoldRoadNone = AddToggleOption("No restriction", pRoad == 0)
-    OID_HoldRoadCivilian = AddToggleOption("Same hold (civilians)", pRoad == 1)
-    OID_HoldRoadExceptFollower = AddToggleOption("Same hold (except followers)", pRoad == 2)
-    OID_HoldRoadAll = AddToggleOption("Same hold (everyone)", pRoad == 3)
-    OID_HoldRoadLocalCivilian = AddToggleOption("Same town (civilians)", pRoad == 4)
-    OID_HoldRoadLocalExceptFollower = AddToggleOption("Same town (except followers)", pRoad == 5)
-    OID_HoldRoadLocalAll = AddToggleOption("Same town (everyone)", pRoad == 6)
-    AddHeaderOption("An ambush")
-    OID_HoldAmbushNone = AddToggleOption("No restriction", pAmbush == 0)
-    OID_HoldAmbushCivilian = AddToggleOption("Same hold (civilians)", pAmbush == 1)
-    OID_HoldAmbushExceptFollower = AddToggleOption("Same hold (except followers)", pAmbush == 2)
-    OID_HoldAmbushAll = AddToggleOption("Same hold (everyone)", pAmbush == 3)
-    OID_HoldAmbushLocalCivilian = AddToggleOption("Same town (civilians)", pAmbush == 4)
-    OID_HoldAmbushLocalExceptFollower = AddToggleOption("Same town (except followers)", pAmbush == 5)
-    OID_HoldAmbushLocalAll = AddToggleOption("Same town (everyone)", pAmbush == 6)
+    AddHeaderOption("$IntelEngine_TypeSeek")
+    OID_HoldSeekNone = AddToggleOption("$IntelEngine_HoldNone", pSeek == 0)
+    OID_HoldSeekCivilian = AddToggleOption("$IntelEngine_HoldCivilians", pSeek == 1)
+    OID_HoldSeekExceptFollower = AddToggleOption("$IntelEngine_HoldExceptFollowers", pSeek == 2)
+    OID_HoldSeekAll = AddToggleOption("$IntelEngine_HoldEveryone", pSeek == 3)
+    OID_HoldSeekLocalCivilian = AddToggleOption("$IntelEngine_TownCivilians", pSeek == 4)
+    OID_HoldSeekLocalExceptFollower = AddToggleOption("$IntelEngine_TownExceptFollowers", pSeek == 5)
+    OID_HoldSeekLocalAll = AddToggleOption("$IntelEngine_TownEveryone", pSeek == 6)
+    AddHeaderOption("$IntelEngine_TypeInformant")
+    OID_HoldInformantNone = AddToggleOption("$IntelEngine_HoldNone", pInformant == 0)
+    OID_HoldInformantCivilian = AddToggleOption("$IntelEngine_HoldCivilians", pInformant == 1)
+    OID_HoldInformantExceptFollower = AddToggleOption("$IntelEngine_HoldExceptFollowers", pInformant == 2)
+    OID_HoldInformantAll = AddToggleOption("$IntelEngine_HoldEveryone", pInformant == 3)
+    OID_HoldInformantLocalCivilian = AddToggleOption("$IntelEngine_TownCivilians", pInformant == 4)
+    OID_HoldInformantLocalExceptFollower = AddToggleOption("$IntelEngine_TownExceptFollowers", pInformant == 5)
+    OID_HoldInformantLocalAll = AddToggleOption("$IntelEngine_TownEveryone", pInformant == 6)
+    AddHeaderOption("$IntelEngine_TypeRoad")
+    OID_HoldRoadNone = AddToggleOption("$IntelEngine_HoldNone", pRoad == 0)
+    OID_HoldRoadCivilian = AddToggleOption("$IntelEngine_HoldCivilians", pRoad == 1)
+    OID_HoldRoadExceptFollower = AddToggleOption("$IntelEngine_HoldExceptFollowers", pRoad == 2)
+    OID_HoldRoadAll = AddToggleOption("$IntelEngine_HoldEveryone", pRoad == 3)
+    OID_HoldRoadLocalCivilian = AddToggleOption("$IntelEngine_TownCivilians", pRoad == 4)
+    OID_HoldRoadLocalExceptFollower = AddToggleOption("$IntelEngine_TownExceptFollowers", pRoad == 5)
+    OID_HoldRoadLocalAll = AddToggleOption("$IntelEngine_TownEveryone", pRoad == 6)
+    AddHeaderOption("$IntelEngine_TypeAmbush")
+    OID_HoldAmbushNone = AddToggleOption("$IntelEngine_HoldNone", pAmbush == 0)
+    OID_HoldAmbushCivilian = AddToggleOption("$IntelEngine_HoldCivilians", pAmbush == 1)
+    OID_HoldAmbushExceptFollower = AddToggleOption("$IntelEngine_HoldExceptFollowers", pAmbush == 2)
+    OID_HoldAmbushAll = AddToggleOption("$IntelEngine_HoldEveryone", pAmbush == 3)
+    OID_HoldAmbushLocalCivilian = AddToggleOption("$IntelEngine_TownCivilians", pAmbush == 4)
+    OID_HoldAmbushLocalExceptFollower = AddToggleOption("$IntelEngine_TownExceptFollowers", pAmbush == 5)
+    OID_HoldAmbushLocalAll = AddToggleOption("$IntelEngine_TownEveryone", pAmbush == 6)
 
     ; ---- Right column (3 groups × 8 rows = 24, under 32) ----
     SetCursorPosition(1)
-    AddHeaderOption("Someone follows you unseen")
-    OID_HoldStalkerNone = AddToggleOption("No restriction", pStalker == 0)
-    OID_HoldStalkerCivilian = AddToggleOption("Same hold (civilians)", pStalker == 1)
-    OID_HoldStalkerExceptFollower = AddToggleOption("Same hold (except followers)", pStalker == 2)
-    OID_HoldStalkerAll = AddToggleOption("Same hold (everyone)", pStalker == 3)
-    OID_HoldStalkerLocalCivilian = AddToggleOption("Same town (civilians)", pStalker == 4)
-    OID_HoldStalkerLocalExceptFollower = AddToggleOption("Same town (except followers)", pStalker == 5)
-    OID_HoldStalkerLocalAll = AddToggleOption("Same town (everyone)", pStalker == 6)
-    AddHeaderOption("A message is delivered")
-    OID_HoldMessageNone = AddToggleOption("No restriction", pMessage == 0)
-    OID_HoldMessageCivilian = AddToggleOption("Same hold (civilians)", pMessage == 1)
-    OID_HoldMessageExceptFollower = AddToggleOption("Same hold (except followers)", pMessage == 2)
-    OID_HoldMessageAll = AddToggleOption("Same hold (everyone)", pMessage == 3)
-    OID_HoldMessageLocalCivilian = AddToggleOption("Same town (civilians)", pMessage == 4)
-    OID_HoldMessageLocalExceptFollower = AddToggleOption("Same town (except followers)", pMessage == 5)
-    OID_HoldMessageLocalAll = AddToggleOption("Same town (everyone)", pMessage == 6)
-    AddHeaderOption("Someone has work for you")
-    OID_HoldQuestNone = AddToggleOption("No restriction", pQuest == 0)
-    OID_HoldQuestCivilian = AddToggleOption("Same hold (civilians)", pQuest == 1)
-    OID_HoldQuestExceptFollower = AddToggleOption("Same hold (except followers)", pQuest == 2)
-    OID_HoldQuestAll = AddToggleOption("Same hold (everyone)", pQuest == 3)
-    OID_HoldQuestLocalCivilian = AddToggleOption("Same town (civilians)", pQuest == 4)
-    OID_HoldQuestLocalExceptFollower = AddToggleOption("Same town (except followers)", pQuest == 5)
-    OID_HoldQuestLocalAll = AddToggleOption("Same town (everyone)", pQuest == 6)
+    AddHeaderOption("$IntelEngine_TypeStalker")
+    OID_HoldStalkerNone = AddToggleOption("$IntelEngine_HoldNone", pStalker == 0)
+    OID_HoldStalkerCivilian = AddToggleOption("$IntelEngine_HoldCivilians", pStalker == 1)
+    OID_HoldStalkerExceptFollower = AddToggleOption("$IntelEngine_HoldExceptFollowers", pStalker == 2)
+    OID_HoldStalkerAll = AddToggleOption("$IntelEngine_HoldEveryone", pStalker == 3)
+    OID_HoldStalkerLocalCivilian = AddToggleOption("$IntelEngine_TownCivilians", pStalker == 4)
+    OID_HoldStalkerLocalExceptFollower = AddToggleOption("$IntelEngine_TownExceptFollowers", pStalker == 5)
+    OID_HoldStalkerLocalAll = AddToggleOption("$IntelEngine_TownEveryone", pStalker == 6)
+    AddHeaderOption("$IntelEngine_TypeMessage")
+    OID_HoldMessageNone = AddToggleOption("$IntelEngine_HoldNone", pMessage == 0)
+    OID_HoldMessageCivilian = AddToggleOption("$IntelEngine_HoldCivilians", pMessage == 1)
+    OID_HoldMessageExceptFollower = AddToggleOption("$IntelEngine_HoldExceptFollowers", pMessage == 2)
+    OID_HoldMessageAll = AddToggleOption("$IntelEngine_HoldEveryone", pMessage == 3)
+    OID_HoldMessageLocalCivilian = AddToggleOption("$IntelEngine_TownCivilians", pMessage == 4)
+    OID_HoldMessageLocalExceptFollower = AddToggleOption("$IntelEngine_TownExceptFollowers", pMessage == 5)
+    OID_HoldMessageLocalAll = AddToggleOption("$IntelEngine_TownEveryone", pMessage == 6)
+    AddHeaderOption("$IntelEngine_TypeQuest")
+    OID_HoldQuestNone = AddToggleOption("$IntelEngine_HoldNone", pQuest == 0)
+    OID_HoldQuestCivilian = AddToggleOption("$IntelEngine_HoldCivilians", pQuest == 1)
+    OID_HoldQuestExceptFollower = AddToggleOption("$IntelEngine_HoldExceptFollowers", pQuest == 2)
+    OID_HoldQuestAll = AddToggleOption("$IntelEngine_HoldEveryone", pQuest == 3)
+    OID_HoldQuestLocalCivilian = AddToggleOption("$IntelEngine_TownCivilians", pQuest == 4)
+    OID_HoldQuestLocalExceptFollower = AddToggleOption("$IntelEngine_TownExceptFollowers", pQuest == 5)
+    OID_HoldQuestLocalAll = AddToggleOption("$IntelEngine_TownEveryone", pQuest == 6)
 EndFunction
 
 String Function LivingWorldLabel(Int which, Int index)
     {The choice names of the four living-world settings, as on SkyrimNet's settings page.}
     If which == 0
         If index == 0
-            Return "Classic"
+            Return "$IntelEngine_Classic"
         ElseIf index == 1
-            Return "Rumors"
+            Return "$IntelEngine_Rumors"
         EndIf
-        Return "Lives"
+        Return "$IntelEngine_Lives"
     ElseIf which == 1
         If index == 0
-            Return "Never"
+            Return "$IntelEngine_Never"
         ElseIf index == 1
-            Return "If urgent"
+            Return "$IntelEngine_IfUrgent"
         EndIf
-        Return "Realistic"
+        Return "$IntelEngine_Realistic"
     ElseIf which == 2
         If index == 0
-            Return "Never"
+            Return "$IntelEngine_Never"
         ElseIf index == 1
-            Return "If important"
+            Return "$IntelEngine_IfImportant"
         EndIf
-        Return "Freely"
+        Return "$IntelEngine_Freely"
     EndIf
     If index == 0
-        Return "Calm"
+        Return "$IntelEngine_Calm"
     ElseIf index == 1
-        Return "Normal"
+        Return "$IntelEngine_Normal"
     EndIf
-    Return "Lively"
+    Return "$IntelEngine_Lively"
 EndFunction
 
 Function CycleLivingWorld(Int optionId)
@@ -806,13 +1051,13 @@ EndFunction
 
 String Function ConfirmModeLabel(Int mode)
     If mode == 0
-        return "Disabled"
+        return "$IntelEngine_Disabled"
     ElseIf mode == 1
-        return "Followers only"
+        return "$IntelEngine_FollowersOnly"
     ElseIf mode == 2
-        return "Everyone"
+        return "$IntelEngine_Everyone"
     EndIf
-    return "Disabled"
+    return "$IntelEngine_Disabled"
 EndFunction
 
 Function CycleConfirmMode(Int optionId, String propName)
@@ -928,14 +1173,15 @@ EndFunction
 
 Event OnOptionSelect(Int optionId)
     If optionId == OID_ResetAllTasks
-        Bool confirm = ShowMessage("Reset all active tasks? NPCs will return to their normal routines.", true, "Yes", "No")
+        ; "$Yes" and "$No" are the game's own words (its Translate_<LANGUAGE>.txt), as SkyUI's own menu uses them.
+        Bool confirm = ShowMessage("$IntelEngine_ResetConfirm", true, "$Yes", "$No")
         If confirm && Core != None
             Core.ForceResetAllSlots()
             ; Also restart story engine monitoring (prevents tick death after reset)
             If Core.StoryEngine != None
                 Core.StoryEngine.RestartMonitoring()
             EndIf
-            ShowMessage("All tasks have been reset.", false)
+            ShowMessage("$IntelEngine_ResetComplete", false)
             ForcePageReset()
         EndIf
 
@@ -991,7 +1237,7 @@ Event OnOptionSelect(Int optionId)
         EndIf
 
     ElseIf optionId == OID_CancelAllSchedules
-        Bool confirm = ShowMessage("Cancel all scheduled meetings?", true, "Yes", "No")
+        Bool confirm = ShowMessage("$IntelEngine_CancelAllConfirm", true, "$Yes", "$No")
         If confirm && Core != None && Core.Schedule != None
             Core.Schedule.CancelAllSchedules()
             ForcePageReset()
@@ -1098,7 +1344,7 @@ Event OnOptionSelect(Int optionId)
             ; Full maintenance: recover script refs, restart ALL monitoring loops,
             ; release stuck linger NPCs, clean expired facts
             Core.Maintenance(false)
-            ShowMessage("Story engine restarted. All monitoring loops re-initialized.", false)
+            ShowMessage("$IntelEngine_RestartDone", false)
         EndIf
 
     ; ---- Hold Restriction toggles ----
@@ -1402,128 +1648,125 @@ Event OnOptionMenuAccept(Int optionId, Int index)
 EndEvent
 
 Event OnOptionHighlight(Int optionId)
+    ; The help of "Story NPC Cooldown" and "Allow NPC death in rescue" is gone with their options (ids -1).
     If optionId == OID_LWLevel
-        SetInfoText("Click to cycle. Classic: as before 4.0. Rumors: the world moves on while you are away and you hear about it, but followers you left wait where you left them. Lives: followers you left behind live lives of their own (work at an inn, an adventure, a trip) and you can come upon them later; people close to you miss you while you are away.")
+        SetInfoText("$IntelEngine_WorldLevel_Info")
     ElseIf optionId == OID_LWInterruptions
-        SetInfoText("Click to cycle. Whether someone may turn up during a fight, a conversation, a scene or a menu: never, only for something urgent, or now and then, as in real life.")
+        SetInfoText("$IntelEngine_Interruptions_Info")
     ElseIf optionId == OID_LWQuestNpcs
-        SetInfoText("Click to cycle. Whether NPCs who take part in a running quest may travel or move for a story. The target of an objective you have open never moves.")
+        SetInfoText("$IntelEngine_QuestNpcsMove_Info")
     ElseIf optionId == OID_LWPacing
-        SetInfoText("Click to cycle. About one notable moment every two game days, every game day, or twice a game day. Moments wait for a good time: arriving in a town or an inn, coming home, leaving a dungeon, waking up.")
+        SetInfoText("$IntelEngine_Pacing_Info")
     ElseIf optionId == OID_LWSkippedTime
-        SetInfoText("Off: waiting, sleeping and fast travel do not bring the next moment sooner. It also takes time actually played: eight minutes between two moments, four minutes in a town before a story of its own begins there, twenty minutes between two such stories. On: the game's clock alone counts: skip a day and a day's worth of moments is due.")
+        SetInfoText("$IntelEngine_SkippedTime_Info")
     ElseIf optionId == OID_LWWaitDays
-        SetInfoText("How long after you told a follower to wait they start a life of their own, once their follower mod lets them go. While it still holds them, they keep waiting.")
+        SetInfoText("$IntelEngine_WaitDays_Info")
     ElseIf optionId == OID_LWLifeDays
-        SetInfoText("How long a follower you dismissed stays where you left them before starting a life of their own.")
+        SetInfoText("$IntelEngine_LifeDays_Info")
     ElseIf optionId == OID_DebugMode
-        SetInfoText("Shows what IntelEngine does as notices on screen. The Papyrus log has it either way. For more in the DLL's own log (IntelEngine.log), set DebugLevel=4 in IntelEngine.ini.")
+        SetInfoText("$IntelEngine_DebugMessages_Info")
     ElseIf optionId == OID_MaxTasks
-        SetInfoText("Maximum number of NPCs that can be on tasks at once.")
+        SetInfoText("$IntelEngine_MaxTasks_Info")
     ElseIf optionId == OID_DefaultWaitHours
-        SetInfoText("How many game hours NPCs wait at travel destinations before returning home. Does not affect scheduled meetings (those use \"Wait for you at a meeting\").")
+        SetInfoText("$IntelEngine_DefaultWait_Info")
     ElseIf optionId == OID_ResetAllTasks
-        SetInfoText("Force reset all active tasks. NPCs will return to their normal routines.")
+        SetInfoText("$IntelEngine_ResetAllTasks_Info")
     ElseIf optionId == OID_ConfirmGoToLocation || optionId == OID_ConfirmDeliverMessage || \
            optionId == OID_ConfirmFetchPerson || optionId == OID_ConfirmEscortTarget || \
            optionId == OID_ConfirmSearchForActor || optionId == OID_ConfirmScheduleFetch || \
            optionId == OID_ConfirmScheduleDelivery || optionId == OID_ConfirmScheduleMeeting
-        SetInfoText("Click to cycle: Disabled / Followers only / Everyone. Controls whether a confirmation prompt appears before this action. Followers only = only prompts when the acting NPC is your active follower.")
+        SetInfoText("$IntelEngine_Confirm_Info")
     ElseIf optionId == OID_SkipFollowerGoToLocation || optionId == OID_SkipFollowerDeliverMessage || \
            optionId == OID_SkipFollowerFetchPerson || optionId == OID_SkipFollowerEscortTarget || \
            optionId == OID_SkipFollowerSearchForActor || optionId == OID_SkipFollowerScheduleFetch || \
            optionId == OID_SkipFollowerScheduleDelivery || optionId == OID_SkipFollowerScheduleMeeting
-        SetInfoText("On (default): your active followers can be given this action. Off: it is silently refused for them, before any confirmation prompt.")
+        SetInfoText("$IntelEngine_FollowerAllowed_Info")
     ElseIf optionId == OID_DeliveryReportBack
-        SetInfoText("When enabled, messengers return to you after delivering a message off-screen and report back.")
+        SetInfoText("$IntelEngine_ReportBack_Info")
     ElseIf optionId == OID_MeetingTimeoutHours
-        SetInfoText("How long an NPC waits at the meeting spot after the scheduled time before giving up. If you're later than this, the meeting is cancelled.")
+        SetInfoText("$IntelEngine_MeetingWait_Info")
     ElseIf optionId == OID_MeetingGracePeriod
-        SetInfoText("Arriving within this time after the agreed hour still counts as on time. Default 0.5 (30 minutes). Set it higher with a mod that changes the timescale as you play.")
+        SetInfoText("$IntelEngine_OnTimeUntil_Info")
     ElseIf optionId == OID_LingerReleaseDistance
-        SetInfoText("How far (game units) you must walk away before an NPC stops lingering and returns to normal. Affects all systems: travel arrivals, task completions, story encounters. Default 800.")
+        SetInfoText("$IntelEngine_VisitEnds_Info")
     ElseIf optionId == OID_CancelAllSchedules
-        SetInfoText("Cancel all scheduled meetings and tasks.")
+        SetInfoText("$IntelEngine_CancelAllScheduled_Info")
     ElseIf optionId == OID_StoryEngineEnabled
-        SetInfoText("The Story Engine (the dungeon master). NPCs with unfinished business will autonomously seek you out based on your shared history.")
+        SetInfoText("$IntelEngine_Stories_Info")
     ElseIf optionId == OID_StoryEngineInterval
-        SetInfoText("At Classic: how often the dungeon master looks for somebody with a reason to come to you. Above Classic it is not used: the pace is \"How often something happens\", and the dungeon master looks when you arrive somewhere, when you wake, and every three game hours besides.")
-    ElseIf optionId == OID_StoryEngineCooldown
-        SetInfoText("How long (game hours) a picked NPC's priority stays reduced. Higher = more variety in NPC picks, lower = favorites return sooner.")
+        SetInfoText("$IntelEngine_StoryInterval_Info")
     ElseIf optionId == OID_StoryLongAbsence
-        SetInfoText("Minimum game days since your last interaction with an NPC before the Story Engine considers them as a candidate. An NPC who has just come to you is left alone for at least as long.")
+        SetInfoText("$IntelEngine_LongAbsence_Info")
     ElseIf optionId == OID_StoryMaxTravel
-        SetInfoText("Maximum game days an NPC will travel before being teleported to the target. Lower = faster delivery, higher = more realistic.")
+        SetInfoText("$IntelEngine_LongestJourney_Info")
     ElseIf optionId == OID_AllowStuckTeleport
-        SetInfoText("When enabled, NPCs stuck during travel or on the way for longer than \"Longest journey\" are teleported to the target. When disabled, the NPC gives up instead.")
+        SetInfoText("$IntelEngine_StuckTraveller_Info")
     ElseIf optionId == OID_DangerAllowAll
-        SetInfoText("No danger zone filtering. All NPC types can visit you in dungeons and caves. Informants always turn back.")
+        SetInfoText("$IntelEngine_DangerAllowAll_Info")
     ElseIf optionId == OID_DangerBlockCivilians
-        SetInfoText("Farmers, merchants and other civilians are not sent out into the wilds after you; warriors and mages may be. Above Classic nobody is sent into a dungeon after you whatever this says (they wait until you are out), and nobody is ever sent to another plane.")
+        SetInfoText("$IntelEngine_DangerBlockCivilians_Info")
     ElseIf optionId == OID_DangerFollowersOnly
-        SetInfoText("Only people who can be followers are sent out into the wilds after you. Above Classic nobody is sent into a dungeon after you whatever this says (they wait until you are out), and nobody is ever sent to another plane.")
+        SetInfoText("$IntelEngine_DangerAllowFollowers_Info")
     ElseIf optionId == OID_DangerBlockAll
-        SetInfoText("Nobody is sent to you anywhere but in a settlement.")
+        SetInfoText("$IntelEngine_DangerBlockAll_Info")
     ElseIf optionId == OID_HomeAllowAll
-        SetInfoText("No home visit filtering. All NPC types can visit you when you're at home.")
+        SetInfoText("$IntelEngine_HomeAllowAll_Info")
     ElseIf optionId == OID_HomeBlockCivilians
-        SetInfoText("Farmers, merchants and other civilians won't bother you at home. Warriors and mages can still visit.")
+        SetInfoText("$IntelEngine_HomeBlockCivilians_Info")
     ElseIf optionId == OID_HomeFollowersOnly
-        SetInfoText("Only NPCs who can be recruited as followers (PotentialFollowerFaction) can visit you at home.")
+        SetInfoText("$IntelEngine_HomeAllowFollowers_Info")
     ElseIf optionId == OID_HomeBlockAll
-        SetInfoText("Nobody visits you when you're at home.")
+        SetInfoText("$IntelEngine_HomeBlockAll_Info")
     ElseIf optionId == OID_QuestExpiryDays
-        SetInfoText("How many in-game days before an unfinished dynamic quest auto-expires. The quest giver remembers you never showed up. Default 1.")
+        SetInfoText("$IntelEngine_QuestExpiry_Info")
     ElseIf optionId == OID_TypeSeekPlayer
-        SetInfoText("NPC travels to find you based on shared history or unfinished business. The Director and the log call this type \"Seek Player\".")
+        SetInfoText("$IntelEngine_TypeSeek_Info")
     ElseIf optionId == OID_TypeInformant
-        SetInfoText("NPC approaches you to relay gossip about a third party. The Director and the log call this type \"Informant\".")
+        SetInfoText("$IntelEngine_TypeInformant_Info")
     ElseIf optionId == OID_TypeRoadEncounter
-        SetInfoText("NPC appears on the road nearby, coincidentally traveling. Exterior only. The Director and the log call this type \"Road Encounter\".")
+        SetInfoText("$IntelEngine_TypeRoad_Info")
     ElseIf optionId == OID_TypeAmbush
-        SetInfoText("Someone with a grudge lies in wait on the road. Off: no ambush inside a town's story either. The Director and the log call this type \"Ambush\".")
+        SetInfoText("$IntelEngine_TypeAmbush_Info")
     ElseIf optionId == OID_TypeFactionAmbush
-        SetInfoText("A faction that holds you for an enemy (standing -40 or worse) sends men after you on the road, now and then. Never while you are with somebody, resting or settled somewhere. The Director and the log call this type \"Faction Ambush\".")
+        SetInfoText("$IntelEngine_TypeFactionAmbush_Info")
     ElseIf optionId == OID_TypeStalker
-        SetInfoText("Someone shadows you from a distance, out of doors. Off: nobody does inside a town's story either. The Director and the log call this type \"Stalker\".")
+        SetInfoText("$IntelEngine_TypeStalker_Info")
     ElseIf optionId == OID_TypeMessage
-        SetInfoText("NPC delivers a verbal message, optionally with a meeting invitation. The Director and the log call this type \"Message\".")
+        SetInfoText("$IntelEngine_TypeMessage_Info")
     ElseIf optionId == OID_TypeQuest
-        SetInfoText("People who need your help. Off: nobody brings you their trouble, and no story of the town begins. The Director and the log call this type \"Quest\".")
+        SetInfoText("$IntelEngine_TypeQuest_Info")
     ElseIf optionId == OID_TypeNPCInteraction
-        SetInfoText("Two NPCs interact: argue, trade, train, bond. Visible or off-screen. The Director and the log call this type \"NPC Interaction\".")
+        SetInfoText("$IntelEngine_KindVisit_Info")
     ElseIf optionId == OID_TypeNPCGossip
-        SetInfoText("One NPC shares a rumor about a third party with another NPC. The Director and the log call this type \"NPC Gossip\".")
+        SetInfoText("$IntelEngine_KindGossip_Info")
     ElseIf optionId == OID_StoryForceRestart
-        SetInfoText("Force restart all monitoring loops. Use if story ticks seem frozen or NPCs stop acting.")
+        SetInfoText("$IntelEngine_ForceRestart_Info")
     ElseIf optionId == OID_NPCTickEnabled
-        SetInfoText("Enable autonomous NPC-to-NPC interactions. NPCs gossip, argue, trade, and socialize independently.")
+        SetInfoText("$IntelEngine_NpcVisits_Info")
     ElseIf optionId == OID_NPCTickInterval
-        SetInfoText("How often (game hours) the NPC social system checks for NPC-to-NPC interactions.")
+        SetInfoText("$IntelEngine_NpcInterval_Info")
     ElseIf optionId == OID_NPCSocialCooldown
-        SetInfoText("How long (game hours) before an NPC can be picked for another social interaction. Separate from the stories' \"Long absence\".")
+        SetInfoText("$IntelEngine_RestPerNpc_Info")
     ElseIf optionId == OID_QuestCombat
-        SetInfoText("A bounty on what lives at a place. Off: no bounty, and no master of a place to kill inside a town's story.")
+        SetInfoText("$IntelEngine_QuestClearOut_Info")
     ElseIf optionId == OID_QuestRescue
-        SetInfoText("Someone of the town held at a place out in the world. Off: nobody is held in a story.")
+        SetInfoText("$IntelEngine_QuestRescue_Info")
     ElseIf optionId == OID_QuestFindItem
-        SetInfoText("A keepsake lost at a place. Off: no keepsake hunt.")
+        SetInfoText("$IntelEngine_QuestFindItem_Info")
     ElseIf optionId == OID_QuestFactionCombat
-        SetInfoText("Enable faction combat quests. Clear out hostile faction soldiers at a location. Rewards faction standing with the opposing side.")
+        SetInfoText("$IntelEngine_QuestFactionFight_Info")
     ElseIf optionId == OID_QuestFactionRescue
-        SetInfoText("Enable faction rescue quests. Rescue a captive from hostile faction soldiers. Rewards faction standing with the opposing side.")
+        SetInfoText("$IntelEngine_QuestFactionRescue_Info")
     ElseIf optionId == OID_QuestFactionBattle
-        SetInfoText("Enable faction battle quests. A friendly faction invites you to join an upcoming battle. Requires high standing (40+).")
-    ElseIf optionId == OID_QuestAllowDeath
-        SetInfoText("WARNING: If enabled, rescued NPCs can die during combat. This can break main quests if essential NPCs are killed! Keep disabled unless you want maximum realism.")
+        SetInfoText("$IntelEngine_QuestFactionBattle_Info")
     ElseIf optionId == OID_PoliticsEnabled
-        SetInfoText("Enable the autonomous faction politics system. Factions trade, negotiate, scheme, and go to war based on LLM-driven decisions.")
+        SetInfoText("$IntelEngine_FactionPolitics_Info")
     ElseIf optionId == OID_PoliticsTickInterval
-        SetInfoText("How often (in game hours) the Political DM evaluates faction relations and generates events. Default 6.")
+        SetInfoText("$IntelEngine_PoliticsInterval_Info")
     ElseIf optionId == OID_PEIntegration
-        SetInfoText("Experimental, off by default. Needs the mod Political Engine and does nothing without it. When on, its realms, rulers and campaign news feed IntelEngine's politics. Load a save after turning it on: the realms are added at game start and on load.")
+        SetInfoText("$IntelEngine_PEIntegration_Info")
     ElseIf optionId == OID_PEReactions
-        SetInfoText("Only matters with Political Engine integration on. When off, reactions to Political Engine's news are recorded without changing faction relations or your standing.")
+        SetInfoText("$IntelEngine_PEReactions_Info")
     Else
         String holdDefault = HoldDefaultText(optionId)
         If holdDefault != ""
@@ -1534,22 +1777,22 @@ EndEvent
 
 String Function HoldDefaultText(Int optionId)
     {Help text of a Hold Restrictions option: what it limits, and the default of its story type. The page used
-    to say "Default: Same Hold (Civilians)" for all seven types, which is true for three.}
-    String what = "Which NPCs may come from further away for this kind of story. "
+    to say "Default: Same Hold (Civilians)" for all seven types, which is true for three. The story type and its
+    default are keys of their own, given as the values of the one help key.}
     If optionId >= OID_HoldSeekNone && optionId <= OID_HoldSeekLocalAll
-        Return what + "Default for \"Someone comes to see you\": Same hold (civilians)."
+        Return "$IntelEngine_HoldInfo{$IntelEngine_TypeSeek}{$IntelEngine_HoldCivilians}"
     ElseIf optionId >= OID_HoldInformantNone && optionId <= OID_HoldInformantLocalAll
-        Return what + "Default for \"Someone brings a rumor\": Same town (everyone)."
+        Return "$IntelEngine_HoldInfo{$IntelEngine_TypeInformant}{$IntelEngine_TownEveryone}"
     ElseIf optionId >= OID_HoldRoadNone && optionId <= OID_HoldRoadLocalAll
-        Return what + "Default for \"A meeting on the road\": No restriction."
+        Return "$IntelEngine_HoldInfo{$IntelEngine_TypeRoad}{$IntelEngine_HoldNone}"
     ElseIf optionId >= OID_HoldAmbushNone && optionId <= OID_HoldAmbushLocalAll
-        Return what + "Default for \"An ambush\": Same hold (civilians)."
+        Return "$IntelEngine_HoldInfo{$IntelEngine_TypeAmbush}{$IntelEngine_HoldCivilians}"
     ElseIf optionId >= OID_HoldStalkerNone && optionId <= OID_HoldStalkerLocalAll
-        Return what + "Default for \"Someone follows you unseen\": Same hold (civilians)."
+        Return "$IntelEngine_HoldInfo{$IntelEngine_TypeStalker}{$IntelEngine_HoldCivilians}"
     ElseIf optionId >= OID_HoldMessageNone && optionId <= OID_HoldMessageLocalAll
-        Return what + "Default for \"A message is delivered\": Same hold (except followers)."
+        Return "$IntelEngine_HoldInfo{$IntelEngine_TypeMessage}{$IntelEngine_HoldExceptFollowers}"
     ElseIf optionId >= OID_HoldQuestNone && optionId <= OID_HoldQuestLocalAll
-        Return what + "Default for \"Someone has work for you\": No restriction."
+        Return "$IntelEngine_HoldInfo{$IntelEngine_TypeQuest}{$IntelEngine_HoldNone}"
     EndIf
     Return ""
 EndFunction
@@ -1571,7 +1814,7 @@ Bool Function IsScheduleCancelOption(Int optionId)
         If cancelOID == optionId && cancelOID != 0
             String display = Core.Schedule.GetScheduleDisplay(i)
             If display != "Empty"
-                Bool confirm = ShowMessage("Cancel scheduled task?\n" + display, true, "Yes", "No")
+                Bool confirm = ShowMessage(ScheduleRow(display, true), true, "$Yes", "$No")
                 If confirm
                     Core.Schedule.ClearScheduleSlot(i)
                     ForcePageReset()
@@ -1597,7 +1840,7 @@ Function ClearSlotWithConfirm(Int slot)
         Return
     EndIf
 
-    Bool confirm = ShowMessage("Clear task in slot " + slot + "?\n" + status, true, "Yes", "No")
+    Bool confirm = ShowMessage(ClearQuestion(slot, status), true, "$Yes", "$No")
     Core.DebugMsg("MCM ClearSlot " + slot + " confirm: " + confirm)
     If confirm
         Core.DebugMsg("MCM ClearSlot " + slot + " calling ClearSlot now")
@@ -1611,7 +1854,8 @@ Function ClearSlotWithConfirm(Int slot)
         EndIf
         Core.ClearSlot(slot, true)
         Core.DebugMsg("MCM ClearSlot " + slot + " ClearSlot returned, state now: " + Core.SlotStates[slot])
-        Debug.Notification("IntelEngine: Slot " + slot + " cleared")
+        ; A notice, not the menu: SkyUI's translation files do not reach it; the language packs do (IntelEngine.L).
+        Debug.Notification(IntelEngine.L("IntelEngine: Slot " + slot + " cleared"))
         ForcePageReset()
     EndIf
 EndFunction

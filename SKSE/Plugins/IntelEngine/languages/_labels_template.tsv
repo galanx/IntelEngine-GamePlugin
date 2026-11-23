@@ -58,6 +58,7 @@ label	IntelEngine: All tasks reset	IntelEngine: All tasks reset
 label	IntelEngine: Resetting all tasks...	IntelEngine: Resetting all tasks...
 label	Political event refused: {1} between {2} and {3}. The reason is in the IntelEngine log.	Political event refused: {1} between {2} and {3}. The reason is in the IntelEngine log.
 label	Political event: {1} between {2} and {3}.	Political event: {1} between {2} and {3}.
+label	Quest dispatch refused: {1}.	Quest dispatch refused: {1}.
 label	Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.	Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.
 label	Social replacement refused: active trip changed; refresh and confirm replacement.	Social replacement refused: active trip changed; refresh and confirm replacement.
 label	Social replacement refused: previous trip or task is still active after cancellation.	Social replacement refused: previous trip or task is still active after cancellation.
@@ -77,6 +78,7 @@ label	{1}'s task was cancelled.	{1}'s task was cancelled.
 label	{1}: conduct reported.	{1}: conduct reported.
 label	{1}: {2} failed.	{1}: {2} failed.
 label	{1}: {2} started.	{1}: {2} started.
+label	IntelEngine: Slot {1} cleared	IntelEngine: Slot {1} cleared
 label	{1} arrived - {2} is still on the way	{1} arrived - {2} is still on the way
 label	{1} brought {2}	{1} brought {2}
 label	{1} cannot deliver a message to themselves.	{1} cannot deliver a message to themselves.
@@ -109,6 +111,7 @@ label	All scheduled tasks cancelled	All scheduled tasks cancelled
 label	Not scheduled: all {1} schedule slots are in use.	Not scheduled: all {1} schedule slots are in use.
 label	Not scheduled: {1} will not {2}.	Not scheduled: {1} will not {2}.
 label	{1} could not set out for the meeting at {2}. It is off.	{1} could not set out for the meeting at {2}. It is off.
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.
 label	{1} will deliver message to {2} {3}	{1} will deliver message to {2} {3}
 label	{1} will fetch {2} {3}	{1} will fetch {2} {3}
 label	{1} will {2} {3}	{1} will {2} {3}

@@ -214,10 +214,24 @@ Bool Function GoToLocation(Actor akNPC, String destination, Int speed = 0, Int w
     StorageUtil.UnsetFormValue(akNPC, "Intel_PartyLeader")
     StorageUtil.UnsetIntValue(akNPC, "Intel_PlayerWasThere")
 
-    ; Carriage drivers and children are never sent travelling (see Core.IsUnsuitableTaskAgent).
-    If Core.IsUnsuitableTaskAgent(akNPC)
-        Core.DebugMsg("GoToLocation: " + akNPC.GetDisplayName() + " is not sent on tasks (carriage driver)")
+    ; Carriage drivers are never sent travelling, nor anyone a quest of the game holds right now (told why: see
+    ; Core.RefusesTask).
+    If Core.RefusesTask(akNPC, "GoToLocation")
         Return false
+    EndIf
+
+    ; 4.0: somebody with a part in a story under way goes where the player sends them: their part is in what they
+    ; know (their bio), the story's marks follow them wherever they are, and a step that needs them waits for them.
+    ; (The action used to be hidden from them altogether, for days on end: told "wait for me at the inn", they agreed
+    ; and stayed.) A trip of their own idea waits until the story is over, as before: the asker walked off before
+    ; hearing the answer, a suspect left town in the middle of it.
+    If !isScheduled && waitForPlayer == 0 && taskOrigin == "SkyrimNet dialogue action"
+        Int arcId = IntelEngine.ArcOfActor(akNPC)
+        If arcId > 0
+            Core.DebugMsg("GoToLocation: " + akNPC.GetDisplayName() + " has a part in story " + arcId + " and set out on their own idea - stays")
+            Core.TellFailure(akNPC, akNPC.GetDisplayName() + " stays for now: they have a part in something still under way here, and nobody asked them to go.")
+            Return false
+        EndIf
     EndIf
 
     If destination == ""

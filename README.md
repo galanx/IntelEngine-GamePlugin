@@ -2,7 +2,7 @@
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 > [!IMPORTANT]
-> **Compatibility:** IntelEngine 3.8.0 updates the DLL and scripts and requires SkyrimNet Beta 27 or newer (its travel prompt uses the `get_place_names` decorator added in Beta 27). The 3.6.0 runtime components were tested with official Beta 28. Beta 26 and earlier are incompatible.
+> **Compatibility:** IntelEngine 4.0.0 updates the DLL, the scripts and the plugin's SkyrimNet content. Like 3.8, it requires SkyrimNet Beta 27 or newer (its travel prompt uses the `get_place_names` decorator added in Beta 27); Beta 26 and earlier are incompatible. 4.0 was played on Skyrim SE 1.5.97, on a small test setup and on a full Nolvus load order; what was played and what was not is in the [changelog](CHANGELOG.md). The 3.6.0 runtime components were tested with official Beta 28.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 > **Have issues? Report them here:** [IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues). Include your Skyrim, SKSE, SkyrimNet and IntelEngine versions and relevant logs with personal information removed.
