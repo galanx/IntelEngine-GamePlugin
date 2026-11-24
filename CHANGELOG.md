@@ -1,5 +1,10 @@
 # Changelog
 
+## Not released yet
+
+- **A visit you order from the dashboard is no longer called off.** In the 4.0 alphas, "Seek player" from the Director tab for anybody outside the place you were in started ("sets out") and ended three or four seconds later with no word on screen; it only worked when you stood next to where they live. The rule that someone coming at a walk does not chase you across the world was applied to your own order. It no longer is: whoever you order comes, and keeps coming if you move on. A place nobody is sent to, a battle, and the danger and home settings still hold. Reported by Andy_A, with the logs that showed it.
+- **People a story sends from elsewhere in the hold arrive.** The same rule read "the player is not where the visitor is" as "the player has left", so a story's own visitor who set out from another part of the hold was called off at the first look as well, every time they were sent: a person of a running story coming to see you, an asker the director let come, a visitor at the Classic level whom the travel settings allow. "Gone" is now measured from where you were when they set out: they let it be when you leave their place, or leave the hold, as before. Played on the test setup: a dashboard order and a story's visitor from Riverwood both walk into the inn at Whiterun, an order follows you from Riverwood to Whiterun, and a visitor from Whiterun still lets it be when you leave for Riverwood. No model was connected in that session, so the visitors' lines were not heard.
+
 ## 4.0.0-alpha.4 — 2026-11-24, a test build for the community
 
 The living world, by Galanx. People you know get on with their lives while you are away, ask things of you that the journal keeps, and come back to what is still open between you. Six new settings under "Living world" decide how much of it you get; at "Classic" everything stays as it was in 3.8.
