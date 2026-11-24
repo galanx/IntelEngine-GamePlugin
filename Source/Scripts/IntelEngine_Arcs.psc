@@ -327,6 +327,29 @@ Function DebugPatrolAlways(Bool on)
     IntelEngine.FactionPatrolTest(on)
 EndFunction
 
+Function DebugReadProp(Int id, Int p, Bool fromPack)
+    {Test hook: a copy of story id's item p, stamped as the story stamps it, read as the player would: from the
+    ground in front of them (fromPack false: the book opens on the reference) or from their pack (fromPack true:
+    the copy is put there and read). Papers show the story's words (ArcBridge::BookOpened).}
+    Actor player = Game.GetPlayer()
+    Form base = IntelEngine.ArcForm(id, "prop" + p)
+    If base == None
+        Core().DebugMsg("Arcs: #" + id + " has no item " + p)
+        Return
+    EndIf
+    ObjectReference stamped = player.PlaceAtMe(base, 1, false, true)
+    stamped.SetDisplayName(IntelEngine.ArcText(id, "prop" + p), true)
+    If fromPack
+        player.AddItem(stamped, 1, true)
+        player.EquipItem(base, false, true)
+    Else
+        stamped.MoveTo(player, 60.0 * Math.Sin(player.GetAngleZ()), 60.0 * Math.Cos(player.GetAngleZ()), 40.0)
+        stamped.Enable()
+        stamped.Activate(player)
+    EndIf
+    Core().DebugMsg("Arcs: #" + id + " " + IntelEngine.ArcText(id, "prop" + p) + " read " + fromPack)
+EndFunction
+
 Function DebugBondNoMod(Bool on)
     {Test hook: go on as if no relationship mod were installed (this session only), so that what was read counts.}
     IntelEngine.BondPretendNoMod(on)

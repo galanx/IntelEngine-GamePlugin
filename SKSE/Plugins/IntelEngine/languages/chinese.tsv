@@ -385,3 +385,11 @@ label	{1} soldiers of the {2} keep by your side.	{2}的士兵（{1}）守在你�
 label	Quest dispatch refused: {1}.	任務派遣遭拒：{1}。
 label	IntelEngine: Slot {1} cleared	IntelEngine：欄位{1}已清空
 label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1}仍被其他事情纏身，無法履行約定（{2}）。已取消。
+label	Letter	信
+label	Ledger	帳簿
+label	Journal	日誌
+label	Note	便條
+label	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.	這封信被折起又攤開了太多次，折痕都已磨穿。墨水有幾處暈開了。
+label	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.	每一頁都用密密麻麻的字跡寫滿了日期、名字和數目。有幾行被劃掉後又重寫過。
+label	Page after page in the same hand: some entries a line long, some running on for pages.	一頁接一頁，都是同一個人的筆跡：有的記錄只有一行，有的連寫好幾頁。
+label	A few lines, written in haste.	幾行字，寫得很匆忙。

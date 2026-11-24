@@ -385,3 +385,11 @@ label	{1} soldiers of the {2} keep by your side.	{1} Soldaten von {2} bleiben an
 label	Quest dispatch refused: {1}.	Quest-Entsendung abgelehnt: {1}.
 label	IntelEngine: Slot {1} cleared	IntelEngine: Platz {1} freigegeben
 label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} ist noch anderweitig gebunden und konnte die Abmachung nicht einhalten ({2}). Sie fällt aus.
+label	Letter	Brief
+label	Ledger	Hauptbuch
+label	Journal	Tagebuch
+label	Note	Notiz
+label	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.	Der Brief wurde so oft gefaltet und wieder auseinandergefaltet, dass die Knicke durchgescheuert sind. Die Tinte ist an manchen Stellen verlaufen.
+label	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.	Daten, Namen und Summen ziehen sich in enger Schrift über jede Seite. Manche Zeilen sind durchgestrichen und überschrieben.
+label	Page after page in the same hand: some entries a line long, some running on for pages.	Seite um Seite in derselben Handschrift: manche Einträge eine Zeile lang, manche über Seiten hinweg.
+label	A few lines, written in haste.	Ein paar Zeilen, in Eile geschrieben.

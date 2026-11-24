@@ -105,6 +105,7 @@ This story is about someone of {{ town }} who is held at one of the places below
 
 # Items a story may turn on (use the names exactly)
 {% for i in items %}{{ i }}{% if not loop.is_last %}, {% endif %}{% endfor %}
+Those marked "paper" are papers: what is written in them is yours to write, and {{ player_name }} can read it.
 
 # {{ player_name }}'s current quests (never contradict them, never involve their people, places or outcomes)
 {% if length(quests) > 0 %}{% for q in quests %}
@@ -126,6 +127,8 @@ What was left open comes due now, and this story is what comes of it: someone le
 - The title names what this story alone turns on: a thing, a place, a deed, a word someone said. It shares no word with the title of a story told before.
 - {{ asker_name }} need not be the wronged one: they may be guilty and want help hiding it, caught between two people they love, asking on someone else's behalf, or after something they should not have.
 - Most stories need no item at all; use one only when the story truly turns on it. Never another lost or stolen keepsake unless these people make it unavoidable.
+- An item is what it is on the list, and every line of the story calls it so: a ring stays a ring, a necklace a necklace. A ledger, a letter, a journal or a note is one of the papers, never a ring or a necklace given that name.
+- A paper is evidence the player reads with their own eyes: its "text" holds the words written in it, in the hand and voice of whoever wrote it (2 to 6 short lines; dates, names, sums, a threat, a confession), true to the story, and something in it the player can act on. Only a paper has "text".
 {% if seed_idea != "" %}
 - Begin from this, and make it true of these people: {{ seed_idea }}. Who it is about, what really happened and why are yours to find in who they are; if it cannot be made true of them, take the nearest thing that can. Never the same as a story told before.
 {% else %}
@@ -212,7 +215,7 @@ Fit it to the story so that it matters: it is how {{ player_name }} comes by the
 # The answer (this shape, with your own story)
  {"title": "...", "genre": "...", "premise": "the hidden truth in one or two sentences",
  "people": [{"who": "{{ asker }}", "part": "the one who asks", "truth": "..."}, {"who": "p2", "part": "...", "truth": "..."}],
- "items": [] or [{"id": "i1", "item": "<a name from the list>", "name": "<its name in the story>", "hidden": "home" or "pocket" (or "at"/"ambush"), "of": "p2"}],
+ "items": [] or [{"id": "i1", "item": "<a name from the list>", "name": "<its name in the story>", "hidden": "home" or "pocket" (or "at"/"ambush"), "of": "p2"}] (a paper also has "text": "<the words written in it>"),
  "offer": {"words": "...", "ask": "...", "journal": "...",{% if rumored %} "rumor": "...",{% endif %} "reward": {{ reward }}, "days": 3},
  "steps": [
   {"id": "s1", "do": "talk", "with": "p2", "goal": "...", "outcomes": [{"if": "...", "then": "s2", "journal": "..."}, {"if": "...", "then": "s3", "journal": "..."}]},
