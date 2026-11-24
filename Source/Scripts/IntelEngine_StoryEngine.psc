@@ -2589,6 +2589,12 @@ Bool Function DispatchToTarget(Actor npc, Actor target, String narration, String
     StorageUtil.SetStringValue(npc, "Intel_StoryNarration", narration)
 
     StorageUtil.UnsetFloatValue(npc, "Intel_WalkStartDist")
+    ; How far off the player is as they set out (PlayerWentFarther measures from here).
+    If target == Game.GetPlayer()
+        StorageUtil.SetIntValue(npc, "Intel_WalkStartReach", IntelEngine.ArcReachOf(npc))
+    Else
+        StorageUtil.UnsetIntValue(npc, "Intel_WalkStartReach")
+    EndIf
     ActiveStoryHurries = target == Game.GetPlayer() && IntelEngine.ArcHurries(StorageUtil.GetIntValue(npc, "Intel_ArcOffer", 0), npc)
     ReapplyTravelPackage(npc, true)
     If !IsActive || ActiveStoryNPC != npc || DispatchGeneration != claimedGeneration
@@ -3394,8 +3400,9 @@ Function CheckStoryNPCArrival()
     EndIf
 
     ; === Someone coming at a walk does not chase the player across the world ===
-    If arrivalTarget == player && !ActiveStoryHurries && StoryComesAtAWalk(storyType)
-        Bool gone = IntelEngine.ArcReachOf(storyNPC) >= 1
+    ; (Not a visit the player ordered from the dashboard: see OrderedFromDashboard.)
+    If arrivalTarget == player && !ActiveStoryHurries && StoryComesAtAWalk(storyType) && !OrderedFromDashboard(storyNPC)
+        Bool gone = PlayerWentFarther(storyNPC)
         Bool sameSpace = storyNPC.GetParentCell() == player.GetParentCell() || (!storyNPC.IsInInterior() && !player.IsInInterior())
         If !gone && storyNPC.Is3DLoaded() && sameSpace
             Float nearest = StorageUtil.GetFloatValue(storyNPC, "Intel_WalkStartDist", -1.0)
@@ -6698,7 +6705,7 @@ Bool Function ShouldAbortForPlayerHome(Actor npc, Actor player, String storyType
 EndFunction
 
 Bool Function ShouldAbortForHoldRestriction(Actor npc, Actor player, String storyType, String logSuffix, Int claimedGeneration)
-    If StorageUtil.GetStringValue(npc, "Intel_TaskOrigin") != "Director" && !IntelEngine.CheckHoldRestriction(npc, storyType)
+    If !OrderedFromDashboard(npc) && !IntelEngine.CheckHoldRestriction(npc, storyType)
         Core.DebugMsg("Story: aborting " + storyType + " for " + npc.GetDisplayName() + " -- hold restriction" + logSuffix)
         Core.SendTaskNarration(npc, "decided the journey to find " + player.GetDisplayName() + " was too far and turned back", player)
         If StillOwns(npc, claimedGeneration, storyType)
@@ -6816,6 +6823,7 @@ Function CleanupStoryDispatch()
         StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_SneakStartTime")
         StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_CombatStartTime")
         StorageUtil.UnsetFloatValue(ActiveStoryNPC, "Intel_OffscreenArrival")
+        StorageUtil.UnsetIntValue(ActiveStoryNPC, "Intel_WalkStartReach")
         ; Message courier keys
         StorageUtil.UnsetStringValue(ActiveStoryNPC, "Intel_MessageSender")
         StorageUtil.UnsetFormValue(ActiveStoryNPC, "Intel_MessageSenderActor")
@@ -6853,6 +6861,26 @@ EndFunction
 ; TRAVEL PACKAGE
 ; =============================================================================
 
+Bool Function PlayerWentFarther(Actor npc)
+    {True when the player is in a farther place now than when this visitor set out (IntelEngine.ArcReachOf: 0 with
+    them or in their town, 1 elsewhere in the hold, 2 another hold): the player left the visitor's place, or left the
+    hold. That is "the player is gone". It used to read "the player is not in the visitor's place", which is true
+    from the first step for anybody who sets out from elsewhere: a tale's person coming from another part of the
+    hold, an asker the director let come, a Classic visitor the travel settings allow. Each was called off at the
+    first look, three seconds after setting out, every time they were sent (seen 2026-11-24).}
+    return npc != None && IntelEngine.ArcReachOf(npc) > StorageUtil.GetIntValue(npc, "Intel_WalkStartReach", 0)
+EndFunction
+
+Bool Function OrderedFromDashboard(Actor npc)
+    {True for a visit the player ordered from the dashboard's Director tab. It is the player's own order, so the rules
+    that call off a visitor the mod sent by itself do not hold for it: how far people travel (the hold restriction)
+    and "someone coming at a walk does not chase the player across the world". Without this, anybody ordered to
+    come from outside the player's own place set out and was called off at the first look, three seconds later,
+    with no word on screen (a report of 2026-11-24: Hilund in Thirsk Mead Hall, the player near the Skaal Village).
+    What keeps anybody away still holds: a place nobody is sent to, a battle, the danger and home settings.}
+    return npc != None && StorageUtil.GetStringValue(npc, "Intel_TaskOrigin") == "Director"
+EndFunction
+
 Bool Function StoryComesAtAWalk(String storyType)
     {The kinds of moment in which someone comes to the player with something to say (not the hostile ones, not a
     guide leading the way).}
@@ -6875,10 +6903,10 @@ Bool Function LetsItBe(Actor npc)
     {True (and the visit is called off until they next meet) when this is the story's visitor coming to the player at
     a walk and the player is no longer where they are. Asked wherever such a visitor would otherwise be set down near
     the player.}
-    If !IsActive || ActiveStoryNPC != npc || ActiveStoryHurries || !StoryComesAtAWalk(ActiveStoryType)
+    If !IsActive || ActiveStoryNPC != npc || ActiveStoryHurries || !StoryComesAtAWalk(ActiveStoryType) || OrderedFromDashboard(npc)
         Return false
     EndIf
-    If IntelEngine.ArcReachOf(npc) < 1
+    If !PlayerWentFarther(npc)
         Return false
     EndIf
     DeferStory(npc, DispatchGeneration, ActiveStoryType)
@@ -6956,6 +6984,7 @@ Function DeferStory(Actor npc, Int claimedGeneration, String storyType, Bool com
         Core.DebugMsg("Story [" + storyType + "]: " + npc.GetDisplayName() + " could not reach the player (gone): it waits until they next meet")
     EndIf
     StorageUtil.UnsetFloatValue(npc, "Intel_WalkStartDist")
+    StorageUtil.UnsetIntValue(npc, "Intel_WalkStartReach")
     Int slot = Core.FindSlotByAgent(npc)
     If (slot >= 0) && StillOwns(npc, claimedGeneration, storyType)
         Core.ClearSlot(slot)
