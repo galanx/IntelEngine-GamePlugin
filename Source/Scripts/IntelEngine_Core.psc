@@ -184,11 +184,13 @@ Event OnInit()
 EndEvent
 
 Float LastMaintenanceRealTime = 0.0
+Int LastMaintenanceLoad = 0   ; the load (IntelEngine.LoadStamp) LastMaintenanceRealTime was taken after
 
 Function Maintenance(Bool isFirstLoad = false)
     {
         Called by PlayerAlias on every game load AND by C++ bootstrap.
-        Guard: skip if already ran within 2 real seconds (both paths fire on load).
+        Guard: skip if already ran within 5 real seconds (both paths fire on load; the C++ call
+        comes 3 s after kPostLoadGame, Plugin.cpp, so a 2 s window let it run Maintenance twice).
         isFirstLoad = true when mod is first installed (OnInit on alias)
         isFirstLoad = false on subsequent loads (OnPlayerLoadGame on alias)
     }
@@ -202,8 +204,18 @@ Function Maintenance(Bool isFirstLoad = false)
     If now < LastMaintenanceRealTime
         LastMaintenanceRealTime = 0.0
     EndIf
-    If !isFirstLoad && (now - LastMaintenanceRealTime) < 2.0 && LastMaintenanceRealTime > 0.0
-        DebugMsg("IntelEngine Maintenance skipped (duplicate call within 2s)")
+    ; ... and a kept time a few seconds EARLIER than now is the same mistake the other way round: whoever starts the
+    ; game and loads straight away does so at much the same second every session, the guard took the last session's
+    ; call for one a moment ago, and the whole load went without Maintenance (no monitoring restarted, the story
+    ; engine's load recovery never finished, so no visitor's arrival was looked at again: found 2026-11-22). The
+    ; guard is for two calls after ONE load, so the kept time counts only when it was taken after this very load.
+    Int thisLoad = IntelEngine.LoadStamp()
+    If thisLoad != LastMaintenanceLoad
+        LastMaintenanceRealTime = 0.0
+        LastMaintenanceLoad = thisLoad
+    EndIf
+    If !isFirstLoad && (now - LastMaintenanceRealTime) < 5.0 && LastMaintenanceRealTime > 0.0
+        DebugMsg("IntelEngine Maintenance skipped (duplicate call within 5s)")
         return
     EndIf
     LastMaintenanceRealTime = now
@@ -211,6 +223,15 @@ Function Maintenance(Bool isFirstLoad = false)
     _tickDueRealTime = 0.0
     _mlRequest = ""
     _lastSweepGameTime = 0.0
+    ; Those waiting to be taken away once their body is out of the game: not in the first seconds after a load, while
+    ; the bodies around the player are still coming into it ("not there yet" is not "gone": RemoveUnloaded).
+    _loadedAt = now
+    _leavingLooking = false
+    RecountLeavers()
+    If LeavingCount > 0
+        ; Looked at again even when nothing else of the mod is going on.
+        RequestTick(LEAVING_LOOK_SECONDS + 1.0)
+    EndIf
     ; Register once per load after the duplicate-bootstrap guard.
     RegisterStoryEventSchemas()
     DebugMsg("IntelEngine Maintenance (firstLoad=" + isFirstLoad + ")")
@@ -317,6 +338,23 @@ Function Maintenance(Bool isFirstLoad = false)
     If StoryEngine
         StoryEngine.RestartMonitoring()
         StoryEngine.StartScheduler()
+    EndIf
+    ; 4.0: storylines in the journal keep being watched, and the lives of followers left behind go on.
+    IntelEngine_Threads threads = Quest.GetQuest("IntelEngine_Threads") as IntelEngine_Threads
+    If threads
+        threads.Resume()
+    EndIf
+    IntelEngine_Lives lives = Quest.GetQuest("IntelEngine_Lives") as IntelEngine_Lives
+    If lives
+        lives.Begin()
+    EndIf
+    IntelEngine_Quests quests = Quest.GetQuest("IntelEngine_QuestKeeper") as IntelEngine_Quests
+    If quests
+        quests.Begin()
+    EndIf
+    IntelEngine_Arcs arcs = Quest.GetQuest("IntelEngine_ArcKeeper") as IntelEngine_Arcs
+    If arcs
+        arcs.Begin()
     EndIf
     If Politics
         Politics.Maintenance()
@@ -481,6 +519,12 @@ Function StoreMeetingOutcome(Actor akNPC, String outcome, String dest)
     StorageUtil.SetFloatValue(akNPC, "Intel_MeetingOutcomeTime", Utility.GetCurrentGameTime())
 
     DebugMsg(akNPC.GetDisplayName() + " meeting outcome: " + outcome + " at " + dest)
+
+    ; 4.0: the meeting storyline in the journal ends the way the meeting went
+    IntelEngine_Threads threads = Quest.GetQuest("IntelEngine_Threads") as IntelEngine_Threads
+    If threads != None
+        threads.OnMeetingOutcome(akNPC, outcome)
+    EndIf
 EndFunction
 
 Function ClearMeetingOutcome(Actor akNPC)
@@ -738,7 +782,7 @@ Function AllocateSlot(Int slot, Actor akAgent, String taskType, String targetNam
     ; Someone listening to the bard would stay seated until the song is over, and the bard himself would
     ; go on playing.
     StorageUtil.UnsetIntValue(akAgent, "Intel_BardReleases")
-    ReleaseFromBardHold(akAgent)
+    ReleaseFromBardHold(akAgent, true)
     ; When the task began, in real seconds (CancelCurrentTask: the NPC's own first reaction does not end it).
     StorageUtil.SetFloatValue(akAgent, "Intel_TaskStartedRT", Utility.GetCurrentRealTime())
 
@@ -811,6 +855,13 @@ Event OnSkyrimNetPackageRemoved(String eventName, String strArg, Float numArg, F
         Return
     EndIf
     If FindSlotByAgent(npc) < 0
+        ; No task of their own: the one fetched or escorted in somebody else's, or packages left on them with no
+        ; slot at all. Removed all the same, instead of the row coming straight back.
+        Int theirs = FindSlotByActor(npc)
+        If theirs >= 0
+            ClearSlot(theirs)
+        EndIf
+        ReleaseAgent(npc, -1)
         Return
     EndIf
     DebugMsg(npc.GetDisplayName() + ": task row removed on SkyrimNet's package page - cancelling the task")
@@ -869,6 +920,7 @@ Function ReleaseAgent(Actor agent, Int slot)
 
     ; Clear travel/navigation data
     StorageUtil.UnsetFormValue(agent, "Intel_DestMarker")
+    StorageUtil.UnsetFormValue(agent, "Intel_TravelFromCell")
     StorageUtil.UnsetFormValue(agent, "Intel_ReturnMarker")
     StorageUtil.UnsetFormValue(agent, "Intel_CurrentWaypoint")
     StorageUtil.UnsetFloatValue(agent, "Intel_TaskStartTime")
@@ -879,6 +931,7 @@ Function ReleaseAgent(Actor agent, Int slot)
     StorageUtil.UnsetFloatValue(agent, "Intel_OffScreenSince")
     StorageUtil.UnsetFloatValue(agent, "Intel_TaskAllocatedAt")
     StorageUtil.UnsetFloatValue(agent, "Intel_TravelArrivalTime")
+    StorageUtil.UnsetIntValue(agent, "Intel_PlayerWasThere")
     StorageUtil.UnsetFloatValue(agent, "Intel_WaitHours")
     StorageUtil.UnsetIntValue(agent, "Intel_WaitForPlayer")
     StorageUtil.UnsetFloatValue(agent, "Intel_Deadline")
@@ -1406,7 +1459,10 @@ Bool Function IsDuplicateTask(Actor npc, String taskType, String target)
     ; easily as it cancels (it reacts to the "departed for ..." line); the meeting then never happened and its
     ; entry stayed in the schedule as "dispatched". The schedule's own dispatch clears the old slot first, and
     ; the Director has its own check, so neither comes through here with the meeting flag set.
-    If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1 && FindSlotByAgent(npc) >= 0
+    ; Once they have met the player (the meeting linger), the meeting is over: Elrindir, asked after the
+    ; meeting to go wait elsewhere, agreed and then stood there, his trip refused (2026-11-17).
+    If StorageUtil.GetIntValue(npc, "Intel_IsScheduledMeeting") == 1 && FindSlotByAgent(npc) >= 0 \
+        && StorageUtil.GetIntValue(npc, "Intel_MeetingLingering") != 1
         DebugMsg("New " + taskType + " task ignored: " + npc.GetDisplayName() + " is on a scheduled meeting")
         Return true
     EndIf
@@ -1469,12 +1525,26 @@ Float Property PROMPT_SECONDS_TASK = 20.0 AutoReadOnly
 Faction _carriageSystemFaction
 Faction _currentFollowerFaction
 Faction _severFollowingFaction
+Faction _jobCarriageFaction
+Faction _ferrySystemFaction
+Faction _ownCarriageFaction
 Bool _softFormsResolved = false
 
 Function ResolveSoftForms()
     {Forms of the base game and of other mods, looked up once per load. None when the mod is not installed.}
     _carriageSystemFaction = Game.GetFormFromFile(0x00017F04, "Skyrim.esm") as Faction      ; CarriageSystemFaction
     _currentFollowerFaction = Game.GetFormFromFile(0x0005C84E, "Skyrim.esm") as Faction     ; CurrentFollowerFaction
+    ; The other people of the game's travel services (read from the game's files, 2026-11-19): the ferrymen of
+    ; Dawnguard have a faction of their own, so "the Dawnstar ferry" was never covered by the carriage one.
+    _jobCarriageFaction = Game.GetFormFromFile(0x000DDDA8, "Skyrim.esm") as Faction         ; JobCarriageFaction
+    _ferrySystemFaction = None
+    If Game.IsPluginInstalled("Dawnguard.esm")
+        _ferrySystemFaction = Game.GetFormFromFile(0x00016849, "Dawnguard.esm") as Faction  ; DLC1FerrySystemFaction
+    EndIf
+    _ownCarriageFaction = None
+    If Game.IsPluginInstalled("HearthFires.esm")
+        _ownCarriageFaction = Game.GetFormFromFile(0x00007890, "HearthFires.esm") as Faction ; BYOHCarriageDriverFaction
+    EndIf
     _severFollowingFaction = None
     If Game.IsPluginInstalled("SeverActions.esp")
         _severFollowingFaction = Game.GetFormFromFile(0x000F0809, "SeverActions.esp") as Faction   ; SeverActions_ActivelyFollowing
@@ -1520,7 +1590,84 @@ Bool Function IsUnsuitableTaskAgent(Actor npc)
     If _carriageSystemFaction && npc.IsInFaction(_carriageSystemFaction)
         Return true
     EndIf
+    If (_jobCarriageFaction && npc.IsInFaction(_jobCarriageFaction)) || (_ferrySystemFaction && npc.IsInFaction(_ferrySystemFaction)) \
+        || (_ownCarriageFaction && npc.IsInFaction(_ownCarriageFaction))
+        Return true
+    EndIf
+    If HeldByTheGame(npc)
+        Return true
+    EndIf
     Return false
+EndFunction
+
+Bool Function HeldByTheGame(Actor npc)
+    {Held by the game right now: in a scene of a real quest, or a quest of the player's whose shown objective points at
+    them. A package put on them then stalls that quest ("Neloth disappeared and the quest stalled": a travel task the
+    dialogue model had given him in the middle of The Path of Knowledge). A scene of the background (the bard's songs,
+    two people chatting at an inn: a quest with no type and nothing in the journal) holds nobody (the DLL tells them
+    apart: LivingWorldQuestHolds). Someone travelling with the player is the player's to send.}
+    Return npc != None && !npc.IsPlayerTeammate() && IntelEngine.LivingWorldQuestHolds(npc)
+EndFunction
+
+Bool Function RefusesTask(Actor npc, String caller)
+    {The door of the player's errands (travel, fetch, search, escort, a message): true when this NPC is not sent. A
+    carriage driver or a ferryman quietly (told, the model only tries again: see IsUnsuitableTaskAgent). Someone the
+    game holds right now (a real quest's scene, the target of an objective the player has open) is told why through
+    TellFailure, so that what they say matches what they do: 4.0 refused them in silence, and the logs called them
+    "carriage drivers". Children and the bard take tasks like anyone else (the inn's bard is let go from his song when
+    his slot is taken: AllocateSlot).}
+    If npc == None
+        Return true
+    EndIf
+    If HeldByTheGame(npc)
+        DebugMsg(caller + ": " + npc.GetDisplayName() + " is held by a quest of the game right now (its scene, or an objective of the player's) - not sent")
+        TellFailure(npc, npc.GetDisplayName() + " cannot leave what is going on here right now: nothing was set in motion.")
+        Return true
+    EndIf
+    If IsUnsuitableTaskAgent(npc)
+        DebugMsg(caller + ": " + npc.GetDisplayName() + " is not sent on tasks (carriage driver or ferryman)")
+        Return true
+    EndIf
+    Return false
+EndFunction
+
+Int Property FAILURES_KEPT = 4 AutoReadOnly
+
+Function TellFailure(Actor npc, String msgText, Actor akTarget = None)
+    {A task that could not even begin (a place nobody knows, a person who cannot be found, no free hands) is told to
+    the NPC once. The same failure told again within two minutes is only written to the log: the narration gives the
+    dialogue model a turn, the model tries the same thing again, and the two went round and round ("Endaron does not
+    know where interrogation chamber is", over a hundred calls in forty seconds, a dollar in half a minute). Kept per
+    NPC and per message (the last FAILURES_KEPT of them): a different failure is told at once (one timestamp per NPC
+    muted the second, different refusal, and the NPC promised what never happened).}
+    If npc == None
+        Return
+    EndIf
+    Float now = Utility.GetCurrentRealTime()
+    ; The two lists go together, entry by entry; out of step (a save of a broken session), both start again.
+    If StorageUtil.FloatListCount(npc, "Intel_FailTimes") != StorageUtil.StringListCount(npc, "Intel_FailTexts")
+        StorageUtil.StringListClear(npc, "Intel_FailTexts")
+        StorageUtil.FloatListClear(npc, "Intel_FailTimes")
+    EndIf
+    Int at = StorageUtil.StringListFind(npc, "Intel_FailTexts", msgText)
+    If at >= 0
+        Float last = StorageUtil.FloatListGet(npc, "Intel_FailTimes", at)
+        StorageUtil.FloatListSet(npc, "Intel_FailTimes", at, now)
+        If now >= last && now - last < 120.0   ; two minutes of real time
+            DebugMsg("Not told again (the same failure " + ((now - last) as Int) + " s ago): " + msgText)
+            Return
+        EndIf
+    Else
+        ; The lists stay short: the oldest goes first.
+        While StorageUtil.StringListCount(npc, "Intel_FailTexts") >= FAILURES_KEPT
+            StorageUtil.StringListRemoveAt(npc, "Intel_FailTexts", 0)
+            StorageUtil.FloatListRemoveAt(npc, "Intel_FailTimes", 0)
+        EndWhile
+        StorageUtil.StringListAdd(npc, "Intel_FailTexts", msgText)
+        StorageUtil.FloatListAdd(npc, "Intel_FailTimes", now)
+    EndIf
+    StorageUtil.UnsetFloatValue(npc, "Intel_FailAt")   ; the one timestamp of before 4.0's mending
+    SendTaskNarration(npc, msgText, akTarget)
 EndFunction
 
 Float Property SPEECH_GRACE_SECONDS = 7.0 AutoReadOnly
@@ -1558,6 +1705,69 @@ Function LetFinishSpeaking(Actor npc)
     EndWhile
 EndFunction
 
+Function RememberWhereFrom(Actor npc)
+    {Someone sets out to see the player: the spot they leave from is kept (their own marker), so that they can walk
+    back there when the visit is over (WalkBack).}
+    ObjectReference marker = PlaceMarkerOf(npc)
+    If marker != None
+        marker.MoveTo(npc)
+        StorageUtil.SetIntValue(npc, "Intel_CameFrom", 1)
+    EndIf
+EndFunction
+
+Function WalkBack(Actor npc)
+    {Their visit to the player is over (the offer was answered, or they thought better of speaking): they walk back
+    to where they came from instead of standing about beside the player (the user, 2026-11-19: "When declining
+    Faendal's quest, he doesn't walk away"). Where they came from is beside the player anyway: home instead. The
+    game's own packages take over again once they are there, or out of sight (CheckWalkHomeActors).}
+    Actor player = Game.GetPlayer()
+    Bool known = StorageUtil.GetIntValue(npc, "Intel_CameFrom") == 1
+    StorageUtil.UnsetIntValue(npc, "Intel_CameFrom")
+    If npc == None || npc.IsDead() || !npc.Is3DLoaded() || npc.IsInCombat() || npc.IsPlayerTeammate() || IsFollowingPlayer(npc)
+        Return
+    EndIf
+    If FindSlotByActor(npc) >= 0 || TakenOverElsewhere(npc) || StorageUtil.FormListFind(self, "Intel_WalkHomeActors", npc as Form) >= 0
+        Return
+    EndIf
+    ObjectReference dest = None
+    If known
+        dest = StorageUtil.GetFormValue(npc, "Intel_PlaceMarker") as ObjectReference
+        If dest != None && !AwayFromPlayer(dest, player)
+            dest = None
+        EndIf
+    EndIf
+    If dest == None
+        dest = IntelEngine.ResolveAnyDestination(npc, "home")
+        If dest == None
+            dest = IntelEngine.GetEditorLocationRef(npc)
+        EndIf
+        If dest != None && !AwayFromPlayer(dest, player)
+            dest = None
+        EndIf
+    EndIf
+    If dest == None
+        DebugMsg("Walk back: " + npc.GetDisplayName() + " belongs right here; left to their day")
+        Return
+    EndIf
+    PO3_SKSEFunctions.SetLinkedRef(npc, dest, IntelEngine_TravelTarget)
+    ActorUtil.AddPackageOverride(npc, TravelPackage_Walk, PRIORITY_TRAVEL, 1)
+    TrackWalkHome(npc)
+    npc.EvaluatePackage()
+    DebugMsg("Walk back: " + npc.GetDisplayName() + " takes their leave and walks back")
+EndFunction
+
+Bool Function AwayFromPlayer(ObjectReference place, Actor player)
+    {Far enough from the player that walking there is leaving: another room, or a good stretch off outdoors.}
+    If place == None || player == None
+        Return false
+    EndIf
+    If place.GetParentCell() != player.GetParentCell() && (place.IsInInterior() || player.IsInInterior())
+        Return true
+    EndIf
+    Float off = place.GetDistance(player)
+    Return off <= 0.0 || off > 1200.0
+EndFunction
+
 Function TrackWalkHome(Actor npc)
     StorageUtil.SetFloatValue(npc, "Intel_WalkHomeUntil", Utility.GetCurrentGameTime() + WALK_HOME_MAX_HOURS / 24.0)
     ; Remember where home is: the linked ref can later belong to something else that took the NPC over.
@@ -1574,6 +1784,13 @@ Function EndWalkHome(Actor npc, Bool removeOverride)
     StorageUtil.UnsetFloatValue(npc, "Intel_WalkHomeUntil")
     StorageUtil.UnsetFormValue(npc, "Intel_WalkHomeRef")
     StorageUtil.FormListRemove(self, "Intel_WalkHomeActors", npc as Form, true)
+EndFunction
+
+Bool Function WalkHomePending()
+    {Someone is on a walk home or back (WalkBack, the walk home after a task): the story engine keeps its short tick
+    while that is so, so the walk's package comes off the moment they are there. It used to come off with the hourly
+    sweep: Faendal stood rooted at the spot he had walked back to for two and a half minutes (test game, 2026-11-19).}
+    Return StorageUtil.FormListCount(self, "Intel_WalkHomeActors") > 0
 EndFunction
 
 Function CheckWalkHomeActors()
@@ -1639,6 +1856,29 @@ Bool Function OwnsPackagesOf(Actor npc)
     If NPCTasks && NPCTasks.HoldsActor(npc)
         Return true
     EndIf
+    ; A battle's soldiers come up and walk off on our travel packages, with no task slot behind them.
+    If Battle && Battle.HoldsActor(npc)
+        Return true
+    EndIf
+    ; Somebody the mod made who is walking off to be taken away once out of the loaded ground (SeeOff): the order
+    ; that leads them away is theirs until then.
+    If LeavingActors && LeavingActors.Find(npc) >= 0
+        Return true
+    EndIf
+    ; A road meeting of a venture (IntelEngine_Quests) gives its people packages without a task slot; the sweep took
+    ; Jenassa's and Vilkas' off on the road (2026-11-18). Its mark is trusted while the venture is live, and for a
+    ; little while after it ended (they walk off and are let go once out of sight); a mark left behind stops counting.
+    ; The men of a tale's ambush come to the player on our jog package (IntelEngine_Arcs.ComeAt).
+    If StorageUtil.GetIntValue(npc, "Intel_ArcThug", 0) > 0
+        Return true
+    EndIf
+    Int venture = StorageUtil.GetIntValue(npc, "Intel_RoadVenture", 0)
+    If venture > 0
+        Int phase = IntelEngine.QuestField(venture, "phase")
+        If phase == 0 || phase == 1 || Utility.GetCurrentGameTime() - StorageUtil.GetFloatValue(npc, "Intel_RoadVentureAt", 0.0) < 0.1
+            Return true
+        EndIf
+    EndIf
     Return false
 EndFunction
 
@@ -1687,6 +1927,8 @@ Function SweepIfDue()
         _lastSweepGameTime = now
         SweepStalePackages()
     EndIf
+    ; Those the mod made who are to go once the game no longer holds their body (it keeps its own time).
+    LookAtLeaving()
 EndFunction
 
 Function SweepStalePackages(Bool atOnce = false)
@@ -1737,6 +1979,322 @@ Function SweepStalePackages(Bool atOnce = false)
     EndWhile
 EndFunction
 
+; =============================================================================
+; PEOPLE THE MOD MADE: HOW THEY LEAVE THE GAME
+; =============================================================================
+; Nobody is switched off (Disable) or deleted while the game holds their body (Is3DLoaded), however far off or unseen.
+; It takes the skeleton apart under whatever else is working on it: on a big mod list with hair-and-cloth physics on
+; every body that crashed the game eighteen seconds after a soldier standing 2,500 units off was removed (2026-11-21;
+; IntelEngine_Battle.SweepSoldiers was mended then, and this is the same rule for everybody else the mod makes: an
+; ambush party, the killer of a political event, quest enemies, hired men, shades).
+; What is safe: somebody who was never switched on; somebody whose body is not in the game (they have left the loaded
+; ground, or the player has); the dead left lying until that ground is gone. (The game's own DeleteWhenAble waits for
+; the same.) So whoever is to go and is still there is put on a list, kept in the save so that nobody stays in the
+; world for good, and is taken away at a later look, once their body is no longer in the game. The living can be sent
+; walking off meanwhile (SeeOff); somebody who is not shown can step out of the loaded ground (StepOut).
+
+Actor[] Property LeavingActors Auto Hidden              ; made by the mod, to go once the game does not hold their body
+Int Property LeavingCount = 0 Auto Hidden
+Float Property LEAVING_LOOK_SECONDS = 15.0 AutoReadOnly ; real seconds between looks at the list
+Int Property LEAVING_LOOK_MOST = 16 AutoReadOnly        ; at most this many of them are looked at in one look
+Float _leavingLookAt = 0.0
+Bool _leavingLooking = false
+Int _leavingTop = 0             ; nobody is on the list at or past this place
+Int _leavingNext = 0            ; where the next look begins
+Float _loadedAt = 0.0           ; the real time of this load: for LEAVING_LOOK_SECONDS after it, a body that is not in
+                                ; the game may be on its way in (BodiesSettling)
+
+Bool Function RemoveUnloaded(Actor who)
+    {Takes somebody the mod made out of the game if that is safe now: their body is not in it. True: they are gone (or
+    there was nobody). False: the game holds their body, or may be about to (the first seconds after a load), and
+    nothing was done to them. Only ever for somebody the mod made: it deletes, and it takes every package override off
+    them, other mods' too (ClearPackageOverride, which the mod no longer uses on anybody else: it took other mods'
+    orders off people they belong to, GitHub issue #38). Who reaches it: battle soldiers and the killer of an attempt
+    on a leader (IntelEngine_Battle), quest enemies and bosses and faction ambushers (IntelEngine_StoryEngine), the
+    foe a quest re-makes (IntelEngine_Quests), a tale's hired men and shades (IntelEngine_Arcs), all made by the mod's
+    own natives or PlaceAtMe; and this list, which only they are put on.}
+    If who == None
+        Return true
+    EndIf
+    If who.IsDeleted()
+        Return true
+    EndIf
+    If BodiesSettling()
+        Return false
+    EndIf
+    If who.Is3DLoaded()
+        Return false
+    EndIf
+    ; Switched off straight after the look (every call into the game is a frame in which a body can come in). What is
+    ; kept under their id, outside of them, goes before the deletion: the id of a deleted reference is handed out
+    ; again, and whoever gets it would walk off with the travel order, or be taken for one of a story's hired men.
+    who.DisableNoWait()
+    ActorUtil.ClearPackageOverride(who)
+    StorageUtil.ClearAllObjPrefix(who, "Intel_")
+    who.Delete()
+    Return true
+EndFunction
+
+Bool Function BodiesSettling()
+    {The first seconds after a load: the bodies around the player are still coming into the game.}
+    Float now = Utility.GetCurrentRealTime()
+    Return now >= _loadedAt && now - _loadedAt < LEAVING_LOOK_SECONDS   ; (an earlier session's time lies ahead of now)
+EndFunction
+
+Bool Function ListLeaver(Actor who)
+    {Onto the list of those who go once their body is not in the game. False: no room on it.}
+    If who == None
+        Return true
+    EndIf
+    If !LeavingActors || LeavingActors.Length != 128
+        LeavingActors = new Actor[128]
+        LeavingCount = 0
+        _leavingTop = 0
+        _leavingNext = 0
+    EndIf
+    If LeavingActors.Find(who) >= 0
+        Return true
+    EndIf
+    Int slot = LeavingActors.Find(None)
+    If slot < 0
+        ; Never seen: 128 waiting. Those who can go, go now; with no room even then, the caller is told.
+        LookAtLeaving(true)
+        slot = LeavingActors.Find(None)
+        If slot < 0
+            DebugMsg("Leaving: no room on the list for " + who)
+            Return false
+        EndIf
+    EndIf
+    ; (Nothing between finding the place and taking it lets another call in.)
+    LeavingActors[slot] = who
+    LeavingCount += 1
+    If slot >= _leavingTop
+        _leavingTop = slot + 1
+    EndIf
+    RequestTick(LEAVING_LOOK_SECONDS)
+    Return true
+EndFunction
+
+Function RecountLeavers()
+    {At a load: the list as the save has it, counted once (a load is where a whole pass belongs, not a frame of play).}
+    LeavingCount = 0
+    _leavingTop = 0
+    _leavingNext = 0
+    If !LeavingActors
+        Return
+    EndIf
+    Int i = 0
+    While i < LeavingActors.Length
+        If LeavingActors[i] != None
+            LeavingCount += 1
+            _leavingTop = i + 1
+        EndIf
+        i += 1
+    EndWhile
+EndFunction
+
+Bool Function LeaveWhenGone(Actor who)
+    {Somebody the mod made is to go, as they are (alive or dead; nothing about them is changed): at once when their body
+    is not in the game, else at a later look, once it no longer is. True: gone, or on the list. False: no room on the
+    list (128 waiting, never seen): the caller decides.}
+    If RemoveUnloaded(who)
+        Return true
+    EndIf
+    Return ListLeaver(who)
+EndFunction
+
+Function SendOff(Actor who, ObjectReference exit)
+    {No more fighting, weapon away, and off they walk toward exit (None: they stay where they are). Not somebody in the
+    middle of a killing blow or down and bleeding (see IntelEngine_Battle.SendSoldierOff). The caller keeps the list.}
+    If who == None || who.IsDead() || who.IsInKillMove() || who.IsBleedingOut()
+        Return
+    EndIf
+    who.SetActorValue("Aggression", 0.0)
+    who.StopCombat()
+    who.StopCombatAlarm()
+    who.SheatheWeapon()
+    If exit != None
+        RemoveIntelPackages(who, false)
+        ; The game does not begin a package anew for somebody who is on it already (IntelEngine_Battle.PaceFor): they
+        ; are never given the one they are on.
+        Package pace = TravelPackage_Walk
+        If who.GetCurrentPackage() == pace
+            pace = TravelPackage_Jog
+        EndIf
+        PO3_SKSEFunctions.SetLinkedRef(who, exit, IntelEngine_TravelTarget)
+        ActorUtil.AddPackageOverride(who, pace, PRIORITY_TRAVEL, 1)
+    EndIf
+    who.EvaluatePackage()
+EndFunction
+
+Function SeeOff(Actor who, ObjectReference exit = None)
+    {Somebody the mod made is done with. Gone at once when their body is not in the game; else the living stop
+    fighting and walk off toward exit (None: they stay where they are), the dead are left lying, and each is taken
+    away at a later look, once they have walked out of the loaded ground or the player has left it.}
+    LeaveWhenGone(who)
+    If who == None || who.IsDeleted() || who.IsDead()
+        Return
+    EndIf
+    If who.IsInKillMove() || who.IsBleedingOut()
+        ; Not now: a later look at the list sends them, when they are on their feet.
+        StorageUtil.SetIntValue(who, "Intel_LeaveCalm", 1)
+        StorageUtil.SetFormValue(who, "Intel_LeaveTo", exit)
+        Return
+    EndIf
+    SendOff(who, exit)
+EndFunction
+
+ObjectReference Function WayOut(Actor who, String factionId = "")
+    {Where somebody walks off to: a town a long way off, on the side of the player they are on already, a faction's
+    people toward where that faction is at home (the battles' IntelEngine.BattleWayHome: one of the game's own
+    markers, which nobody removes, so no travel order is ever left pointing at a deleted one). None: no town known.}
+    Actor player = Game.GetPlayer()
+    Float dx = 0.0
+    Float dy = 0.0
+    If who != None
+        dx = who.GetPositionX() - player.GetPositionX()
+        dy = who.GetPositionY() - player.GetPositionY()
+    EndIf
+    Return IntelEngine.BattleWayHome(factionId, player.GetPositionX(), player.GetPositionY(), dx, dy, true, None)
+EndFunction
+
+Bool Function GroundInGame(ObjectReference at)
+    {Is the ground this stands on in the game now?}
+    If at == None
+        Return false
+    EndIf
+    Cell there = at.GetParentCell()
+    Return there != None && there.IsAttached()
+EndFunction
+
+Bool Function StepOut(Actor who)
+    {Somebody the mod made has to be gone now, and is not shown (alpha 0: hidden while being placed, or faded out as
+    the story has it). They are moved to a town a long way off whose ground is not in the game: the game's own road
+    out of the loaded ground (whoever walks through a door to somewhere else takes it), on which the game lets go of
+    the body itself. A later look takes them away. No such town now: they stay on the list, unseen, until the ground
+    they stand on is gone (and nobody unseen fights meanwhile). True: their body is out of the game.}
+    If RemoveUnloaded(who)
+        Return true
+    EndIf
+    who.SetActorValue("Aggression", 0.0)
+    who.StopCombat()
+    Actor player = Game.GetPlayer()
+    ObjectReference far = IntelEngine.BattleWayHome("", player.GetPositionX(), player.GetPositionY(), 0.0, 0.0, false, None)
+    If far != None && GroundInGame(far)
+        ; The nearest town a march away is in the game (a long view on this mod list): the next one out.
+        far = IntelEngine.BattleWayHome("", player.GetPositionX(), player.GetPositionY(), 0.0, 0.0, false, far)
+    EndIf
+    If far != None && !GroundInGame(far)
+        who.MoveTo(far)
+    Else
+        DebugMsg("Leaving: no town out of the game for " + who + " to step out to - stays, unseen, until the ground is gone")
+    EndIf
+    ; Never taken away in the moment the game lets go of the body: not before a look's full time from now (kept on
+    ; them, so that nobody else on the list waits for it).
+    StorageUtil.SetFloatValue(who, "Intel_LeaveAfter", Utility.GetCurrentRealTime() + LEAVING_LOOK_SECONDS)
+    ListLeaver(who)
+    Return !who.Is3DLoaded()
+EndFunction
+
+Bool Function HideNewcomer(Actor who)
+    {Somebody just made is switched off to be put in their place unseen: only while the game does not hold their body
+    yet. True: they are switched off (move them, then switch them on). False: their body is in the game already (the
+    natives behind a quest's enemies and its boss, SpawnQuestEnemies and SpawnQuestBoss, make them switched on, and a
+    body can be there a few frames later): they stay as and where they were made. (Two calls into the game, no more:
+    every one is a frame in which a body can arrive. Switching off somebody who is switched off already does nothing.)}
+    If who == None
+        Return false
+    EndIf
+    If who.Is3DLoaded()
+        Return false
+    EndIf
+    who.DisableNoWait()
+    Return true
+EndFunction
+
+Function LookAtLeaving(Bool atOnce = false)
+    {Every LEAVING_LOOK_SECONDS while somebody is on the list (asked by every monitoring round, SweepIfDue, and by the
+    hourly game-time round): whoever's body is no longer in the game is taken away; whoever was down when sent off is
+    sent off now. Nothing of it is a frame's work: with nobody on the list it is one comparison; a look takes at most
+    LEAVING_LOOK_MOST of them, each a few calls into the game that the game spreads over its frames (one a frame), and
+    the next look goes on where this one stopped. (A load counts the list once: RecountLeavers, from Maintenance.)}
+    If LeavingCount <= 0 || !LeavingActors
+        Return
+    EndIf
+    Float now = Utility.GetCurrentRealTime()
+    If !atOnce && now < _leavingLookAt && _leavingLookAt - now <= 60.0     ; (a stamp from an earlier session lies far ahead)
+        Return
+    EndIf
+    If _leavingLooking
+        Return              ; one look at a time: the calls below let other events in
+    EndIf
+    If BodiesSettling()
+        Return              ; nobody can be taken away yet (RemoveUnloaded)
+    EndIf
+    _leavingLooking = true
+    _leavingLookAt = now + LEAVING_LOOK_SECONDS
+    Int top = _leavingTop
+    If top > LeavingActors.Length
+        top = LeavingActors.Length
+    EndIf
+    Int i = _leavingNext
+    If i < 0 || i >= top
+        i = 0
+    EndIf
+    Int looked = 0
+    Int passed = 0
+    Int gone = 0
+    While passed < top && looked < LEAVING_LOOK_MOST
+        Actor who = LeavingActors[i]
+        If who != None
+            looked += 1
+            Float after = StorageUtil.GetFloatValue(who, "Intel_LeaveAfter", 0.0)
+            If after > now && after - now <= 60.0
+                ; Stepped out of the loaded ground only just now (StepOut): the game lets go of the body first.
+            ElseIf RemoveUnloaded(who)
+                If LeavingActors[i] == who
+                    LeavingActors[i] = None
+                    LeavingCount -= 1
+                EndIf
+                gone += 1
+            ElseIf StorageUtil.GetIntValue(who, "Intel_LeaveCalm") == 1 && !who.IsInKillMove() && !who.IsBleedingOut()
+                ObjectReference exit = StorageUtil.GetFormValue(who, "Intel_LeaveTo") as ObjectReference
+                StorageUtil.UnsetIntValue(who, "Intel_LeaveCalm")
+                StorageUtil.UnsetFormValue(who, "Intel_LeaveTo")
+                SendOff(who, exit)
+            EndIf
+        EndIf
+        passed += 1
+        i += 1
+        If i >= top
+            i = 0
+        EndIf
+    EndWhile
+    _leavingNext = i
+    ; The end of the list comes back to the last one still on it. (Nothing in here lets another call in: whoever was
+    ; put on the list while the calls above ran is counted already, by ListLeaver.)
+    While _leavingTop > 0 && LeavingActors[_leavingTop - 1] == None
+        _leavingTop -= 1
+    EndWhile
+    If _leavingTop <= 0 || LeavingCount < 0
+        LeavingCount = 0
+        _leavingNext = 0
+    EndIf
+    Float wait = LEAVING_LOOK_SECONDS
+    If passed < top
+        ; Cut short at LEAVING_LOOK_MOST: the others soon.
+        wait = 5.0
+        _leavingLookAt = Utility.GetCurrentRealTime() + wait
+    EndIf
+    _leavingLooking = false
+    If gone > 0
+        DebugMsg("Leaving: " + gone + " whose bodies were no longer in the game are removed; " + LeavingCount + " still wait")
+    EndIf
+    If LeavingCount > 0
+        RequestTick(wait)
+    EndIf
+EndFunction
+
 Bool Function IsCarriageDriver(Actor npc)
     {A carriage driver must not be made the target of a fetch or an escort, or be moved to the player by a
     search, either: a travel package or a teleport takes them off the cart just like a task of their own
@@ -1752,31 +2310,31 @@ Bool Function IsCarriageDriver(Actor npc)
 EndFunction
 
 Function DismissFollowerForTask(Actor npc)
-    {Prepare NPC for a new IntelEngine task by clearing ALL package overrides.
+    {Prepare NPC for a new IntelEngine task: take off what makes them follow the player (SkyrimNet's FollowPlayer
+    package, SeverActions' casual follow), IntelEngine's own package overrides and the vanilla follower flag.
 
-    Uses ActorUtil.ClearPackageOverride to remove the PapyrusUtil overrides of every mod, IntelEngine's own
-    included. (Since SkyrimNet got its package registry this no longer reaches the packages SkyrimNet runs
-    itself, such as TalkToPlayer at priority 30 or a FollowPlayer row: those sit below IntelEngine's 90 and
-    100 and lose to them without being removed.)
-    IntelEngine's task functions (GoToLocation, FetchNPC, etc.) immediately apply
-    their own packages after this call, so the NPC is never left without overrides.
+    Other mods' PapyrusUtil overrides stay. They used to be wiped here (ActorUtil.ClearPackageOverride), which cost
+    follower frameworks their packages with nothing to put them back (galanx/IntelEngine-GamePlugin#38, seen with
+    Nether's Follower Framework and without it). The wipe was for SkyrimNet's follow package: SetPlayerTeammate(false)
+    only clears the vanilla follower flag, and with that package still on her Ingrid followed the player for an hour
+    and a half instead of walking to the Western Watchtower. It is taken off by name now.
+    IntelEngine's task functions (GoToLocation, FetchNPC, etc.) apply their own packages right after this call.
+    (Doc comment after Gerkinfeltser's pull request #31, which made the same fix for 3.8.)
 
-    Why blanket clear instead of removing specific packages:
-    SkyrimNet's companion follow system uses its own package overrides that are
-    invisible to IntelEngine. SetPlayerTeammate(false) only clears the vanilla
-    follower flag — SkyrimNet's follow package stays active and overrides the
-    travel package, causing the NPC to follow the player instead of traveling.
-    Diagnosed via Ingrid's Western Watchtower trip where she followed the player
-    for 1.5 hours instead of walking to the destination, with no stuck detection
-    (she was moving, just not toward the destination).
+    Note: EvaluatePackage is NOT called here: callers apply their own packages first, then evaluate. This prevents
+    a brief gap where the NPC has no overrides and reverts to default AI.}
 
-    Note: EvaluatePackage is NOT called here — callers apply their own packages
-    first, then evaluate. This prevents a brief gap where the NPC has no overrides
-    and reverts to default AI.}
-
-    ; Clear ALL package overrides from all sources
-    ActorUtil.ClearPackageOverride(npc)
-    DebugMsg("Cleared all package overrides for " + npc.GetDisplayName())
+    ; What makes them follow the player is taken off by name: SkyrimNet's own follow, SeverActions' casual follow, and
+    ; anything of IntelEngine's still on them. Every other mod's package overrides stay where they are. All of them
+    ; used to be wiped here (ActorUtil.ClearPackageOverride), which cost other mods their own data: Nether's Follower
+    ; Framework lost the "home base" it keeps as such an override (GitHub #38).
+    If SkyrimNetApi.HasPackage(npc, "FollowPlayer") == 1
+        SkyrimNetApi.UnregisterPackage(npc, "FollowPlayer")
+        StorageUtil.SetIntValue(npc, "Intel_WasAccompanying", 1)
+        DebugMsg(npc.GetDisplayName() + ": SkyrimNet's FollowPlayer package removed for the task")
+    EndIf
+    IntelEngine.StopCasualFollow(npc)
+    RemoveIntelPackages(npc, false)
 
     ; Also clear vanilla follower state so the engine doesn't re-apply follow AI
     If npc.IsPlayerTeammate()
@@ -1967,6 +2525,30 @@ Bool Function HandleOffScreenTravel(Int slot, Actor npc, ObjectReference dest)
         StorageUtil.SetFloatValue(npc, "Intel_OffscreenDiagAt", now)
     EndIf
     If status == 1
+        ; Nobody is set down beside a player who is where nobody could have followed them (another plane, a land
+        ; across the sea), and no story's visitor in a dungeon after them: "npcs spawn in dangerous places to talk
+        ; to me and they die / im in the soul carion / how did they even manage to get here" (a user, 2026-11-20).
+        ; A story's visitor lets it be until the two next meet; somebody on the player's own errand waits where
+        ; they are until the player is back.
+        Int barred = IntelEngine.PlaceBarsArrival(npc, dest)
+        If barred > 0
+            If StoryEngine != None && StoryEngine.CallOffWhereNobodyComes(npc)
+                Return false
+            ElseIf barred >= 2
+                Float waitedAt = StorageUtil.GetFloatValue(npc, "Intel_BarredWaitAt", -100.0)
+                If now < waitedAt || now - waitedAt >= 60.0
+                    DebugMsg(npc.GetDisplayName() + " is not set down beside the player: nobody could have followed them there. They wait.")
+                    StorageUtil.SetFloatValue(npc, "Intel_BarredWaitAt", now)
+                EndIf
+                Return false
+            EndIf
+        EndIf
+        ; Someone who was walking over to the player and whom the player has left behind (another town, another hold)
+        ; is never set down beside the player there: they let it be until the two next meet (Faendal of Riverwood
+        ; stood behind the player in an inn at Whiterun a minute and a half after the player left, 2026-11-19).
+        If StoryEngine != None && StoryEngine.LetsItBe(npc)
+            Return false
+        EndIf
         DebugMsg("[diag:arrival] " + npc.GetDisplayName() + " off-screen arrival " + IntelEngine.DescribeDistance(npc, dest))
         If PlaceForUnseenArrival(npc, dest)
             ; The destination is where the player is standing: the NPC was put at the way in and walks the
@@ -2127,7 +2709,7 @@ Bool Function ReleaseFromBardAudience(Actor npc)
     Return released
 EndFunction
 
-Bool Function ReleaseBardFromSong(Actor npc)
+Bool Function ReleaseBardFromSong(Actor npc, Bool atTaskStart = false)
     {The inn's own bard is held by the scenes of the vanilla quest BardSongs for as long as the player is in
     the room: he walks to his spot and plays, one piece after another, and a scene beats any package override.
     A bard sent on an errand never left (Mikael in the Bannered Mare, 2026-11-13). The game's own way to free
@@ -2136,30 +2718,61 @@ Bool Function ReleaseBardFromSong(Actor npc)
     If npc == None
         Return false
     EndIf
-    Scene playing = npc.GetCurrentScene()
-    If playing == None
-        Return false
-    EndIf
     If _bardSongsQuest == None
         _bardSongsQuest = Game.GetFormFromFile(0x00074A55, "Skyrim.esm") as Quest
     EndIf
-    If _bardSongsQuest == None || playing.GetOwningQuest() != _bardSongsQuest
+    If _bardSongsQuest == None
         Return false
     EndIf
+    Scene playing = npc.GetCurrentScene()
+    Bool inSong = playing != None && playing.GetOwningQuest() == _bardSongsQuest
     BardSongsScript songs = _bardSongsQuest as BardSongsScript
-    If songs != None
-        songs.StopAllSongs()
+    If !inSong && !(atTaskStart && IsTheInnsBard(songs, npc))
+        Return false
     EndIf
-    If playing.IsPlaying()
+    If songs != None
+        songs.StopAllSongs()    ; also keeps the next piece from starting by itself
+    EndIf
+    If inSong && playing.IsPlaying()
         playing.Stop()          ; a second bard's pieces are not on that list
     EndIf
+    Return inSong || atTaskStart
+EndFunction
+
+Bool Function IsTheInnsBard(BardSongsScript songs, Actor npc)
+    {Is this the bard the game's song quest plays with? Between two pieces, or while he sings a SkyrimNet-voiced
+    song, the game reports no scene for him, and a task that began then left the songs going on: Mikael, sent to
+    a meeting, played on for half an hour past it (2026-11-18).}
+    If songs == None || npc == None
+        Return false
+    EndIf
+    Return (songs.BardSongs_Bard != None && songs.BardSongs_Bard.GetActorReference() == npc) \
+        || (songs.BardSongsInstrumental_Bard != None && songs.BardSongsInstrumental_Bard.GetActorReference() == npc)
+EndFunction
+
+Bool Function ReleasePerformingBard(Int slot, Actor npc)
+    {For the checks that stand down while an NPC is talking: a bard's song is a scene line, so a bard on a task
+    counts as talking for as long as he performs, and those checks never reached HeldByAnotherPackage, which
+    would have ended the song. Ends it first, a few times per task at most. True when he was performing.}
+    If npc == None || !npc.Is3DLoaded()
+        Return false
+    EndIf
+    Int releases = StorageUtil.GetIntValue(npc, "Intel_BardReleases")
+    If releases >= BARD_RELEASE_TRIES || !ReleaseBardFromSong(npc)
+        Return false
+    EndIf
+    StorageUtil.SetIntValue(npc, "Intel_BardReleases", releases + 1)
+    DebugMsg(npc.GetDisplayName() + " was performing as the bard -> the song is ended, the task goes on")
+    npc.EvaluatePackage()
+    IntelEngine.ResetStuckSlot(slot, npc)
     Return true
 EndFunction
 
-Int Function ReleaseFromBardHold(Actor npc)
+Int Function ReleaseFromBardHold(Actor npc, Bool atTaskStart = false)
     {Out of whatever a bard's performance has someone doing: 2 when they were the one performing, 1 when they
-    were listening, 0 when neither.}
-    If ReleaseBardFromSong(npc)
+    were listening, 0 when neither. atTaskStart: a task begins for them, so the inn's bard stops his songs even
+    when no piece is playing this moment.}
+    If ReleaseBardFromSong(npc, atTaskStart)
         Return 2
     EndIf
     If ReleaseFromBardAudience(npc)
@@ -2554,6 +3167,37 @@ Function SendTaskNarration(Actor akActor, String msgText, Actor akTarget = None)
     SkyrimNetApi.DirectNarration(msgText, akActor, akTarget)
 EndFunction
 
+ObjectReference Function ResolveTravelTarget(Actor akNPC, String destination)
+    {4.0: a destination as a travel target. A place named in SkyrimNet (the player's /mark and Places page, a pack's,
+    another mod's travel markers such as SeverActions') comes first: the NPC's own marker goes there and the trip is
+    to it. Otherwise the native resolver (named locations, rooms, homes, directions).}
+    ObjectReference anchor = IntelEngine.ResolveSkyrimNetPlace(akNPC, destination)
+    If anchor != None
+        ObjectReference marker = PlaceMarkerOf(akNPC)
+        If marker != None
+            marker.MoveTo(anchor, IntelEngine.SkyrimNetPlaceOffset(akNPC, 0), IntelEngine.SkyrimNetPlaceOffset(akNPC, 1), \
+                IntelEngine.SkyrimNetPlaceOffset(akNPC, 2), false)
+            DebugMsg(akNPC.GetDisplayName() + ": '" + destination + "' is a place named in SkyrimNet")
+            Return marker
+        EndIf
+    EndIf
+    Return IntelEngine.ResolveAnyDestination(akNPC, destination)
+EndFunction
+
+ObjectReference Function PlaceMarkerOf(Actor akNPC)
+    {The NPC's own marker for trips to SkyrimNet places: one persistent XMarker each, made the first time.}
+    ObjectReference marker = StorageUtil.GetFormValue(akNPC, "Intel_PlaceMarker") as ObjectReference
+    If marker == None || marker.IsDeleted()
+        Form xmarker = Game.GetFormFromFile(0x0000003B, "Skyrim.esm")
+        If xmarker == None
+            Return None
+        EndIf
+        marker = Game.GetPlayer().PlaceAtMe(xmarker, 1, true, false)
+        StorageUtil.SetFormValue(akNPC, "Intel_PlaceMarker", marker)
+    EndIf
+    Return marker
+EndFunction
+
 Function SendPersistentMemory(Actor akOriginator, Actor akTarget, String msgText)
     ; Registers a persistent event in SkyrimNet's event system.
     ; Writes to both in-memory cache (NPC dialogue prompts) and event DB
@@ -2627,6 +3271,10 @@ Function InjectGossip(Actor akGiver, Actor akReceiver, String gossipText)
     Both NPCs track who told/received the gossip (5-entry rolling cap).
     Renders in "Rumors I've Heard" bio section, separate from personal facts.}
     If akGiver == None || akReceiver == None || gossipText == ""
+        Return
+    EndIf
+    ; The dead neither tell nor hear ("three long-dead followers" kept turning up in gossip).
+    If akGiver.IsDead() || akReceiver.IsDead()
         Return
     EndIf
 
@@ -2726,8 +3374,26 @@ Function CleanExpiredFactsGlobal()
     EndWhile
 EndFunction
 
+Function DebugLanguage(String aTime, String aPlace, String aWho, String aNotice)
+    {Test hook (4.0): what the language layer (LanguageBridge in the DLL, the packs in
+    Data/SKSE/Plugins/IntelEngine/languages) makes of a time, a word of place, a name and a notice. The answers go
+    to the script log; the notice, when one is given, is shown as any notice is.}
+    Float hour = IntelEngine.ParseTimeCondition(aTime)
+    String place = IntelEngine.PlaceInEnglish(aPlace)
+    Actor who = IntelEngine.FindNPCByName(aWho)
+    String name = "nobody"
+    If who != None
+        name = who.GetDisplayName()
+    EndIf
+    Debug.Trace("IntelEngine: Language: time '" + aTime + "' -> " + hour + "; place '" + aPlace + "' -> '" + place + "', none: " + IntelEngine.IsNoneWord(aPlace) \
+        + "; who '" + aWho + "' -> " + name + "; the player reads '" + IntelEngine.TextLanguage() + "'; notice '" + aNotice + "' -> '" + IntelEngine.L(aNotice) + "'")
+    If aNotice != ""
+        NotifyPlayer(aNotice)
+    EndIf
+EndFunction
+
 Function NotifyPlayer(String msgText)
-    Debug.Notification(msgText)
+    Debug.Notification(IntelEngine.L(msgText))   ; in the game's language where its pack has the sentence
     Debug.Trace("IntelEngine: " + msgText)
 EndFunction
 
@@ -2787,6 +3453,22 @@ EndFunction
 
 Float Function GetStoryEngineInterval()
     return GetSettingFloat("Intel_MCM_StoryInterval", 3.0)
+EndFunction
+
+Float Function GetStoryClockHours()
+    {How often the dungeon master looks by the clock (game hours). At Classic: the setting "Check interval", which
+    is the pace there, as before 4.0. Above Classic: the director's own smallest gap between two moments. There the
+    pace is "How often something happens" (the director's budget), a look that finds the budget spent ends before
+    any model is asked, and a second pace setting could only contradict the first: set to a day or a week it
+    starved the director whenever the player stayed in one place (the user, 2026-11-22: "do we still need that?").}
+    If StoryEngine != None && StoryEngine.LivingWorldLevel > 0
+        Float clock = IntelEngine.LivingWorldClockHours()
+        If clock > 0.0
+            Return clock
+        EndIf
+        Return 3.0
+    EndIf
+    Return GetStoryEngineInterval()
 EndFunction
 
 Float Function GetStoryEngineCooldown()
@@ -3039,14 +3721,41 @@ String Function ShowChoice(String asTitle, String asKind, String asBody, String 
     If asB3 != ""
         n = 3
     EndIf
-    String code = ShowMagelightChoice(asTitle, asKind, asBody, asB1, asB2, asB3, n, afTimeoutSecs)
+    ; Never over a menu or a text box the player is in (the inventory, the map, SkyrimNet's chat box): the window's
+    ; keys are 1 to 3, the arrows, Enter and Escape, and whatever was being typed or picked there would answer it
+    ; (a line typed to an NPC declined that NPC's offer, 2026-11-22). It waits until the game runs again, a minute at
+    ; the most, and then opens anyway rather than be lost.
+    Float heldByMenu = 0.0
+    While Utility.IsInMenuMode() && heldByMenu < 60.0
+        Utility.WaitMenuMode(0.25)
+        heldByMenu += 0.25
+    EndWhile
+    If heldByMenu > 0.0
+        Utility.WaitMenuMode(0.75)   ; a moment for the player to look up from what they were doing
+    EndIf
+    ; What is shown goes through the language pack; what is returned stays the English the callers compare with.
+    String shownBody = IntelEngine.L(asBody)
+    String shown1 = IntelEngine.L(asB1)
+    String shown2 = IntelEngine.L(asB2)
+    String shown3 = asB3
+    If asB3 != ""
+        shown3 = IntelEngine.L(asB3)
+    EndIf
+    String code = ShowMagelightChoice(asTitle, IntelEngine.L(asKind), shownBody, shown1, shown2, shown3, n, afTimeoutSecs)
     String r = ""
     String path = "magelight"
     If code == ""
         path = "fallback"
         ; No time limit on the classic box: it cannot take itself off the screen, so after a timeout it stayed
         ; up with buttons that no longer did anything. It waits for the player instead.
-        r = SkyMessage.Show(asBody, asB1, asB2, asB3)
+        r = SkyMessage.Show(shownBody, shown1, shown2, shown3)
+        If r == shown1
+            r = asB1
+        ElseIf r == shown2
+            r = asB2
+        ElseIf asB3 != "" && r == shown3
+            r = asB3
+        EndIf
     ElseIf code == "t"
         r = "TIMED_OUT"
     ElseIf code == "0"
@@ -3335,13 +4044,18 @@ Event OnDashboardRemovePackages(String eventName, String strArg, Float numArg, F
     Actor npc = Game.GetForm(formId) as Actor
     If npc != None
         DebugMsg("Dashboard: Removing packages from " + npc.GetDisplayName())
-        ; Clear slot if NPC is in one (prevents orphaned "Travelling" entries)
+        ; Clear the slot they are in: their own, or, for the one who is fetched or escorted, their agent's (as long
+        ; as that task lives its handler puts the package back on them, and the row stayed at "Removing..." for good).
         Int slot = FindSlotByAgent(npc)
+        If slot < 0
+            slot = FindSlotByActor(npc)
+        EndIf
         If slot >= 0
             ClearSlot(slot)
-        Else
-            RemoveIntelPackages(npc)
         EndIf
+        ; And whatever is still on them without a slot (a slot left half finished, a walk home): packages, linked
+        ; refs, the task's keys.
+        ReleaseAgent(npc, -1)
         ; Clean up story/social dispatch if this NPC was the active dispatch target
         If StoryEngine.ActiveStoryNPC == npc
             StoryEngine.CleanupStoryDispatch()
@@ -3413,6 +4127,12 @@ Event OnDashboardSetting(String eventName, String strArg, Float numArg, Form sen
         SetMaxTasks(numArg as Int)
     ElseIf strArg == "releaseDistance"
         SetReleaseDistance(numArg)
+    ElseIf strArg == "livingWorldLevel" || strArg == "livingWorldInterruptions" || strArg == "livingWorldQuestNpcs" || \
+           strArg == "livingWorldPacing" || strArg == "livingWorldWaitDays" || strArg == "livingWorldLifeDays" || \
+           strArg == "livingWorldSkippedTime"
+        If StoryEngine
+            StoryEngine.SetLivingWorldSetting(strArg, numArg)
+        EndIf
     ElseIf strArg == "longAbsenceDays"
         If StoryEngine
             StoryEngine.LongAbsenceDaysConfig = numArg
@@ -3621,7 +4341,14 @@ String Function UntagName(String name)
 EndFunction
 
 String Function ReplaceText(String text, String what, String with)
-    ; Whole-word, case-insensitive: "Ria" must not hit "Riften" or "Victoria".
+    ; Whole-word, case-insensitive: "Ria" must not hit "Riften" or "Victoria". In the DLL since 4.0: the loop below
+    ; asks StringUtil.IsLetter, which knows ASCII only, so in a Russian game every byte of a letter was a word
+    ; boundary and a name was replaced in the middle of its declined form.
+    Return IntelEngine.ReplaceWholeWord(text, what, with)
+EndFunction
+
+String Function ReplaceTextAscii(String text, String what, String with)
+    ; (the loop as it was, kept for reference and for the bytecode checks that model it)
     String result = ""
     Int len = StringUtil.GetLength(what)
     Int total = StringUtil.GetLength(text)
@@ -3651,7 +4378,7 @@ String Function InformantRumor(String subject, String rumor, String gossip)
     EndIf
     ; Not without a subject: the gossip then began with a blank ("told X a rumor:  heard ..."), in the line
     ; and in what both NPCs remember (the repository's own typed-event check has failed on this since fix 84).
-    If subject != "" && ReplaceText(gossip, UntagName(subject), "") == gossip ; fix96: whole-word, "Ria" is not in "Victoria" (live 17:27)
+    If subject != "" && !IntelEngine.TextMentionsName(gossip, UntagName(subject)) ; whole words, and the name in whatever form its language puts it
         gossip = subject + " " + gossip
     EndIf
     Return gossip
@@ -3708,7 +4435,7 @@ String Function InformantRejection(String subject, String rumor)
         Return "rumor is empty"
     ElseIf name == ""
         Return "subject is empty"
-    ElseIf ReplaceText(rumor, name, "") == rumor ; whole-word, like the C++ check
+    ElseIf !IntelEngine.TextMentionsName(rumor, name) ; whole words, in whatever form the language puts the name, like the C++ check
         Return "rumor does not name the subject"
     EndIf
     Int sp = 0 ; first word ends at " ,.;:" like the C++ check
@@ -3823,6 +4550,8 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
     ; Route through StoryEngine's actual type handlers (identical to automatic dispatch)
     ; Director skips cooldown/MCM checks intentionally — it's a manual DM override
     Int g = StoryEngine.DispatchGeneration
+    ; 4.0: a moment the player gets all the same, counted for the living world's pacing and rotation
+    IntelEngine.LivingWorldMomentDispatched(npc, storyType)
     If storyType == "seek_player"
         String seekFact = narration
         If StringUtil.Find(narration, Game.GetPlayer().GetDisplayName()) < 0
@@ -3853,6 +4582,11 @@ Event OnDashboardDispatchStory(String eventName, String strArg, Float numArg, Fo
 
     ElseIf storyType == "quest"
         StoryEngine.HandleQuestDispatch(npc, narration, response, true, "Director")
+        ; A quest asked for here that does not go out says why (it went to the log alone: a rescue with the victim,
+        ; place and enemy chosen on this page was turned into a story of the giver's town, or into nothing, unsaid).
+        If !(StoryEngine.IsActive && StoryEngine.DispatchGeneration != g) && StoryEngine.LastQuestRefusal() != ""
+            NotifyPlayer("Quest dispatch refused: " + StoryEngine.LastQuestRefusal() + ".")
+        EndIf
 
     ElseIf storyType == "message"
         StoryEngine.HandleMessageDispatch(npc, narration, response, "Director")
@@ -4240,7 +4974,7 @@ String Function BuildDashboardStateJson()
         json += ",\"activeNPC\":\"" + EscapeJson(GetActorName(StoryEngine.ActiveStoryNPC)) + "\""
         json += ",\"activeType\":\"" + StoryEngine.ActiveStoryType + "\""
         json += ",\"activeNarration\":\"" + EscapeJson(StoryEngine.ActiveNarration) + "\""
-        Float storyInterval = GetStoryEngineInterval()
+        Float storyInterval = GetStoryClockHours()
         json += ",\"interval\":" + storyInterval
         json += ",\"cooldown\":" + GetStoryEngineCooldown()
         ; Next story check-in (hours until next DM tick)
@@ -4358,6 +5092,9 @@ String Function BuildDashboardStateJson()
         json += ",\"politics\":" + IntelEngine.BuildPoliticalDashboardJson()
     EndIf
 
+    ; ── The world (talk of the day, open stories, the player's people) ──
+    json += ",\"world\":" + IntelEngine.BuildWorldDashboardJson()
+
     ; ── Config ──
     json += ",\"config\":" + BuildConfigJson()
 
@@ -4384,6 +5121,13 @@ String Function BuildConfigJson()
 
     If StoryEngine
         json += ",\"longAbsenceDays\":" + StoryEngine.LongAbsenceDaysConfig
+        json += ",\"livingWorldLevel\":" + StoryEngine.LivingWorldLevel
+        json += ",\"livingWorldInterruptions\":" + StoryEngine.LivingWorldInterruptions
+        json += ",\"livingWorldQuestNpcs\":" + StoryEngine.LivingWorldQuestNpcs
+        json += ",\"livingWorldPacing\":" + StoryEngine.LivingWorldPacing
+        json += ",\"livingWorldWaitDays\":" + StoryEngine.LivingWorldWaitDays
+        json += ",\"livingWorldLifeDays\":" + StoryEngine.LivingWorldLifeDays
+        json += ",\"livingWorldSkippedTime\":" + BoolToJson(StoryEngine.LivingWorldSkippedTime)
         json += ",\"maxTravelDays\":" + StoryEngine.MaxTravelDaysConfig
         json += ",\"allowStuckTeleport\":" + BoolToJson(StoryEngine.AllowStuckTeleport)
         json += ",\"dangerZonePolicy\":" + StoryEngine.DangerZonePolicy
@@ -4438,6 +5182,8 @@ String Function BuildConfigJson()
         json += ",\"npc_gossip\":" + BoolToJson(StoryEngine.TypeNPCGossipEnabled)
     Else
         json += ",\"longAbsenceDays\":3,\"maxTravelDays\":1,\"allowStuckTeleport\":true"
+        json += ",\"livingWorldLevel\":2,\"livingWorldInterruptions\":1,\"livingWorldQuestNpcs\":1,\"livingWorldPacing\":1"
+        json += ",\"livingWorldWaitDays\":30,\"livingWorldLifeDays\":7,\"livingWorldSkippedTime\":false"
         json += ",\"dangerZonePolicy\":1,\"playerHomePolicy\":0"
         json += ",\"holdPolicySeekPlayer\":1,\"holdPolicyInformant\":6,\"holdPolicyRoadEncounter\":0"
         json += ",\"holdPolicyAmbush\":1,\"holdPolicyStalker\":1,\"holdPolicyMessage\":2,\"holdPolicyQuest\":0"

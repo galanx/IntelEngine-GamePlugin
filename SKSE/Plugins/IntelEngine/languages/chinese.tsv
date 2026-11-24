@@ -1,0 +1,395 @@
+# IntelEngine language pack: Chinese.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	zh
+meta	codes	zh|zho|chi|zh-hans|zh-hant|zh-cn|zh-tw|chinese
+meta	name	Chinese
+meta	game	chinese
+meta	script	han
+
+time	in 2 days	后天|後天
+time	tomorrow	明天|明日
+time	today	今天|今日
+time	tonight	今晚|今夜
+time	midnight	午夜|半夜|子夜
+time	dawn	黎明|拂晓|拂曉|日出|天亮
+time	sunset	日落|太阳落山|太陽落山
+time	dusk	黄昏|黃昏|傍晚
+time	noon	中午|正午
+time	morning	早上|早晨|上午|清晨
+time	afternoon	下午
+time	evening	晚上|晚间|晚間
+time	night	夜里|夜裡|夜晚|深夜
+time	half an hour	半小时|半小時|半个小时|半個小時
+time	hours later	个小时后|個小時後|小时后|小時後|个小时之后|個小時之後|小时之后|小時之後
+time	hours	个小时|個小時|小时|小時|钟头|鐘頭
+time	o'clock	点钟|點鐘|点|點
+time	minutes	分钟|分鐘
+time	days later	天后|天後|天之后|天之後|日后|日後
+time	days	天
+time	weeks later	周后|週後|星期后|星期後|个星期后|個星期後
+time	weeks	星期|周|週
+time	later	之后|之後|以后|以後|后|後
+time	one	一
+time	two	二|两|兩
+time	three	三
+time	four	四
+time	five	五
+time	six	六
+time	seven	七
+time	eight	八
+time	nine	九
+time	ten	十
+time	eleven	十一
+time	twelve	十二
+
+place	home	回家|我家|我的家|自己家|家里|家裡|家
+place	your home	你家|你的家|您家|您的家
+place	outside	外面|外边|外邊|出去|室外|户外|戶外
+place	inside	里面|裡面|里边|裡邊|进去|進去|室内|室內
+place	upstairs	楼上|樓上|上楼|上樓
+place	downstairs	楼下|樓下|下楼|下樓
+place	cellar	地下室|地窖
+place	bedroom	卧室|臥室|我的房间|我的房間|床上
+place	kitchen	厨房|廚房
+place	bath	浴室|澡堂|温泉|溫泉|洗澡
+place	river	河边|河邊|河
+place	lake	湖边|湖邊|湖
+
+none	none	无|無|没有|沒有|没有人|沒有人|无人|無人|什么都没有|什麼都沒有|不适用|不適用
+
+free	*	的|去|到|在|往|向|从|從|把|客棧|客栈|旅店|旅館|旅馆|酒館|酒馆
+
+# ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
+# {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.
+# Longer, more particular sentences are tried first; a sentence no row has stays English.
+# Not here on purpose: "{1} will {2} {3}" (its one fixed word, " will ", is a German word: the row would
+# rewrite German sentences of a story). Its particular forms (will meet at, will fetch, ...) are below.
+label	A champion of the {1} takes the field.	{1}的勇士上陣了。
+label	A champion of {1} takes the field.	{1}的勇士上陣了。
+label	A second force of the {1} breaks from cover on the flank!	{1}的第二支部隊從側翼殺出！
+label	A second force of {1} breaks from cover on the flank!	{1}的第二支部隊從側翼殺出！
+label	Champion of the {1}	{1}的勇士
+label	Champion of {1}	{1}的勇士
+label	Charge!	衝鋒！
+label	Fighting has broken out near {1}.	{1}附近爆發了戰鬥。
+label	Hold a little longer	再堅守一會兒
+label	Men of the {1} and of the {2} have run into each other near {3}.	{1}與{2}的人馬在{3}附近遭遇了。
+label	Men of {1} and of {2} have run into each other near {3}.	{1}與{2}的人馬在{3}附近遭遇了。
+label	Men of the {1} are coming for you.	{1}的人衝著你來了。
+label	Men of {1} are coming for you.	{1}的人衝著你來了。
+label	More soldiers of the {1} come up.	{1}又有士兵趕到。
+label	More soldiers of {1} come up.	{1}又有士兵趕到。
+label	Stand with the {1}	加入{1}
+label	Stand with {1}	加入{1}
+label	Stay out of it	置身事外
+label	Stranger	陌生人
+label	The captain of the {1} has fallen.	{1}的隊長陣亡了。
+label	The captain of {1} has fallen.	{1}的隊長陣亡了。
+label	The champion of the {1} has fallen.	{1}的勇士陣亡了。
+label	The champion of {1} has fallen.	{1}的勇士陣亡了。
+label	The last of the {1} come up.	{1}的最後一批人馬趕到。
+label	The last of {1} come up.	{1}的最後一批人馬趕到。
+label	The line of the {1} waits for your word, {2}.	{2}，{1}的陣線正等你下令。
+label	The line of {1} waits for your word, {2}.	{2}，{1}的陣線正等你下令。
+label	The line of the {1} waits for your word, Captain.	隊長，{1}的陣線正等你下令。
+label	The line of the {1} waits for your word, Champion.	勇士，{1}的陣線正等你下令。
+label	The line of the {1} waits for your word, Lieutenant.	副官，{1}的陣線正等你下令。
+label	The line of the {1} waits for your word, Right Hand.	閣下，{1}的陣線正等你下令。
+label	The line of the {1} waits for your word, Sworn Captain.	宣誓隊長，{1}的陣線正等你下令。
+label	The line of the {1} waits for your word, Champion of the House.	家族勇士，{1}的陣線正等你下令。
+label	Treachery! Men of the {1} turn on their own.	叛變！{1}的人倒戈相向。
+label	Treachery! Men of {1} turn on their own.	叛變！{1}的人倒戈相向。
+label	Turncoat	叛徒
+label	Two armies are drawn up near {1}: the {2} and the {3}.	兩軍在{1}附近列陣：{2}與{3}。
+label	Two armies are drawn up near {1}: {2} and {3}.	兩軍在{1}附近列陣：{2}與{3}。
+label	Word reaches you: neither side held the field near {1}.	消息傳來：{1}附近一戰，雙方都沒能守住戰場。
+label	Word reaches you: the {1} won the battle near {2}.	消息傳來：{1}在{2}附近的戰鬥中獲勝。
+label	Word reaches you: {1} won the battle near {2}.	消息傳來：{1}在{2}附近的戰鬥中獲勝。
+label	You stand with the {1}.	你站在{1}這一邊。
+label	You stand with {1}.	你站在{1}這一邊。
+label	{1} Captain	{1}隊長
+label	The {1} now count you a {2}.	{1}如今視你為{2}。
+label	The {1} now count you an {2}.	{1}如今視你為{2}。
+label	{1} now count you {2}.	{1}如今視你為{2}。
+label	The {1} send your pay on to you: {2} gold.	{1}把你的軍餉送來了：{2}金幣。
+label	{1} send your pay on to you: {2} gold.	{1}把你的軍餉送來了：{2}金幣。
+label	Two soldiers of the {1} keep by your side.	{1}的兩名士兵守在你身邊。
+label	Four soldiers of the {1} keep by your side.	{1}的四名士兵守在你身邊。
+label	{1} soldiers of {2} keep by your side.	{2}的士兵守在你身邊（{1}）。
+label	Near {1}, the {2} and the {3} are fighting. {4} calls you to their line.	{1}附近，{2}與{3}正在交戰。{4}喚你加入陣線。
+label	Near {1}, the {2} and the {3} are about to fight. {4} calls you to their line.	{1}附近，{2}與{3}即將開戰。{4}喚你加入陣線。
+label	Stand with the {1} near {2} before the battle is decided	在勝負分曉之前，到{2}附近加入{1}
+label	The skirmish is over. Neither side had the better of it.	小衝突結束了。雙方誰也沒佔到上風。
+label	The skirmish is over. The {1} had the better of it.	小衝突結束了。{1}佔了上風。
+label	The fighting dies down. Neither side holds the field at {1}.	戰鬥平息了。{1}的戰場誰也沒能佔住。
+label	The day is won. The field at {1} belongs to the {2}.	今日得勝。{1}的戰場歸{2}所有。
+label	The day is lost. The field at {1} belongs to the {2}.	今日落敗。{1}的戰場歸{2}所有。
+label	The fighting ends. The field at {1} belongs to the {2}.	戰鬥結束。{1}的戰場歸{2}所有。
+label	The {1} will remember that you stood by.	{1}會記住你袖手旁觀。
+label	An assassin strikes at {1}!	刺客襲擊了{1}！
+label	Battle	戰鬥
+label	The field is yours, though none of your side is left standing to share it.	戰場歸你了，可你這一邊已無人站著與你分享。
+label	You stand alone among the fallen.	屍橫遍野，只剩你一人站著。
+label	The attempt on {1}'s life is foiled.	針對{1}的刺殺被挫敗了。
+label	{1} lives. The killer is dead.	{1}活了下來。刺客已死。
+label	The attempt on {1}'s life has failed.	針對{1}的刺殺失敗了。
+label	{1} is dead.	{1}死了。
+label	The killer has got away.	刺客逃走了。
+label	The {1} will remember your valor at {2}.	{1}會記住你在{2}的英勇。
+label	Word reaches you: the {1} and the {2} are drawing up for battle near {3}.	消息傳來：{1}與{2}正在{3}附近列陣備戰。
+label	Hand it over	交出去
+label	Hand over	交付
+label	I'll do it	交給我
+label	Not now	現在不行
+label	Not yet	還不行
+label	Put up your fists	拳頭見真章
+label	Quest offer	任務提議
+label	Search the body	搜查屍體
+label	Something else	其他選擇
+label	Stand up	起身
+label	Story	故事
+label	What you see	眼前所見
+label	Allow	允許
+label	Deny	拒絕
+label	Deny (Silent)	拒絕（不作聲）
+label	Task permission	任務許可
+label	Come along	同行邀請
+label	I'll come along	我一起去
+label	Not this time	這次不了
+label	At the door	門外有人
+label	I'll check it out	我去看看
+label	I'll go alone	我自己去
+label	Ignore	不理會
+label	Lead the way	帶路吧
+label	Let them in	請進來
+label	Not interested	沒興趣
+label	Send them away	打發走
+label	{1} is knocking at your door.	{1}正在敲你的門。
+label	Give the {1} back to {2}?	把{1}還給{2}？
+label	Give {1} back to {2}?	把{1}還給{2}？
+label	Give {1} to {2}?	把{1}交給{2}？
+label	A Thief Among Us	身邊的竊賊
+label	Bad Blood	積怨
+label	Murder in {1}	{1}兇殺案
+label	A Story	一段故事
+label	Tell {1} how it ended	把結局告訴{1}
+label	Someone stole {1}. {2} asks you to find the thief and bring it back. Reward: {3} gold.	有人偷走了{1}。{2}請你找出竊賊並把東西帶回來。報酬：{3}金幣。
+label	Bad blood: {1} and {2} fell out over two hundred gold {3} borrowed. {4} asks you to settle it with {5}, one way or another. Reward: {6} gold.	積怨：{1}和{2}為了{3}借的兩百金幣鬧翻了。{4}請你無論如何把與{5}的事了結。報酬：{6}金幣。
+label	Bad blood: {1} has been telling the inn that {2} cheats people. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	積怨：{1}在旅店裡到處說{2}坑人。{3}請你無論如何把與{4}的事了結。報酬：{5}金幣。
+label	Bad blood: {1} insulted {2}'s family in public. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	積怨：{1}當眾侮辱了{2}的家人。{3}請你無論如何把與{4}的事了結。報酬：{5}金幣。
+label	Bad blood: {1} says {2} cheated at dice. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	積怨：{1}說{2}擲骰子時出老千。{3}請你無論如何把與{4}的事了結。報酬：{5}金幣。
+label	{1} asks you to find out who killed {2}, and name them with proof. Reward: {3} gold.	{1}請你查明是誰殺了{2}，並拿出證據指認兇手。報酬：{3}金幣。
+label	{1} Reward: {2} gold.	{1} 報酬：{2}金幣。
+label	Settle it with {1} here and now, with your fists?	此時此地，和{1}用拳頭了結？
+label	{1} stole {2}. What will you do with {3}?	{1}偷了{2}。你要怎麼處置{3}？
+label	How will you settle it between {1} and {2}?	你要怎麼了結{1}和{2}之間的事？
+label	How will you make peace with {1}?	你要怎麼與{1}講和？
+label	Who killed {1}?	是誰殺了{1}？
+label	What will you do?	你要怎麼做？
+label	Hand {1} over to the guard	把{1}交給衛兵
+label	Let {1} go	放{1}走
+label	Settle it with your fists against {1}	用拳頭和{1}了結
+label	Talk them into making peace	勸他們講和
+label	Talk {1} round (Speech)	說服{1}（口才）
+label	Pay {1} {2} gold to let it go	花錢了事：{1} {2}金幣
+label	Accuse {1}	指控{1}
+label	{1} (Speech)	{1}（口才）
+label	Bounty: {1}	懸賞：{1}
+label	Into {1} with {2}	與{2}同闖{1}
+label	A Request	一個請求
+label	{1} asks you to recover his stolen {2} from {3}. Reward: {4} gold.	{1}請你從{3}取回被偷走的{2}。報酬：{4}金幣。
+label	{1} asks you to recover her stolen {2} from {3}. Reward: {4} gold.	{1}請你從{3}取回被偷走的{2}。報酬：{4}金幣。
+label	{1} asks you to recover their stolen {2} from {3}. Reward: {4} gold.	{1}請你從{3}取回被偷走的{2}。報酬：{4}金幣。
+label	{1} asks you to deal with {2} at {3}. Reward: {4} gold.	{1}請你去{3}解決{2}。報酬：{4}金幣。
+label	{1} and {2} are about to clear out {3} and ask you to come in with them. Say yes and they follow you in and share what you find; say no and they go in alone.	{1}和{2}正要清剿{3}，請你一起進去。答應的話，他們會跟著你進去並平分所得；拒絕的話，他們就自己進去。
+label	{1} is about to clear out {2} and asks you to come in too. Say yes and {3} follows you in and shares what you find; say no and {4} goes in alone.	{1}正要清剿{2}，請你也一起進去。答應的話，{3}會跟著你進去並平分所得；拒絕的話，{4}就獨自進去。
+label	{1} and {2} are on their way to clear out {3} and ask you to come along. Say yes and they follow you there and share what you find; say no and they go alone.	{1}和{2}正前往清剿{3}，請你同行。答應的話，他們會跟著你去並平分所得；拒絕的話，他們就自己去。
+label	{1} is on the way to clear out {2} and asks you to come along. Say yes and {3} follows you there and shares what you find; say no and {4} goes alone.	{1}正前往清剿{2}，請你同行。答應的話，{3}會跟著你去並平分所得；拒絕的話，{4}就獨自前往。
+label	Your share of the spoils: {1} gold.	你分得的戰利品：{1}金幣。
+label	{1} pleads for help rescuing {2} near {3}.	{1}懇求你幫忙營救{3}附近的{2}。
+label	{1} tells you about {2} near {3}.	{1}向你說起{3}附近的{2}。
+label	{1} rallies you to fight alongside the {2} near {3}.	{1}號召你到{3}附近與{2}並肩作戰。
+label	{1} urges you to rescue {2} for the {3} near {4}.	{1}催促你為了{3}去{4}附近營救{2}。
+label	{1} tells you about trouble near {2}.	{1}向你說起{2}附近出了麻煩。
+label	You gave {1} {2} gold.	你付給{1} {2}金幣。
+label	{1} gave you {2} (2).	{1}給了你{2}（2）。
+label	{1} gave you {2} gold.	{1}給了你{2}金幣。
+label	{1} gave you {2}.	{1}給了你{2}。
+label	Someone gave you {1}.	有人給了你{1}。
+label	Informant dispatch refused: {1}.	線人派遣遭拒：{1}。
+label	IntelEngine: All tasks reset	IntelEngine：所有任務已重置
+label	IntelEngine: Resetting all tasks...	IntelEngine：正在重置所有任務...
+label	Political event refused: {1} between {2} and {3}. The reason is in the IntelEngine log.	政治事件遭拒：{1}（{2}與{3}之間）。原因見IntelEngine日誌。
+label	Political event: {1} between {2} and {3}.	政治事件：{1}（{2}與{3}之間）。
+label	Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.	社交派遣遭拒：缺少敘述、類型無效、NPC相同，或StoryEngine不可用。
+label	Social replacement refused: active trip changed; refresh and confirm replacement.	社交替換遭拒：進行中的行程已變更；請重新整理並確認替換。
+label	Social replacement refused: previous trip or task is still active after cancellation.	社交替換遭拒：取消之後，先前的行程或任務仍在進行。
+label	Story dispatch refused: narration is empty.	故事派遣遭拒：敘述為空。
+label	Story dispatch refused: StoryEngine is unavailable.	故事派遣遭拒：StoryEngine不可用。
+label	Story engine is busy with {1} ({2}). Cancel it first.	故事引擎正忙於{1}（{2}）。請先取消。
+label	Story replacement refused: previous story or task is still active after cancellation.	故事替換遭拒：取消之後，先前的故事或任務仍在進行。
+label	Story replacement refused: unknown type or missing message content / informant subject and gossip.	故事替換遭拒：類型不明，或缺少口信內容／線人的對象與傳聞。
+label	{1} and {2}: {3} started.	{1}與{2}：{3}已開始。
+label	{1} has no task to cancel.	{1}沒有可取消的任務。
+label	{1} is already busy ({2}). Cancel it first.	{1}已有任務在身（{2}）。請先取消。
+label	{1} sets out ({2}).	{1}出發了（{2}）。
+label	{1}'s task cancelled.	{1}的任務已取消。
+label	{1}'s task was cancelled.	{1}的任務已取消。
+label	{1}'s task was cancelled	{1}的任務已取消
+label	{1}: conduct reported.	{1}：已上報所作所為。
+label	{1}: {2} failed.	{1}：{2}失敗。
+label	{1}: {2} started.	{1}：{2}已開始。
+label	{1} isn't loaded right now (they only exist near their home), so they can't be sent from here.	{1}目前尚未載入（只存在於住處附近），無法從這裡派出。
+label	Couldn't find NPC '{1}' (no unique match).	找不到NPC「{1}」（沒有唯一相符者）。
+label	{1} arrived - {2} is still on the way	{1}到了 - {2}還在路上
+label	{1} brought {2}	{1}把{2}帶來了
+label	{1} cannot deliver a message to themselves.	{1}無法給自己送口信。
+label	{1} cannot deliver a message to {2}, who is dead.	{1}無法給{2}送口信：{2}已經死了。
+label	{1} could not be found.	找不到{1}。
+label	{1} could not be found. The closest known name is {2}.	找不到{1}。最接近的名字是{2}。
+label	{1} could not find the recipient	{1}找不到收信人
+label	{1} could not find their target	{1}找不到要找的人
+label	{1} could not find {2} to deliver the message.	{1}找不到{2}，口信沒能送到。
+label	{1} delivered a message to {2} and is heading back	{1}已把口信送到{2}手中，正在返回
+label	{1} delivered the message	{1}把口信送到了
+label	{1} escorted {2} to {3}	{1}已護送{2}抵達{3}
+label	{1} found {2}	{1}找到了{2}
+label	{1} gave up the search for {2}	{1}放棄尋找{2}了
+label	{1} is already right here; no delivery task started.	{1}就在這裡；沒有開始送信任務。
+label	{1} is escorting {2} to {3}	{1}正護送{2}前往{3}
+label	{1} is going to escort {2} to {3}	{1}將護送{2}前往{3}
+label	{1} is going to search for {2}	{1}要去尋找{2}
+label	{1} lost their escort target	{1}跟丟了護送的人
+label	{1} returned from delivering message to {2}	{1}給{2}送完口信回來了
+label	{1} went to deliver a message to {2}	{1}去給{2}送口信了
+label	{1} went to find {2}	{1}去找{2}了
+label	{1}: {2} refused - {3}	{1}：{2}拒絕了 - {3}
+label	{1} wants to go fetch {2}.	{1}想去把{2}找來。
+label	{1} wants to help search for {2}.	{1}想幫忙尋找{2}。
+label	{1} wants to escort {2} to {3}.	{1}想護送{2}前往{3}。
+label	{1} wants to travel to {2}.	{1}想前往{2}。
+label	{1} wants to deliver a message to {2}.	{1}想送個口信給{2}。
+label	{1} wants to deliver a message to {2} tomorrow {3}.	{1}想在明天{3}給{2}送個口信。
+label	{1} wants to deliver a message to {2} in {3} days {4}.	{1}想在{3}天後{4}給{2}送個口信。
+label	{1} wants to fetch {2}.	{1}想去把人找來：{2}。
+label	{1} wants to fetch {2} tomorrow {3}.	{1}想在明天{3}去把{2}找來。
+label	{1} wants to fetch {2} in {3} days {4}.	{1}想在{3}天後{4}去把{2}找來。
+label	{1} wants to meet at {2}.	{1}想與你會面：{2}。
+label	{1} wants to meet at {2} tomorrow {3}.	{1}想在明天{3}與你會面：{2}。
+label	{1} wants to meet at {2} in {3} days {4}.	{1}想在{3}天後{4}與你會面：{2}。
+label	{1} wants to meet tomorrow {2}.	{1}想在明天{2}與你會面。
+label	{1} wants to meet in {2} days {3}.	{1}想在{2}天後{3}與你會面。
+label	{1} will meet at {2}	{1}將與你會面：{2}
+label	{1} will meet at {2} tomorrow {3}	{1}將於明天{3}與你會面：{2}
+label	{1} will meet at {2} in {3} days {4}	{1}將於{3}天後{4}與你會面：{2}
+label	{1} will meet tomorrow {2}	{1}將於明天{2}與你會面
+label	{1} will meet in {2} days {3}	{1}將於{2}天後{3}與你會面
+label	{1} will fetch {2} {3}	{1}將去找{2} {3}
+label	{1} will fetch {2} tomorrow {3}	{1}將於明天{3}去找{2}
+label	{1} will fetch {2} in {3} days {4}	{1}將於{3}天後{4}去找{2}
+label	{1} will deliver message to {2} {3}	{1}將送口信給{2} {3}
+label	{1} will deliver message to {2} tomorrow {3}	{1}將於明天{3}給{2}送口信
+label	{1} will deliver message to {2} in {3} days {4}	{1}將於{3}天後{4}給{2}送口信
+label	Not scheduled: {1} will not meet.	未排定：{1}不會與你會面。
+label	Not scheduled: {1} will not fetch {2}.	未排定：{1}不會去找{2}。
+label	Not scheduled: {1} will not deliver a message to {2}.	未排定：{1}不會給{2}送口信。
+label	Not scheduled: {1} will not {2}.	未排定：{1}（{2}）。
+label	Not scheduled: all {1} schedule slots are in use.	未排定：{1}個排程欄位已全部佔用。
+label	All scheduled tasks cancelled	所有排定的任務已取消
+label	{1} could not set out for the meeting at {2}. It is off.	{1}無法動身前往{2}的會面。會面取消。
+label	Quest marker unavailable (alias not found)	任務標記無法使用（找不到別名）
+label	Quest: {1} [{2}]	任務：{1}［{2}］
+label	Rescue completed!	營救成功！
+label	Something feels wrong...	有些不對勁...
+label	Sounds of fighting carry from up ahead.	前方傳來打鬥聲。
+label	Story: {1} couldn't reach you - story ended	故事：{1}沒能找到你 - 故事結束
+label	Story: {1} gave up	故事：{1}放棄了
+label	The area is quiet. The threat seems to have moved on.	這一帶很安靜。威脅似乎已經離開。
+label	The fighting has ended before you arrived.	你趕到之前，戰鬥已經結束。
+label	The fighting is already underway elsewhere.	戰鬥已在別處打響。
+label	The forces have already moved on.	部隊已經離開了。
+label	The threat has been dealt with.	威脅已解除。
+label	The {1} acknowledge your intent to fight.	{1}認可你參戰的意願。
+label	The {1} acknowledge your willingness to help.	{1}認可你伸出援手的意願。
+label	The {1} held the field unopposed.	{1}未遇抵抗便佔住了戰場。
+label	The {1} speak your name with respect.	{1}提起你的名字時滿懷敬意。
+label	They seem to have more to ask...	對方似乎還有事相求...
+label	Word of your deeds reaches the {1}.	你的事蹟傳到了{1}耳中。
+label	Word reaches you: the battle has moved on.	消息傳來：戰事已轉移。
+label	You claim the {1}.	你取得了{1}。
+label	You hear the clink of armor ahead.	你聽見前方有盔甲的碰撞聲。
+label	You should hurry - the situation won't hold much longer.	你得趕快 - 局面撐不了多久。
+label	Your name carries weight among the {1}.	你的名字在{1}當中頗有份量。
+label	{1} can no longer lead the way. The map marker shows where to go.	{1}無法再帶路了。地圖標記會指示去向。
+label	{1} didn't make it.	{1}沒能撐過來。
+label	{1} has been freed!	{1}獲救了！
+label	{1} gave you an answer for {2}.	{1}託你帶個回覆給{2}。
+label	{1} gave you more time.	{1}多給了你一些時間。
+label	{1} is coming with you to see {2}.	{1}和你一起去見{2}。
+label	{1} needs it within half a day now.	{1}現在半天之內就要。
+label	{1} no longer needs your help with it.	{1}不再需要你幫這個忙了。
+label	{1} will come with you to see {2} once done here.	{1}辦完這裡的事就和你一起去見{2}。
+label	{1} will give you {2} gold for it.	{1}會為此付你{2}金幣。
+label	{1} arrived at {2}	{1}抵達了{2}
+label	{1} arrived late to {2} and eventually gave up waiting for you	{1}晚到了{2}，最後不再等你
+label	{1} arrived too late for the meeting at {2}	{1}趕到{2}時，會面早已錯過
+label	{1} could not come to the meeting at {2}. It is off.	{1}無法前來{2}會面。會面取消。
+label	{1} got tired of waiting for you at {2}	{1}在{2}等你等得不耐煩了
+label	{1} headed off after the meeting	{1}在會面後離開了
+label	{1} headed off to {2}	{1}動身前往{2}
+label	{1} left {2}	{1}離開了{2}
+label	{1} met you at {2}	{1}在{2}與你會合
+label	{1} never made it to the meeting at {2}	{1}始終沒能趕到{2}的會面
+label	The {1} now count you an Auxiliary.	{1}如今視你為輔助兵。
+label	The {1} now count you a Sworn Sword.	{1}如今視你為誓約之劍。
+label	The {1} now count you a Veteran.	{1}如今視你為老兵。
+label	The {1} now count you a Captain.	{1}如今視你為隊長。
+label	The {1} now count you a Champion.	{1}如今視你為勇士。
+label	The {1} now count you an Associate.	{1}如今視你為夥伴。
+label	The {1} now count you a Trusted Hand.	{1}如今視你為親信。
+label	The {1} now count you a Lieutenant.	{1}如今視你為副官。
+label	The {1} now count you a Right Hand.	{1}如今視你為左膀右臂。
+label	The {1} now count you a Hired Blade.	{1}如今視你為傭兵劍客。
+label	The {1} now count you a Retainer.	{1}如今視你為家臣。
+label	The {1} now count you a Trusted Retainer.	{1}如今視你為親信家臣。
+label	The {1} now count you a Sworn Captain.	{1}如今視你為宣誓隊長。
+label	The {1} now count you a Champion of the House.	{1}如今視你為家族勇士。
+label	The trail leads on to the north.	蹤跡向北延伸。
+label	The trail leads on to the north-east.	蹤跡向東北延伸。
+label	The trail leads on to the east.	蹤跡向東延伸。
+label	The trail leads on to the south-east.	蹤跡向東南延伸。
+label	The trail leads on to the south.	蹤跡向南延伸。
+label	The trail leads on to the south-west.	蹤跡向西南延伸。
+label	The trail leads on to the west.	蹤跡向西延伸。
+label	The trail leads on to the north-west.	蹤跡向西北延伸。
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	（今天 {1}）
+label	tomorrow at {1}	（明天 {1}）
+label	in {1} days at {2}	（{1}天後 {2}）
+label	{1} will meet at {2} {3}	與{1}會面，地點：{2} {3}
+label	{1} will meet {2}	與{1}會面 {2}
+label	{1} wants to meet at {2} {3}.	{1}想與你會面，地點：{2} {3}。
+label	{1} wants to meet {2}.	{1}想與你會面 {2}。
+label	{1} wants to fetch {2} {3}.	{1}想去找人：{2} {3}。
+label	{1} wants to deliver a message to {2} {3}.	{1}想送口信給：{2} {3}。
+label	Not scheduled: {1} will not meet at {2}.	未排定：不會與{1}會面（地點：{2}）。
+label	{1} soldiers of the {2} keep by your side.	{2}的士兵（{1}）守在你身邊。
+label	Quest dispatch refused: {1}.	任務派遣遭拒：{1}。
+label	IntelEngine: Slot {1} cleared	IntelEngine：欄位{1}已清空
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1}仍被其他事情纏身，無法履行約定（{2}）。已取消。
+label	Letter	信
+label	Ledger	帳簿
+label	Journal	日誌
+label	Note	便條
+label	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.	這封信被折起又攤開了太多次，折痕都已磨穿。墨水有幾處暈開了。
+label	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.	每一頁都用密密麻麻的字跡寫滿了日期、名字和數目。有幾行被劃掉後又重寫過。
+label	Page after page in the same hand: some entries a line long, some running on for pages.	一頁接一頁，都是同一個人的筆跡：有的記錄只有一行，有的連寫好幾頁。
+label	A few lines, written in haste.	幾行字，寫得很匆忙。

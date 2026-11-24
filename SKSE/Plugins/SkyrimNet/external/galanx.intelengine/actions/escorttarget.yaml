@@ -27,6 +27,8 @@ parameterMapping:
       The person to escort. Must be a named NPC or a hold guard.
       NEVER {{ player.name }} — you cannot escort the player.
       Valid: "Nazeem", "Adrianne Avenicci", "Whiterun Guard"
+      Write the name exactly as it stands in the game and the context, in the game's language and in its plain
+      form: no case ending, no article, never translated.
       INVALID: "{{ player.name }}", "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
       If you cannot name a specific person, do NOT use this action.
   - type: dynamic

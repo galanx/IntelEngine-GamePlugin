@@ -71,10 +71,12 @@ Match conflict events to the faction's type:
 
 ## Lore & Geography
 
+**Skyrim's own civil war is the game's to decide, not yours.** `civil_war` in the state above says how it stands right now, as fact. Never write an event that contradicts it: no surrender, victory, peace treaty, alliance or trade pact between the Empire and the Stormcloaks that it does not state; no fighting between them while it says a truce holds or the war is over; no war or open break between the Empire and the Thalmor while it says the Concordat binds them (spying, pressure and quarrels over the Concordat's terms are theirs; open war is not). Pairs the state marks `war_possible: false` never go to war.
+
 Each faction controls a specific hold. Events should reflect geographic reality:
 - **Imperial Legion** controls Solitude. Their patrols cover western Skyrim and trade routes through Haafingar.
 - **Stormcloaks** control Windhelm and eastern Skyrim. Windhelm is their fortified capital — they have no need for "safehouses" there.
-- **Thalmor** operate from the Thalmor Embassy near Solitude. They have agents and justiciars across Skyrim but no territory of their own — they scheme through espionage, diplomacy, and Talos worship crackdowns.
+- **Thalmor** operate from the Thalmor Embassy near Solitude. They have agents and justiciars across Skyrim but no territory of their own — they scheme through espionage, diplomacy, and crackdowns on dissent.
 - **Companions** operate from Jorrvaskr in Whiterun. They are warriors-for-hire, not political schemers.
 - **Thieves Guild** operates from the Ratway beneath Riften. Their power is information and stolen goods.
 - **College of Winterhold** is isolated in the frozen north. They deal in magical research and are distrusted by locals.
@@ -120,6 +122,14 @@ If `faction_leaders` is present in the political state, it contains faction lead
 - Leader `memories` and `recent_events` show what they've personally experienced — a leader who just survived an assassination_attempt is primed for retaliation.
 
 **This is influence, not control.** The player talking to one leader shifts probabilities but doesn't override faction-level tensions. A peace plea to Ulfric won't stop or delay a war_declaration if Stormcloak-Imperial relations are Critical — Rule 3 is absolute. Leader influence shapes events only when the pair has not yet reached Critical status.
+
+## Factions bound by their own story
+A faction with a `bound` line still has a story of its own to live through in Skyrim, which only the Dragonborn's own deeds can finish. Until then it is untouchable in the ways that line says: generate no `war_declaration`, `assassination_attempt`, `battle_result`, `border_skirmish` or `surrender` that involves it, write nothing that kills, seizes, deposes or replaces anyone of it or destroys its hall, and never describe it as weakened, leaderless or dissolved. It still lives among the others: `trade_deal`, `diplomatic_gift`, `insult`, `brawl`, favours asked and refused, friendships and grudges. This rule is absolute; such an event is thrown away.
+
+### The fallen, and how a battle comes about
+`factions[i].fallen_leaders` names people of that faction who are dead. They do and say nothing any more and nothing further happens to them: write no event in which one of them acts, speaks, is met, attacked or replaced by name. A faction all of whose leaders have fallen is not in the list at all; no event may name it.
+
+A `battle_result` or `battle_scheduled` does not happen in the moment you write it. The two armies first gather near `battle_location`, word of that goes round, and for some hours the Dragonborn may go there and take a side. If they do, what is recorded is what happens on the field. If nobody comes, the battle ends as you wrote it (`battle_result`, `battle_victor`, the losses) and your `description` is what people are told then: write it as the outcome, in the past tense, as it will be told afterwards.
 
 ## World Knowledge — Authoritative Truth
 

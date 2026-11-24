@@ -2,7 +2,7 @@
 ### NPC Autonomy, Faction Politics & Player-Driven Task Framework for SkyrimNet
 
 > [!IMPORTANT]
-> **Compatibility:** IntelEngine 3.8.0 updates the DLL and scripts and requires SkyrimNet Beta 27 or newer (its travel prompt uses the `get_place_names` decorator added in Beta 27). The 3.6.0 runtime components were tested with official Beta 28. Beta 26 and earlier are incompatible.
+> **Compatibility:** IntelEngine 4.0.0 updates the DLL, the scripts and the plugin's SkyrimNet content. Like 3.8, it requires SkyrimNet Beta 27 or newer (its travel prompt uses the `get_place_names` decorator added in Beta 27); Beta 26 and earlier are incompatible. 4.0 was played on Skyrim SE 1.5.97, on a small test setup and on a full Nolvus load order; what was played and what was not is in the [changelog](CHANGELOG.md). The 3.6.0 runtime components were tested with official Beta 28.
 >
 > This repository carries a compatibility update for current SkyrimNet releases. IntelEngine was originally created by [Galanx](https://github.com/galanx).
 > **Have issues? Report them here:** [IntelEngine GamePlugin issues](https://github.com/galanx/IntelEngine-GamePlugin/issues). Include your Skyrim, SKSE, SkyrimNet and IntelEngine versions and relevant logs with personal information removed.
@@ -86,6 +86,17 @@ A living political system where 9 factions (configurable) scheme, trade, and wag
 - **Faction quests** — when your standing is 40+ with a faction, they call on you for combat missions, rescue operations, and full-scale battles that affect war outcomes (battles you happen upon: you join automatically at standing 20+)
 - **Political awareness** — NPCs know about recent political events and react to them in conversation
 - **In-game dashboard** (Magelight UI recommended, PrismaUI fallback) with a Politics tab showing all faction relations, active wars, and player standings
+
+### Part 4 — The Living World (4.0)
+
+People you know get on with their lives while you are away:
+
+- **Unfinished business** — NPCs ask things of you in conversation (find someone, bring an item, take them somewhere, speak with someone for them). The journal keeps each request with a marker, the reward is fixed when it is asked, and the request can change course as you talk. How it ended is remembered, and heard of in their hold.
+- **Followers left behind** live lives of their own: work at an inn, an adventure, a trip, home for a while, and you can come upon them later.
+- **A director that waits for a reason** — each candidate is judged on their own memories; nobody comes without a real reason of their own, and moments wait for a good time (arriving in a town, waking up, leaving a dungeon).
+- **Group travel** — "Lydia, Uthgerd, wait for me at the Bannered Mare" sends them together.
+
+See [The Living World](#the-living-world-40) below. At "Classic" everything stays as in 3.8.
 
 **One political timeline per playthrough:** `IntelEngine-<id>.db` is one database shared by all saves in that playthrough, not a separate database per save. Loading an earlier save permanently removes later political events, wars, battles and standing history, and re-opens wars that ended after that save (`CleanupFutureEvents`). To keep a later timeline, back up the database and its `-wal`/`-shm` companions with the game closed before loading an earlier save; the `.ess`/`.skse` pair alone does not preserve it.
 
@@ -449,9 +460,48 @@ Ten story types, each individually toggleable via MCM:
 
 **Background events in SkyrimNet History — implemented, pending live acceptance:** persistent `intel_social` and `intel_story` schemas categorize executed NPC interactions, gossip exchanges and story/seek/informant outcomes. Matching generic memories are replaced rather than duplicated; travel proposals, rejections and cooldown blocks do not emit these types. SkyrimNet's existing automatic-audience distance/configuration filters still apply, so off-screen registration does not guarantee History retention. Politics remains in IntelEngine's Politics tab: SkyrimNet currently has no History-only sink excluded from NPC prompts/memory.
 
+At the living-world levels (4.0, see below) the Dungeon Master no longer chooses from one prompt holding every candidate. Each candidate is first judged on their own, from their own memories, through SkyrimNet's decision model when one is set up: how strong a reason of their own they have to act now, and which kind of moment fits. The code picks one, and the Dungeon Master writes that one moment. Nobody with a real reason means no moment.
+
 Every event injects facts into NPC bios that persist and influence all future dialogue. Message and quest courier facts/memories are recorded only after arrival passes the travel rejection checks; rejected pending quests do not publish quest facts or repetition history. The Dungeon Master prompt lists only enabled story types and guards long-absence seek-player guidance accordingly. Anti-repetition, type balancing, and per-NPC cooldowns keep stories varied and meaningful.
 
 ---
+
+## The Living World (4.0)
+
+Six settings under "Living world" (SkyrimNet's plugin settings page, the MCM's Stories page and the dashboard) decide how much of it you get:
+
+| Setting | Choices | Default |
+|---|---|---|
+| How alive the world is | Classic (as before 4.0), Rumors (the world moves on and you hear about it), Lives (followers you left behind also live lives of their own) | Lives |
+| How often something happens | Calm (about one notable moment every two game days), Normal (one a game day), Lively (two a game day) | Normal |
+| Interruptions at bad moments | Never, If urgent, Realistic: whether someone may turn up during a fight, a conversation, a scene or a menu | If urgent |
+| Quest NPCs may move | Never, If important, Freely. Only quests with an objective in your journal count; the target of an objective you have open never moves | If important |
+| Skipped time counts toward the pace | Off: waiting, sleeping and fast travel do not bring the next moment sooner; moments also take time actually played (eight minutes between two, four minutes in a town before a story of its own begins there, twenty minutes between two such stories). On: the game's clock alone counts | Off |
+| A follower told to wait waits (days) | 1–120 | 30 |
+| A follower left behind moves on (days) | 1–60 | 7 |
+
+**Moments wait for a good time.** Arriving in a town or an inn, coming home, coming out of a dungeon and waking up are the moments the director looks for; the old clock remains as a fallback, paced the same way.
+
+**Unfinished business.** A request made in conversation (`AskPlayerForHelp`) opens an objective under Miscellaneous, "Unfinished Business", with a marker: find someone, bring an item, take them somewhere, speak with someone for them. A meeting arranged in conversation is one too. At most six are open, never two from one person. The journal watches for the deed (the person found, the item in your pack, the place reached, you back with them) and closes it: they pay what they offered, the item changes hands, and they remember it. You can turn a request down (`PlayerTurnsDownRequest`). While it is open, the one who asked can call it off, give more time, need it sooner, offer more gold or want something else (`ChangeWhatIAsked`); the one it was about can send an answer back through you or come along (`SendWordBack`). How it ended is heard of in the asker's hold.
+
+**Followers left behind.** At "Lives", a follower you dismissed starts a life of their own after a while: work at an inn of the hold, an adventure at a dungeon (sometimes with another former follower), a trip to a town, or home for a while. Every step happens where you cannot see it; they remember it, people may have heard of it, and when you come upon them they notice you. Taking them back ends it at once.
+
+**Public pleas.** Ordinary people where you are can cry out for help to everyone around, then come over with the offer.
+
+**Group travel and places.** Travel takes up to three companions who walk together at the leader's pace. Destinations can be places named in SkyrimNet: your own marks, a content pack's places, another mod's travel markers.
+
+---
+
+## Languages (4.0)
+
+IntelEngine works in games of other languages, and in a game of one language whose people speak another (an English game with Albanian speech through SkyrimNet's translator, for one).
+
+- **Names** of people and places are found as people say them: with a case ending, an article, an ending or a particle hung behind, in any script.
+- **Language packs** are files in `SKSE/Plugins/IntelEngine/languages/`: one per language, tab-separated, with its words of time ("tomorrow", "in the evening"), of place ("home", "outside"), for "none", and the little words beside a name. Russian, German, French, Spanish, Italian, Polish, Japanese, Korean, Chinese and Albanian ship. To add a language, copy one and fill it in.
+- **What you read** (notices, buttons, battle lines) can be translated: copy the lines you want from `_labels_template.tsv` into your language's pack and replace the third field. `{1}`, `{2}` stand for names. What a pack does not have reads English. The stories of a town are written in your language by the model.
+- **Which language** is decided by itself: what you read by your game's language (also for translations the game never shipped, told by the script of its place names), what people speak by SkyrimNet's translator settings. "Language of journal and messages" and "Languages people speak" on SkyrimNet's plugin settings page and the dashboard override it.
+
+Not tried yet in a game that is itself in another language; reports are welcome. Japanese, Korean and Chinese text in the journal needs a font that has the letters, as the game itself does.
 
 ## Planned Features
 
@@ -514,9 +564,9 @@ Both preserved legacy pairs reproduced their verified converted bytes through th
 
 ## Requirements
 
-- Skyrim Special Edition / Anniversary Edition. 3.8 was tested on Skyrim SE 1.5.97, on a small test setup and on a full Nolvus Awakening load order; it was not retested on the newer runtimes. 3.6.0 was tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested.
+- Skyrim Special Edition / Anniversary Edition. 4.0 and 3.8 were tested on Skyrim SE 1.5.97, on a small test setup and on a full Nolvus Awakening load order; beyond that, the alpha 3 build of 4.0 was run on Skyrim 1.6.640, 1.6.1170 and 1.7.104 on a bare setup (it starts, logs arrivals, saves and loads, draws up a battle; no story was played there) and on VR 1.4.15 without a headset (it starts, logs arrivals and scans the world; a save loaded on VR was seen by the maintainer on the build just before it, a battle not yet). Alpha 4 was run on those three again to read a story's papers, not on VR. Alpha 5 changes one script and was played on 1.5.97 only; 4.0.0 is alpha 5 with its version number changed. The start-up crash on 1.7 and the load crash on VR of the earlier alphas are fixed. Not run: 1.6.353 and older, GOG. 3.6.0 was tested on 1.6.1170 and 1.7.104. VR 1.4.15 should work and was partly tested.
 - [SKSE](https://skse.silverlock.org/)
-- [SkyrimNet](https://github.com/MinLL/SkyrimNet-GamePlugin): 3.8 was tested with SkyrimNet 1.1.1 Alpha; Beta 28 was used for 3.6.0 testing. Declared minimum for 3.8.0: Beta 27.
+- [SkyrimNet](https://github.com/MinLL/SkyrimNet-GamePlugin): 4.0 was played with SkyrimNet 1.2.0 and 1.3.1; 3.8 was tested with SkyrimNet 1.1.1 Alpha; Beta 28 was used for 3.6.0 testing. Declared minimum: Beta 27.
 - [SkyUI](https://www.nexusmods.com/skyrimspecialedition/mods/12604) (MCM)
 - [PapyrusUtil](https://www.nexusmods.com/skyrimspecialedition/mods/13048) (persistent storage)
 - [powerofthree's Papyrus Extender](https://www.nexusmods.com/skyrimspecialedition/mods/22854) (package management, linked refs)

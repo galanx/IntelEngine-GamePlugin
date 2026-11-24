@@ -1,0 +1,395 @@
+# IntelEngine language pack: Albanian.
+# Three fields a line, a TAB between them: section, key, value. Lines beginning with # are skipped.
+#   meta   what language this is (code, codes, name, game = the word in Skyrim.ini's sLanguage, script)
+#   time   words of time. The key is English as the time reader knows it; the value is every form, | between them.
+#   place  words of place ("home", "outside", "upstairs"): the same way.
+#   none   the words for "none" / "nobody" / "nothing".
+#   free   little words that stand beside a name and are no part of it (articles, prepositions).
+#   label  what the player reads: the English sentence with {1} {2} for names, then the same in this language.
+#          Copy the lines you want to translate from _labels_template.tsv.
+# Longer forms win over shorter ones, so "morgen früh" may stand beside "morgen".
+meta	code	sq
+meta	codes	sq|sqi|alb|aln|als|albanian|gheg|shqip
+meta	name	Albanian
+meta	script	latin
+
+time	in 2 days	pasnesër|pasneser|mbasnesër|mbasneser|pasnesrit
+time	tomorrow morning	nesër në mëngjes|neser ne mengjes|nesër nadje|neser nadje|nesër heret|nesër herët|nesër n'nadje
+time	tomorrow	nesër|neser|nesëm|nesrit
+time	today	sot
+time	tonight	sonte|sontë|sande|këtë natë|kët natë|ket nat
+time	morning	në mëngjes|ne mengjes|mëngjesin|mëngjes|mengjes|nadje|n'nadje|në nadje|në sabah|n'sabah|sabah|herët në mëngjes
+time	noon	në mesditë|ne mesdite|mesditë|mesdite|n'mjesditë|mjesditë|në drekë|n'drekë|drekë|dreke
+time	afternoon	pasdite|mbasdite|masdite|pasdreke|mbasdreke
+time	evening	në mbrëmje|ne mbremje|mbrëmjen|mbrëmje|mbremje|n'mramje|në mramje|mramje|n'aksham|aksham|akshami
+time	night	natën|naten|natë|nate|n'natë|natën vonë
+time	midnight	në mesnatë|mesnatë|mesnate|mjesnatë|n'mjesnatë
+time	dawn	në agim|n'agim|agim|agimin|në të gdhirë|të gdhirë|me t'zbardhun|sa të zbardhë|me të dalë dielli
+time	sunset	në perëndim|perëndim|perendim|n'prendim|prendim|kur të perëndojë dielli|me t'prendue dielli
+time	dusk	në muzg|muzg|n'muzg|mugëtirë
+time	pm	të mbrëmjes|te mbremjes|e mbrëmjes|t'mramjes|e mramjes|të pasdites|e pasdites|mbasdite vonë
+time	am	të mëngjesit|te mengjesit|e mëngjesit|t'nadjes|e nadjes
+time	half an hour	gjysmë ore|gjysëm ore|gjysë ore|gjysmë sahati|gjys sahati
+time	in	pas|mbas|mas|për|per
+time	hours	orësh|oresh|orë|ore|sahatësh|sahatesh|sahatë|sahate|sahat
+time	minutes	minutash|minuta|minutë|minute
+time	days	ditësh|ditesh|ditë|dite|dit
+time	weeks	javësh|javë|jave
+time	at	në orën|ne oren|n'orën|në ora|n'ora|ora|në|ne
+time	one	një|nje|nji|ni
+time	two	dy
+time	three	tre|tri
+time	four	katër|kater
+time	five	pesë|pese
+time	six	gjashtë|gjashte
+time	seven	shtatë|shtate
+time	eight	tetë|tete
+time	nine	nëntë|nente|nandë|nand
+time	ten	dhjetë|dhjete|dhetë|dhet
+time	eleven	njëmbëdhjetë|njembedhjete|njimdhetë
+time	twelve	dymbëdhjetë|dymbedhjete|dymdhetë
+
+place	home	në shtëpi|ne shtepi|shtëpi|shtepi|shtëpia ime|në shtëpinë time|n'shpi|në shpi|shpi|shpia jem|shpia jeme|n'shpinë tem|te shpia|te shtëpia
+place	your home	shtëpia jote|në shtëpinë tënde|te shtëpia jote|shpia jote|n'shpinë tande|shpia tande|shtëpia juaj
+place	outside	jashtë|jashte|jasht|përjashta|perjashta|n'oborr|në oborr
+place	inside	brenda|mbrenda|përbrenda
+place	upstairs	lart|sipër|siper|nalt|përpjetë|në katin e sipërm|kati i sipërm
+place	downstairs	poshtë|poshte|posht|teposhtë|në katin e poshtëm|kati i poshtëm
+place	cellar	në bodrum|bodrum|qilar|në qilar
+place	bedroom	dhoma e gjumit|dhomë gjumi|në dhomën e gjumit|dhoma ime|dhoma jem|në shtrat|n'shtrat
+place	kitchen	në kuzhinë|kuzhinë|kuzhina|kuzhine|mutfak|n'mutfak
+place	bath	në banjë|banjë|banjo|banja|hamam|n'hamam
+place	river	te lumi|lumi|lum|në lum
+place	lake	te liqeni|liqeni|liqen
+
+none	none	asnjë|asnje|asnji|asgjë|asgje|askush|askënd|kurrkush|kërkush|kurrgja|kurrgjë|hiç|hic|s'ka|ska|jo|bosh
+
+free	*	te|tek|në|ne|n|nga|prej|me|për|per|e|i|të|së|se|ke|kah|deri|drejt|mbi|ndër|te|ke|asaj|atij
+
+# ---- labels: what the player reads (label <TAB> the English sentence <TAB> the same in this language)
+# Albanian here is Gheg as it is spoken in Kosovo (the words of the Gheg note: me + participle, kam me, asht, nji, flori).
+# {1} {2} stand for a name or a number: they may change places, none may be added. Two holes never touch.
+# Longer, more particular sentences are tried first; a sentence no row has stays English.
+# Not here on purpose: "{1} will {2} {3}" (its one fixed word, " will ", is a German word: the row would
+# rewrite German sentences of a story). Its particular forms (will meet at, will fetch, ...) are below.
+label	A champion of the {1} takes the field.	Nji kampion prej {1} del në fushë.
+label	A champion of {1} takes the field.	Nji kampion prej {1} del në fushë.
+label	A second force of the {1} breaks from cover on the flank!	Nji forcë e dytë prej {1} del prej pritës në krah!
+label	A second force of {1} breaks from cover on the flank!	Nji forcë e dytë prej {1} del prej pritës në krah!
+label	Champion of the {1}	Kampion ({1})
+label	Champion of {1}	Kampion ({1})
+label	Charge!	Sulm!
+label	Fighting has broken out near {1}.	Afër {1} ka plasë lufta.
+label	Hold a little longer	Pritni edhe pak
+label	Men of the {1} and of the {2} have run into each other near {3}.	Njerëz prej {1} e prej {2} janë ndeshë afër {3}.
+label	Men of {1} and of {2} have run into each other near {3}.	Njerëz prej {1} e prej {2} janë ndeshë afër {3}.
+label	Men of the {1} are coming for you.	Njerëz prej {1} po vijnë për ty.
+label	Men of {1} are coming for you.	Njerëz prej {1} po vijnë për ty.
+label	More soldiers of the {1} come up.	Po vijnë edhe ushtarë të tjerë prej {1}.
+label	More soldiers of {1} come up.	Po vijnë edhe ushtarë të tjerë prej {1}.
+label	Stand with the {1}	Bashkohu me {1}
+label	Stand with {1}	Bashkohu me {1}
+label	Stay out of it	Mos u përzi
+label	Stranger	I panjohun
+label	The captain of the {1} has fallen.	Kapiteni i palës {1} ka ra.
+label	The captain of {1} has fallen.	Kapiteni i palës {1} ka ra.
+label	The champion of the {1} has fallen.	Kampioni i palës {1} ka ra.
+label	The champion of {1} has fallen.	Kampioni i palës {1} ka ra.
+label	The last of the {1} come up.	Po vijnë të fundit e palës {1}.
+label	The last of {1} come up.	Po vijnë të fundit e palës {1}.
+label	The line of the {1} waits for your word, {2}.	Radhët e palës {1} presin fjalën tande, {2}.
+label	The line of {1} waits for your word, {2}.	Radhët e palës {1} presin fjalën tande, {2}.
+label	The line of the {1} waits for your word, Captain.	Radhët e palës {1} presin fjalën tande, Kapiten.
+label	The line of the {1} waits for your word, Champion.	Radhët e palës {1} presin fjalën tande, Kampion.
+label	The line of the {1} waits for your word, Lieutenant.	Radhët e palës {1} presin fjalën tande, Toger.
+label	The line of the {1} waits for your word, Right Hand.	Radhët e palës {1} presin fjalën tande, Dorë e Djathtë.
+label	The line of the {1} waits for your word, Sworn Captain.	Radhët e palës {1} presin fjalën tande, Kapiten i Betuem.
+label	The line of the {1} waits for your word, Champion of the House.	Radhët e palës {1} presin fjalën tande, Kampion i Shpisë.
+label	Treachery! Men of the {1} turn on their own.	Tradhti! Njerëz të palës {1} po kthehen kundër të vetëve.
+label	Treachery! Men of {1} turn on their own.	Tradhti! Njerëz të palës {1} po kthehen kundër të vetëve.
+label	Turncoat	Tradhtar
+label	Two armies are drawn up near {1}: the {2} and the {3}.	Dy ushtri janë rreshtue afër {1}: {2} e {3}.
+label	Two armies are drawn up near {1}: {2} and {3}.	Dy ushtri janë rreshtue afër {1}: {2} e {3}.
+label	Word reaches you: neither side held the field near {1}.	Të vjen fjala: afër {1} asnjana palë s'e mbajti fushën.
+label	Word reaches you: the {1} won the battle near {2}.	Të vjen fjala: pala {1} e fitoi betejën afër {2}.
+label	Word reaches you: {1} won the battle near {2}.	Të vjen fjala: pala {1} e fitoi betejën afër {2}.
+label	You stand with the {1}.	Je në krah të palës {1}.
+label	You stand with {1}.	Je në krah të palës {1}.
+label	{1} Captain	Kapiten ({1})
+label	The {1} now count you a {2}.	{1}: tash të kanë për {2}.
+label	The {1} now count you an {2}.	{1}: tash të kanë për {2}.
+label	{1} now count you {2}.	{1}: tash të kanë për {2}.
+label	The {1} send your pay on to you: {2} gold.	{1}: ta çojnë rrogën, {2} flori.
+label	{1} send your pay on to you: {2} gold.	{1}: ta çojnë rrogën, {2} flori.
+label	Two soldiers of the {1} keep by your side.	Dy ushtarë të palës {1} të rrijnë afër.
+label	Four soldiers of the {1} keep by your side.	Katër ushtarë të palës {1} të rrijnë afër.
+label	{1} soldiers of {2} keep by your side.	{2}: ushtarë të rrijnë afër ({1}).
+label	Near {1}, the {2} and the {3} are fighting. {4} calls you to their line.	Afër {1} po luftojnë {2} e {3}. {4} të thërret në radhët e veta.
+label	Near {1}, the {2} and the {3} are about to fight. {4} calls you to their line.	Afër {1}, {2} e {3} janë gati me u ndeshë. {4} të thërret në radhët e veta.
+label	Stand with the {1} near {2} before the battle is decided	Bashkohu me palën {1} afër {2} para se me u vendosë beteja
+label	The skirmish is over. Neither side had the better of it.	Përleshja mbaroi. Asnjana palë s'doli ma mirë.
+label	The skirmish is over. The {1} had the better of it.	Përleshja mbaroi. Ma mirë doli pala {1}.
+label	The fighting dies down. Neither side holds the field at {1}.	Lufta po shuhet. Asnjana palë s'e mban fushën te {1}.
+label	The day is won. The field at {1} belongs to the {2}.	Dita u fitue. Fusha te {1} i mbetet palës {2}.
+label	The day is lost. The field at {1} belongs to the {2}.	Dita u humb. Fusha te {1} i mbetet palës {2}.
+label	The fighting ends. The field at {1} belongs to the {2}.	Lufta mbaroi. Fusha te {1} i mbetet palës {2}.
+label	The {1} will remember that you stood by.	{1}: kanë me e mbajtë mend që ndejte mënjanë.
+label	An assassin strikes at {1}!	Nji vrasës i sulet {1}!
+label	Battle	Betejë
+label	The field is yours, though none of your side is left standing to share it.	Fusha asht e jotja, por kërkush prej palës tande s'ka mbetë në kambë me e nda me ty.
+label	You stand alone among the fallen.	Veç ti ke mbetë në kambë mes të ramëve.
+label	The attempt on {1}'s life is foiled.	Atentati kundër {1} u pengue.
+label	{1} lives. The killer is dead.	{1} asht gjallë. Vrasësi ka dekë.
+label	The attempt on {1}'s life has failed.	Atentati kundër {1} dështoi.
+label	{1} is dead.	{1} ka dekë.
+label	The killer has got away.	Vrasësi ka ikë.
+label	The {1} will remember your valor at {2}.	{1}: kanë me e kujtue trimninë tande te {2}.
+label	Word reaches you: the {1} and the {2} are drawing up for battle near {3}.	Të vjen fjala: {1} e {2} po rreshtohen për betejë afër {3}.
+label	Hand it over	Dorëzoje
+label	Hand over	Dorëzim
+label	I'll do it	E marr përsipër
+label	Not now	Jo tash
+label	Not yet	Hala jo
+label	Put up your fists	Me grushta
+label	Quest offer	Kërkesë ndihme
+label	Search the body	Kqyre trupin
+label	Something else	Diçka tjetër
+label	Stand up	Çohu
+label	Story	Histori
+label	What you see	Çka sheh
+label	Allow	Lejo
+label	Deny	Refuzo
+label	Deny (Silent)	Refuzo (pa fjalë)
+label	Task permission	Leje për punë
+label	Come along	Ftesë
+label	I'll come along	Po vij
+label	Not this time	Jo kësaj here
+label	At the door	Te dera
+label	I'll check it out	Po shkoj me pa
+label	I'll go alone	Shkoj vetë
+label	Ignore	Mos e hap
+label	Lead the way	Pri përpara
+label	Let them in	Lene me hy
+label	Not interested	S'po due
+label	Send them away	Përzane
+label	{1} is knocking at your door.	{1} po troket në derë.
+label	Give the {1} back to {2}?	Me ia kthye {1} te {2}?
+label	Give {1} back to {2}?	Me ia kthye {1} te {2}?
+label	Give {1} to {2}?	Me ia dhanë {1} te {2}?
+label	A Thief Among Us	Nji hajn mes nesh
+label	Bad Blood	Gjak i prishun
+label	Murder in {1}	Vrasje në {1}
+label	A Story	Nji histori
+label	Tell {1} how it ended	Tregoja {1} qysh mbaroi
+label	Someone stole {1}. {2} asks you to find the thief and bring it back. Reward: {3} gold.	Dikush ka vjedhë {1}. {2} të lut me e gjetë hajnin e me e kthye sendin. Shpërblimi: {3} flori.
+label	Bad blood: {1} and {2} fell out over two hundred gold {3} borrowed. {4} asks you to settle it with {5}, one way or another. Reward: {6} gold.	Gjak i prishun: {1} e {2} u prishën për dyqind flori që {3} mori hua. {4} të lut me e zgjidhë punën me {5}, në nji mënyrë a në tjetrën. Shpërblimi: {6} flori.
+label	Bad blood: {1} has been telling the inn that {2} cheats people. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Gjak i prishun: {1} po flet nëpër han se {2} i mashtron njerëzit. {3} të lut me e zgjidhë punën me {4}, në nji mënyrë a në tjetrën. Shpërblimi: {5} flori.
+label	Bad blood: {1} insulted {2}'s family in public. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Gjak i prishun: {1} e fyu familjen e {2} para botës. {3} të lut me e zgjidhë punën me {4}, në nji mënyrë a në tjetrën. Shpërblimi: {5} flori.
+label	Bad blood: {1} says {2} cheated at dice. {3} asks you to settle it with {4}, one way or another. Reward: {5} gold.	Gjak i prishun: {1} thotë se {2} ka ba hile në zare. {3} të lut me e zgjidhë punën me {4}, në nji mënyrë a në tjetrën. Shpërblimi: {5} flori.
+label	{1} asks you to find out who killed {2}, and name them with proof. Reward: {3} gold.	{1} të lut me zbulue kush e vrau {2} e me e qitë në shesh me prova. Shpërblimi: {3} flori.
+label	{1} Reward: {2} gold.	{1} Shpërblimi: {2} flori.
+label	Settle it with {1} here and now, with your fists?	Me e zgjidhë me {1} ktu e tash, me grushta?
+label	{1} stole {2}. What will you do with {3}?	{1} vodhi {2}. Çka ke me ba me {3}?
+label	How will you settle it between {1} and {2}?	Qysh ke me e zgjidhë punën mes {1} e {2}?
+label	How will you make peace with {1}?	Qysh ke me ba paqe me {1}?
+label	Who killed {1}?	Kush e vrau {1}?
+label	What will you do?	Çka ke me ba?
+label	Hand {1} over to the guard	Dorëzoje {1} te rojet
+label	Let {1} go	Lene {1} me shku
+label	Settle it with your fists against {1}	Zgjidhe me grushta kundër {1}
+label	Talk them into making peace	Bindi me ba paqe
+label	Talk {1} round (Speech)	Bindi {1} (Gojëtari)
+label	Pay {1} {2} gold to let it go	Paguja {1} {2} flori me e lanë
+label	Accuse {1}	Akuzo {1}
+label	{1} (Speech)	{1} (Gojëtari)
+label	Bounty: {1}	Shpërblim për kokë: {1}
+label	Into {1} with {2}	Në {1} me {2}
+label	A Request	Nji kërkesë
+label	{1} asks you to recover his stolen {2} from {3}. Reward: {4} gold.	{1} të lut me ia kthye sendin e vjedhun ({2}) prej {3}. Shpërblimi: {4} flori.
+label	{1} asks you to recover her stolen {2} from {3}. Reward: {4} gold.	{1} të lut me ia kthye sendin e vjedhun ({2}) prej {3}. Shpërblimi: {4} flori.
+label	{1} asks you to recover their stolen {2} from {3}. Reward: {4} gold.	{1} të lut me ia kthye sendin e vjedhun ({2}) prej {3}. Shpërblimi: {4} flori.
+label	{1} asks you to deal with {2} at {3}. Reward: {4} gold.	{1} të lut me e qitë qafe {2} te {3}. Shpërblimi: {4} flori.
+label	{1} and {2} are about to clear out {3} and ask you to come in with them. Say yes and they follow you in and share what you find; say no and they go in alone.	{1} e {2} janë gati me e pastrue {3} e të lusin me hy me ta. Thuaj po e të ndjekin mbrenda e ndajnë çka të gjeni; thuaj jo e hyjnë pa ty.
+label	{1} is about to clear out {2} and asks you to come in too. Say yes and {3} follows you in and shares what you find; say no and {4} goes in alone.	{1} asht gati me e pastrue {2} e të lut me hy edhe ti. Thuaj po e {3} të ndjek mbrenda e ndan çka të gjeni; thuaj jo e {4} hyn pa ty.
+label	{1} and {2} are on their way to clear out {3} and ask you to come along. Say yes and they follow you there and share what you find; say no and they go alone.	{1} e {2} janë rrugës me e pastrue {3} e të lusin me ardhë me ta. Thuaj po e të ndjekin deri atje e ndajnë çka të gjeni; thuaj jo e shkojnë pa ty.
+label	{1} is on the way to clear out {2} and asks you to come along. Say yes and {3} follows you there and shares what you find; say no and {4} goes alone.	{1} asht rrugës me e pastrue {2} e të lut me ardhë. Thuaj po e {3} të ndjek deri atje e ndan çka të gjeni; thuaj jo e {4} shkon pa ty.
+label	Your share of the spoils: {1} gold.	Pjesa jote e plaçkës: {1} flori.
+label	{1} pleads for help rescuing {2} near {3}.	{1} të lutet me e shpëtue {2} afër {3}.
+label	{1} tells you about {2} near {3}.	{1} të tregon për {2} afër {3}.
+label	{1} rallies you to fight alongside the {2} near {3}.	{1} të thërret me luftue përkrah palës {2} afër {3}.
+label	{1} urges you to rescue {2} for the {3} near {4}.	{1} të shtyn me e shpëtue {2} për palën {3} afër {4}.
+label	{1} tells you about trouble near {2}.	{1} të tregon për nji telash afër {2}.
+label	You gave {1} {2} gold.	I dhe {1} {2} flori.
+label	{1} gave you {2} (2).	{1} të dha {2} (2).
+label	{1} gave you {2} gold.	{1} të dha {2} flori.
+label	{1} gave you {2}.	{1} të dha {2}.
+label	Someone gave you {1}.	Dikush të dha {1}.
+label	Informant dispatch refused: {1}.	Dërgimi i informatorit u refuzue: {1}.
+label	IntelEngine: All tasks reset	IntelEngine: krejt punët u rivendosën
+label	IntelEngine: Resetting all tasks...	IntelEngine: po rivendosen krejt punët...
+label	Political event refused: {1} between {2} and {3}. The reason is in the IntelEngine log.	Ngjarja politike u refuzue: {1} mes {2} e {3}. Arsyeja asht në regjistrin e IntelEngine.
+label	Political event: {1} between {2} and {3}.	Ngjarje politike: {1} mes {2} e {3}.
+label	Social dispatch refused: missing narration, invalid type, identical NPCs, or unavailable StoryEngine.	Dërgimi shoqnor u refuzue: mungon rrëfimi, lloji s'vlen, i njejti NPC dy herë, ose StoryEngine s'asht gati.
+label	Social replacement refused: active trip changed; refresh and confirm replacement.	Zëvendësimi shoqnor u refuzue: udhëtimi që po bahet ndryshoi; rifresko e konfirmo zëvendësimin.
+label	Social replacement refused: previous trip or task is still active after cancellation.	Zëvendësimi shoqnor u refuzue: udhëtimi ose puna e ma parshme hala asht aktive mbas anulimit.
+label	Story dispatch refused: narration is empty.	Dërgimi i historisë u refuzue: rrëfimi asht bosh.
+label	Story dispatch refused: StoryEngine is unavailable.	Dërgimi i historisë u refuzue: StoryEngine s'asht gati.
+label	Story engine is busy with {1} ({2}). Cancel it first.	Motori i historive asht i zanë me {1} ({2}). Anuloje ma parë.
+label	Story replacement refused: previous story or task is still active after cancellation.	Zëvendësimi i historisë u refuzue: historia ose puna e ma parshme hala asht aktive mbas anulimit.
+label	Story replacement refused: unknown type or missing message content / informant subject and gossip.	Zëvendësimi i historisë u refuzue: lloj i panjohun, ose mungon përmbajtja e porosisë / subjekti e fjala e informatorit.
+label	{1} and {2}: {3} started.	{1} e {2}: {3} filloi.
+label	{1} has no task to cancel.	{1} s'ka punë me anulue.
+label	{1} is already busy ({2}). Cancel it first.	{1} ka tashma nji punë ({2}). Anuloje ma parë.
+label	{1} sets out ({2}).	{1} niset ({2}).
+label	{1}'s task cancelled.	Puna e {1} u anulue.
+label	{1}'s task was cancelled.	Puna e {1} u anulue.
+label	{1}'s task was cancelled	Puna e {1} u anulue
+label	{1}: conduct reported.	{1}: sjellja u raportue.
+label	{1}: {2} failed.	{1}: {2} dështoi.
+label	{1}: {2} started.	{1}: {2} filloi.
+label	{1} isn't loaded right now (they only exist near their home), so they can't be sent from here.	{1} s'asht në lojë tash (gjindet veç afër shpisë së vet), prandaj s'mundet me u çue prej ktu.
+label	Couldn't find NPC '{1}' (no unique match).	NPC '{1}' s'u gjet (asnji përputhje e vetme).
+label	{1} arrived - {2} is still on the way	{1} arriti - {2} hala asht rrugës
+label	{1} brought {2}	{1} e solli {2}
+label	{1} cannot deliver a message to themselves.	{1} s'mundet me i çue porosi vetes.
+label	{1} cannot deliver a message to {2}, who is dead.	{1} s'mundet me i çue porosi {2}: {2} ka dekë.
+label	{1} could not be found.	{1} s'u gjet.
+label	{1} could not be found. The closest known name is {2}.	{1} s'u gjet. Emni ma i afërt që njihet asht {2}.
+label	{1} could not find the recipient	{1} s'e gjeti marrësin
+label	{1} could not find their target	{1} s'e gjeti atë që kërkonte
+label	{1} could not find {2} to deliver the message.	{1} s'e gjeti {2} me ia dorëzue porosinë.
+label	{1} delivered a message to {2} and is heading back	{1} ia dorëzoi porosinë {2} e po kthehet
+label	{1} delivered the message	{1} e dorëzoi porosinë
+label	{1} escorted {2} to {3}	{1} e përcolli {2} deri te {3}
+label	{1} found {2}	{1} e gjeti {2}
+label	{1} gave up the search for {2}	{1} hoqi dorë prej kërkimit të {2}
+label	{1} is already right here; no delivery task started.	{1} asht tashma ktu; s'nisi kurrfarë pune dorëzimi.
+label	{1} is escorting {2} to {3}	{1} po e përcjell {2} deri te {3}
+label	{1} is going to escort {2} to {3}	{1} ka me e përcjellë {2} deri te {3}
+label	{1} is going to search for {2}	{1} niset me kërkue {2}
+label	{1} lost their escort target	{1} e humbi atë që po përcillte
+label	{1} returned from delivering message to {2}	{1} u kthye mbasi i çoi porosinë {2}
+label	{1} went to deliver a message to {2}	{1} shkoi me i çue nji porosi {2}
+label	{1} went to find {2}	{1} shkoi me e gjetë {2}
+label	{1}: {2} refused - {3}	{1}: {2} refuzoi - {3}
+label	{1} wants to go fetch {2}.	{1} don me shku me e marrë {2}.
+label	{1} wants to help search for {2}.	{1} don me ndihmue në kërkimin e {2}.
+label	{1} wants to escort {2} to {3}.	{1} don me e përcjellë {2} deri te {3}.
+label	{1} wants to travel to {2}.	{1} don me shku në {2}.
+label	{1} wants to deliver a message to {2}.	{1} don me i çue nji porosi {2}.
+label	{1} wants to deliver a message to {2} tomorrow {3}.	{1} don me i çue nji porosi {2} nesër në orën {3}.
+label	{1} wants to deliver a message to {2} in {3} days {4}.	{1} don me i çue nji porosi {2} mbas {3} ditësh në orën {4}.
+label	{1} wants to fetch {2}.	{1} don me shku me marrë dikë: {2}.
+label	{1} wants to fetch {2} tomorrow {3}.	{1} don me shku me e marrë {2} nesër në orën {3}.
+label	{1} wants to fetch {2} in {3} days {4}.	{1} don me shku me e marrë {2} mbas {3} ditësh në orën {4}.
+label	{1} wants to meet at {2}.	{1} don me u taku me ty: {2}.
+label	{1} wants to meet at {2} tomorrow {3}.	{1} don me u taku me ty nesër në orën {3}: {2}.
+label	{1} wants to meet at {2} in {3} days {4}.	{1} don me u taku me ty mbas {3} ditësh në orën {4}: {2}.
+label	{1} wants to meet tomorrow {2}.	{1} don me u taku me ty nesër në orën {2}.
+label	{1} wants to meet in {2} days {3}.	{1} don me u taku me ty mbas {2} ditësh në orën {3}.
+label	{1} will meet at {2}	{1} ka me u taku me ty: {2}
+label	{1} will meet at {2} tomorrow {3}	{1} ka me u taku me ty nesër në orën {3}: {2}
+label	{1} will meet at {2} in {3} days {4}	{1} ka me u taku me ty mbas {3} ditësh në orën {4}: {2}
+label	{1} will meet tomorrow {2}	{1} ka me u taku me ty nesër në orën {2}
+label	{1} will meet in {2} days {3}	{1} ka me u taku me ty mbas {2} ditësh në orën {3}
+label	{1} will fetch {2} {3}	{1} ka me shku me e marrë {2} {3}
+label	{1} will fetch {2} tomorrow {3}	{1} ka me shku me e marrë {2} nesër në orën {3}
+label	{1} will fetch {2} in {3} days {4}	{1} ka me shku me e marrë {2} mbas {3} ditësh në orën {4}
+label	{1} will deliver message to {2} {3}	{1} ka me i çue nji porosi {2} {3}
+label	{1} will deliver message to {2} tomorrow {3}	{1} ka me i çue nji porosi {2} nesër në orën {3}
+label	{1} will deliver message to {2} in {3} days {4}	{1} ka me i çue nji porosi {2} mbas {3} ditësh në orën {4}
+label	Not scheduled: {1} will not meet.	S'u caktue: {1} s'ka me u taku me ty.
+label	Not scheduled: {1} will not fetch {2}.	S'u caktue: {1} s'ka me shku me e marrë {2}.
+label	Not scheduled: {1} will not deliver a message to {2}.	S'u caktue: {1} s'ka me i çue porosi {2}.
+label	Not scheduled: {1} will not {2}.	S'u caktue: {1} ({2}).
+label	Not scheduled: all {1} schedule slots are in use.	S'u caktue: krejt {1} vendet e orarit janë të zana.
+label	All scheduled tasks cancelled	Krejt punët e caktueme u anuluen
+label	{1} could not set out for the meeting at {2}. It is off.	{1} s'mujti me u nisë për takimin te {2}. Takimi u anulue.
+label	Quest marker unavailable (alias not found)	Shenja e detyrës s'asht gati (aliasi s'u gjet)
+label	Quest: {1} [{2}]	Detyrë: {1} [{2}]
+label	Rescue completed!	Shpëtimi u krye!
+label	Something feels wrong...	Diçka s'po shkon mirë...
+label	Sounds of fighting carry from up ahead.	Përpara po ndihen zhurma lufte.
+label	Story: {1} couldn't reach you - story ended	Histori: {1} s'mujti me të arritë - historia mbaroi
+label	Story: {1} gave up	Histori: {1} hoqi dorë
+label	The area is quiet. The threat seems to have moved on.	Vendi asht i qetë. Rreziku duket se ka ikë.
+label	The fighting has ended before you arrived.	Lufta mbaroi para se me arritë ti.
+label	The fighting is already underway elsewhere.	Lufta ka nisë tashma diku tjetër.
+label	The forces have already moved on.	Forcat kanë ikë tashma.
+label	The threat has been dealt with.	Rreziku u mënjanue.
+label	The {1} acknowledge your intent to fight.	{1}: ta çmojnë vullnetin me luftue.
+label	The {1} acknowledge your willingness to help.	{1}: ta çmojnë gatishmërinë me ndihmue.
+label	The {1} held the field unopposed.	{1}: e mbajtën fushën pa kurrfarë kundërshtimi.
+label	The {1} speak your name with respect.	{1}: emnin tand e përmendin me nderim.
+label	They seem to have more to ask...	Duket se kanë edhe diçka me të lypë...
+label	Word of your deeds reaches the {1}.	{1}: fjala për bamat e tua ka arritë atje.
+label	Word reaches you: the battle has moved on.	Të vjen fjala: beteja asht zhvendosë.
+label	You claim the {1}.	E merr: {1}.
+label	You hear the clink of armor ahead.	Përpara ndihet kërcitje parzmoresh.
+label	You should hurry - the situation won't hold much longer.	Duhet me u ngutë - puna s'ka me durue edhe shumë.
+label	Your name carries weight among the {1}.	{1}: emni yt ka peshë mes tyne.
+label	{1} can no longer lead the way. The map marker shows where to go.	{1} s'mundet ma me të pri. Shenja në hartë të tregon ku me shku.
+label	{1} didn't make it.	{1} s'ia doli.
+label	{1} has been freed!	{1} u lirue!
+label	{1} gave you an answer for {2}.	{1} të dha nji përgjigje për {2}.
+label	{1} gave you more time.	{1} të dha ma shumë kohë.
+label	{1} is coming with you to see {2}.	{1} po vjen me ty te {2}.
+label	{1} needs it within half a day now.	{1} e ka nevojë tash brenda gjysë dite.
+label	{1} no longer needs your help with it.	{1} s'ka ma nevojë për ndihmën tande për këtë.
+label	{1} will come with you to see {2} once done here.	{1} ka me ardhë me ty te {2} sa të mbarojë ktu.
+label	{1} will give you {2} gold for it.	{1} ka me të dhanë {2} flori për këtë.
+label	{1} arrived at {2}	{1} arriti te {2}
+label	{1} arrived late to {2} and eventually gave up waiting for you	{1} arriti vonë te {2} e në fund hoqi dorë prej pritjes
+label	{1} arrived too late for the meeting at {2}	{1} arriti tepër vonë për takimin te {2}
+label	{1} could not come to the meeting at {2}. It is off.	{1} s'mujti me ardhë në takimin te {2}. Takimi u anulue.
+label	{1} got tired of waiting for you at {2}	{1} u lodh tue të pritë te {2}
+label	{1} headed off after the meeting	{1} u largue mbas takimit
+label	{1} headed off to {2}	{1} u nis për në {2}
+label	{1} left {2}	{1} u largue prej {2}
+label	{1} met you at {2}	{1} u takue me ty te {2}
+label	{1} never made it to the meeting at {2}	{1} s'arriti kurrë në takimin te {2}
+label	The {1} now count you an Auxiliary.	{1}: tash të kanë për Ndihmës.
+label	The {1} now count you a Sworn Sword.	{1}: tash të kanë për Shpatë të Betueme.
+label	The {1} now count you a Veteran.	{1}: tash të kanë për Veteran.
+label	The {1} now count you a Captain.	{1}: tash të kanë për Kapiten.
+label	The {1} now count you a Champion.	{1}: tash të kanë për Kampion.
+label	The {1} now count you an Associate.	{1}: tash të kanë për Bashkëpunëtor.
+label	The {1} now count you a Trusted Hand.	{1}: tash të kanë për Dorë të Besueme.
+label	The {1} now count you a Lieutenant.	{1}: tash të kanë për Toger.
+label	The {1} now count you a Right Hand.	{1}: tash të kanë për Dorë të Djathtë.
+label	The {1} now count you a Hired Blade.	{1}: tash të kanë për Shpatë me Rrogë.
+label	The {1} now count you a Retainer.	{1}: tash të kanë për Njeri të Shpisë.
+label	The {1} now count you a Trusted Retainer.	{1}: tash të kanë për Njeri të Besuem të Shpisë.
+label	The {1} now count you a Sworn Captain.	{1}: tash të kanë për Kapiten të Betuem.
+label	The {1} now count you a Champion of the House.	{1}: tash të kanë për Kampion të Shpisë.
+label	The trail leads on to the north.	Gjurma vazhdon kah veriu.
+label	The trail leads on to the north-east.	Gjurma vazhdon kah verilindja.
+label	The trail leads on to the east.	Gjurma vazhdon kah lindja.
+label	The trail leads on to the south-east.	Gjurma vazhdon kah juglindja.
+label	The trail leads on to the south.	Gjurma vazhdon kah jugu.
+label	The trail leads on to the south-west.	Gjurma vazhdon kah jugperëndimi.
+label	The trail leads on to the west.	Gjurma vazhdon kah perëndimi.
+label	The trail leads on to the north-west.	Gjurma vazhdon kah veriperëndimi.
+# 2026-11-23: an appointment's time comes translated on its own (24-hour clock), then its sentence; and the sentences added since the packs were first translated.
+label	at {1}	(sot, ora {1})
+label	tomorrow at {1}	(nesër, ora {1})
+label	in {1} days at {2}	(mbas {1} ditësh, ora {2})
+label	{1} will meet at {2} {3}	Takim me {1} – vendi: {2} {3}
+label	{1} will meet {2}	Takim me {1} {2}
+label	{1} wants to meet at {2} {3}.	{1} don me u takue me ty – vendi: {2} {3}.
+label	{1} wants to meet {2}.	{1} don me u takue me ty {2}.
+label	{1} wants to fetch {2} {3}.	{1} don me shku me e marrë {2} {3}.
+label	{1} wants to deliver a message to {2} {3}.	{1} don me i çue nji porosi {2} {3}.
+label	Not scheduled: {1} will not meet at {2}.	S'u caktue: s'ka takim me {1} – vendi: {2}.
+label	{1} soldiers of the {2} keep by your side.	{1} ushtarë të palës {2} të rrijnë afër.
+label	Quest dispatch refused: {1}.	Dërgimi i kuestit u refuzue: {1}.
+label	IntelEngine: Slot {1} cleared	IntelEngine: vendi {1} u lirue
+label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} ka ende punë tjetër e s'mujti me mbajtë çka u la ({2}). U anulue.
+label	Letter	Letër
+label	Ledger	Libër llogarish
+label	Journal	Ditar
+label	Note	Shënim
+label	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.	Letra asht palue e shpalue aq shpesh sa palat janë çjerrë. Boja asht shkri në disa vende.
+label	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.	Data, emna e shuma mbushin çdo faqe me nji shkrim të ngjeshun. Disa rreshta janë fshi e rishkrue.
+label	Page after page in the same hand: some entries a line long, some running on for pages.	Faqe mbas faqeje me të njajtin shkrim dore: disa shënime sa nji rresht, disa vazhdojnë faqe të tana.
+label	A few lines, written in haste.	Disa rreshta, të shkruem me ngut.

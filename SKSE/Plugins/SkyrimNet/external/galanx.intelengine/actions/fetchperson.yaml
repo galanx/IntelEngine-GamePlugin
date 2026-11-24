@@ -35,12 +35,15 @@ parameterMapping:
       The person to fetch. Must be a named NPC or hold guard.
       NEVER {{ player.name }} — you cannot fetch the player.
       Valid: "Ysolda", "Nazeem", "Whiterun Guard"
+      Write the name exactly as it stands in the game and the context, in the game's language and in its plain
+      form: no case ending, no article, never translated.
       INVALID: "{{ player.name }}", "Soldier", "Courier", "Messenger", "Bandit", "Traveler".
       If you cannot name a specific person, do NOT use this action.
   - type: dynamic
     name: failReason
     description: >
       Should the target refuse? Set to "none" if they come willingly.
+      Write the word "none" in English, whatever language you are speaking.
       If they would refuse, write the reason.
   - type: static
     value: "SkyrimNet dialogue action"
