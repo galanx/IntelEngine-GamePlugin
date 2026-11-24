@@ -386,3 +386,11 @@ label	{1} soldiers of the {2} keep by your side.	{1} soldati di {2} restano al t
 label	Quest dispatch refused: {1}.	Invio della missione rifiutato: {1}.
 label	IntelEngine: Slot {1} cleared	IntelEngine: posto {1} liberato
 label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} ha ancora altro da fare e non ha potuto mantenere quanto concordato ({2}). È annullato.
+label	Letter	Lettera
+label	Ledger	Registro
+label	Journal	Diario
+label	Note	Nota
+label	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.	La lettera è stata piegata e spiegata così tante volte che le pieghe si sono consumate. L'inchiostro è colato in alcuni punti.
+label	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.	Date, nomi e somme riempiono ogni pagina con una grafia fitta. Alcune righe sono state cancellate e riscritte.
+label	Page after page in the same hand: some entries a line long, some running on for pages.	Pagina dopo pagina con la stessa grafia: alcune annotazioni lunghe una riga, altre che continuano per pagine.
+label	A few lines, written in haste.	Poche righe, scritte in fretta.

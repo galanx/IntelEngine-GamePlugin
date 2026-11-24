@@ -4,6 +4,14 @@
 # {1} {2} stand for a name or a number and may change places in the translation; none may be added.
 # A sentence no pack has stays English. Longer, more particular sentences are tried first.
 
+label	A few lines, written in haste.	A few lines, written in haste.
+label	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.
+label	Journal	Journal
+label	Ledger	Ledger
+label	Letter	Letter
+label	Note	Note
+label	Page after page in the same hand: some entries a line long, some running on for pages.	Page after page in the same hand: some entries a line long, some running on for pages.
+label	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.
 label	A champion of the {1} takes the field.	A champion of the {1} takes the field.
 label	A second force of the {1} breaks from cover on the flank!	A second force of the {1} breaks from cover on the flank!
 label	Champion of the {1}	Champion of the {1}

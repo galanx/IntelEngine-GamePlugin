@@ -383,3 +383,11 @@ label	{1} soldiers of the {2} keep by your side.	{2}의 병사({1})가 당신 �
 label	Quest dispatch refused: {1}.	퀘스트 파견 거부됨: {1}.
 label	IntelEngine: Slot {1} cleared	IntelEngine: 슬롯 {1} 비움
 label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1}은(는) 아직 다른 일에 매여 약속을 지키지 못했습니다 ({2}). 취소되었습니다.
+label	Letter	편지
+label	Ledger	장부
+label	Journal	일지
+label	Note	쪽지
+label	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.	편지는 너무 여러 번 접었다 펴서 접힌 자국이 닳아 있습니다. 군데군데 잉크가 번져 있습니다.
+label	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.	날짜와 이름, 금액이 빽빽한 글씨로 모든 페이지를 채우고 있습니다. 몇몇 줄은 지워지고 그 위에 다시 쓰여 있습니다.
+label	Page after page in the same hand: some entries a line long, some running on for pages.	같은 필체로 페이지가 이어집니다. 한 줄짜리 기록도 있고, 여러 페이지에 걸친 기록도 있습니다.
+label	A few lines, written in haste.	급히 쓴 몇 줄.

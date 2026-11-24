@@ -386,3 +386,11 @@ label	{1} soldiers of the {2} keep by your side.	{2}: солдаты рядом 
 label	Quest dispatch refused: {1}.	Отправка задания отклонена: {1}.
 label	IntelEngine: Slot {1} cleared	IntelEngine: ячейка {1} очищена
 label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1} всё ещё не может освободиться и выполнить уговор ({2}). Отменяется.
+label	Letter	Письмо
+label	Ledger	Счётная книга
+label	Journal	Дневник
+label	Note	Записка
+label	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.	Письмо столько раз складывали и разворачивали, что сгибы протёрлись. Местами чернила расплылись.
+label	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.	Даты, имена и суммы заполняют каждую страницу убористым почерком. Некоторые строки зачёркнуты и переписаны.
+label	Page after page in the same hand: some entries a line long, some running on for pages.	Страница за страницей одним и тем же почерком: одни записи в строчку, другие на много страниц.
+label	A few lines, written in haste.	Несколько строк, написанных в спешке.

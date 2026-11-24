@@ -1,5 +1,9 @@
 # Changelog
 
+## Not released yet
+
+- **A story's papers are papers.** A story that turned on a ledger, a letter or a diary had nothing to hide but jewellery, gems and the like: a player found "Lemkil's Hidden Ledger" in their pack, and it was an amulet. Stories now have four papers to turn on, a letter, a ledger, a journal and a note, with the look of the game's own, and what the story writes in one is what you read when you open it, from the ground or from your pack. Something with writing in it that is not a paper is refused, and the story is written again around a paper. A paper no story holds any more reads as a plain one. Their names and plain words are in all ten language packs. A story begun before this build keeps the item it has. Played on the test setup: a ledger read where it lay, a letter read from the pack (the player's name in it), a plain ledger, and both papers counted as found by their story.
+
 ## 4.0.0-alpha.3 — 2026-11-23, a test build for the community
 
 The living world, by Galanx. People you know get on with their lives while you are away, ask things of you that the journal keeps, and come back to what is still open between you. Six new settings under "Living world" decide how much of it you get; at "Classic" everything stays as it was in 3.8.

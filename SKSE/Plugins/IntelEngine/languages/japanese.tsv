@@ -385,3 +385,11 @@ label	{1} soldiers of the {2} keep by your side.	{2}の兵士（{1}）がそば�
 label	Quest dispatch refused: {1}.	クエストの派遣は却下：{1}。
 label	IntelEngine: Slot {1} cleared	IntelEngine：枠{1}を空けた
 label	{1} is still caught up in something and could not keep what was arranged ({2}). It is off.	{1}はまだ手が離せず、取り決めを守れなかった（{2}）。取り消しだ。
+label	Letter	手紙
+label	Ledger	帳簿
+label	Journal	日誌
+label	Note	メモ
+label	The letter has been folded and unfolded so often that the creases have worn through. The ink has run in places.	何度も折りたたんでは開いたせいで、手紙の折り目はすり切れている。インクがところどころにじんでいる。
+label	Dates, names and sums run down every page in a cramped hand. Some rows have been scratched out and written over.	日付、名前、金額が、窮屈な筆跡でどのページにもびっしりと書き込まれている。いくつかの行は線で消され、上から書き直されている。
+label	Page after page in the same hand: some entries a line long, some running on for pages.	同じ筆跡でページが続いている。一行だけの記述もあれば、何ページにもわたる記述もある。
+label	A few lines, written in haste.	急いで書かれた数行。
