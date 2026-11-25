@@ -1,6 +1,8 @@
 # Changelog
 
-## Not released yet
+## 4.0.1 — 2026-11-25
+
+One fix, for a crash. The DLL and two scripts changed (IntelEngine, IntelEngine_Arcs: a test hook); everything else is 4.0.0's. Install over 4.0.0 or any of the alphas; saves and settings carry over.
 
 - **A broken faction record in another mod no longer ends the game.** To describe a person (race, factions, class) IntelEngine reads the name of each faction in their record. In a reported setup, a translated game with some 700 plugins, one of Torvar's faction entries handed out a name that was no text at all (a number where the text's address belongs), and reading it ended the game whenever he was near the player. Each entry of that list is now checked against the game's own table of records before anything of it is used, names are read under a guard, and a faction whose name cannot be read is called by its editor name. The same guard now stands wherever IntelEngine takes a name from the game. From a user's crash log. Played on the test setup: with the game made to answer a faction's name with that number, for Torvar and for Hulda, the description was built, the log said so once, and the game went on.
 
