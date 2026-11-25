@@ -257,6 +257,12 @@ Int Function DebugReach(Actor who)
     Return IntelEngine.ArcDebugReach(who)
 EndFunction
 
+Int Function DebugBadFactionName(Actor who)
+    {Test hook (a crash report of 2026-11-25): this person's factions hand out names that are no text, the line that
+    describes them is built, and the names are put back. The log has the line; -1 without a faction to try it on.}
+    Return IntelEngine.ArcDebugBadFactionName(who)
+EndFunction
+
 Bool Function DebugTaleWhy(Actor asker, String why)
     {Test hook: a tale as the director asks for one: the asker's own reason, and they come to the player wherever the
     player is.}

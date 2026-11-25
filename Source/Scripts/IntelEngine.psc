@@ -749,6 +749,7 @@ Bool Function ArcInWilds(ObjectReference akRef) Global Native
 ; Test hook: how far the director's distance rule takes someone to be (0 here, 1 the same hold, 2 another hold), plus
 ; 10 when they are close to the player. Logged too.
 Int Function ArcDebugReach(Actor akActor) Global Native
+Int Function ArcDebugBadFactionName(Actor akActor) Global Native
 ; The offer of someone who came from another hold could not go out now: tried again in an hour.
 Function ArcOfferLater(Int id) Global Native
 ; The asker set out at a walk and the player was gone before they got there: the offer goes out when they next meet.
